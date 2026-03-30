@@ -20,8 +20,11 @@
         <header class="dashboard-header">
             <div class="header-content">
                 <div class="header-title">
-                    <h1>{% block dashboard_title %}Dashboard{% endblock %}</h1>
-                    <p class="header-subtitle">{% block dashboard_subtitle %}Your personalized AI-powered trading dashboard{% endblock %}</p>
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <h1 class="mb-0">{% block dashboard_title %}Dashboard{% endblock %}</h1>
+                        <span class="broker-name-badge">{{ broker_name }}</span>
+                    </div>
+                    <p class="header-subtitle mt-1">{% block dashboard_subtitle %}Your personalized AI-powered trading dashboard{% endblock %}</p>
                 </div>
                 <div class="header-actions">
                     <!-- Subtle Signal Indicator -->
@@ -105,6 +108,24 @@
         </div>
     </div>
 </div>
+
+<style>
+.broker-name-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #4a6fa5;
+    background: rgba(74, 111, 165, 0.10);
+    border: 1px solid rgba(74, 111, 165, 0.22);
+    border-radius: 20px;
+    padding: 3px 10px;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+</style>
 
 <script>
 (function() {

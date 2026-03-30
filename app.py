@@ -493,3 +493,12 @@ def inject_tenant_config():
         except Exception:
             pass
         return dict(tenant_config={})
+
+@app.context_processor
+def inject_site_config():
+    try:
+        from models import SiteConfig
+        broker_name = SiteConfig.get('broker_name', 'Scentric Networks')
+    except Exception:
+        broker_name = 'Scentric Networks'
+    return dict(broker_name=broker_name)

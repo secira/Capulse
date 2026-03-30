@@ -1301,6 +1301,27 @@ def blog_delete(post_id):
     return redirect(url_for('admin.blog_list'))
 
 
+@admin_bp.route('/branding', methods=['GET', 'POST'])
+@admin_required
+def branding():
+    """Manage platform branding settings — broker name, etc."""
+    from models import SiteConfig
+
+    if request.method == 'POST':
+        broker_name = request.form.get('broker_name', '').strip()
+        if not broker_name:
+            flash('Broker name cannot be empty.', 'error')
+        elif len(broker_name) > 80:
+            flash('Broker name must be 80 characters or fewer.', 'error')
+        else:
+            SiteConfig.set_value('broker_name', broker_name)
+            flash(f'Broker name updated to "{broker_name}".', 'success')
+        return redirect(url_for('admin.branding'))
+
+    current_broker_name = SiteConfig.get('broker_name', 'Scentric Networks')
+    return render_template('admin/branding.html', broker_name=current_broker_name)
+
+
 @admin_bp.route('/blog/<int:post_id>/toggle-featured', methods=['POST'])
 @admin_required
 def blog_toggle_featured(post_id):

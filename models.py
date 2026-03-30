@@ -3170,6 +3170,35 @@ class DataConnectorConfig(db.Model):
         }
 
 
+class SiteConfig(db.Model):
+    """Platform-wide configuration key-value store (broker name, branding, etc.)"""
+    __tablename__ = 'site_config'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    key        = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    value      = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @classmethod
+    def get(cls, key, default=None):
+        try:
+            record = cls.query.filter_by(key=key).first()
+            return record.value if record else default
+        except Exception:
+            return default
+
+    @classmethod
+    def set_value(cls, key, value):
+        record = cls.query.filter_by(key=key).first()
+        if record:
+            record.value      = value
+            record.updated_at = datetime.utcnow()
+        else:
+            record = cls(key=key, value=value)
+            db.session.add(record)
+        db.session.commit()
+
+
 class PortfolioEvent(db.Model):
     """Persistent Portfolio Memory — every decision, trade & alert logged for AI context."""
     __tablename__ = 'portfolio_events'
