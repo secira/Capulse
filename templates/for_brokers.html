@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+
+{% block title %}White-Label AI Trading Platform for Brokers | Target Capital{% endblock %}
+{% block description %}Power your brokerage with Scentric AI — a fully white-labelled portfolio analytics, AI research, and trading signal platform built for Indian brokers. Rapid deployment, multi-tenant, and API-ready.{% endblock %}
+
+{% block content %}
+
+<style>
+/* ── Broker page styles ── */
+.broker-hero {
+    background: linear-gradient(135deg, #00091a 0%, #001433 60%, #002060 100%);
+    padding: 100px 0 80px;
+    position: relative;
+    overflow: hidden;
+}
+.broker-hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -80px;
+    width: 520px; height: 520px;
+    background: radial-gradient(circle, rgba(74,111,165,0.18) 0%, transparent 70%);
+    border-radius: 50%;
+}
+.broker-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: -60px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(0,120,255,0.12) 0%, transparent 70%);
+    border-radius: 50%;
+}
+.broker-badge {
+    display: inline-block;
+    background: rgba(74,111,165,0.25);
+    border: 1px solid rgba(74,111,165,0.5);
+    color: #7eb3f7;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+}
+.hero-stat {
+    text-align: center;
+    padding: 20px;
+}
+.hero-stat-num {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #7eb3f7;
+    line-height: 1;
+}
+.hero-stat-label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+.section-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #4a6fa5;
+    background: rgba(74,111,165,0.10);
+    border: 1px solid rgba(74,111,165,0.20);
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+}
+.feature-card {
+    background: #ffffff;
+    border: 1px solid #eef0f4;
+    border-radius: 16px;
+    padding: 28px 24px;
+    height: 100%;
+    transition: transform .2s, box-shadow .2s;
+}
+.feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,0,0,.09);
+}
+.feature-icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    margin-bottom: 16px;
+}
+.benefit-item {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 20px 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+.benefit-item:last-child { border-bottom: none; }
+.benefit-icon {
+    width: 40px; height: 40px; flex-shrink: 0;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    background: linear-gradient(135deg, #4a6fa5, #6a9fd8);
+    color: #fff;
+}
+.process-step {
+    text-align: center;
+    padding: 20px 12px;
+    position: relative;
+}
+.step-num {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00091a, #4a6fa5);
+    color: #fff;
+    font-size: 16px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px;
+}
+.process-connector {
+    position: absolute;
+    top: 42px; right: -14%;
+    width: 28%; height: 2px;
+    background: linear-gradient(90deg, #4a6fa5, #c8d8ef);
+}
+.form-card {
+    background: #ffffff;
+    border: 1px solid #eef0f4;
+    border-radius: 20px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.07);
+    padding: 40px;
+}
+.contact-info-card {
+    background: linear-gradient(135deg, #00091a 0%, #001433 100%);
+    border-radius: 20px;
+    padding: 36px 32px;
+    color: #fff;
+    height: 100%;
+}
+.contact-row {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 16px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+.contact-row:last-child { border-bottom: none; }
+.contact-row-icon {
+    width: 36px; height: 36px; flex-shrink: 0;
+    border-radius: 8px;
+    background: rgba(74,111,165,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    color: #7eb3f7;
+}
+</style>
+
+{# ══════════════════════════════════════
+   HERO
+══════════════════════════════════════ #}
+<section class="broker-hero">
+    <div class="container position-relative" style="z-index:1;">
+        <div class="row align-items-center">
+            <div class="col-lg-7 mb-5 mb-lg-0">
+                <div class="broker-badge">
+                    <i class="fas fa-handshake me-1"></i>B2B White-Label Partner Programme
+                </div>
+                <h1 class="display-4 fw-bold text-white mb-4" style="line-height:1.15;">
+                    Turn Your Brokerage into an<br>
+                    <span style="background:linear-gradient(90deg,#7eb3f7,#a5c8ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">AI-Powered Platform</span>
+                </h1>
+                <p class="lead mb-5" style="color:rgba(255,255,255,.7); font-size:1.15rem; max-width:540px;">
+                    Give your clients institutional-grade portfolio analytics, AI research, and trading signals — fully branded under your name. Powered by the Scentric AI Decision Engine.
+                </p>
+                <div class="d-flex flex-wrap gap-3">
+                    <a href="#interest-form" class="btn btn-primary btn-lg px-5 py-3 rounded-pill fw-semibold">
+                        <i class="fas fa-rocket me-2"></i>Get Started
+                    </a>
+                    <a href="#features" class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill fw-semibold">
+                        <i class="fas fa-play-circle me-2"></i>See Features
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="row g-3 mt-2">
+                    <div class="col-6">
+                        <div class="hero-stat" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;">
+                            <div class="hero-stat-num">15M+</div>
+                            <div class="hero-stat-label">Target Investors</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="hero-stat" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;">
+                            <div class="hero-stat-num">12</div>
+                            <div class="hero-stat-label">Brokers Supported</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="hero-stat" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;">
+                            <div class="hero-stat-num">6–8</div>
+                            <div class="hero-stat-label">Weeks to Deploy</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="hero-stat" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;">
+                            <div class="hero-stat-num">11</div>
+                            <div class="hero-stat-label">Asset Classes</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# ══════════════════════════════════════
+   PLATFORM FEATURES
+══════════════════════════════════════ #}
+<section id="features" class="py-6" style="background:#f8f9fb; padding:80px 0;">
+    <div class="container">
+        <div class="text-center mb-5">
+            <div class="section-tag">Platform Features</div>
+            <h2 class="fw-bold mb-3" style="font-size:2rem;">Everything your clients need. Nothing they don't.</h2>
+            <p class="text-muted" style="max-width:560px; margin:0 auto; font-size:1.05rem;">
+                A complete AI-powered trading support suite built for the Indian market — delivered under your brand.
+            </p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-4">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:linear-gradient(135deg,#e8f4fd,#c8e6f9);color:#1565c0;">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <h5 class="fw-semibold mb-2">Portfolio Hub</h5>
+                    <p class="text-muted mb-0" style="font-size:14px;">Unified multi-broker dashboard across 11 asset classes — equities, F&O, MF, bonds, crypto, real estate and more. Real-time PnL and analytics.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:linear-gradient(135deg,#f3e8ff,#e1c4f7);color:#6a1b9a;">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h5 class="fw-semibold mb-2">AI Research Co-Pilot</h5>
+                    <p class="text-muted mb-0" style="font-size:14px;">RAG-powered research assistant with real-time web search (Perplexity), stock deep-dives, and AI-generated trade suggestions with cited sources.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:linear-gradient(135deg,#fff8e1,#ffecb3);color:#e65100;">
+                        <i class="fas fa-fire-alt"></i>
+                    </div>
+                    <h5 class="fw-semibold mb-2">Live Market Pulse</h5>
+                    <p class="text-muted mb-0" style="font-size:14px;">Real-time Nifty 50 heatmap, sector performance, top movers, index strip, and an interactive AI query interface with voice support.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9);color:#1b5e20;">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h5 class="fw-semibold mb-2">Scentric Risk Engine</h5>
+                    <p class="text-muted mb-0" style="font-size:14px;">Portfolio Pulse health score, Risk Heat Map per asset class, Goal-Based Monitoring, and behavioural guardrails that warn against risk-profile violations.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);color:#880e4f;">
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <h5 class="fw-semibold mb-2">I-Score AI Engine</h5>
+                    <p class="text-muted mb-0" style="font-size:14px;">7-factor weighted score per stock — qualitative, quantitative, sentiment, trend — powered by Claude AI and Perplexity real-time search.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb);color:#0d47a1;">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h5 class="fw-semibold mb-2">Trading Signals</h5>
+                    <p class="text-muted mb-0" style="font-size:14px;">Transparent, experience-gated AI signals with entry, target and stop-loss. Supports equities, F&O, ETFs and commodities with plan-based access control.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# ══════════════════════════════════════
+   WHITE-LABEL BENEFITS
+══════════════════════════════════════ #}
+<section style="padding:80px 0; background:#ffffff;">
+    <div class="container">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-5">
+                <div class="section-tag">White-Label Benefits</div>
+                <h2 class="fw-bold mb-3" style="font-size:2rem;">Your brand. Our technology. Your clients.</h2>
+                <p class="text-muted" style="font-size:1.05rem;">
+                    We handle the AI infrastructure, data pipelines, and platform updates. You focus on your broker-client relationships and grow AUM.
+                </p>
+                <a href="#interest-form" class="btn btn-primary rounded-pill px-4 mt-3">
+                    <i class="fas fa-handshake me-2"></i>Become a Partner
+                </a>
+            </div>
+            <div class="col-lg-7">
+                <div class="benefit-item">
+                    <div class="benefit-icon"><i class="fas fa-palette"></i></div>
+                    <div>
+                        <div class="fw-semibold mb-1">Fully White-Labelled</div>
+                        <div class="text-muted" style="font-size:14px;">Custom logo, colour scheme, domain, and configurable broker name displayed on every page. Your clients never see "Target Capital".</div>
+                    </div>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon"><i class="fas fa-plug"></i></div>
+                    <div>
+                        <div class="fw-semibold mb-1">API-First Integration</div>
+                        <div class="text-muted" style="font-size:14px;">Pluggable B2B connector to your broker back-office or order management system via REST API. Supports Dhan, Zerodha, AngelOne, and custom APIs.</div>
+                    </div>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon"><i class="fas fa-users"></i></div>
+                    <div>
+                        <div class="fw-semibold mb-1">Multi-Tenant Architecture</div>
+                        <div class="text-muted" style="font-size:14px;">Full data isolation per broker tenant. Your client data never mixes with other partners'. Row-level PostgreSQL security and per-tenant encryption.</div>
+                    </div>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon"><i class="fas fa-rocket"></i></div>
+                    <div>
+                        <div class="fw-semibold mb-1">Rapid Deployment</div>
+                        <div class="text-muted" style="font-size:14px;">Go live in 6–8 weeks. We handle infrastructure setup, data connector integration, and staff training — you get a production-ready platform.</div>
+                    </div>
+                </div>
+                <div class="benefit-item">
+                    <div class="benefit-icon"><i class="fas fa-headset"></i></div>
+                    <div>
+                        <div class="fw-semibold mb-1">Dedicated Partner Support</div>
+                        <div class="text-muted" style="font-size:14px;">Dedicated account manager, priority bug fixes, SLA-backed uptime, and quarterly product roadmap access for all white-label partners.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# ══════════════════════════════════════
+   HOW IT WORKS (PROCESS)
+══════════════════════════════════════ #}
+<section style="padding:80px 0; background:#f8f9fb;">
+    <div class="container">
+        <div class="text-center mb-5">
+            <div class="section-tag">How It Works</div>
+            <h2 class="fw-bold mb-2" style="font-size:2rem;">From inquiry to go-live in 4 steps</h2>
+        </div>
+        <div class="row g-0 justify-content-center">
+            <div class="col-6 col-md-3">
+                <div class="process-step">
+                    <div class="step-num">1</div>
+                    <div class="process-connector d-none d-md-block"></div>
+                    <h6 class="fw-semibold mb-1">Submit Enquiry</h6>
+                    <p class="text-muted" style="font-size:13px;">Fill in the form below. Our partnerships team will contact you within 1 business day.</p>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="process-step">
+                    <div class="step-num">2</div>
+                    <div class="process-connector d-none d-md-block"></div>
+                    <h6 class="fw-semibold mb-1">Discovery Call</h6>
+                    <p class="text-muted" style="font-size:13px;">We understand your tech stack, client base, and requirements. Customise the feature set to your needs.</p>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="process-step">
+                    <div class="step-num">3</div>
+                    <div class="process-connector d-none d-md-block"></div>
+                    <h6 class="fw-semibold mb-1">Integration & Branding</h6>
+                    <p class="text-muted" style="font-size:13px;">We set up your tenant, connect your broker API, apply branding, and run user acceptance tests.</p>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="process-step">
+                    <div class="step-num">4</div>
+                    <h6 class="fw-semibold mb-1">Go Live</h6>
+                    <p class="text-muted" style="font-size:13px;">Launch to your clients with onboarding materials, training, and ongoing support from our team.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# ══════════════════════════════════════
+   INTEREST FORM + CONTACT
+══════════════════════════════════════ #}
+<section id="interest-form" style="padding:80px 0; background:#ffffff;">
+    <div class="container">
+        <div class="text-center mb-5">
+            <div class="section-tag">Partner Enquiry</div>
+            <h2 class="fw-bold mb-2" style="font-size:2rem;">Ready to offer AI-powered trading to your clients?</h2>
+            <p class="text-muted">Complete the form and our B2B partnerships team will be in touch within 1 business day.</p>
+        </div>
+
+        <div class="row g-5 align-items-start">
+            <div class="col-lg-7">
+                <div class="form-card">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show mb-4" role="alert">
+                                    <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' }} me-2"></i>
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <form method="POST" action="{{ url_for('for_brokers') }}">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Brokerage / Company Name <span class="text-danger">*</span></label>
+                                <input type="text" name="company" class="form-control form-control-lg" placeholder="e.g. ABC Securities Ltd" required maxlength="200">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Contact Person <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control form-control-lg" placeholder="Full name" required maxlength="100">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Business Email <span class="text-danger">*</span></label>
+                                <input type="email" name="email" class="form-control form-control-lg" placeholder="you@company.com" required maxlength="200">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Phone Number <span class="text-danger">*</span></label>
+                                <input type="tel" name="phone" class="form-control form-control-lg" placeholder="+91 98XXXXXXXX" maxlength="20">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Number of Active Clients</label>
+                                <select name="client_count" class="form-select form-select-lg">
+                                    <option value="">Select range</option>
+                                    <option value="Under 1,000">Under 1,000</option>
+                                    <option value="1,000–10,000">1,000 – 10,000</option>
+                                    <option value="10,000–50,000">10,000 – 50,000</option>
+                                    <option value="50,000–1 Lakh">50,000 – 1 Lakh</option>
+                                    <option value="Above 1 Lakh">Above 1 Lakh</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Interested In</label>
+                                <select name="interest" class="form-select form-select-lg">
+                                    <option value="Full White-Label Platform">Full White-Label Platform</option>
+                                    <option value="API Integration Only">API Integration Only</option>
+                                    <option value="Specific Modules">Specific Modules</option>
+                                    <option value="Pilot / PoC First">Pilot / PoC First</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Message / Requirements</label>
+                                <textarea name="message" class="form-control" rows="4" placeholder="Tell us about your platform, current tech stack, and what you'd like to achieve…" maxlength="2000"></textarea>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5 w-100 fw-semibold">
+                                    <i class="fas fa-paper-plane me-2"></i>Send Enquiry
+                                </button>
+                                <p class="text-muted text-center mt-2 mb-0" style="font-size:12px;">
+                                    <i class="fas fa-lock me-1"></i>Your information is kept strictly confidential. We'll never share it with third parties.
+                                </p>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="contact-info-card">
+                    <h5 class="fw-semibold mb-1 text-white">Get in Touch</h5>
+                    <p style="color:rgba(255,255,255,.55); font-size:14px; margin-bottom:24px;">Prefer to talk directly? Reach us through any of the channels below.</p>
+
+                    <div class="contact-row">
+                        <div class="contact-row-icon"><i class="fas fa-envelope"></i></div>
+                        <div>
+                            <div style="font-size:11px; color:rgba(255,255,255,.45); text-transform:uppercase; letter-spacing:.05em;">Email</div>
+                            <a href="mailto:b2b@targetcapital.in" style="color:#7eb3f7; font-size:14px; text-decoration:none;">b2b@targetcapital.in</a>
+                        </div>
+                    </div>
+
+                    <div class="contact-row">
+                        <div class="contact-row-icon"><i class="fas fa-phone"></i></div>
+                        <div>
+                            <div style="font-size:11px; color:rgba(255,255,255,.45); text-transform:uppercase; letter-spacing:.05em;">Phone / WhatsApp</div>
+                            <a href="https://wa.me/919XXXXXXXXX" style="color:#7eb3f7; font-size:14px; text-decoration:none;">+91 9XXXXXXXXX</a>
+                        </div>
+                    </div>
+
+                    <div class="contact-row">
+                        <div class="contact-row-icon"><i class="fab fa-linkedin"></i></div>
+                        <div>
+                            <div style="font-size:11px; color:rgba(255,255,255,.45); text-transform:uppercase; letter-spacing:.05em;">LinkedIn</div>
+                            <a href="https://www.linkedin.com/company/tcapitalbiz/" target="_blank" rel="noopener" style="color:#7eb3f7; font-size:14px; text-decoration:none;">linkedin.com/company/tcapitalbiz</a>
+                        </div>
+                    </div>
+
+                    <div class="contact-row">
+                        <div class="contact-row-icon"><i class="fas fa-clock"></i></div>
+                        <div>
+                            <div style="font-size:11px; color:rgba(255,255,255,.45); text-transform:uppercase; letter-spacing:.05em;">Response Time</div>
+                            <div style="color:#fff; font-size:14px;">Within 1 business day</div>
+                        </div>
+                    </div>
+
+                    <div class="contact-row">
+                        <div class="contact-row-icon"><i class="fas fa-map-marker-alt"></i></div>
+                        <div>
+                            <div style="font-size:11px; color:rgba(255,255,255,.45); text-transform:uppercase; letter-spacing:.05em;">Company</div>
+                            <div style="color:#fff; font-size:14px;">Scentric Network Pvt. Ltd.<br><span style="color:rgba(255,255,255,.5); font-size:13px;">India</span></div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-2">
+                        <p style="font-size:12px; color:rgba(255,255,255,.4); margin:0;">
+                            <i class="fas fa-shield-alt me-1" style="color:#7eb3f7;"></i>
+                            All enquiries are handled under strict NDA. We're happy to sign a mutual NDA before any detailed technical discussion.
+                        </p>
+                    </div>
+                </div>
+
+                {# Trust badges #}
+                <div class="row g-2 mt-3">
+                    <div class="col-4">
+                        <div class="text-center p-3 rounded-3" style="background:#f8f9fb; border:1px solid #eef0f4;">
+                            <i class="fas fa-lock" style="color:#4a6fa5; font-size:18px;"></i>
+                            <div style="font-size:11px; color:#888; margin-top:6px; font-weight:600;">NDA Ready</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-center p-3 rounded-3" style="background:#f8f9fb; border:1px solid #eef0f4;">
+                            <i class="fas fa-server" style="color:#4a6fa5; font-size:18px;"></i>
+                            <div style="font-size:11px; color:#888; margin-top:6px; font-weight:600;">Cloud / On-Prem</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-center p-3 rounded-3" style="background:#f8f9fb; border:1px solid #eef0f4;">
+                            <i class="fas fa-code" style="color:#4a6fa5; font-size:18px;"></i>
+                            <div style="font-size:11px; color:#888; margin-top:6px; font-weight:600;">API First</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# ══════════════════════════════════════
+   BOTTOM CTA BANNER
+══════════════════════════════════════ #}
+<section style="background:linear-gradient(135deg,#00091a,#001433); padding:60px 0;">
+    <div class="container text-center">
+        <h3 class="fw-bold text-white mb-3">Ready to differentiate your brokerage?</h3>
+        <p style="color:rgba(255,255,255,.65); max-width:500px; margin:0 auto 28px; font-size:1.05rem;">
+            Join the brokers already building the next generation of client experience on the Scentric AI platform.
+        </p>
+        <a href="#interest-form" class="btn btn-primary btn-lg rounded-pill px-5 me-3">
+            <i class="fas fa-rocket me-2"></i>Request a Demo
+        </a>
+        <a href="mailto:b2b@targetcapital.in" class="btn btn-outline-light btn-lg rounded-pill px-5">
+            <i class="fas fa-envelope me-2"></i>Email Us
+        </a>
+    </div>
+</section>
+
+{% endblock %}

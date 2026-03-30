@@ -274,6 +274,49 @@ def partners():
     """Partners page route"""
     return render_template('partners.html')
 
+@app.route('/for-brokers', methods=['GET', 'POST'])
+def for_brokers():
+    """B2B white-label broker enquiry page"""
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        phone = request.form.get('phone', '').strip()
+        company = request.form.get('company', '').strip()
+        client_count = request.form.get('client_count', '').strip()
+        interest = request.form.get('interest', '').strip()
+        message_body = request.form.get('message', '').strip()
+
+        if not name or not email or not company:
+            flash('Please fill in all required fields.', 'error')
+            return render_template('for_brokers.html')
+
+        subject = f"[B2B Broker Enquiry] {company} – {interest}"
+        full_message = (
+            f"Company: {company}\n"
+            f"Active Clients: {client_count or 'Not specified'}\n"
+            f"Interested In: {interest}\n\n"
+            f"{message_body}"
+        )
+
+        enquiry = ContactMessage(
+            name=name,
+            email=email,
+            phone=phone or None,
+            company=company,
+            subject=subject,
+            message=full_message,
+            inquiry_type='Partnership',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent', '')[:500],
+        )
+        db.session.add(enquiry)
+        db.session.commit()
+
+        flash('Thank you! Your enquiry has been received. Our partnerships team will contact you within 1 business day.', 'success')
+        return redirect(url_for('for_brokers') + '#interest-form')
+
+    return render_template('for_brokers.html')
+
 @app.route('/trading-signals')
 def trading_signals():
     """Public Trading Signals page route"""
