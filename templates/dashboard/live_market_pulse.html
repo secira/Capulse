@@ -971,36 +971,39 @@ function closeDetail(){document.getElementById('detailPanel').style.display='non
 
 /**
  * fmtDisplay: renders AI markdown into clean HTML for display.
- * Strips asterisks, hashes, underscores so they never show as raw symbols.
+ * Order matters: bullets and headings are stripped BEFORE italic matching
+ * so that `* item *word*` is never incorrectly consumed.
  */
 function fmtDisplay(t) {
     return t
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // **bold** → <strong>
-        .replace(/__(.*?)__/g,     '<strong>$1</strong>')  // __bold__ → <strong>
-        .replace(/\*(.*?)\*/g,     '$1')                    // *italic* → plain
-        .replace(/_(.*?)_/g,       '$1')                    // _italic_ → plain
-        .replace(/^#{1,6}\s+/gm,  '')                       // ## Headings → strip #
-        .replace(/^[\*\-]\s+/gm,  '• ')                     // * bullet / - bullet → •
-        .replace(/\*/g,            '')                       // any stray * → gone
-        .replace(/\n\n/g,         '<br><br>')
-        .replace(/\n/g,            '<br>');
+        .replace(/^#{1,6}\s+/gm,        '')                      // ## heading → plain
+        .replace(/^[\*\-\+]\s+/gm,      '• ')                    // * / - bullet → •
+        .replace(/\*\*(.*?)\*\*/g,      '<strong>$1</strong>')    // **bold**
+        .replace(/__(.*?)__/g,          '<strong>$1</strong>')    // __bold__
+        .replace(/\*(.*?)\*/g,          '$1')                     // *italic* → plain
+        .replace(/_(.*?)_/g,            '$1')                     // _italic_ → plain
+        .replace(/\*/g,                 '')                       // any stray *
+        .replace(/_/g,                  '')                       // any stray _
+        .replace(/\n\n/g,              '<br><br>')
+        .replace(/\n/g,                '<br>');
 }
 
 /**
- * cleanForTTS: strips ALL markdown and HTML for clean spoken output.
+ * cleanForTTS: strips ALL markdown so nothing is spoken as a symbol.
+ * Same order — bullets and headings first.
  */
 function cleanForTTS(text) {
     return text
-        .replace(/\*\*(.*?)\*\*/g, '$1')   // **bold** → just the word
-        .replace(/__(.*?)__/g,     '$1')
-        .replace(/\*(.*?)\*/g,     '$1')
-        .replace(/_(.*?)_/g,       '$1')
-        .replace(/^#{1,6}\s+/gm,  '')
-        .replace(/^[\*\-•]\s+/gm, '')
-        .replace(/\*/g,            '')
-        .replace(/_/g,             '')
-        .replace(/<[^>]+>/g,       ' ')    // strip any HTML tags
-        .replace(/\s{2,}/g,        ' ')    // collapse multiple spaces
+        .replace(/^#{1,6}\s+/gm,        '')
+        .replace(/^[\*\-\+•]\s+/gm,     '')
+        .replace(/\*\*(.*?)\*\*/g,      '$1')
+        .replace(/__(.*?)__/g,          '$1')
+        .replace(/\*(.*?)\*/g,          '$1')
+        .replace(/_(.*?)_/g,            '$1')
+        .replace(/\*/g,                 '')
+        .replace(/_/g,                  '')
+        .replace(/<[^>]+>/g,            ' ')
+        .replace(/\s{2,}/g,             ' ')
         .trim();
 }
 
@@ -1075,19 +1078,7 @@ function renderAnswer(answer) {
         const ttsBtn = el.querySelector('#ttsAnswerBtn');
         if (ttsBtn) {
             ttsBtn.addEventListener('click', function() {
-                if (ttsActive && this.dataset.speaking === '1') {
-                    stopSpeech();
-                    return;
-                }
-                const btn = this;
-                btn.classList.add('active');
-                btn.dataset.speaking = '1';
-                btn.querySelector('i').className = 'fas fa-stop';
-                _startTTS(answer, () => {
-                    btn.classList.remove('active');
-                    btn.dataset.speaking = '0';
-                    btn.querySelector('i').className = 'fas fa-volume-up';
-                });
+                startTTS(answer, this);
             });
         }
     }
@@ -1197,18 +1188,11 @@ function stopVoice() {
  */
 let ttsQueue      = [];
 let ttsActive     = false;
-let ttsOnDone     = null;   // callback fired when the whole queue finishes
-let ttsKeepAlive  = null;   // setInterval handle
-
-function stripHtml(html) {
-    const d = document.createElement('div');
-    d.innerHTML = html;
-    return (d.textContent || d.innerText || '').trim();
-}
+let ttsKeepAlive  = null;
+let _ttsActiveBtn = null;   // the button currently driving speech
 
 /* Split text into sentence-sized chunks (≤ 200 chars), keeping punctuation. */
 function splitSentences(text) {
-    // split on sentence-ending punctuation; keep delimiter attached
     const raw = text.match(/[^.!?]+[.!?]*/g) || [text];
     const chunks = [];
     let current = '';
@@ -1237,9 +1221,43 @@ function pickVoice() {
     return null;
 }
 
+/* Set a TTS button into its "speaking" state */
+function _btnSpeaking(btn) {
+    if (!btn) return;
+    btn.classList.add('active');
+    btn.dataset.speaking = '1';
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = btn.id === 'speakBriefBtn' ? 'fas fa-stop me-1' : 'fas fa-stop';
+    const lbl = btn.querySelector('#speakBriefLabel');
+    if (lbl) lbl.textContent = 'Stop';
+}
+
+/* Reset a TTS button back to its idle state */
+function _btnIdle(btn) {
+    if (!btn) return;
+    btn.classList.remove('active');
+    btn.dataset.speaking = '0';
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = btn.id === 'speakBriefBtn' ? 'fas fa-volume-up me-1' : 'fas fa-volume-up';
+    const lbl = btn.querySelector('#speakBriefLabel');
+    if (lbl) lbl.textContent = 'Listen';
+}
+
+/* Cancel synthesis only — does NOT touch any button state */
+function _cancelAudio() {
+    ttsActive = false;
+    ttsQueue  = [];
+    clearInterval(ttsKeepAlive);
+    ttsKeepAlive = null;
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+}
+
 function _speakNext() {
     if (!ttsActive || !ttsQueue.length) {
-        _ttsFinish();
+        /* Queue done — reset button and clean up */
+        _btnIdle(_ttsActiveBtn);
+        _ttsActiveBtn = null;
+        _cancelAudio();
         return;
     }
     const chunk = ttsQueue.shift();
@@ -1249,29 +1267,38 @@ function _speakNext() {
     utt.pitch   = 1.0;
     const voice = pickVoice();
     if (voice) utt.voice = voice;
-
     utt.onend   = () => { if (ttsActive) _speakNext(); };
     utt.onerror = (e) => { if (e.error !== 'interrupted') _speakNext(); };
-
     window.speechSynthesis.speak(utt);
 }
 
-function _ttsFinish() {
-    ttsActive = false;
-    clearInterval(ttsKeepAlive);
-    ttsKeepAlive = null;
-    resetBriefBtn();
-    const ab = document.getElementById('ttsAnswerBtn');
-    if (ab) { ab.classList.remove('active'); ab.dataset.speaking='0'; ab.querySelector('i').className='fas fa-volume-up'; }
-    if (typeof ttsOnDone === 'function') ttsOnDone();
-    ttsOnDone = null;
-}
+/**
+ * startTTS(text, btn)
+ * If btn is already speaking → stop (toggle off).
+ * Otherwise → stop any current speech, then start fresh on btn.
+ */
+function startTTS(text, btn) {
+    if (!window.speechSynthesis) return;
 
-function _startTTS(text, onDone) {
-    stopSpeech();
-    ttsQueue   = splitSentences(cleanForTTS(text));
-    ttsActive  = true;
-    ttsOnDone  = onDone || null;
+    /* Toggle: clicking the active button stops speech */
+    if (ttsActive && _ttsActiveBtn === btn) {
+        stopSpeech();
+        return;
+    }
+
+    /* Stop whatever was playing before */
+    _cancelAudio();
+    _btnIdle(_ttsActiveBtn);
+    _ttsActiveBtn = null;
+
+    const clean = cleanForTTS(text);
+    if (!clean.trim()) return;
+
+    ttsQueue      = splitSentences(clean);
+    ttsActive     = true;
+    _ttsActiveBtn = btn;
+
+    _btnSpeaking(btn);
 
     /* Chrome keep-alive: pause+resume every 10 s */
     ttsKeepAlive = setInterval(() => {
@@ -1283,48 +1310,22 @@ function _startTTS(text, onDone) {
     _speakNext();
 }
 
+/* Public hard-stop (called on new queries, page actions, etc.) */
 function stopSpeech() {
-    ttsActive = false;
-    ttsQueue  = [];
-    clearInterval(ttsKeepAlive);
-    ttsKeepAlive = null;
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    resetBriefBtn();
-    const ab = document.getElementById('ttsAnswerBtn');
-    if (ab) { ab.classList.remove('active'); ab.dataset.speaking='0'; ab.querySelector('i').className='fas fa-volume-up'; }
+    _btnIdle(_ttsActiveBtn);
+    _ttsActiveBtn = null;
+    _cancelAudio();
 }
 
-function resetBriefBtn() {
-    const icon  = document.getElementById('speakBriefIcon');
-    const label = document.getElementById('speakBriefLabel');
-    if (icon)  icon.className  = 'fas fa-volume-up me-1';
-    if (label) label.textContent = 'Listen';
-    const btn = document.getElementById('speakBriefBtn');
-    if (btn)  { btn.classList.remove('active'); btn.dataset.speaking = '0'; }
-}
-
+/* Convenience wrapper for the Market Brief "Listen" button */
 function speakBrief() {
-    if (!window.speechSynthesis) return;
-    const btn  = document.getElementById('speakBriefBtn');
-    const icon = document.getElementById('speakBriefIcon');
-    const lbl  = document.getElementById('speakBriefLabel');
-
-    if (ttsActive && btn && btn.dataset.speaking === '1') {
-        stopSpeech();
-        return;
-    }
-
-    const raw  = document.getElementById('aiText').innerText || '';
-    const text = cleanForTTS(raw);
-    if (!text.trim()) return;
-
-    btn.classList.add('active');
-    btn.dataset.speaking = '1';
-    if (icon) icon.className  = 'fas fa-stop me-1';
-    if (lbl)  lbl.textContent = 'Stop';
-
-    _startTTS(text, () => resetBriefBtn());
+    const btn = document.getElementById('speakBriefBtn');
+    const raw = document.getElementById('aiText').innerText || '';
+    startTTS(raw, btn);
 }
+
+/* resetBriefBtn kept for any legacy calls */
+function resetBriefBtn() { _btnIdle(document.getElementById('speakBriefBtn')); }
 
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
