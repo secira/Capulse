@@ -164,6 +164,28 @@
 }
 .ai-refresh-btn:hover { background: #f1f3f4; color: #000000; }
 
+/* ── TTS Read-aloud button ── */
+.tts-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    margin-top: 6px;
+    background: #f1f3f4;
+    border: 1px solid #e5e5e5;
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    font-size: 11px;
+    color: #666666;
+    cursor: pointer;
+    transition: all .15s;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+.tts-btn:hover  { background: #000000; color: #ffffff; border-color: #000000; }
+.tts-btn.active { background: #000000; color: #ffffff; border-color: #000000; }
+
 /* ── Heatmap legend ── */
 .hm-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .hm-leg    { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #666666; font-weight: 500; }
@@ -425,9 +447,14 @@
                 <div class="ai-panel-name">Scentric AI</div>
                 <div class="ai-panel-sub">Market Brief · Today</div>
             </div>
-            <button class="ai-refresh-btn" onclick="loadAI()">
-                <i class="fas fa-sync-alt me-1" style="font-size:10px;"></i>Refresh Brief
-            </button>
+            <div style="display:flex; gap:6px; align-items:center;">
+                <button class="ai-refresh-btn" id="speakBriefBtn" onclick="speakBrief()" title="Read aloud" style="display:none;">
+                    <i class="fas fa-volume-up me-1" style="font-size:10px;" id="speakBriefIcon"></i><span id="speakBriefLabel">Listen</span>
+                </button>
+                <button class="ai-refresh-btn" onclick="loadAI()">
+                    <i class="fas fa-sync-alt me-1" style="font-size:10px;"></i>Refresh Brief
+                </button>
+            </div>
         </div>
         <div id="aiText" class="ai-panel-text">
             <span style="color:#999999;">
@@ -943,13 +970,19 @@ function closeDetail(){document.getElementById('detailPanel').style.display='non
 /* ── AI Commentary ── */
 async function loadAI() {
     const el=document.getElementById('aiText');
+    const btn=document.getElementById('speakBriefBtn');
+    btn.style.display='none';
+    stopSpeech();
     el.innerHTML='<span style="color:#999999;"><i class="fas fa-circle-notch fa-spin me-2"></i>Analysing…</span>';
     try {
         const r=await fetch('{{ url_for("market_pulse_commentary") }}');
         const d=await r.json();
-        el.innerHTML=d.success&&d.commentary
-            ? d.commentary.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
-            : '<span style="color:#999999;">Commentary unavailable — try refreshing.</span>';
+        if (d.success && d.commentary) {
+            el.innerHTML = d.commentary.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>');
+            btn.style.display='';
+        } else {
+            el.innerHTML='<span style="color:#999999;">Commentary unavailable — try refreshing.</span>';
+        }
     } catch(e){
         el.innerHTML='<span style="color:#999999;">Could not load commentary.</span>';
     }
@@ -994,18 +1027,52 @@ function renderAnswer(answer) {
     const fmt = t => t.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
         .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
     const el = document.getElementById('aiAnswer');
-    if (el) el.innerHTML = `
-        <div class="ai-msg ai">
-            <div class="ai-msg-av"><i class="fas fa-robot" style="font-size:9px;"></i></div>
-            <div class="ai-msg-bubble">${fmt(answer)}</div>
-        </div>
-        <div class="ai-msg-time">${now}</div>`;
+    if (el) {
+        el.innerHTML = `
+            <div class="ai-msg ai">
+                <div class="ai-msg-av"><i class="fas fa-robot" style="font-size:9px;"></i></div>
+                <div class="ai-msg-bubble">
+                    ${fmt(answer)}
+                    <button class="tts-btn" id="ttsAnswerBtn" title="Read aloud">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="ai-msg-time">${now}</div>`;
+        const ttsBtn = el.querySelector('#ttsAnswerBtn');
+        if (ttsBtn) {
+            ttsBtn.addEventListener('click', function() {
+                if (ttsActive && this.dataset.speaking === '1') {
+                    stopSpeech();
+                    return;
+                }
+                if (ttsActive) stopSpeech();
+                const text = answer;
+                ttsUtterance = new SpeechSynthesisUtterance(text);
+                ttsUtterance.lang  = 'en-IN';
+                ttsUtterance.rate  = 0.95;
+                ttsUtterance.pitch = 1.0;
+                this.classList.add('active');
+                this.dataset.speaking = '1';
+                this.querySelector('i').className = 'fas fa-stop';
+                ttsActive = true;
+                ttsUtterance.onend = ttsUtterance.onerror = () => {
+                    ttsActive = false;
+                    this.classList.remove('active');
+                    this.dataset.speaking = '0';
+                    this.querySelector('i').className = 'fas fa-volume-up';
+                };
+                window.speechSynthesis.speak(ttsUtterance);
+            });
+        }
+    }
 }
 
 async function sendAIQuery() {
     const q = aiInput.value.trim();
     if (!q || q.length < 2) return;
 
+    stopSpeech();
     aiInput.value = '';
     document.getElementById('aiSendBtn').disabled = true;
     if (aiChips) aiChips.style.display = 'none';
@@ -1094,6 +1161,102 @@ function stopVoice() {
     document.getElementById('voiceIcon').className = 'fas fa-microphone';
     document.getElementById('voiceTip').classList.remove('active');
     aiInput.placeholder = 'Ask about stocks, sectors, markets, portfolio strategies…';
+}
+
+/* ── Text-to-Speech (Read Aloud) ── */
+let ttsUtterance = null;
+let ttsActive    = false;
+
+function stripHtml(html) {
+    const d = document.createElement('div');
+    d.innerHTML = html;
+    return d.textContent || d.innerText || '';
+}
+
+function speakText(rawText, btnEl) {
+    if (!window.speechSynthesis) return;
+
+    if (ttsActive) {
+        stopSpeech();
+        if (btnEl && btnEl.dataset.speaking === '1') return;
+    }
+
+    const text = stripHtml(rawText);
+    ttsUtterance = new SpeechSynthesisUtterance(text);
+    ttsUtterance.lang  = 'en-IN';
+    ttsUtterance.rate  = 0.95;
+    ttsUtterance.pitch = 1.0;
+
+    const allBtns = document.querySelectorAll('.tts-btn, #speakBriefBtn');
+    if (btnEl) {
+        btnEl.classList.add('active');
+        btnEl.dataset.speaking = '1';
+        btnEl.querySelector('i').className = 'fas fa-stop';
+    }
+    ttsActive = true;
+
+    ttsUtterance.onend = ttsUtterance.onerror = () => {
+        ttsActive = false;
+        allBtns.forEach(b => {
+            b.classList.remove('active');
+            b.dataset.speaking = '0';
+        });
+        resetBriefBtn();
+        const ab = document.getElementById('ttsAnswerBtn');
+        if (ab) ab.querySelector('i').className = 'fas fa-volume-up';
+    };
+
+    window.speechSynthesis.speak(ttsUtterance);
+}
+
+function stopSpeech() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    ttsActive = false;
+    resetBriefBtn();
+    const ab = document.getElementById('ttsAnswerBtn');
+    if (ab) { ab.classList.remove('active'); ab.querySelector('i').className = 'fas fa-volume-up'; }
+}
+
+function resetBriefBtn() {
+    const icon  = document.getElementById('speakBriefIcon');
+    const label = document.getElementById('speakBriefLabel');
+    if (icon)  icon.className = 'fas fa-volume-up me-1';
+    if (label) label.textContent = 'Listen';
+    const btn = document.getElementById('speakBriefBtn');
+    if (btn)  { btn.classList.remove('active'); btn.dataset.speaking = '0'; }
+}
+
+function speakBrief() {
+    const btn  = document.getElementById('speakBriefBtn');
+    const icon = document.getElementById('speakBriefIcon');
+    const lbl  = document.getElementById('speakBriefLabel');
+    const text = document.getElementById('aiText').innerText || '';
+
+    if (ttsActive && btn && btn.dataset.speaking === '1') {
+        stopSpeech();
+        return;
+    }
+
+    if (!window.speechSynthesis) return;
+    if (ttsActive) stopSpeech();
+
+    ttsUtterance = new SpeechSynthesisUtterance(text);
+    ttsUtterance.lang  = 'en-IN';
+    ttsUtterance.rate  = 0.95;
+    ttsUtterance.pitch = 1.0;
+
+    btn.classList.add('active');
+    btn.dataset.speaking = '1';
+    if (icon)  icon.className = 'fas fa-stop me-1';
+    if (lbl)   lbl.textContent = 'Stop';
+    ttsActive = true;
+
+    ttsUtterance.onend = ttsUtterance.onerror = () => {
+        ttsActive = false;
+        resetBriefBtn();
+    };
+
+    window.speechSynthesis.speak(ttsUtterance);
 }
 
 /* ── Init ── */
