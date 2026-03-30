@@ -976,23 +976,30 @@ function askChip(el) {
     sendAIQuery();
 }
 
-function appendMsg(role, text) {
+function renderQA(question, answer) {
     const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
-    const isUser = role === 'user';
-    const av = isUser
-        ? '<i class="fas fa-user" style="font-size:9px;"></i>'
-        : '<i class="fas fa-robot" style="font-size:9px;"></i>';
-    const formatted = text.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    const div = document.createElement('div');
-    div.innerHTML = `
-        <div class="ai-msg ${isUser ? 'user' : 'ai'}">
-            <div class="ai-msg-av">${av}</div>
-            <div class="ai-msg-bubble">${formatted}</div>
+    const fmt = t => t.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
+        .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    aiMsgBox.innerHTML = `
+        <div class="ai-msg user">
+            <div class="ai-msg-av"><i class="fas fa-user" style="font-size:9px;"></i></div>
+            <div class="ai-msg-bubble">${fmt(question)}</div>
         </div>
-        <div class="ai-msg-time ${isUser ? 'user' : ''}">${now}</div>`;
-    aiMsgBox.appendChild(div);
-    aiMsgBox.scrollTop = aiMsgBox.scrollHeight;
+        <div class="ai-msg-time user">${now}</div>
+        <div id="aiAnswer"></div>`;
+}
+
+function renderAnswer(answer) {
+    const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+    const fmt = t => t.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
+        .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    const el = document.getElementById('aiAnswer');
+    if (el) el.innerHTML = `
+        <div class="ai-msg ai">
+            <div class="ai-msg-av"><i class="fas fa-robot" style="font-size:9px;"></i></div>
+            <div class="ai-msg-bubble">${fmt(answer)}</div>
+        </div>
+        <div class="ai-msg-time">${now}</div>`;
 }
 
 async function sendAIQuery() {
@@ -1003,27 +1010,26 @@ async function sendAIQuery() {
     document.getElementById('aiSendBtn').disabled = true;
     if (aiChips) aiChips.style.display = 'none';
 
-    appendMsg('user', q);
+    renderQA(q, '');
     aiTyping.classList.add('active');
+    aiMsgBox.scrollTop = aiMsgBox.scrollHeight;
 
     try {
-        const body = { message: q };
         const r = await fetch('/api/market-pulse/query', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
+            body: JSON.stringify({ message: q })
         });
         const d = await r.json();
         aiTyping.classList.remove('active');
-        if (d.error) {
-            appendMsg('ai', 'Sorry, I could not process that. ' + (d.error || ''));
-            return;
-        }
-        appendMsg('ai', d.response || d.message || 'No response received.');
+        renderAnswer(d.error
+            ? 'Sorry, I could not process that. ' + d.error
+            : (d.response || d.message || 'No response received.'));
     } catch (e) {
         aiTyping.classList.remove('active');
-        appendMsg('ai', 'Something went wrong. Please try again.');
+        renderAnswer('Something went wrong. Please try again.');
     }
+    aiMsgBox.scrollTop = aiMsgBox.scrollHeight;
 }
 
 /* ── Voice Input (Web Speech API) ── */
