@@ -173,7 +173,7 @@ if is_production:
         referrer_policy='strict-origin-when-cross-origin',
         feature_policy={
             'camera': "'none'",
-            'microphone': "'none'",
+            'microphone': "'self'",
             'geolocation': "'self'",
         }
     )
