@@ -790,10 +790,10 @@ class NSEService:
         """
         return {
             'indices': {
-                'nifty_50': {'lastPrice': 24530.90, 'change': 125.60, 'pChange': 0.51},
-                'sensex': {'lastPrice': 80840.50, 'change': 284.30, 'pChange': 0.35},
-                'nifty_bank': {'lastPrice': 52840.75, 'change': -156.25, 'pChange': -0.29},
-                'nifty_it': {'lastPrice': 42150.30, 'change': 98.45, 'pChange': 0.23},
+                'nifty_50': {'lastPrice': 22331.40, 'change': -485.70, 'pChange': -2.14},
+                'sensex': {'lastPrice': 71947.55, 'change': -1630.45, 'pChange': -2.22},
+                'nifty_bank': {'lastPrice': 50275.35, 'change': -1998.80, 'pChange': -3.82},
+                'nifty_it': {'lastPrice': 29062.60, 'change': -476.40, 'pChange': -1.62},
                 'timestamp': dt.datetime.now(timezone.utc)
             },
             'top_gainers': [

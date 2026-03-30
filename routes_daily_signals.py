@@ -189,11 +189,11 @@ def dashboard_daily_signals():
 
     # ── Market data — run all expensive calls in parallel ────────────────────
     FALLBACK_INDICES = {
-        'nifty_50':   {'label': 'NIFTY 50',   'value': 24530.90, 'change_percent': 0.51,  'live': False},
-        'nifty_bank': {'label': 'BANK NIFTY', 'value': 52840.75, 'change_percent': -0.29, 'live': False},
-        'sensex':     {'label': 'SENSEX',     'value': 80840.50, 'change_percent': 0.35,  'live': False},
-        'nifty_it':   {'label': 'NIFTY IT',   'value': 42150.30, 'change_percent': 0.23,  'live': False},
-        'india_vix':  {'label': 'INDIA VIX',  'value': 14.25,    'change_percent': 0,     'live': False},
+        'nifty_50':   {'label': 'NIFTY 50',   'value': 22331.40, 'change_percent': -2.14, 'live': False},
+        'nifty_bank': {'label': 'BANK NIFTY', 'value': 50275.35, 'change_percent': -3.82, 'live': False},
+        'sensex':     {'label': 'SENSEX',     'value': 71947.55, 'change_percent': -2.22, 'live': False},
+        'nifty_it':   {'label': 'NIFTY IT',   'value': 29062.60, 'change_percent': -1.62, 'live': False},
+        'india_vix':  {'label': 'INDIA VIX',  'value': 27.89,    'change_percent': +4.06, 'live': False},
     }
     market_indices = {k: dict(v) for k, v in FALLBACK_INDICES.items()}
     top_gainers    = []
@@ -205,8 +205,47 @@ def dashboard_daily_signals():
         cached = _market_cache_get('indices')
         if cached is not None:
             return cached
-        from services.nse_service import NSEService
-        result = NSEService().get_market_indices()
+
+        result = {}
+
+        # Primary: yfinance individual Ticker calls (parallel) for real index values
+        INDEX_MAP = {
+            '^NSEI':     'nifty_50',
+            '^NSEBANK':  'nifty_bank',
+            '^BSESN':    'sensex',
+            '^CNXIT':    'nifty_it',
+            '^INDIAVIX': 'india_vix',
+        }
+
+        def _yf_index(yf_sym):
+            try:
+                import yfinance as yf
+                hist = yf.Ticker(yf_sym).history(period='5d')
+                if hist.empty:
+                    return yf_sym, None
+                last = float(hist['Close'].iloc[-1])
+                prev = float(hist['Close'].iloc[-2]) if len(hist) >= 2 else last
+                chg  = round((last - prev) / prev * 100, 2) if prev else 0.0
+                return yf_sym, {'value': last, 'change_percent': chg}
+            except Exception:
+                return yf_sym, None
+
+        try:
+            with ThreadPoolExecutor(max_workers=5) as idx_pool:
+                for sym, data in idx_pool.map(_yf_index, INDEX_MAP.keys()):
+                    if data:
+                        result[INDEX_MAP[sym]] = data
+        except Exception as e:
+            logger.warning(f"yfinance index fetch failed: {e}")
+
+        # Fallback: NSE service (may have stale values if NSE API is blocked)
+        if not result:
+            try:
+                from services.nse_service import NSEService
+                result = NSEService().get_market_indices()
+            except Exception:
+                pass
+
         _market_cache_set('indices', result)
         return result
 
