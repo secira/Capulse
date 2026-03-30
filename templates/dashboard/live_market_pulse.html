@@ -1046,23 +1046,15 @@ function renderAnswer(answer) {
                     stopSpeech();
                     return;
                 }
-                if (ttsActive) stopSpeech();
-                const text = answer;
-                ttsUtterance = new SpeechSynthesisUtterance(text);
-                ttsUtterance.lang  = 'en-IN';
-                ttsUtterance.rate  = 0.95;
-                ttsUtterance.pitch = 1.0;
-                this.classList.add('active');
-                this.dataset.speaking = '1';
-                this.querySelector('i').className = 'fas fa-stop';
-                ttsActive = true;
-                ttsUtterance.onend = ttsUtterance.onerror = () => {
-                    ttsActive = false;
-                    this.classList.remove('active');
-                    this.dataset.speaking = '0';
-                    this.querySelector('i').className = 'fas fa-volume-up';
-                };
-                window.speechSynthesis.speak(ttsUtterance);
+                const btn = this;
+                btn.classList.add('active');
+                btn.dataset.speaking = '1';
+                btn.querySelector('i').className = 'fas fa-stop';
+                _startTTS(answer, () => {
+                    btn.classList.remove('active');
+                    btn.dataset.speaking = '0';
+                    btn.querySelector('i').className = 'fas fa-volume-up';
+                });
             });
         }
     }
@@ -1164,103 +1156,151 @@ function stopVoice() {
 }
 
 /* ── Text-to-Speech (Read Aloud) ── */
-let ttsUtterance = null;
-let ttsActive    = false;
+/*
+ * Chrome has a well-known bug: speechSynthesis silently stops after ~15 s.
+ * Fix: split text into sentences and speak them one-by-one via a queue.
+ * Each chunk triggers the next through its onend callback.
+ * A keep-alive interval also pauses/resumes every 10 s as an extra safety net.
+ */
+let ttsQueue      = [];
+let ttsActive     = false;
+let ttsOnDone     = null;   // callback fired when the whole queue finishes
+let ttsKeepAlive  = null;   // setInterval handle
 
 function stripHtml(html) {
     const d = document.createElement('div');
     d.innerHTML = html;
-    return d.textContent || d.innerText || '';
+    return (d.textContent || d.innerText || '').trim();
 }
 
-function speakText(rawText, btnEl) {
-    if (!window.speechSynthesis) return;
+/* Split text into sentence-sized chunks (≤ 200 chars), keeping punctuation. */
+function splitSentences(text) {
+    // split on sentence-ending punctuation; keep delimiter attached
+    const raw = text.match(/[^.!?]+[.!?]*/g) || [text];
+    const chunks = [];
+    let current = '';
+    raw.forEach(s => {
+        s = s.trim();
+        if (!s) return;
+        if ((current + ' ' + s).length > 200) {
+            if (current) chunks.push(current.trim());
+            current = s;
+        } else {
+            current = current ? current + ' ' + s : s;
+        }
+    });
+    if (current.trim()) chunks.push(current.trim());
+    return chunks.length ? chunks : [text];
+}
 
-    if (ttsActive) {
-        stopSpeech();
-        if (btnEl && btnEl.dataset.speaking === '1') return;
+/* Pick the best available voice for en-IN / en-GB / en-US */
+function pickVoice() {
+    const voices = window.speechSynthesis.getVoices();
+    const priority = ['en-IN', 'en-GB', 'en-US', 'en'];
+    for (const lang of priority) {
+        const v = voices.find(v => v.lang.startsWith(lang));
+        if (v) return v;
     }
+    return null;
+}
 
-    const text = stripHtml(rawText);
-    ttsUtterance = new SpeechSynthesisUtterance(text);
-    ttsUtterance.lang  = 'en-IN';
-    ttsUtterance.rate  = 0.95;
-    ttsUtterance.pitch = 1.0;
-
-    const allBtns = document.querySelectorAll('.tts-btn, #speakBriefBtn');
-    if (btnEl) {
-        btnEl.classList.add('active');
-        btnEl.dataset.speaking = '1';
-        btnEl.querySelector('i').className = 'fas fa-stop';
+function _speakNext() {
+    if (!ttsActive || !ttsQueue.length) {
+        _ttsFinish();
+        return;
     }
-    ttsActive = true;
+    const chunk = ttsQueue.shift();
+    const utt   = new SpeechSynthesisUtterance(chunk);
+    utt.lang    = 'en-IN';
+    utt.rate    = 0.92;
+    utt.pitch   = 1.0;
+    const voice = pickVoice();
+    if (voice) utt.voice = voice;
 
-    ttsUtterance.onend = ttsUtterance.onerror = () => {
-        ttsActive = false;
-        allBtns.forEach(b => {
-            b.classList.remove('active');
-            b.dataset.speaking = '0';
-        });
-        resetBriefBtn();
-        const ab = document.getElementById('ttsAnswerBtn');
-        if (ab) ab.querySelector('i').className = 'fas fa-volume-up';
-    };
+    utt.onend   = () => { if (ttsActive) _speakNext(); };
+    utt.onerror = (e) => { if (e.error !== 'interrupted') _speakNext(); };
 
-    window.speechSynthesis.speak(ttsUtterance);
+    window.speechSynthesis.speak(utt);
+}
+
+function _ttsFinish() {
+    ttsActive = false;
+    clearInterval(ttsKeepAlive);
+    ttsKeepAlive = null;
+    resetBriefBtn();
+    const ab = document.getElementById('ttsAnswerBtn');
+    if (ab) { ab.classList.remove('active'); ab.dataset.speaking='0'; ab.querySelector('i').className='fas fa-volume-up'; }
+    if (typeof ttsOnDone === 'function') ttsOnDone();
+    ttsOnDone = null;
+}
+
+function _startTTS(text, onDone) {
+    stopSpeech();
+    ttsQueue   = splitSentences(stripHtml(text));
+    ttsActive  = true;
+    ttsOnDone  = onDone || null;
+
+    /* Chrome keep-alive: pause+resume every 10 s */
+    ttsKeepAlive = setInterval(() => {
+        if (!ttsActive) { clearInterval(ttsKeepAlive); return; }
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+    }, 10000);
+
+    _speakNext();
 }
 
 function stopSpeech() {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
     ttsActive = false;
+    ttsQueue  = [];
+    clearInterval(ttsKeepAlive);
+    ttsKeepAlive = null;
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
     resetBriefBtn();
     const ab = document.getElementById('ttsAnswerBtn');
-    if (ab) { ab.classList.remove('active'); ab.querySelector('i').className = 'fas fa-volume-up'; }
+    if (ab) { ab.classList.remove('active'); ab.dataset.speaking='0'; ab.querySelector('i').className='fas fa-volume-up'; }
 }
 
 function resetBriefBtn() {
     const icon  = document.getElementById('speakBriefIcon');
     const label = document.getElementById('speakBriefLabel');
-    if (icon)  icon.className = 'fas fa-volume-up me-1';
+    if (icon)  icon.className  = 'fas fa-volume-up me-1';
     if (label) label.textContent = 'Listen';
     const btn = document.getElementById('speakBriefBtn');
     if (btn)  { btn.classList.remove('active'); btn.dataset.speaking = '0'; }
 }
 
 function speakBrief() {
+    if (!window.speechSynthesis) return;
     const btn  = document.getElementById('speakBriefBtn');
     const icon = document.getElementById('speakBriefIcon');
     const lbl  = document.getElementById('speakBriefLabel');
-    const text = document.getElementById('aiText').innerText || '';
 
     if (ttsActive && btn && btn.dataset.speaking === '1') {
         stopSpeech();
         return;
     }
 
-    if (!window.speechSynthesis) return;
-    if (ttsActive) stopSpeech();
-
-    ttsUtterance = new SpeechSynthesisUtterance(text);
-    ttsUtterance.lang  = 'en-IN';
-    ttsUtterance.rate  = 0.95;
-    ttsUtterance.pitch = 1.0;
+    const text = document.getElementById('aiText').innerText || '';
+    if (!text.trim()) return;
 
     btn.classList.add('active');
     btn.dataset.speaking = '1';
-    if (icon)  icon.className = 'fas fa-stop me-1';
-    if (lbl)   lbl.textContent = 'Stop';
-    ttsActive = true;
+    if (icon) icon.className  = 'fas fa-stop me-1';
+    if (lbl)  lbl.textContent = 'Stop';
 
-    ttsUtterance.onend = ttsUtterance.onerror = () => {
-        ttsActive = false;
-        resetBriefBtn();
-    };
-
-    window.speechSynthesis.speak(ttsUtterance);
+    _startTTS(text, () => resetBriefBtn());
 }
 
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
+    /* Pre-load voices so pickVoice() has them ready immediately */
+    if (window.speechSynthesis) {
+        window.speechSynthesis.getVoices();
+        window.speechSynthesis.addEventListener('voiceschanged', () => {
+            window.speechSynthesis.getVoices();
+        });
+    }
     loadAI();
     initVoice();
     document.getElementById('mpTs').textContent =
