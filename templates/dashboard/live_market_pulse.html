@@ -967,6 +967,43 @@ function showDetail(id) {
 }
 function closeDetail(){document.getElementById('detailPanel').style.display='none';}
 
+/* ── Shared text formatters ── */
+
+/**
+ * fmtDisplay: renders AI markdown into clean HTML for display.
+ * Strips asterisks, hashes, underscores so they never show as raw symbols.
+ */
+function fmtDisplay(t) {
+    return t
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // **bold** → <strong>
+        .replace(/__(.*?)__/g,     '<strong>$1</strong>')  // __bold__ → <strong>
+        .replace(/\*(.*?)\*/g,     '$1')                    // *italic* → plain
+        .replace(/_(.*?)_/g,       '$1')                    // _italic_ → plain
+        .replace(/^#{1,6}\s+/gm,  '')                       // ## Headings → strip #
+        .replace(/^[\*\-]\s+/gm,  '• ')                     // * bullet / - bullet → •
+        .replace(/\*/g,            '')                       // any stray * → gone
+        .replace(/\n\n/g,         '<br><br>')
+        .replace(/\n/g,            '<br>');
+}
+
+/**
+ * cleanForTTS: strips ALL markdown and HTML for clean spoken output.
+ */
+function cleanForTTS(text) {
+    return text
+        .replace(/\*\*(.*?)\*\*/g, '$1')   // **bold** → just the word
+        .replace(/__(.*?)__/g,     '$1')
+        .replace(/\*(.*?)\*/g,     '$1')
+        .replace(/_(.*?)_/g,       '$1')
+        .replace(/^#{1,6}\s+/gm,  '')
+        .replace(/^[\*\-•]\s+/gm, '')
+        .replace(/\*/g,            '')
+        .replace(/_/g,             '')
+        .replace(/<[^>]+>/g,       ' ')    // strip any HTML tags
+        .replace(/\s{2,}/g,        ' ')    // collapse multiple spaces
+        .trim();
+}
+
 /* ── AI Commentary ── */
 async function loadAI() {
     const el=document.getElementById('aiText');
@@ -978,7 +1015,7 @@ async function loadAI() {
         const r=await fetch('{{ url_for("market_pulse_commentary") }}');
         const d=await r.json();
         if (d.success && d.commentary) {
-            el.innerHTML = d.commentary.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>');
+            el.innerHTML = fmtDisplay(d.commentary);
             btn.style.display='';
         } else {
             el.innerHTML='<span style="color:#999999;">Commentary unavailable — try refreshing.</span>';
@@ -1011,12 +1048,10 @@ function askChip(el) {
 
 function renderQA(question, answer) {
     const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
-    const fmt = t => t.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
-        .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
     aiMsgBox.innerHTML = `
         <div class="ai-msg user">
             <div class="ai-msg-av"><i class="fas fa-user" style="font-size:9px;"></i></div>
-            <div class="ai-msg-bubble">${fmt(question)}</div>
+            <div class="ai-msg-bubble">${fmtDisplay(question)}</div>
         </div>
         <div class="ai-msg-time user">${now}</div>
         <div id="aiAnswer"></div>`;
@@ -1024,15 +1059,13 @@ function renderQA(question, answer) {
 
 function renderAnswer(answer) {
     const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
-    const fmt = t => t.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
-        .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
     const el = document.getElementById('aiAnswer');
     if (el) {
         el.innerHTML = `
             <div class="ai-msg ai">
                 <div class="ai-msg-av"><i class="fas fa-robot" style="font-size:9px;"></i></div>
                 <div class="ai-msg-bubble">
-                    ${fmt(answer)}
+                    ${fmtDisplay(answer)}
                     <button class="tts-btn" id="ttsAnswerBtn" title="Read aloud">
                         <i class="fas fa-volume-up"></i>
                     </button>
@@ -1236,7 +1269,7 @@ function _ttsFinish() {
 
 function _startTTS(text, onDone) {
     stopSpeech();
-    ttsQueue   = splitSentences(stripHtml(text));
+    ttsQueue   = splitSentences(cleanForTTS(text));
     ttsActive  = true;
     ttsOnDone  = onDone || null;
 
@@ -1281,7 +1314,8 @@ function speakBrief() {
         return;
     }
 
-    const text = document.getElementById('aiText').innerText || '';
+    const raw  = document.getElementById('aiText').innerText || '';
+    const text = cleanForTTS(raw);
     if (!text.trim()) return;
 
     btn.classList.add('active');
