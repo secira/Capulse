@@ -224,7 +224,7 @@ def market_pulse_commentary():
     """Generate an AI-powered market commentary using Claude."""
     try:
         from services.nse_service import NSEService
-        from services.perplexity_api import PerplexityAPI
+        from services.anthropic_service import AnthropicService
 
         nse     = NSEService()
         indices = nse.get_market_indices()
@@ -239,21 +239,33 @@ def market_pulse_commentary():
         top_l = ', '.join(f"{l['symbol']} ({l['change_percent']:.1f}%)" for l in losers[:3])
 
         prompt = (
-            "You are a concise Indian market analyst. Write a 2-paragraph market commentary "
-            "(max 120 words total) for a retail trader. "
-            "First paragraph: today's market tone and key index moves. "
-            "Second paragraph: 1-2 sector themes or stocks to watch. "
-            "Use plain, direct language. No disclaimers.\n\n"
             f"Today's Indian market snapshot:\n"
             f"• Nifty 50: {nifty_val:,.0f} ({'+' if nifty_chg >= 0 else ''}{nifty_chg:.2f}%)\n"
             f"• Bank Nifty change: {'+' if bnifty_chg >= 0 else ''}{bnifty_chg:.2f}%\n"
             f"• Top gainers: {top_g or 'N/A'}\n"
-            f"• Top losers: {top_l or 'N/A'}"
+            f"• Top losers: {top_l or 'N/A'}\n\n"
+            "Write a concise 2-paragraph market commentary (max 120 words total) for an Indian retail trader. "
+            "First paragraph: today's market tone and key index moves. "
+            "Second paragraph: 1-2 sector themes or stocks to watch. "
+            "Use plain, direct language. No disclaimers."
         )
 
-        perplexity = PerplexityAPI()
-        text, _ = perplexity.get_investment_advice(prompt)
-        return jsonify({'success': True, 'commentary': (text or '').strip()})
+        claude = AnthropicService()
+        resp = claude.chat(
+            messages=[{'role': 'user', 'content': prompt}],
+            system="You are a concise Indian market analyst writing for retail traders.",
+            max_tokens=300,
+            temperature=0.4,
+            model=AnthropicService.FALLBACK_MODEL,
+        )
+        text = ''
+        if resp and resp.get('content'):
+            for block in resp['content']:
+                if isinstance(block, dict) and block.get('type') == 'text':
+                    text += block['text']
+                elif hasattr(block, 'text'):
+                    text += block.text
+        return jsonify({'success': True, 'commentary': text.strip()})
 
     except Exception as e:
         logger.error(f"AI commentary error: {e}")
@@ -273,7 +285,7 @@ def market_pulse_query():
             return jsonify({'error': 'Question is too long (max 2000 chars).'}), 400
 
         from services.nse_service import NSEService
-        from services.perplexity_api import PerplexityAPI
+        from services.anthropic_service import AnthropicService
 
         nse = NSEService()
         indices = nse.get_market_indices()
@@ -291,9 +303,6 @@ def market_pulse_query():
         top_l = ', '.join(f"{l['symbol']} ({l['change_percent']:.1f}%)" for l in losers[:5])
 
         market_ctx = (
-            f"You are Scentric AI, an expert Indian market analyst built by Target Capital. "
-            f"Be concise, clear, and actionable. Keep responses under 200 words unless detail is needed. "
-            f"Never give guaranteed predictions.\n\n"
             f"Today's Indian market snapshot:\n"
             f"• Nifty 50: {nifty_val:,.0f} ({'+' if nifty_chg >= 0 else ''}{nifty_chg:.2f}%)\n"
             f"• Bank Nifty: {bnifty_val:,.0f} ({'+' if bnifty_chg >= 0 else ''}{bnifty_chg:.2f}%)\n"
@@ -303,10 +312,28 @@ def market_pulse_query():
             f"User question: {query}"
         )
 
-        perplexity = PerplexityAPI()
-        text, _ = perplexity.get_investment_advice(market_ctx)
+        claude = AnthropicService()
+        resp = claude.chat(
+            messages=[{'role': 'user', 'content': market_ctx}],
+            system=(
+                "You are Scentric AI, an expert Indian market analyst built by Target Capital. "
+                "Help retail traders understand markets, stocks, sectors, and strategies. "
+                "Be concise, clear, and actionable. Keep responses under 200 words unless the question needs detail. "
+                "Never give guaranteed predictions."
+            ),
+            max_tokens=600,
+            temperature=0.5,
+            model=AnthropicService.FALLBACK_MODEL,
+        )
+        text = ''
+        if resp and resp.get('content'):
+            for block in resp['content']:
+                if isinstance(block, dict) and block.get('type') == 'text':
+                    text += block['text']
+                elif hasattr(block, 'text'):
+                    text += block.text
 
-        if text and text.strip():
+        if text.strip():
             return jsonify({'response': text.strip()})
         else:
             return jsonify({'response': 'I couldn\'t generate a response. Please try rephrasing your question.'})
