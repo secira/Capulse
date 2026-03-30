@@ -1,7 +1,19 @@
 {% extends "dashboard/dashboard_base.html" %}
 {% block title %}Live Market Pulse - Target Capital{% endblock %}
+{% block dashboard_title %}Live Market Pulse{% endblock %}
+{% block dashboard_subtitle %}Real-time market intelligence · AI insights · Trading signals{% endblock %}
 
-{% block extra_css %}
+{% block dashboard_toolbar %}
+<div class="d-flex align-items-center gap-2">
+    <span id="mpTs" style="font-size:11px; color:#999999;"></span>
+    <button class="btn btn-sm" onclick="location.reload()"
+        style="background:#f8f9fa; border:1px solid #e5e5e5; color:#666666; font-size:12px;">
+        <i class="fas fa-sync-alt me-1"></i>Refresh
+    </button>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
 <style>
 /* ── Base: mirrors Research Co-Pilot aesthetic ── */
 .lmp-page {
@@ -238,22 +250,6 @@
 .risk-medium { color: #ca8a04; font-weight: 600; font-size: 11px; }
 .risk-high   { color: #dc2626; font-weight: 600; font-size: 11px; }
 </style>
-{% endblock %}
-
-{% block dashboard_title %}Live Market Pulse{% endblock %}
-{% block dashboard_subtitle %}Real-time market intelligence · AI insights · Trading signals{% endblock %}
-
-{% block dashboard_toolbar %}
-<div class="d-flex align-items-center gap-2">
-    <span id="mpTs" style="font-size:11px; color:#999999;"></span>
-    <button class="btn btn-sm" onclick="location.reload()"
-        style="background:#f8f9fa; border:1px solid #e5e5e5; color:#666666; font-size:12px;">
-        <i class="fas fa-sync-alt me-1"></i>Refresh
-    </button>
-</div>
-{% endblock %}
-
-{% block dashboard_content %}
 <div class="lmp-page">
 
 {# ── TAB NAV ── #}
