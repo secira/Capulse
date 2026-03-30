@@ -164,8 +164,15 @@ def dashboard_daily_signals():
     date_range = [date.today() - timedelta(days=i) for i in range(30)]
     summary_stats = calculate_daily_summary(selected_date)
 
-    # ── Market data ──────────────────────────────────────────────────────────
-    market_indices = {}
+    # ── Market data — always start from hardcoded fallback, then overlay live ──
+    FALLBACK_INDICES = {
+        'nifty_50':   {'label': 'NIFTY 50',   'value': 24530.90, 'change_percent': 0.51,  'live': False},
+        'nifty_bank': {'label': 'BANK NIFTY', 'value': 52840.75, 'change_percent': -0.29, 'live': False},
+        'sensex':     {'label': 'SENSEX',     'value': 80840.50, 'change_percent': 0.35,  'live': False},
+        'nifty_it':   {'label': 'NIFTY IT',   'value': 42150.30, 'change_percent': 0.23,  'live': False},
+        'india_vix':  {'label': 'INDIA VIX',  'value': 14.25,    'change_percent': 0,     'live': False},
+    }
+    market_indices = {k: dict(v) for k, v in FALLBACK_INDICES.items()}
     top_gainers    = []
     top_losers     = []
     most_active    = []
@@ -173,10 +180,20 @@ def dashboard_daily_signals():
     try:
         from services.nse_service import NSEService
         nse = NSEService()
-        market_indices = nse.get_market_indices()
-        top_gainers    = nse.get_top_gainers(8)
-        top_losers     = nse.get_top_losers(8)
-        most_active    = nse.get_most_active(8)
+        live_indices = nse.get_market_indices()
+        # Merge live data only when value is meaningful (> 0)
+        for key in ('nifty_50', 'nifty_bank', 'sensex', 'nifty_it'):
+            d = live_indices.get(key, {})
+            v = d.get('value', d.get('lastPrice', 0))
+            c = d.get('change_percent', d.get('pChange', None))
+            if v and float(v) > 100:
+                market_indices[key]['value'] = float(v)
+                if c is not None:
+                    market_indices[key]['change_percent'] = float(c)
+                market_indices[key]['live'] = True
+        top_gainers = nse.get_top_gainers(8)
+        top_losers  = nse.get_top_losers(8)
+        most_active = nse.get_most_active(8)
     except Exception as e:
         logger.warning(f"Market data fetch failed: {e}")
 
