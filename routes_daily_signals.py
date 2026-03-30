@@ -272,6 +272,80 @@ def market_pulse_commentary():
         return jsonify({'success': False, 'commentary': ''})
 
 
+@app.route('/api/market-pulse/query', methods=['POST'])
+@login_required
+def market_pulse_query():
+    """Handle user market queries via Scentric AI on Market Pulse page."""
+    try:
+        data = request.get_json()
+        query = (data or {}).get('message', '').strip()
+        if not query or len(query) < 2:
+            return jsonify({'error': 'Please enter a valid question.'}), 400
+        if len(query) > 2000:
+            return jsonify({'error': 'Question is too long (max 2000 chars).'}), 400
+
+        from services.nse_service import NSEService
+        from services.anthropic_service import AnthropicService
+
+        nse = NSEService()
+        indices = nse.get_market_indices()
+        gainers = nse.get_top_gainers(5)
+        losers = nse.get_top_losers(5)
+
+        nifty_val  = indices.get('nifty_50', {}).get('value', 0)
+        nifty_chg  = indices.get('nifty_50', {}).get('change_percent', 0)
+        bnifty_val = indices.get('nifty_bank', {}).get('value', 0)
+        bnifty_chg = indices.get('nifty_bank', {}).get('change_percent', 0)
+        sensex_val = indices.get('sensex', {}).get('value', 0)
+        sensex_chg = indices.get('sensex', {}).get('change_percent', 0)
+
+        top_g = ', '.join(f"{g['symbol']} (+{g['change_percent']:.1f}%)" for g in gainers[:5])
+        top_l = ', '.join(f"{l['symbol']} ({l['change_percent']:.1f}%)" for l in losers[:5])
+
+        market_ctx = (
+            f"Today's Indian market data:\n"
+            f"• Nifty 50: {nifty_val:,.0f} ({'+' if nifty_chg >= 0 else ''}{nifty_chg:.2f}%)\n"
+            f"• Bank Nifty: {bnifty_val:,.0f} ({'+' if bnifty_chg >= 0 else ''}{bnifty_chg:.2f}%)\n"
+            f"• Sensex: {sensex_val:,.0f} ({'+' if sensex_chg >= 0 else ''}{sensex_chg:.2f}%)\n"
+            f"• Top gainers: {top_g or 'N/A'}\n"
+            f"• Top losers: {top_l or 'N/A'}\n"
+        )
+
+        system_prompt = (
+            "You are Scentric AI, an expert Indian market analyst built by Target Capital. "
+            "You help retail traders and investors understand markets, stocks, sectors, and trading strategies. "
+            "Use the provided market data as context. Be concise, clear, and actionable. "
+            "When discussing stocks, mention key levels where relevant. "
+            "Never give guaranteed predictions. Keep responses under 200 words unless the question demands detail."
+        )
+
+        claude = AnthropicService()
+        resp = claude.chat(
+            messages=[{'role': 'user', 'content': f"{market_ctx}\n\nUser question: {query}"}],
+            system=system_prompt,
+            max_tokens=600,
+            temperature=0.5,
+            model=AnthropicService.FALLBACK_MODEL,
+        )
+
+        text = ''
+        if resp and resp.get('content'):
+            for block in resp['content']:
+                if isinstance(block, dict) and block.get('type') == 'text':
+                    text += block['text']
+                elif hasattr(block, 'text'):
+                    text += block.text
+
+        if text.strip():
+            return jsonify({'response': text.strip()})
+        else:
+            return jsonify({'response': 'I couldn\'t generate a response. Please try rephrasing your question.'})
+
+    except Exception as e:
+        logger.error(f"Market pulse query error: {e}")
+        return jsonify({'error': 'Something went wrong. Please try again.'}), 500
+
+
 @app.route('/dashboard/daily-signals/api')
 @login_required
 def daily_signals_api():

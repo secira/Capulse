@@ -249,6 +249,118 @@
 .risk-low    { color: #16a34a; font-weight: 600; font-size: 11px; }
 .risk-medium { color: #ca8a04; font-weight: 600; font-size: 11px; }
 .risk-high   { color: #dc2626; font-weight: 600; font-size: 11px; }
+
+/* ── AI Query Input ── */
+.ai-query-area {
+    margin-top: 16px;
+    border-top: 1px solid #e5e5e5;
+    padding-top: 16px;
+}
+.ai-query-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    border: 2px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 4px 6px 4px 16px;
+    transition: border-color 0.2s;
+}
+.ai-query-box:focus-within { border-color: #000000; }
+.ai-query-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 8px 0;
+    background: transparent;
+    color: #000000;
+    min-width: 0;
+}
+.ai-query-input::placeholder { color: #999999; }
+.ai-voice-btn {
+    width: 36px; height: 36px; border: none; border-radius: 8px;
+    background: #f8f9fa; color: #666666;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: all 0.2s;
+    font-size: 14px;
+}
+.ai-voice-btn:hover { background: #f1f3f4; color: #000000; }
+.ai-voice-btn.listening {
+    background: #fef2f2; color: #dc2626;
+    animation: voice-pulse 1.4s infinite;
+}
+@keyframes voice-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,.3); }
+    50% { box-shadow: 0 0 0 8px rgba(220,38,38,0); }
+}
+.ai-send-btn {
+    width: 36px; height: 36px; border: none; border-radius: 8px;
+    background: #000000; color: #ffffff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: all 0.15s;
+    font-size: 13px;
+}
+.ai-send-btn:hover { background: #333333; }
+.ai-send-btn:disabled { background: #e5e5e5; color: #999999; cursor: not-allowed; }
+
+/* ── Chat messages ── */
+.ai-messages { margin-top: 16px; }
+.ai-msg {
+    display: flex; gap: 10px; align-items: flex-start;
+    margin-bottom: 14px;
+}
+.ai-msg.user { flex-direction: row-reverse; }
+.ai-msg-av {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600; flex-shrink: 0;
+}
+.ai-msg.user .ai-msg-av { background: #000000; color: #ffffff; }
+.ai-msg.ai   .ai-msg-av { background: #f8f9fa; border: 1px solid #e5e5e5; color: #666666; }
+.ai-msg-bubble {
+    padding: 10px 14px; border-radius: 14px;
+    font-size: 13px; line-height: 1.65;
+    max-width: 85%; word-wrap: break-word;
+}
+.ai-msg.user .ai-msg-bubble { background: #000000; color: #ffffff; margin-left: 40px; }
+.ai-msg.ai   .ai-msg-bubble { background: #f8f9fa; border: 1px solid #e5e5e5; color: #000000; margin-right: 40px; }
+.ai-msg-time { font-size: 10px; color: #999999; margin-top: 3px; padding: 0 14px; }
+.ai-msg.user .ai-msg-time { text-align: right; }
+.ai-typing {
+    display: none; gap: 10px; align-items: center;
+    margin-top: 10px;
+}
+.ai-typing.active { display: flex; }
+.ai-typing-dots { display: flex; gap: 4px; }
+.ai-typing-dot {
+    width: 5px; height: 5px; background: #666666;
+    border-radius: 50%; animation: ai-dot-pulse 1.4s infinite;
+}
+.ai-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.ai-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes ai-dot-pulse {
+    0%, 60%, 100% { opacity: 0.3; }
+    30% { opacity: 1; }
+}
+.ai-suggest-chips {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-top: 12px;
+}
+.ai-chip {
+    background: #ffffff; border: 1px solid #e5e5e5;
+    border-radius: 20px; padding: 5px 14px;
+    font-size: 12px; color: #666666;
+    cursor: pointer; transition: all 0.15s;
+}
+.ai-chip:hover { background: #f1f3f4; color: #000000; border-color: #d0d7de; }
+.ai-voice-tip {
+    font-size: 11px; color: #999999;
+    margin-top: 8px; display: none;
+}
+.ai-voice-tip.active { display: block; }
 </style>
 <div class="lmp-page">
 
@@ -305,25 +417,66 @@
         {% endfor %}
     </div>
 
-    <p class="sec-label">AI Market Commentary</p>
+    <p class="sec-label">Scentric AI · Ask anything about the market</p>
     <div class="ai-panel">
         <div class="ai-panel-hd">
             <div class="ai-avatar"><i class="fas fa-robot" style="font-size:13px;"></i></div>
-            <div>
+            <div style="flex:1;">
                 <div class="ai-panel-name">Scentric AI</div>
                 <div class="ai-panel-sub">Market Brief · Today</div>
             </div>
+            <button class="ai-refresh-btn" onclick="loadAI()">
+                <i class="fas fa-sync-alt me-1" style="font-size:10px;"></i>Refresh Brief
+            </button>
         </div>
         <div id="aiText" class="ai-panel-text">
             <span style="color:#999999;">
                 <i class="fas fa-circle-notch fa-spin me-2"></i>Analysing today's market…
             </span>
         </div>
+
+        <div class="ai-query-area">
+            <div class="ai-query-box">
+                <input type="text" class="ai-query-input" id="aiQueryInput"
+                    placeholder="Ask about stocks, sectors, markets, portfolio strategies…"
+                    autocomplete="off" maxlength="2000">
+                <button class="ai-voice-btn" id="voiceBtn" onclick="toggleVoice()" title="Speak your question">
+                    <i class="fas fa-microphone" id="voiceIcon"></i>
+                </button>
+                <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIQuery()" title="Send">
+                    <i class="fas fa-arrow-up"></i>
+                </button>
+            </div>
+            <div class="ai-voice-tip" id="voiceTip">
+                <i class="fas fa-circle text-danger me-1" style="font-size:6px; vertical-align:middle;"></i>
+                Listening… speak your question
+            </div>
+            <div class="ai-suggest-chips" id="aiChips">
+                <span class="ai-chip" onclick="askChip(this)">How is Nifty performing today?</span>
+                <span class="ai-chip" onclick="askChip(this)">Top sectors to invest in?</span>
+                <span class="ai-chip" onclick="askChip(this)">Reliance Industries outlook</span>
+                <span class="ai-chip" onclick="askChip(this)">Best stocks under ₹500</span>
+            </div>
+        </div>
+
+        <div class="ai-messages" id="aiMessages"></div>
+
+        <div class="ai-typing" id="aiTyping">
+            <div class="ai-msg-av" style="background:#f8f9fa; border:1px solid #e5e5e5; color:#666666;">
+                <i class="fas fa-robot" style="font-size:9px;"></i>
+            </div>
+            <div style="font-size:12px; color:#666666; display:flex; align-items:center; gap:8px;">
+                Thinking
+                <div class="ai-typing-dots">
+                    <div class="ai-typing-dot"></div>
+                    <div class="ai-typing-dot"></div>
+                    <div class="ai-typing-dot"></div>
+                </div>
+            </div>
+        </div>
+
         <div class="ai-panel-foot">
-            <span class="ai-panel-note">For information only · Not financial advice · Powered by Claude</span>
-            <button class="ai-refresh-btn" onclick="loadAI()">
-                <i class="fas fa-sync-alt me-1" style="font-size:10px;"></i>Refresh
-            </button>
+            <span class="ai-panel-note">For information only · Not financial advice · Powered by Perplexity + Claude</span>
         </div>
     </div>
 
@@ -802,9 +955,145 @@ async function loadAI() {
     }
 }
 
+/* ── AI Query ── */
+const aiInput  = document.getElementById('aiQueryInput');
+const aiMsgBox = document.getElementById('aiMessages');
+const aiTyping = document.getElementById('aiTyping');
+const aiChips  = document.getElementById('aiChips');
+
+if (aiInput) {
+    aiInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAIQuery(); }
+    });
+    aiInput.addEventListener('input', () => {
+        document.getElementById('aiSendBtn').disabled = !aiInput.value.trim();
+    });
+}
+
+function askChip(el) {
+    aiInput.value = el.textContent;
+    document.getElementById('aiSendBtn').disabled = false;
+    sendAIQuery();
+}
+
+function appendMsg(role, text) {
+    const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+    const isUser = role === 'user';
+    const av = isUser
+        ? '<i class="fas fa-user" style="font-size:9px;"></i>'
+        : '<i class="fas fa-robot" style="font-size:9px;"></i>';
+    const formatted = text.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <div class="ai-msg ${isUser ? 'user' : 'ai'}">
+            <div class="ai-msg-av">${av}</div>
+            <div class="ai-msg-bubble">${formatted}</div>
+        </div>
+        <div class="ai-msg-time ${isUser ? 'user' : ''}">${now}</div>`;
+    aiMsgBox.appendChild(div);
+    aiMsgBox.scrollTop = aiMsgBox.scrollHeight;
+}
+
+async function sendAIQuery() {
+    const q = aiInput.value.trim();
+    if (!q || q.length < 2) return;
+
+    aiInput.value = '';
+    document.getElementById('aiSendBtn').disabled = true;
+    if (aiChips) aiChips.style.display = 'none';
+
+    appendMsg('user', q);
+    aiTyping.classList.add('active');
+
+    try {
+        const body = { message: q };
+        const r = await fetch('/api/market-pulse/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        aiTyping.classList.remove('active');
+        if (d.error) {
+            appendMsg('ai', 'Sorry, I could not process that. ' + (d.error || ''));
+            return;
+        }
+        appendMsg('ai', d.response || d.message || 'No response received.');
+    } catch (e) {
+        aiTyping.classList.remove('active');
+        appendMsg('ai', 'Something went wrong. Please try again.');
+    }
+}
+
+/* ── Voice Input (Web Speech API) ── */
+let recognition = null;
+let isListening = false;
+
+function initVoice() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        const btn = document.getElementById('voiceBtn');
+        if (btn) { btn.style.display = 'none'; }
+        return;
+    }
+    recognition = new SR();
+    recognition.lang = 'en-IN';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (e) => {
+        let transcript = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+            transcript += e.results[i][0].transcript;
+        }
+        aiInput.value = transcript;
+        document.getElementById('aiSendBtn').disabled = !transcript.trim();
+        if (e.results[e.results.length - 1].isFinal) {
+            stopVoice();
+            if (transcript.trim()) {
+                setTimeout(() => sendAIQuery(), 300);
+            }
+        }
+    };
+    recognition.onerror = (e) => {
+        stopVoice();
+        if (e.error !== 'aborted' && e.error !== 'no-speech') {
+            console.warn('Voice error:', e.error);
+        }
+    };
+    recognition.onend = () => { if (isListening) stopVoice(); };
+}
+
+function toggleVoice() {
+    if (!recognition) initVoice();
+    if (!recognition) return;
+    isListening ? stopVoice() : startVoice();
+}
+
+function startVoice() {
+    isListening = true;
+    recognition.start();
+    document.getElementById('voiceBtn').classList.add('listening');
+    document.getElementById('voiceIcon').className = 'fas fa-stop';
+    document.getElementById('voiceTip').classList.add('active');
+    aiInput.placeholder = 'Listening…';
+}
+
+function stopVoice() {
+    isListening = false;
+    try { recognition.stop(); } catch(e) {}
+    document.getElementById('voiceBtn').classList.remove('listening');
+    document.getElementById('voiceIcon').className = 'fas fa-microphone';
+    document.getElementById('voiceTip').classList.remove('active');
+    aiInput.placeholder = 'Ask about stocks, sectors, markets, portfolio strategies…';
+}
+
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
     loadAI();
+    initVoice();
     document.getElementById('mpTs').textContent =
         'as of ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
     const tab = new URLSearchParams(window.location.search).get('tab');
