@@ -3,169 +3,240 @@
 
 {% block extra_css %}
 <style>
-/* ── Tab nav ─────────────────────────────── */
-.lmp-tabnav {
-    display: flex; gap: 0;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
+/* ── Base: mirrors Research Co-Pilot aesthetic ── */
+.lmp-page {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #ffffff;
+    color: #000000;
+}
+
+/* ── Tab nav ── */
+.lmp-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 24px;
     overflow-x: auto;
-    margin-bottom: 18px;
     scrollbar-width: none;
 }
-.lmp-tabnav::-webkit-scrollbar { display: none; }
-.lmp-tab {
-    flex: 1; min-width: 130px;
-    padding: 12px 16px;
-    display: flex; align-items: center; gap: 8px;
-    font-size: 12px; font-weight: 600; color: #64748b;
-    cursor: pointer; border: none; background: transparent;
-    border-bottom: 3px solid transparent;
-    transition: all .15s; white-space: nowrap;
-    border-right: 1px solid #f1f5f9;
+.lmp-tabs::-webkit-scrollbar { display: none; }
+.lmp-tab-btn {
+    padding: 12px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #666666;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.15s ease;
+    margin-bottom: -1px;
 }
-.lmp-tab:last-child { border-right: none; }
-.lmp-tab .tab-icon {
-    width: 26px; height: 26px; border-radius: 7px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; flex-shrink: 0;
-    transition: all .15s;
+.lmp-tab-btn:hover:not(.active) { color: #333333; }
+.lmp-tab-btn.active {
+    color: #000000;
+    border-bottom-color: #000000;
+    font-weight: 600;
 }
-.lmp-tab:hover:not(.active) { color: #334155; background: #fafbfc; }
-.lmp-tab.active { color: #00091a; border-bottom-color: #00091a; background: #f8fafc; }
-.lmp-tab.active .tab-icon { background: #00091a !important; }
-.lmp-tab.active .tab-icon i { color: #fff !important; }
+.lmp-tab-btn .tab-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; opacity: 0.5;
+}
+.lmp-tab-btn.active .tab-dot { opacity: 1; }
 
-/* ── Tab panes ───────────────────────────── */
+/* ── Panes ── */
 .lmp-pane { display: none; }
 .lmp-pane.active { display: block; }
 
-/* ── General card ────────────────────────── */
+/* ── Card ── */
 .lmp-card {
-    background: #fff; border: 1px solid #e2e8f0;
-    border-radius: 10px; overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,9,26,.04);
+    background: #f8f9fa;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    overflow: hidden;
 }
 .lmp-card-hd {
-    padding: 11px 16px; border-bottom: 1px solid #f1f5f9;
-    background: #fafbfc;
-    display: flex; align-items: center; justify-content: space-between;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 .lmp-card-title {
-    font-size: 13px; font-weight: 700; color: #1e293b;
-    display: flex; align-items: center; gap: 8px; margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #000000;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
-.lmp-card-icon {
-    width: 26px; height: 26px; border-radius: 7px;
-    display: flex; align-items: center; justify-content: center; font-size: 11px;
+.lmp-card-sub {
+    font-size: 11px;
+    color: #999999;
 }
 
-/* ── Index strip ─────────────────────────── */
-.idx-strip { display: flex; gap: 0; }
-.idx-item {
-    flex: 1; padding: 16px 18px;
-    border-right: 1px solid #f1f5f9;
+/* ── Index cards ── */
+.idx-card {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 16px;
     position: relative;
+    overflow: hidden;
 }
-.idx-item:last-child { border-right: none; }
-.idx-item:hover { background: #fafbfc; }
-.idx-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .07em; }
-.idx-val   { font-size: 22px; font-weight: 800; color: #0f172a; margin: 4px 0 3px; line-height: 1; }
-.idx-chg   { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
-.idx-chg.up { color: #16a34a; } .idx-chg.dn { color: #dc2626; } .idx-chg.nu { color: #f59e0b; }
-.idx-bar   { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; }
-.idx-live  { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #22c55e; margin-left: 4px; vertical-align: middle; }
+.idx-card:hover { background: #f8f9fa; }
+.idx-border { position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 8px 8px 0 0; }
+.idx-label { font-size: 10px; font-weight: 600; color: #999999; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px; }
+.idx-val   { font-size: 20px; font-weight: 700; color: #000000; line-height: 1; margin-bottom: 5px; }
+.idx-chg   { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 3px; }
+.idx-chg.up { color: #16a34a; } .idx-chg.dn { color: #dc2626; } .idx-chg.nu { color: #ca8a04; }
+.idx-live  { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #16a34a; margin-left: 4px; vertical-align: middle; }
 
-/* ── AI strip ────────────────────────────── */
-.ai-strip {
-    background: linear-gradient(135deg, #00091a 0%, #0d2347 100%);
-    border-radius: 10px; padding: 16px 20px;
-    display: flex; align-items: flex-start; gap: 14px;
-    position: relative; overflow: hidden;
+/* ── Section label ── */
+.sec-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #999999;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin-bottom: 12px;
 }
-.ai-strip::before {
-    content:''; position:absolute; top:-40px; right:-40px;
-    width:160px; height:160px;
-    background: radial-gradient(circle, rgba(99,102,241,.15) 0%, transparent 65%);
-    pointer-events:none;
-}
-.ai-icon-wrap {
-    width:38px; height:38px; border-radius:10px; flex-shrink:0;
-    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12);
-    display:flex; align-items:center; justify-content:center;
-}
-.ai-body { flex:1; min-width:0; position:relative; z-index:1; }
-.ai-label { font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.38); margin-bottom:5px; }
-.ai-text  { font-size:13px; line-height:1.75; color:rgba(255,255,255,.84); }
-.ai-footer { display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,.07); }
-.ai-note   { font-size:10px; color:rgba(255,255,255,.28); }
-.ai-btn    { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); border-radius:7px; padding:4px 12px; font-size:11px; color:rgba(255,255,255,.6); cursor:pointer; transition:all .15s; }
-.ai-btn:hover { background:rgba(255,255,255,.16); color:#fff; }
 
-/* ── Legend ──────────────────────────────── */
-.hm-legend { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.hm-leg    { display:flex; align-items:center; gap:3px; font-size:10px; color:#94a3b8; font-weight:600; }
-.hm-sq     { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+/* ── AI panel ── */
+.ai-panel {
+    background: #f8f9fa;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 20px;
+}
+.ai-panel-hd {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.ai-avatar {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: #000000;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: #ffffff; flex-shrink: 0;
+}
+.ai-panel-name { font-size: 13px; font-weight: 600; color: #000000; }
+.ai-panel-sub  { font-size: 11px; color: #999999; }
+.ai-panel-text { font-size: 14px; color: #333333; line-height: 1.75; }
+.ai-panel-foot {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #e5e5e5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.ai-panel-note { font-size: 11px; color: #999999; }
+.ai-refresh-btn {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #666666;
+    cursor: pointer;
+    transition: all .15s;
+}
+.ai-refresh-btn:hover { background: #f1f3f4; color: #000000; }
 
-/* ── Mover rows ──────────────────────────── */
+/* ── Heatmap legend ── */
+.hm-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hm-leg    { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #666666; font-weight: 500; }
+.hm-sq     { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Mover rows ── */
 .mv-row {
-    display:flex; align-items:center; gap:10px;
-    padding:10px 16px; border-bottom:1px solid #f8fafc; transition:background .1s;
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 16px;
+    border-bottom: 1px solid #f1f3f4;
+    background: #ffffff;
+    transition: background .1s;
 }
-.mv-row:last-child { border-bottom:none; }
-.mv-row:hover { background:#fafbfc; }
+.mv-row:last-child { border-bottom: none; }
+.mv-row:hover { background: #f8f9fa; }
 .mv-av {
-    width:34px; height:34px; border-radius:50%; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center;
-    font-size:11px; font-weight:800; color:#fff; letter-spacing:-.5px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #000000; color: #ffffff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+    letter-spacing: -.5px;
 }
-.mv-name { flex:1; min-width:0; }
-.mv-sym  { font-size:13px; font-weight:700; color:#1e293b; }
-.mv-co   { font-size:11px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.mv-r    { text-align:right; flex-shrink:0; }
-.mv-price{ font-size:13px; font-weight:700; color:#1e293b; }
-.mv-chg  { font-size:12px; font-weight:700; }
-.mv-chg.up { color:#16a34a; } .mv-chg.dn { color:#dc2626; }
-.view-all { display:block; text-align:right; font-size:11px; font-weight:600; color:#2563eb; padding:8px 16px; }
+.mv-name { flex: 1; min-width: 0; }
+.mv-sym  { font-size: 13px; font-weight: 600; color: #000000; }
+.mv-co   { font-size: 11px; color: #999999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mv-r    { text-align: right; flex-shrink: 0; }
+.mv-price{ font-size: 13px; font-weight: 600; color: #000000; }
+.mv-chg  { font-size: 12px; font-weight: 600; }
+.mv-chg.up { color: #16a34a; } .mv-chg.dn { color: #dc2626; }
+.view-all-link { display: block; text-align: right; font-size: 12px; font-weight: 500; color: #666666; padding: 9px 16px; border-top: 1px solid #f1f3f4; }
+.view-all-link:hover { color: #000000; }
 
-/* ── Pill tabs inside mover card ─────────── */
-.pill-tabs { display:flex; gap:6px; }
-.pill-tab  { font-size:11px; font-weight:600; color:#64748b; background:#f1f5f9; border:none; border-radius:20px; padding:5px 14px; cursor:pointer; transition:all .15s; }
-.pill-tab.active { background:#00091a; color:#fff; }
-.pill-tab:hover:not(.active) { background:#e2e8f0; }
-.pill-pane { display:none; }
-.pill-pane.active { display:block; }
-
-/* ── Sector rows ─────────────────────────── */
-.sec-row {
-    display:flex; align-items:center; gap:10px;
-    padding:10px 16px; border-bottom:1px solid #f8fafc; transition:background .1s;
+/* ── Pill tabs (inside movers card) ── */
+.mv-tabs { display: flex; gap: 6px; }
+.mv-tab  {
+    font-size: 12px; font-weight: 500; color: #666666;
+    background: #ffffff; border: 1px solid #e5e5e5;
+    border-radius: 6px; padding: 5px 14px;
+    cursor: pointer; transition: all .15s;
 }
-.sec-row:last-child { border-bottom:none; }
-.sec-row:hover { background:#fafbfc; }
-.sec-dot  { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
-.sec-name { font-size:12px; font-weight:600; color:#334155; flex:1; }
-.sec-bar-wrap { width:70px; height:5px; background:#e2e8f0; border-radius:3px; flex-shrink:0; overflow:hidden; }
-.sec-bar      { height:100%; border-radius:3px; }
-.sec-pct { font-size:12px; font-weight:700; width:52px; text-align:right; flex-shrink:0; }
-.sec-pct.up { color:#16a34a; } .sec-pct.dn { color:#dc2626; }
+.mv-tab.active { background: #000000; color: #ffffff; border-color: #000000; }
+.mv-tab:hover:not(.active) { background: #f1f3f4; color: #000000; }
+.mv-pane { display: none; }
+.mv-pane.active { display: block; }
 
-/* ── Signals ─────────────────────────────── */
-.sig-head { background:linear-gradient(135deg,#00091a,#1a365d); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
-.sig-filt { background:#fafbfc; border-bottom:1px solid #e2e8f0; padding:10px 14px; }
-.price-pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; white-space:nowrap; }
-.price-pill.entry  { background:#ecfdf5; color:#059669; }
-.price-pill.sl     { background:#fef2f2; color:#dc2626; }
-.price-pill.tgt    { background:#eff6ff; color:#2563eb; }
-.risk-low    { color:#059669; font-weight:600; font-size:11px; }
-.risk-medium { color:#d97706; font-weight:600; font-size:11px; }
-.risk-high   { color:#dc2626; font-weight:600; font-size:11px; }
-
-/* ── Avatar colours ──────────────────────── */
-.avc0{background:#3b82f6;} .avc1{background:#8b5cf6;} .avc2{background:#f97316;}
-.avc3{background:#06b6d4;} .avc4{background:#ec4899;} .avc5{background:#16a34a;}
-.avc6{background:#f59e0b;} .avc7{background:#6366f1;} .avc8{background:#14b8a6;}
+/* ── Avatar colour sequence ── */
+.avc0{background:#3b82f6;}.avc1{background:#8b5cf6;}.avc2{background:#f97316;}
+.avc3{background:#06b6d4;}.avc4{background:#ec4899;}.avc5{background:#16a34a;}
+.avc6{background:#eab308;}.avc7{background:#6366f1;}.avc8{background:#14b8a6;}
 .avc9{background:#84cc16;}
+
+/* ── Sector rows ── */
+.sec-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid #f1f3f4;
+    background: #ffffff; transition: background .1s;
+}
+.sec-row:last-child { border-bottom: none; }
+.sec-row:hover { background: #f8f9fa; }
+.sec-dot  { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.sec-name { font-size: 12px; font-weight: 500; color: #333333; flex: 1; }
+.sec-count { font-size: 11px; color: #999999; width: 36px; text-align: center; flex-shrink: 0; }
+.sec-bar-wrap { width: 72px; height: 4px; background: #e5e5e5; border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+.sec-bar { height: 100%; border-radius: 3px; }
+.sec-pct  { font-size: 12px; font-weight: 600; width: 52px; text-align: right; flex-shrink: 0; }
+.sec-pct.up { color: #16a34a; } .sec-pct.dn { color: #dc2626; }
+
+/* ── Signal table ── */
+.sig-header {
+    background: #000000;
+    padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.sig-filters {
+    background: #f8f9fa;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 10px 16px;
+}
+.price-pill { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.price-pill.entry  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.price-pill.sl     { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.price-pill.tgt    { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+.risk-low    { color: #16a34a; font-weight: 600; font-size: 11px; }
+.risk-medium { color: #ca8a04; font-weight: 600; font-size: 11px; }
+.risk-high   { color: #dc2626; font-weight: 600; font-size: 11px; }
 </style>
 {% endblock %}
 
@@ -174,71 +245,44 @@
 
 {% block dashboard_toolbar %}
 <div class="d-flex align-items-center gap-2">
-    <span id="mpTs" style="font-size:11px; color:#94a3b8;"></span>
-    <button class="btn btn-outline-primary btn-sm" onclick="location.reload()">
+    <span id="mpTs" style="font-size:11px; color:#999999;"></span>
+    <button class="btn btn-sm" onclick="location.reload()"
+        style="background:#f8f9fa; border:1px solid #e5e5e5; color:#666666; font-size:12px;">
         <i class="fas fa-sync-alt me-1"></i>Refresh
     </button>
 </div>
 {% endblock %}
 
 {% block dashboard_content %}
+<div class="lmp-page">
 
-{# ═══════════════════════════════════════
-   HORIZONTAL TAB NAV
-═══════════════════════════════════════ #}
-<div class="lmp-tabnav" role="tablist">
-
-    <button class="lmp-tab active" onclick="lmpTab('market-data', this)" role="tab">
-        <div class="tab-icon" style="background:#eff6ff;">
-            <i class="fas fa-chart-line" style="color:#2563eb;"></i>
-        </div>
-        Market Data
+{# ── TAB NAV ── #}
+<nav class="lmp-tabs" role="tablist">
+    <button class="lmp-tab-btn active" onclick="lmpTab('market-data',this)">
+        <i class="fas fa-chart-line" style="font-size:11px;"></i>Market Data
     </button>
-
-    <button class="lmp-tab" onclick="lmpTab('heatmap', this)" role="tab">
-        <div class="tab-icon" style="background:#f0fdf4;">
-            <i class="fas fa-th-large" style="color:#16a34a;"></i>
-        </div>
-        Nifty 50 Heat Map
+    <button class="lmp-tab-btn" onclick="lmpTab('heatmap',this)">
+        <i class="fas fa-th-large" style="font-size:11px;"></i>Nifty 50 Heat Map
     </button>
-
-    <button class="lmp-tab" onclick="lmpTab('movers', this)" role="tab">
-        <div class="tab-icon" style="background:#fff7ed;">
-            <i class="fas fa-fire-alt" style="color:#f97316;"></i>
-        </div>
-        Market Movers
+    <button class="lmp-tab-btn" onclick="lmpTab('movers',this)">
+        <i class="fas fa-fire-alt" style="font-size:11px;"></i>Market Movers
     </button>
-
-    <button class="lmp-tab" onclick="lmpTab('sectors', this)" role="tab">
-        <div class="tab-icon" style="background:#faf5ff;">
-            <i class="fas fa-layer-group" style="color:#8b5cf6;"></i>
-        </div>
-        Sectoral Performance
+    <button class="lmp-tab-btn" onclick="lmpTab('sectors',this)">
+        <i class="fas fa-layer-group" style="font-size:11px;"></i>Sectoral Performance
     </button>
-
-    <button class="lmp-tab" onclick="lmpTab('signals', this)" role="tab">
-        <div class="tab-icon" style="background:#fff0f0;">
-            <i class="fas fa-signal" style="color:#dc2626;"></i>
-        </div>
-        Our Signals
+    <button class="lmp-tab-btn" onclick="lmpTab('signals',this)">
+        <i class="fas fa-signal" style="font-size:11px;"></i>Our Signals
     </button>
+</nav>
 
-</div>
-
-{# ═══════════════════════════════════════
-   TAB 1 — MARKET DATA
-═══════════════════════════════════════ #}
+{# ════════════════════════════════
+   PANE 1 · MARKET DATA
+════════════════════════════════ #}
 <div id="pane-market-data" class="lmp-pane active">
 
-    {# Index cards #}
-    <div class="row g-3 mb-3">
-        {% for key, icon, bg, ic in [
-            ('nifty_50',   'chart-line',  '#eff6ff', '#2563eb'),
-            ('nifty_bank', 'university',  '#fff7ed', '#f97316'),
-            ('sensex',     'chart-bar',   '#f0fdf4', '#16a34a'),
-            ('nifty_it',   'microchip',   '#faf5ff', '#8b5cf6'),
-            ('india_vix',  'bolt',        '#fefce8', '#ca8a04')
-        ] %}
+    <p class="sec-label">Indices · Today</p>
+    <div class="row g-3 mb-4">
+        {% for key, icon in [('nifty_50','chart-line'),('nifty_bank','university'),('sensex','chart-bar'),('nifty_it','microchip'),('india_vix','bolt')] %}
         {% set d   = market_indices.get(key, {}) %}
         {% set val = d.get('value', 0) | float %}
         {% set chg = d.get('change_percent', 0) | float %}
@@ -246,66 +290,59 @@
         {% set state = 'nu' if vix else ('up' if chg >= 0 else 'dn') %}
         {% set bar_c = '#ca8a04' if vix else ('#16a34a' if chg >= 0 else '#dc2626') %}
         <div class="col">
-            <div class="lmp-card">
-                <div class="idx-item" style="position:relative;">
-                    <div class="idx-bar" style="background:{{ bar_c }};"></div>
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <div class="idx-label">{{ d.get('label', key|upper) }}</div>
-                        <div style="width:24px;height:24px;border-radius:7px;background:{{ bg }};display:flex;align-items:center;justify-content:center;">
-                            <i class="fas fa-{{ icon }}" style="font-size:10px; color:{{ ic }};"></i>
-                        </div>
-                    </div>
-                    <div class="idx-val">
-                        {% if vix %}{{ "%.2f"|format(val) }}
-                        {% else %}{{ "{:,.0f}".format(val) }}{% endif %}
-                    </div>
-                    <div class="idx-chg {{ state }}">
-                        {% if not vix %}
-                        <i class="fas fa-caret-{{ 'up' if chg >= 0 else 'down' }}" style="font-size:10px;"></i>
-                        {{ "{:+.2f}".format(chg) }}%
-                        {% else %}<span style="font-size:11px;">Volatility Index</span>{% endif %}
-                        {% if d.get('live') %}<span class="idx-live" title="Live"></span>{% endif %}
-                    </div>
+            <div class="idx-card">
+                <div class="idx-border" style="background:{{ bar_c }};"></div>
+                <div class="idx-label">{{ d.get('label', key|upper) }}</div>
+                <div class="idx-val">
+                    {% if vix %}{{ "%.2f"|format(val) }}
+                    {% else %}{{ "{:,.0f}".format(val) }}{% endif %}
+                </div>
+                <div class="idx-chg {{ state }}">
+                    {% if not vix %}
+                    <i class="fas fa-caret-{{ 'up' if chg >= 0 else 'down' }}" style="font-size:10px;"></i>
+                    {{ "{:+.2f}".format(chg) }}%
+                    {% else %}<span style="font-size:10px; font-weight:500; color:#ca8a04;">Volatility Index</span>{% endif %}
+                    {% if d.get('live') %}<span class="idx-live" title="Live data"></span>{% endif %}
                 </div>
             </div>
         </div>
         {% endfor %}
     </div>
 
-    {# AI Commentary #}
-    <div class="ai-strip">
-        <div class="ai-icon-wrap">
-            <i class="fas fa-robot" style="color:rgba(255,255,255,.75); font-size:15px;"></i>
+    <p class="sec-label">AI Market Commentary</p>
+    <div class="ai-panel">
+        <div class="ai-panel-hd">
+            <div class="ai-avatar"><i class="fas fa-robot" style="font-size:13px;"></i></div>
+            <div>
+                <div class="ai-panel-name">Scentric AI</div>
+                <div class="ai-panel-sub">Market Brief · Today</div>
+            </div>
         </div>
-        <div class="ai-body">
-            <div class="ai-label">Scentric AI · Market Brief</div>
-            <div id="aiText" class="ai-text">
-                <i class="fas fa-circle-notch fa-spin me-2" style="color:rgba(255,255,255,.3);"></i>
-                <span style="color:rgba(255,255,255,.35);">Analysing today's market…</span>
-            </div>
-            <div class="ai-footer">
-                <span class="ai-note">Powered by Claude · For information only · Not financial advice</span>
-                <button class="ai-btn" onclick="loadAI()">
-                    <i class="fas fa-sync-alt me-1" style="font-size:9px;"></i>Refresh
-                </button>
-            </div>
+        <div id="aiText" class="ai-panel-text">
+            <span style="color:#999999;">
+                <i class="fas fa-circle-notch fa-spin me-2"></i>Analysing today's market…
+            </span>
+        </div>
+        <div class="ai-panel-foot">
+            <span class="ai-panel-note">For information only · Not financial advice · Powered by Claude</span>
+            <button class="ai-refresh-btn" onclick="loadAI()">
+                <i class="fas fa-sync-alt me-1" style="font-size:10px;"></i>Refresh
+            </button>
         </div>
     </div>
 
 </div>
 
-{# ═══════════════════════════════════════
-   TAB 2 — NIFTY 50 HEAT MAP
-═══════════════════════════════════════ #}
+{# ════════════════════════════════
+   PANE 2 · NIFTY 50 HEAT MAP
+════════════════════════════════ #}
 <div id="pane-heatmap" class="lmp-pane">
     <div class="lmp-card">
         <div class="lmp-card-hd">
             <h6 class="lmp-card-title">
-                <div class="lmp-card-icon" style="background:#f0fdf4;">
-                    <i class="fas fa-th-large" style="color:#16a34a;"></i>
-                </div>
+                <i class="fas fa-th-large" style="font-size:12px; color:#666666;"></i>
                 Nifty 50 Heat Map
-                <small style="font-size:10px; color:#94a3b8; font-weight:500;">Sized by index weight · Colour by day change %</small>
+                <span class="lmp-card-sub">· sized by index weight, coloured by day change</span>
             </h6>
             <div class="hm-legend">
                 <div class="hm-leg"><div class="hm-sq" style="background:#14532d;"></div>&gt;+2%</div>
@@ -315,42 +352,42 @@
                 <div class="hm-leg"><div class="hm-sq" style="background:#7f1d1d;"></div>&lt;-2%</div>
             </div>
         </div>
-        <div id="treemapWrap" style="width:100%;"></div>
+        <div style="background:#ffffff;">
+            <div id="treemapWrap" style="width:100%;"></div>
+        </div>
     </div>
 </div>
 
-{# ═══════════════════════════════════════
-   TAB 3 — MARKET MOVERS
-═══════════════════════════════════════ #}
+{# ════════════════════════════════
+   PANE 3 · MARKET MOVERS
+════════════════════════════════ #}
 <div id="pane-movers" class="lmp-pane">
     <div class="lmp-card">
         <div class="lmp-card-hd">
             <h6 class="lmp-card-title">
-                <div class="lmp-card-icon" style="background:#fff7ed;">
-                    <i class="fas fa-fire-alt" style="color:#f97316;"></i>
-                </div>
+                <i class="fas fa-fire-alt" style="font-size:12px; color:#666666;"></i>
                 Market Movers
             </h6>
-            <div class="pill-tabs">
-                <button class="pill-tab active" onclick="pillTab('g',this)">
-                    <i class="fas fa-arrow-up me-1" style="font-size:9px;color:#16a34a;"></i>Gainers
+            <div class="mv-tabs">
+                <button class="mv-tab active" onclick="mvTab('g',this)">
+                    <i class="fas fa-arrow-up me-1" style="font-size:9px; color:#16a34a;"></i>Gainers
                 </button>
-                <button class="pill-tab" onclick="pillTab('l',this)">
-                    <i class="fas fa-arrow-down me-1" style="font-size:9px;color:#dc2626;"></i>Losers
+                <button class="mv-tab" onclick="mvTab('l',this)">
+                    <i class="fas fa-arrow-down me-1" style="font-size:9px; color:#dc2626;"></i>Losers
                 </button>
-                <button class="pill-tab" onclick="pillTab('a',this)">
-                    <i class="fas fa-bolt me-1" style="font-size:9px;color:#f59e0b;"></i>Top Volume
+                <button class="mv-tab" onclick="mvTab('a',this)">
+                    <i class="fas fa-bolt me-1" style="font-size:9px; color:#ca8a04;"></i>Top Volume
                 </button>
             </div>
         </div>
 
-        <div id="pp-g" class="pill-pane active">
+        <div id="mvp-g" class="mv-pane active">
             {% for s in top_gainers %}{% set ci = loop.index0 % 10 %}
             <div class="mv-row">
                 <div class="mv-av avc{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
                 <div class="mv-name">
                     <div class="mv-sym">{{ s.symbol }}</div>
-                    <div class="mv-co">{{ (s.company_name or '')[:40] }}</div>
+                    <div class="mv-co">{{ (s.company_name or '')[:42] }}</div>
                 </div>
                 <div class="mv-r">
                     <div class="mv-price">₹{{ "{:,.2f}".format(s.current_price|float) }}</div>
@@ -358,19 +395,21 @@
                 </div>
             </div>
             {% else %}
-            <div class="text-center py-5" style="color:#94a3b8; font-size:13px;">
-                <i class="fas fa-database mb-2" style="font-size:22px; display:block; opacity:.4;"></i>No live data available
+            <div class="text-center py-5" style="color:#999999; font-size:13px;">
+                <i class="fas fa-database" style="font-size:24px; display:block; opacity:.3; margin-bottom:8px;"></i>
+                No live data available right now
             </div>
             {% endfor %}
+            {% if top_gainers %}<a class="view-all-link" href="#">view all ›</a>{% endif %}
         </div>
 
-        <div id="pp-l" class="pill-pane">
+        <div id="mvp-l" class="mv-pane">
             {% for s in top_losers %}{% set ci = loop.index0 % 10 %}
             <div class="mv-row">
                 <div class="mv-av avc{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
                 <div class="mv-name">
                     <div class="mv-sym">{{ s.symbol }}</div>
-                    <div class="mv-co">{{ (s.company_name or '')[:40] }}</div>
+                    <div class="mv-co">{{ (s.company_name or '')[:42] }}</div>
                 </div>
                 <div class="mv-r">
                     <div class="mv-price">₹{{ "{:,.2f}".format(s.current_price|float) }}</div>
@@ -378,13 +417,15 @@
                 </div>
             </div>
             {% else %}
-            <div class="text-center py-5" style="color:#94a3b8; font-size:13px;">
-                <i class="fas fa-database mb-2" style="font-size:22px; display:block; opacity:.4;"></i>No live data available
+            <div class="text-center py-5" style="color:#999999; font-size:13px;">
+                <i class="fas fa-database" style="font-size:24px; display:block; opacity:.3; margin-bottom:8px;"></i>
+                No live data available right now
             </div>
             {% endfor %}
+            {% if top_losers %}<a class="view-all-link" href="#">view all ›</a>{% endif %}
         </div>
 
-        <div id="pp-a" class="pill-pane">
+        <div id="mvp-a" class="mv-pane">
             {% for s in most_active %}{% set ci = loop.index0 % 10 %}{% set c = s.change_percent|float %}
             <div class="mv-row">
                 <div class="mv-av avc{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
@@ -406,28 +447,34 @@
                 </div>
             </div>
             {% else %}
-            <div class="text-center py-5" style="color:#94a3b8; font-size:13px;">
-                <i class="fas fa-database mb-2" style="font-size:22px; display:block; opacity:.4;"></i>No live data available
+            <div class="text-center py-5" style="color:#999999; font-size:13px;">
+                <i class="fas fa-database" style="font-size:24px; display:block; opacity:.3; margin-bottom:8px;"></i>
+                No live data available right now
             </div>
             {% endfor %}
+            {% if most_active %}<a class="view-all-link" href="#">view all ›</a>{% endif %}
         </div>
 
     </div>
 </div>
 
-{# ═══════════════════════════════════════
-   TAB 4 — SECTORAL PERFORMANCE
-═══════════════════════════════════════ #}
+{# ════════════════════════════════
+   PANE 4 · SECTORAL PERFORMANCE
+════════════════════════════════ #}
 <div id="pane-sectors" class="lmp-pane">
     <div class="lmp-card">
         <div class="lmp-card-hd">
             <h6 class="lmp-card-title">
-                <div class="lmp-card-icon" style="background:#faf5ff;">
-                    <i class="fas fa-layer-group" style="color:#8b5cf6;"></i>
-                </div>
+                <i class="fas fa-layer-group" style="font-size:12px; color:#666666;"></i>
                 Sectoral Performance
             </h6>
-            <span style="font-size:11px; color:#94a3b8; font-weight:600;">Weighted avg change · Today</span>
+            <span class="lmp-card-sub">Weighted avg change · Today</span>
+        </div>
+        <div style="background:#ffffff; display:flex; align-items:center; gap:20px; padding:8px 16px; border-bottom:1px solid #f1f3f4;">
+            <span style="font-size:10px; font-weight:600; color:#999999; text-transform:uppercase; flex:1;">Sector</span>
+            <span style="font-size:10px; font-weight:600; color:#999999; text-transform:uppercase; width:36px; text-align:center;">Stocks</span>
+            <span style="font-size:10px; font-weight:600; color:#999999; text-transform:uppercase; width:72px; text-align:center;">Trend</span>
+            <span style="font-size:10px; font-weight:600; color:#999999; text-transform:uppercase; width:52px; text-align:right;">Change</span>
         </div>
         {% for sec in sector_data %}
         {% set chg = sec.change_percent | float %}
@@ -435,9 +482,9 @@
         <div class="sec-row">
             <div class="sec-dot" style="background:{% if chg>=0 %}#16a34a{% else %}#dc2626{% endif %};"></div>
             <div class="sec-name">{{ sec.sector }}</div>
-            <div style="font-size:11px; color:#94a3b8; width:40px; flex-shrink:0; text-align:center;">{{ sec.stocks }}</div>
+            <div class="sec-count">{{ sec.stocks }}</div>
             <div class="sec-bar-wrap">
-                <div class="sec-bar" style="width:{{ bw }}%; background:{% if chg>=0 %}#16a34a{% else %}#dc2626{% endif %}; opacity:.75;"></div>
+                <div class="sec-bar" style="width:{{ bw }}%; background:{% if chg>=0 %}#16a34a{% else %}#dc2626{% endif %}; opacity:.7;"></div>
             </div>
             <div class="sec-pct {% if chg>=0 %}up{% else %}dn{% endif %}">{{ "{:+.2f}".format(chg) }}%</div>
         </div>
@@ -445,35 +492,37 @@
     </div>
 </div>
 
-{# ═══════════════════════════════════════
-   TAB 5 — OUR SIGNALS
-═══════════════════════════════════════ #}
+{# ════════════════════════════════
+   PANE 5 · OUR SIGNALS
+════════════════════════════════ #}
 <div id="pane-signals" class="lmp-pane">
-    <div class="lmp-card">
-        <div class="sig-head">
-            <div>
-                <div style="font-size:14px; font-weight:700; color:#fff;">
-                    <i class="fas fa-signal me-2" style="color:#60a5fa;"></i>Our Trading Signals
-                </div>
-                <div style="font-size:11px; color:rgba(255,255,255,.4); margin-top:2px;">{{ selected_date.strftime('%A, %d %B %Y') }}</div>
-            </div>
-            <div class="d-flex gap-2 align-items-center">
-                {% if summary_stats.success_rate > 0 %}
-                <span class="badge" style="background:rgba(34,197,94,.18); color:#4ade80; border:1px solid rgba(34,197,94,.2); font-size:11px;">{{ summary_stats.success_rate }}% success</span>
-                {% endif %}
-                <span class="badge" style="background:rgba(255,255,255,.1); color:rgba(255,255,255,.7); font-size:11px;">{{ signals|length }} signal{{ 's' if signals|length != 1 }}</span>
-            </div>
-        </div>
 
-        <div class="sig-filt">
+    {# Header #}
+    <div style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
+        <div>
+            <h6 style="font-size:14px; font-weight:600; color:#000000; margin:0 0 2px;">Our Trading Signals</h6>
+            <span style="font-size:12px; color:#999999;">{{ selected_date.strftime('%A, %d %B %Y') }}</span>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            {% if summary_stats.success_rate > 0 %}
+            <span style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:600;">{{ summary_stats.success_rate }}% success</span>
+            {% endif %}
+            <span style="background:#f8f9fa; color:#666666; border:1px solid #e5e5e5; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:600;">{{ signals|length }} signal{{ 's' if signals|length != 1 }}</span>
+        </div>
+    </div>
+
+    {# Filters #}
+    <div class="lmp-card mb-3">
+        <div style="padding:10px 14px; background:#ffffff;">
             <div class="row g-2 align-items-end">
                 <div class="col-6 col-md-3">
-                    <label class="form-label mb-1" style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Date</label>
-                    <input type="date" class="form-control form-control-sm" id="sigDate" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                    <label class="form-label mb-1" style="font-size:10px;font-weight:600;color:#999999;text-transform:uppercase;letter-spacing:.04em;">Date</label>
+                    <input type="date" class="form-control form-control-sm" id="sigDate" value="{{ selected_date.strftime('%Y-%m-%d') }}"
+                        style="border:1px solid #e5e5e5; border-radius:6px; font-size:12px;">
                 </div>
                 <div class="col-6 col-md-3">
-                    <label class="form-label mb-1" style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Asset</label>
-                    <select class="form-select form-select-sm" id="sigAsset">
+                    <label class="form-label mb-1" style="font-size:10px;font-weight:600;color:#999999;text-transform:uppercase;letter-spacing:.04em;">Asset</label>
+                    <select class="form-select form-select-sm" id="sigAsset" style="border:1px solid #e5e5e5; border-radius:6px; font-size:12px;">
                         <option value="all"       {{ 'selected' if asset_type_filter=='all' }}>All Assets</option>
                         <option value="NIFTY"     {{ 'selected' if asset_type_filter=='NIFTY' }}>Nifty</option>
                         <option value="BANKNIFTY" {{ 'selected' if asset_type_filter=='BANKNIFTY' }}>BankNifty</option>
@@ -482,8 +531,8 @@
                     </select>
                 </div>
                 <div class="col-6 col-md-3">
-                    <label class="form-label mb-1" style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Duration</label>
-                    <select class="form-select form-select-sm" id="sigDur">
+                    <label class="form-label mb-1" style="font-size:10px;font-weight:600;color:#999999;text-transform:uppercase;letter-spacing:.04em;">Duration</label>
+                    <select class="form-select form-select-sm" id="sigDur" style="border:1px solid #e5e5e5; border-radius:6px; font-size:12px;">
                         <option value="all"   {{ 'selected' if duration_filter=='all' }}>All</option>
                         <option value="DAY"   {{ 'selected' if duration_filter=='DAY' }}>Day</option>
                         <option value="WEEK"  {{ 'selected' if duration_filter=='WEEK' }}>Swing</option>
@@ -491,49 +540,72 @@
                     </select>
                 </div>
                 <div class="col-6 col-md-3 d-flex gap-2">
-                    <button class="btn btn-primary btn-sm flex-fill" onclick="applyFilters()" style="font-size:12px;"><i class="fas fa-filter me-1"></i>Apply</button>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="resetFilters()" title="Reset"><i class="fas fa-undo"></i></button>
+                    <button class="btn btn-sm flex-fill" onclick="applyFilters()"
+                        style="background:#000000; color:#ffffff; font-size:12px; border-radius:6px; border:none;">
+                        <i class="fas fa-filter me-1"></i>Apply
+                    </button>
+                    <button class="btn btn-sm" onclick="resetFilters()" title="Reset"
+                        style="background:#f8f9fa; color:#666666; border:1px solid #e5e5e5; border-radius:6px;">
+                        <i class="fas fa-undo"></i>
+                    </button>
                 </div>
             </div>
         </div>
+    </div>
 
-        {% if signals %}
+    {% if signals %}
+    <div class="lmp-card">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0" style="font-size:12px;">
-                <thead style="background:#f8fafc; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.04em;">
+                <thead style="background:#f8f9fa; font-size:10px; color:#999999; text-transform:uppercase; letter-spacing:.05em;">
                     <tr>
-                        <th class="ps-3 py-2">Asset</th><th>Script</th><th>Expiry</th>
-                        <th>LTP</th><th>Entry</th><th>T1</th><th>T2</th><th>SL</th>
-                        <th>Duration</th><th>Risk</th><th class="text-center pe-3">Action</th>
+                        <th class="ps-3 py-2" style="border-bottom:1px solid #e5e5e5;">Asset</th>
+                        <th style="border-bottom:1px solid #e5e5e5;">Script</th>
+                        <th style="border-bottom:1px solid #e5e5e5;">Expiry</th>
+                        <th style="border-bottom:1px solid #e5e5e5;">LTP</th>
+                        <th style="border-bottom:1px solid #e5e5e5;">Entry</th>
+                        <th style="border-bottom:1px solid #e5e5e5;">T1</th>
+                        <th style="border-bottom:1px solid #e5e5e5;">T2</th>
+                        <th style="border-bottom:1px solid #e5e5e5;">SL</th>
+                        <th style="border-bottom:1px solid #e5e5e5;">Duration</th>
+                        <th style="border-bottom:1px solid #e5e5e5;">Risk</th>
+                        <th class="text-center pe-3" style="border-bottom:1px solid #e5e5e5;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for s in signals %}
-                    <tr>
-                        <td class="ps-3"><span style="background:#f1f5f9;color:#334155;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;">{{ s.asset_type }}</span></td>
-                        <td>
-                            <div style="font-weight:700;color:#1e293b;">{{ s.script }}</div>
-                            {% if s.sub_type_display %}<div style="font-size:10px;color:#94a3b8;">{{ s.sub_type_display }}</div>{% endif %}
+                    <tr style="border-bottom:1px solid #f1f3f4;">
+                        <td class="ps-3">
+                            <span style="background:#f1f3f4;color:#333333;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:600;">{{ s.asset_type }}</span>
                         </td>
-                        <td><span style="font-size:11px;color:#94a3b8;">{{ s.expiry_date.strftime('%d %b %y') if s.expiry_date else '—' }}</span></td>
-                        <td><strong style="color:#2563eb;">₹{{ s.current_price or '—' }}</strong></td>
+                        <td>
+                            <div style="font-weight:600;color:#000000;">{{ s.script }}</div>
+                            {% if s.sub_type_display %}<div style="font-size:10px;color:#999999;">{{ s.sub_type_display }}</div>{% endif %}
+                        </td>
+                        <td><span style="font-size:11px;color:#999999;">{{ s.expiry_date.strftime('%d %b %y') if s.expiry_date else '—' }}</span></td>
+                        <td><strong style="color:#000000;">₹{{ s.current_price or '—' }}</strong></td>
                         <td><span class="price-pill entry">₹{{ s.buy_above }}</span></td>
-                        <td>{% if s.target_1 %}<span class="price-pill tgt">₹{{ s.target_1 }}</span>{% else %}—{% endif %}</td>
-                        <td>{% if s.target_2 %}<span class="price-pill tgt">₹{{ s.target_2 }}</span>{% else %}—{% endif %}</td>
+                        <td>{% if s.target_1 %}<span class="price-pill tgt">₹{{ s.target_1 }}</span>{% else %}<span style="color:#e5e5e5;">—</span>{% endif %}</td>
+                        <td>{% if s.target_2 %}<span class="price-pill tgt">₹{{ s.target_2 }}</span>{% else %}<span style="color:#e5e5e5;">—</span>{% endif %}</td>
                         <td><span class="price-pill sl">₹{{ s.stop_loss }}</span></td>
                         <td>
                             {% set dur = (s.trade_duration or '')|lower %}
-                            <span style="border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;
-                                {% if dur=='day' %}background:#fef2f2;color:#dc2626;
-                                {% elif dur=='week' %}background:#fffbeb;color:#d97706;
-                                {% else %}background:#f0fdf4;color:#16a34a;{% endif %}">{{ s.duration_display }}</span>
+                            <span style="border-radius:6px;padding:2px 8px;font-size:10px;font-weight:600;border:1px solid;
+                                {% if dur=='day' %}background:#fef2f2;color:#dc2626;border-color:#fecaca;
+                                {% elif dur=='week' %}background:#fffbeb;color:#ca8a04;border-color:#fde68a;
+                                {% else %}background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;{% endif %}">{{ s.duration_display }}</span>
                         </td>
                         <td><span class="risk-{{ (s.risk_level or 'medium')|lower }}">{{ s.risk_level or 'Med' }}</span></td>
                         <td class="text-center pe-3">
                             <div class="d-flex gap-1 justify-content-center">
-                                <button class="btn btn-sm" onclick="showDetail({{ s.id }})" style="background:#f1f5f9;color:#334155;font-size:11px;padding:3px 9px;border:none;border-radius:6px;"><i class="fas fa-eye me-1"></i>View</button>
+                                <button onclick="showDetail({{ s.id }})"
+                                    style="background:#f8f9fa;color:#333333;border:1px solid #e5e5e5;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;">
+                                    <i class="fas fa-eye me-1"></i>View
+                                </button>
                                 <a href="{{ url_for('trade_assist', symbol=s.symbol, script=s.script, asset_type=s.asset_type, sub_type=s.sub_type, action=s.action, price=s.buy_above, stop_loss=s.stop_loss, target=s.target_1, target_2=s.target_2, target_3=s.target_3, trade_duration=s.trade_duration, risk_level=s.risk_level, signal_id=s.id, source='daily_signals') }}"
-                                   class="btn btn-sm" style="background:#00091a;color:#fff;font-size:11px;padding:3px 11px;border-radius:6px;">Trade</a>
+                                    style="background:#000000;color:#ffffff;font-size:11px;padding:4px 12px;border-radius:6px;text-decoration:none;display:inline-block;">
+                                    Trade
+                                </a>
                             </div>
                         </td>
                     </tr>
@@ -541,28 +613,34 @@
                 </tbody>
             </table>
         </div>
-        {% else %}
-        <div class="text-center py-5">
-            <div style="width:48px;height:48px;background:#f1f5f9;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
-                <i class="fas fa-chart-line" style="font-size:18px;color:#cbd5e1;"></i>
-            </div>
-            <div style="font-weight:700;color:#94a3b8;">No Signals for {{ selected_date.strftime('%d %B %Y') }}</div>
-            <div style="font-size:12px;color:#cbd5e1;margin-top:4px;">Select a different date above.</div>
-        </div>
-        {% endif %}
-
-        {# Signal detail inline #}
-        <div id="detailPanel" style="display:none; border-top:2px solid #e2e8f0;">
-            <div style="background:linear-gradient(135deg,#00091a,#1a365d);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
-                <span id="detailTitle" style="font-size:13px;font-weight:700;color:#fff;"></span>
-                <button style="background:rgba(255,255,255,.1);border:none;border-radius:6px;padding:4px 10px;color:#fff;font-size:11px;" onclick="closeDetail()"><i class="fas fa-times me-1"></i>Close</button>
-            </div>
-            <div class="p-3" id="detailBody"></div>
-        </div>
-
     </div>
+    {% else %}
+    <div class="text-center py-5" style="background:#f8f9fa; border:1px solid #e5e5e5; border-radius:8px;">
+        <div style="width:48px;height:48px;background:#ffffff;border:1px solid #e5e5e5;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+            <i class="fas fa-chart-line" style="font-size:18px;color:#cccccc;"></i>
+        </div>
+        <div style="font-size:14px;font-weight:600;color:#333333;">No signals for {{ selected_date.strftime('%d %B %Y') }}</div>
+        <div style="font-size:12px;color:#999999;margin-top:4px;">Select a different date using the filters above.</div>
+    </div>
+    {% endif %}
+
+    {# Signal detail expand #}
+    <div id="detailPanel" style="display:none; margin-top:16px;">
+        <div class="lmp-card">
+            <div style="background:#000000;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
+                <span id="detailTitle" style="font-size:13px;font-weight:600;color:#ffffff;"></span>
+                <button onclick="closeDetail()"
+                    style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:4px 10px;color:#ffffff;font-size:11px;cursor:pointer;">
+                    <i class="fas fa-times me-1"></i>Close
+                </button>
+            </div>
+            <div class="p-3" id="detailBody" style="background:#ffffff;"></div>
+        </div>
+    </div>
+
 </div>
 
+</div>{# end lmp-page #}
 {% endblock %}
 
 {% block extra_js %}
@@ -572,28 +650,25 @@
 let treemapBuilt = false;
 function lmpTab(id, el) {
     document.querySelectorAll('.lmp-pane').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.lmp-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.lmp-tab-btn').forEach(t => t.classList.remove('active'));
     document.getElementById('pane-' + id).classList.add('active');
     el.classList.add('active');
     if (id === 'heatmap' && !treemapBuilt) { buildMap(); treemapBuilt = true; }
 }
 
-/* ── Pill tabs ── */
-function pillTab(id, el) {
-    document.querySelectorAll('.pill-pane').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('pp-' + id).classList.add('active');
+/* ── Mover sub-tabs ── */
+function mvTab(id, el) {
+    document.querySelectorAll('.mv-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.mv-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('mvp-' + id).classList.add('active');
     el.classList.add('active');
 }
 
-/* ── Treemap colour ── */
+/* ── Heatmap colour ── */
 function hcol(p) {
-    if (p >= 2.5)  return '#14532d';
-    if (p >= 1.2)  return '#16a34a';
-    if (p >= 0.2)  return '#4ade80';
-    if (p > -0.2)  return '#94a3b8';
-    if (p > -1.2)  return '#f87171';
-    if (p > -2.5)  return '#ef4444';
+    if (p >= 2.5) return '#14532d'; if (p >= 1.2) return '#16a34a';
+    if (p >= 0.2) return '#4ade80'; if (p > -0.2) return '#94a3b8';
+    if (p > -1.2) return '#f87171'; if (p > -2.5) return '#ef4444';
     return '#7f1d1d';
 }
 
@@ -603,47 +678,42 @@ function buildMap() {
     const wrap = document.getElementById('treemapWrap');
     if (!wrap || !N50.length) return;
     wrap.innerHTML = '';
-    const W = wrap.clientWidth || 700, H = Math.max(360, Math.round(W * 0.52));
+    const W = wrap.clientWidth || 700, H = Math.max(360, Math.round(W * 0.5));
     const root = d3.hierarchy({ children: N50 }).sum(d => d.weight || 1).sort((a,b) => b.value - a.value);
     d3.treemap().size([W, H]).paddingInner(2).paddingOuter(3)(root);
     const svg = d3.select(wrap).append('svg').attr('width', W).attr('height', H).style('display','block');
     const cell = svg.selectAll('g').data(root.leaves()).join('g').attr('transform', d => `translate(${d.x0},${d.y0})`);
-    cell.append('rect')
-        .attr('width',  d => Math.max(0, d.x1-d.x0))
-        .attr('height', d => Math.max(0, d.y1-d.y0))
-        .attr('fill',   d => hcol(d.data.change_percent))
-        .attr('rx', 3);
+    cell.append('rect').attr('width', d => Math.max(0,d.x1-d.x0)).attr('height', d => Math.max(0,d.y1-d.y0))
+        .attr('fill', d => hcol(d.data.change_percent)).attr('rx', 3);
     cell.each(function(d) {
-        const w=d.x1-d.x0, h=d.y1-d.y0;
-        if (w<28||h<18) return;
+        const w=d.x1-d.x0, h=d.y1-d.y0; if(w<28||h<18) return;
         const g=d3.select(this), c=d.data.change_percent, fs=Math.min(12,w/5);
         if (h>=40) {
             g.append('text').attr('x',w/2).attr('y',h/2-6).attr('text-anchor','middle')
-             .attr('fill','rgba(255,255,255,.95)').attr('font-size',fs).attr('font-weight','700').text(d.data.symbol);
+             .attr('fill','rgba(255,255,255,.95)').attr('font-size',fs).attr('font-weight','600').text(d.data.symbol);
             g.append('text').attr('x',w/2).attr('y',h/2+10).attr('text-anchor','middle')
              .attr('fill','rgba(255,255,255,.7)').attr('font-size',Math.min(10,w/6))
              .text(`${c>=0?'+':''}${c.toFixed(2)}%`);
         } else {
             g.append('text').attr('x',w/2).attr('y',h/2+4).attr('text-anchor','middle')
-             .attr('fill','rgba(255,255,255,.9)').attr('font-size',fs).attr('font-weight','700').text(d.data.symbol);
+             .attr('fill','rgba(255,255,255,.9)').attr('font-size',fs).attr('font-weight','600').text(d.data.symbol);
         }
     });
     const tip = d3.select('body').append('div')
-        .style('position','fixed').style('background','rgba(0,9,26,.92)').style('color','#fff')
-        .style('padding','8px 14px').style('border-radius','9px').style('font-size','12px')
-        .style('pointer-events','none').style('display','none').style('z-index','9999')
-        .style('line-height','1.75').style('box-shadow','0 4px 18px rgba(0,0,0,.3)');
+        .style('position','fixed').style('background','#000000').style('color','#ffffff')
+        .style('padding','8px 14px').style('border-radius','8px').style('font-size','12px')
+        .style('pointer-events','none').style('display','none').style('z-index','9999').style('line-height','1.7');
     cell.on('mousemove',(e,d)=>{
         const c=d.data.change_percent;
-        tip.style('display','block').style('left',(e.clientX+14)+'px').style('top',(e.clientY-30)+'px')
-           .html(`<strong>${d.data.symbol}</strong>&nbsp;<span style="color:#94a3b8">${d.data.name}</span><br>
-                  <span style="color:${hcol(c)};font-weight:700">${c>=0?'+':''}${c.toFixed(2)}%</span>
-                  &nbsp;·&nbsp;${d.data.sector}&nbsp;·&nbsp;Wt:${d.data.weight.toFixed(1)}%`);
+        tip.style('display','block').style('left',(e.clientX+14)+'px').style('top',(e.clientY-28)+'px')
+           .html(`<strong>${d.data.symbol}</strong> &nbsp;<span style="color:#999">${d.data.name}</span><br>
+                  <span style="color:${hcol(c)};font-weight:600">${c>=0?'+':''}${c.toFixed(2)}%</span>
+                  &nbsp;·&nbsp;${d.data.sector}&nbsp;·&nbsp;Wt: ${d.data.weight.toFixed(1)}%`);
     }).on('mouseleave', ()=>tip.style('display','none'));
 }
 
-/* ── Signal filters ── */
-function applyFilters(){
+/* ── Filters ── */
+function applyFilters() {
     const d=document.getElementById('sigDate').value;
     const a=document.getElementById('sigAsset').value;
     const u=document.getElementById('sigDur').value;
@@ -655,55 +725,65 @@ function applyFilters(){
 function resetFilters(){document.getElementById('sigAsset').value='all';document.getElementById('sigDur').value='all';applyFilters();}
 
 /* ── Signal detail ── */
-const SIG={
+const SIG = {
     {% for s in signals %}
-    {{ s.id }}:{
-        id:{{s.id}},script:"{{s.script}}",symbol:"{{s.symbol}}",
-        asset_type:"{{s.asset_type}}",sub_type:"{{s.sub_type or ''}}",
-        action:"{{s.action}}",buy_above:{{s.buy_above or 0}},
-        stop_loss:{{s.stop_loss or 0}},target_1:{{s.target_1 or 'null'}},
-        target_2:{{s.target_2 or 'null'}},target_3:{{s.target_3 or 'null'}},
+    {{ s.id }}: {
+        id:{{s.id}}, script:"{{s.script}}", symbol:"{{s.symbol}}",
+        asset_type:"{{s.asset_type}}", sub_type:"{{s.sub_type or ''}}",
+        action:"{{s.action}}", buy_above:{{s.buy_above or 0}},
+        stop_loss:{{s.stop_loss or 0}}, target_1:{{s.target_1 or 'null'}},
+        target_2:{{s.target_2 or 'null'}}, target_3:{{s.target_3 or 'null'}},
         current_price:{{s.current_price or 0}},
-        duration_display:"{{s.duration_display}}",risk_level:"{{s.risk_level or 'Medium'}}",
+        duration_display:"{{s.duration_display}}", risk_level:"{{s.risk_level or 'Medium'}}",
         notes:`{{ (s.notes or '')|replace('`',"'") }}`,
         expiry_date:"{{s.expiry_date.strftime('%d %b %Y') if s.expiry_date else 'N/A'}}"
     },
     {% endfor %}
 };
-function showDetail(id){
+function showDetail(id) {
     const s=SIG[id]; if(!s) return;
     const ret=s.target_1&&s.buy_above?(((s.target_1-s.buy_above)/s.buy_above)*100).toFixed(1):'—';
-    const risk=s.stop_loss&&s.buy_above?(((s.buy_above-s.stop_loss)/s.buy_above)*100).toFixed(1):'—';
-    const rr=(parseFloat(ret)>0&&parseFloat(risk)>0)?(parseFloat(ret)/parseFloat(risk)).toFixed(2):'—';
-    const ab=s.action==='BUY'?'bg-success':'bg-danger';
-    const tg=[s.target_1,s.target_2,s.target_3].filter(Boolean).map((t,i)=>`<span class="price-pill tgt me-1">T${i+1}: ₹${t}</span>`).join('');
+    const rsk=s.stop_loss&&s.buy_above?(((s.buy_above-s.stop_loss)/s.buy_above)*100).toFixed(1):'—';
+    const rr=(parseFloat(ret)>0&&parseFloat(rsk)>0)?(parseFloat(ret)/parseFloat(rsk)).toFixed(2):'—';
+    const ab=s.action==='BUY'?'#16a34a':'#dc2626';
+    const tg=[s.target_1,s.target_2,s.target_3].filter(Boolean)
+              .map((t,i)=>`<span class="price-pill tgt me-1">T${i+1}: ₹${t}</span>`).join('');
     document.getElementById('detailTitle').textContent=s.script+' · Signal Details';
     document.getElementById('detailBody').innerHTML=`
         <div class="row g-3">
-            <div class="col-md-4"><div class="card border-0" style="background:#f8fafc;"><div class="card-body">
-                <div class="text-muted mb-3" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Overview</div>
-                <div class="mb-2"><small class="text-muted d-block">Action</small><span class="badge ${ab} px-3">${s.action}</span></div>
-                <div class="mb-2"><small class="text-muted d-block">Asset</small><strong>${s.asset_type}${s.sub_type?' · '+s.sub_type:''}</strong></div>
-                <div class="mb-2"><small class="text-muted d-block">Expiry</small><strong>${s.expiry_date}</strong></div>
-                <div class="mb-2"><small class="text-muted d-block">Duration</small><strong>${s.duration_display}</strong></div>
-                <div><small class="text-muted d-block">Risk</small><span class="risk-${s.risk_level.toLowerCase()}">${s.risk_level}</span></div>
-            </div></div></div>
-            <div class="col-md-4"><div class="card border-0" style="background:#f8fafc;"><div class="card-body">
-                <div class="text-muted mb-3" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Price Levels</div>
-                <div class="mb-2"><small class="text-muted d-block">Current</small><span style="font-size:20px;font-weight:800;color:#2563eb;">₹${s.current_price.toFixed(2)}</span></div>
-                <div class="mb-2"><small class="text-muted d-block">Entry</small><span class="price-pill entry">₹${s.buy_above}</span></div>
-                <div class="mb-2"><small class="text-muted d-block">Stop Loss</small><span class="price-pill sl">₹${s.stop_loss}</span></div>
-                <div><small class="text-muted d-block">Targets</small><div class="mt-1">${tg||'—'}</div></div>
-            </div></div></div>
-            <div class="col-md-4"><div class="card border-0" style="background:#f8fafc;"><div class="card-body">
-                <div class="text-muted mb-3" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Risk / Reward</div>
-                <div class="row text-center g-2 mb-3">
-                    <div class="col-4"><div style="font-size:22px;font-weight:800;color:#16a34a;">${ret}%</div><small class="text-muted">Return</small></div>
-                    <div class="col-4"><div style="font-size:22px;font-weight:800;color:#dc2626;">${risk}%</div><small class="text-muted">Risk</small></div>
-                    <div class="col-4"><div style="font-size:22px;font-weight:800;">${rr}</div><small class="text-muted">R:R</small></div>
+            <div class="col-md-4">
+                <div style="background:#f8f9fa;border:1px solid #e5e5e5;border-radius:8px;padding:16px;">
+                    <div style="font-size:10px;font-weight:600;color:#999999;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Overview</div>
+                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Action</small>
+                        <span style="background:${ab};color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600;">${s.action}</span></div>
+                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Asset</small><strong>${s.asset_type}${s.sub_type?' · '+s.sub_type:''}</strong></div>
+                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Expiry</small><strong>${s.expiry_date}</strong></div>
+                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Duration</small><strong>${s.duration_display}</strong></div>
+                    <div><small style="color:#999999;display:block;margin-bottom:2px;">Risk</small>
+                        <span class="risk-${s.risk_level.toLowerCase()}">${s.risk_level}</span></div>
                 </div>
-                ${s.notes?`<hr><p class="small text-muted mb-0"><strong>Notes:</strong> ${s.notes}</p>`:''}
-            </div></div></div>
+            </div>
+            <div class="col-md-4">
+                <div style="background:#f8f9fa;border:1px solid #e5e5e5;border-radius:8px;padding:16px;">
+                    <div style="font-size:10px;font-weight:600;color:#999999;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Price Levels</div>
+                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Current</small>
+                        <span style="font-size:22px;font-weight:700;color:#000000;">₹${s.current_price.toFixed(2)}</span></div>
+                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Entry</small><span class="price-pill entry">₹${s.buy_above}</span></div>
+                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Stop Loss</small><span class="price-pill sl">₹${s.stop_loss}</span></div>
+                    <div><small style="color:#999999;display:block;margin-bottom:2px;">Targets</small><div class="mt-1">${tg||'—'}</div></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div style="background:#f8f9fa;border:1px solid #e5e5e5;border-radius:8px;padding:16px;">
+                    <div style="font-size:10px;font-weight:600;color:#999999;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Risk / Reward</div>
+                    <div class="row text-center g-2 mb-3">
+                        <div class="col-4"><div style="font-size:22px;font-weight:700;color:#16a34a;">${ret}%</div><small style="color:#999999;">Return</small></div>
+                        <div class="col-4"><div style="font-size:22px;font-weight:700;color:#dc2626;">${rsk}%</div><small style="color:#999999;">Risk</small></div>
+                        <div class="col-4"><div style="font-size:22px;font-weight:700;color:#000000;">${rr}</div><small style="color:#999999;">R:R</small></div>
+                    </div>
+                    ${s.notes?`<div style="border-top:1px solid #e5e5e5;padding-top:10px;margin-top:4px;font-size:12px;color:#666666;"><strong>Notes:</strong> ${s.notes}</div>`:''}
+                </div>
+            </div>
         </div>`;
     const p=document.getElementById('detailPanel');
     p.style.display='block';
@@ -712,17 +792,17 @@ function showDetail(id){
 function closeDetail(){document.getElementById('detailPanel').style.display='none';}
 
 /* ── AI Commentary ── */
-async function loadAI(){
+async function loadAI() {
     const el=document.getElementById('aiText');
-    el.innerHTML='<i class="fas fa-circle-notch fa-spin me-2" style="color:rgba(255,255,255,.3);"></i><span style="color:rgba(255,255,255,.35);">Analysing…</span>';
-    try{
+    el.innerHTML='<span style="color:#999999;"><i class="fas fa-circle-notch fa-spin me-2"></i>Analysing…</span>';
+    try {
         const r=await fetch('{{ url_for("market_pulse_commentary") }}');
         const d=await r.json();
         el.innerHTML=d.success&&d.commentary
             ? d.commentary.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
-            : '<span style="color:rgba(255,255,255,.35);">Commentary unavailable — try refreshing.</span>';
+            : '<span style="color:#999999;">Commentary unavailable — try refreshing.</span>';
     } catch(e){
-        el.innerHTML='<span style="color:rgba(255,255,255,.35);">Could not load commentary.</span>';
+        el.innerHTML='<span style="color:#999999;">Could not load commentary.</span>';
     }
 }
 
@@ -731,11 +811,9 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAI();
     document.getElementById('mpTs').textContent =
         'as of ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
-
-    // Restore tab from URL param
     const tab = new URLSearchParams(window.location.search).get('tab');
     if (tab) {
-        const btn = document.querySelector(`.lmp-tab[onclick*="${tab}"]`);
+        const btn = document.querySelector(`.lmp-tab-btn[onclick*="'${tab}'"]`);
         if (btn) lmpTab(tab, btn);
     }
 });
@@ -746,7 +824,7 @@ window.addEventListener('resize', () => {
     rTimer = setTimeout(() => {
         if (treemapBuilt) {
             const w = document.getElementById('treemapWrap');
-            if (w) { w.innerHTML = ''; buildMap(); }
+            if (w) { w.innerHTML=''; buildMap(); }
         }
     }, 220);
 });
