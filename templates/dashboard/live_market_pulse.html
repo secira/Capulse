@@ -1,198 +1,177 @@
 {% extends "dashboard/dashboard_base.html" %}
-
 {% block title %}Live Market Pulse - Target Capital{% endblock %}
 
 {% block extra_css %}
 <style>
-/* ── Index ticker cards ── */
-.mp-idx-card {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 12px 14px;
-    position: relative;
-    overflow: hidden;
-    transition: box-shadow .15s;
-    height: 100%;
+/* ─── Index strip ─────────────────────────── */
+.idx-strip {
+    display: flex; gap: 0; overflow-x: auto;
+    background: #fff; border: 1px solid #eef0f3;
+    border-radius: 10px; margin-bottom: 16px;
 }
-.mp-idx-card:hover { box-shadow: 0 4px 14px rgba(0,9,26,.1); }
-.mp-idx-card .idx-stripe {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    height: 3px; border-radius: 0 0 10px 10px;
+.idx-strip::-webkit-scrollbar { display: none; }
+.idx-item {
+    flex: 1; min-width: 120px;
+    padding: 10px 14px;
+    border-right: 1px solid #eef0f3;
+    position: relative; cursor: default;
 }
-.mp-idx-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .07em; }
-.mp-idx-value { font-size: 20px; font-weight: 800; color: #0f172a; line-height: 1.1; margin: 4px 0 3px; }
-.mp-idx-chg   { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
-.mp-idx-chg.up   { color: #16a34a; }
-.mp-idx-chg.down { color: #dc2626; }
-.mp-idx-chg.neu  { color: #f59e0b; }
-.mp-idx-live-dot {
-    display: inline-block; width: 5px; height: 5px; border-radius: 50%;
-    margin-left: 4px; vertical-align: middle;
-}
+.idx-item:last-child { border-right: none; }
+.idx-item:hover { background: #fafbfc; }
+.idx-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; }
+.idx-val   { font-size: 17px; font-weight: 800; color: #0f172a; margin: 2px 0 2px; line-height: 1; }
+.idx-chg   { font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 3px; }
+.idx-chg.up  { color: #16a34a; }
+.idx-chg.dn  { color: #dc2626; }
+.idx-chg.nu  { color: #f59e0b; }
+.idx-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 2px; border-radius: 0 0 10px 10px; }
+.idx-live { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #22c55e; margin-left: 3px; vertical-align: middle; }
 
-/* ── Panel card ── */
-.mp-panel {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0,9,26,.04);
-    height: 100%;
-    display: flex; flex-direction: column;
-}
-.mp-panel-hd {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px 10px;
-    border-bottom: 1px solid #f1f5f9;
-    background: #fafbfc;
-    flex-shrink: 0;
-}
-.mp-panel-title {
+/* ─── Section header ──────────────────────── */
+.sec-hd {
     font-size: 13px; font-weight: 700; color: #1e293b;
-    display: flex; align-items: center; gap: 8px; margin: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
 }
-.mp-panel-icon {
-    width: 26px; height: 26px; border-radius: 7px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px;
+.sec-hd-left { display: flex; align-items: center; gap: 8px; }
+.sec-badge {
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    border-radius: 20px; padding: 2px 8px;
+    border: 1px solid currentColor; opacity: .7;
 }
-.mp-panel-body { flex: 1; overflow: hidden; }
 
-/* ── Legend ── */
-.mp-legend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.mp-legend-dot { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #94a3b8; }
-.mp-legend-sq { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-
-/* ── Treemap ── */
-#treemapSvg { display: block; width: 100%; }
-
-/* ── Tabs ── */
-.mp-tabs {
-    display: flex; border-bottom: 1px solid #f1f5f9;
-    flex-shrink: 0; background: #fafbfc;
+/* ─── Card wrapper ────────────────────────── */
+.lmp-card {
+    background: #fff; border: 1px solid #eef0f3;
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,9,26,.04);
 }
-.mp-tab {
-    flex: 1; padding: 9px 4px; text-align: center;
-    font-size: 11px; font-weight: 600; color: #94a3b8;
-    cursor: pointer; border-bottom: 2px solid transparent;
-    transition: all .15s;
-}
-.mp-tab.active { color: #00091a; border-bottom-color: #00091a; background: #fff; }
-.mp-tab:hover:not(.active) { color: #334155; }
-.mp-tab-panel { display: none; overflow-y: auto; }
-.mp-tab-panel.active { display: block; }
 
-/* ── Stock row ── */
-.mp-stock-row {
+/* ─── Pill tabs (Zerodha-style) ───────────── */
+.pill-tabs { display: flex; gap: 6px; padding: 10px 12px 0; }
+.pill-tab {
+    font-size: 11px; font-weight: 600; color: #64748b;
+    background: #f1f5f9; border: none; border-radius: 20px;
+    padding: 4px 12px; cursor: pointer; transition: all .15s;
+}
+.pill-tab.active { background: #00091a; color: #fff; }
+.pill-tab:hover:not(.active) { background: #e2e8f0; color: #334155; }
+.pill-pane { display: none; }
+.pill-pane.active { display: block; }
+
+/* ─── Mover row ───────────────────────────── */
+.mv-row {
     display: flex; align-items: center; gap: 10px;
-    padding: 9px 14px;
-    border-bottom: 1px solid #f8fafc;
-    cursor: default; transition: background .1s;
-}
-.mp-stock-row:last-child { border-bottom: none; }
-.mp-stock-row:hover { background: #f8fafc; }
-.mp-av {
-    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 10px; font-weight: 800; color: #fff;
-}
-.mp-stock-info { flex: 1; min-width: 0; }
-.mp-stock-sym { font-size: 12px; font-weight: 700; color: #1e293b; }
-.mp-stock-co  { font-size: 10px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mp-stock-r   { text-align: right; flex-shrink: 0; }
-.mp-stock-price { font-size: 12px; font-weight: 700; color: #1e293b; }
-.mp-stock-chg   { font-size: 11px; font-weight: 700; }
-.mp-stock-chg.up   { color: #16a34a; }
-.mp-stock-chg.down { color: #dc2626; }
-
-/* ── Sector list ── */
-.mp-sec-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 14px; border-bottom: 1px solid #f8fafc;
+    padding: 9px 14px; border-bottom: 1px solid #f8fafc;
     transition: background .1s;
 }
-.mp-sec-row:last-child { border-bottom: none; }
-.mp-sec-row:hover { background: #f8fafc; }
-.mp-sec-dot  { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-.mp-sec-name { font-size: 11px; font-weight: 600; color: #334155; flex: 1; }
-.mp-sec-bar-wrap { width: 56px; height: 5px; background: #e2e8f0; border-radius: 3px; flex-shrink: 0; overflow: hidden; }
-.mp-sec-bar      { height: 100%; border-radius: 3px; }
-.mp-sec-pct  { font-size: 11px; font-weight: 700; width: 44px; text-align: right; flex-shrink: 0; }
-.mp-sec-pct.up   { color: #16a34a; }
-.mp-sec-pct.down { color: #dc2626; }
-
-/* ── AI Commentary ── */
-.mp-ai-card {
-    border-radius: 12px;
-    background: linear-gradient(140deg, #00091a 0%, #0d2347 60%, #0f2d5e 100%);
-    border: none;
-    overflow: hidden;
-    position: relative;
-    height: 100%;
-    display: flex; flex-direction: column;
+.mv-row:last-child { border-bottom: none; }
+.mv-row:hover { background: #fafbfc; }
+.mv-av {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; color: #fff; letter-spacing: -.5px;
 }
-.mp-ai-card::before {
-    content: ''; position: absolute; top: -50px; right: -50px;
-    width: 200px; height: 200px;
+.mv-name { flex: 1; min-width: 0; }
+.mv-sym  { font-size: 12px; font-weight: 700; color: #1e293b; }
+.mv-co   { font-size: 10px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mv-r    { text-align: right; flex-shrink: 0; }
+.mv-price{ font-size: 12px; font-weight: 700; color: #1e293b; }
+.mv-chg  { font-size: 11px; font-weight: 700; }
+.mv-chg.up  { color: #16a34a; }
+.mv-chg.dn  { color: #dc2626; }
+.view-all { display: block; text-align: right; font-size: 11px; font-weight: 600; color: #2563eb; padding: 7px 14px; }
+
+/* ─── Avatar colours ──────────────────────── */
+.avc0{background:#3b82f6;}.avc1{background:#8b5cf6;}.avc2{background:#f97316;}
+.avc3{background:#06b6d4;}.avc4{background:#ec4899;}.avc5{background:#16a34a;}
+.avc6{background:#f59e0b;}.avc7{background:#6366f1;}.avc8{background:#14b8a6;}
+.avc9{background:#84cc16;}
+
+/* ─── Treemap ─────────────────────────────── */
+#treemapWrap { width: 100%; }
+#treemapWrap svg { display: block; width: 100%; }
+
+/* ─── Heatmap legend ──────────────────────── */
+.hm-legend { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hm-leg-dot { display: flex; align-items: center; gap: 3px; font-size: 10px; color: #94a3b8; font-weight: 600; }
+.hm-leg-sq  { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* ─── Sector list ─────────────────────────── */
+.sec-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 14px; border-bottom: 1px solid #f8fafc;
+    transition: background .1s;
+}
+.sec-row:last-child { border-bottom: none; }
+.sec-row:hover { background: #fafbfc; }
+.sec-dot  { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+.sec-name { font-size: 11px; font-weight: 600; color: #334155; flex: 1; }
+.sec-bar-wrap { width: 48px; height: 4px; background: #e2e8f0; border-radius: 3px; flex-shrink: 0; overflow: hidden; }
+.sec-bar      { height: 100%; border-radius: 3px; }
+.sec-pct { font-size: 11px; font-weight: 700; width: 42px; text-align: right; flex-shrink: 0; }
+.sec-pct.up { color: #16a34a; }
+.sec-pct.dn { color: #dc2626; }
+
+/* ─── AI strip ────────────────────────────── */
+.ai-strip {
+    background: linear-gradient(135deg, #00091a 0%, #0d2347 100%);
+    border-radius: 10px; padding: 14px 18px;
+    display: flex; align-items: flex-start; gap: 14px;
+    margin-bottom: 16px;
+    position: relative; overflow: hidden;
+}
+.ai-strip::before {
+    content:''; position:absolute; top:-30px; right:-30px;
+    width:140px; height:140px;
     background: radial-gradient(circle, rgba(99,102,241,.15) 0%, transparent 65%);
     pointer-events: none;
 }
-.mp-ai-inner { padding: 18px 20px; display: flex; flex-direction: column; flex: 1; position: relative; z-index: 1; }
-.mp-ai-pill {
-    display: inline-flex; align-items: center; gap: 6px;
+.ai-icon {
+    width:36px; height:36px; border-radius:10px;
     background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
-    border-radius: 20px; padding: 3px 12px; margin-bottom: 12px;
-    font-size: 10px; font-weight: 700; letter-spacing: .05em; color: rgba(255,255,255,.75);
-    text-transform: uppercase; width: fit-content;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
 }
-.mp-ai-text {
-    font-size: 13px; line-height: 1.8; color: rgba(255,255,255,.85);
-    flex: 1;
+.ai-body { flex:1; min-width:0; }
+.ai-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:rgba(255,255,255,.4); margin-bottom:4px; }
+.ai-text  { font-size:12px; line-height:1.7; color:rgba(255,255,255,.82); }
+.ai-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.ai-btn {
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+    border-radius:7px; padding:5px 11px;
+    font-size:11px; color:rgba(255,255,255,.6); cursor:pointer;
+    transition:all .15s; white-space:nowrap;
 }
-.mp-ai-footer {
-    margin-top: 14px; padding-top: 10px;
-    border-top: 1px solid rgba(255,255,255,.07);
-    display: flex; align-items: center; justify-content: space-between;
-}
-.mp-ai-footnote { font-size: 10px; color: rgba(255,255,255,.3); }
-.mp-ai-reload {
-    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
-    border-radius: 6px; padding: 3px 10px;
-    font-size: 10px; font-weight: 600; color: rgba(255,255,255,.55);
-    cursor: pointer; transition: all .15s;
-}
-.mp-ai-reload:hover { background: rgba(255,255,255,.14); color: #fff; }
+.ai-btn:hover { background:rgba(255,255,255,.16); color:#fff; }
 
-/* ── Signals ── */
-.mp-sig-hd {
-    background: linear-gradient(135deg, #00091a 0%, #1a365d 100%);
+/* ─── Signal table ────────────────────────── */
+.sig-header {
+    background: linear-gradient(135deg, #00091a, #1a365d);
+    border-radius: 10px 10px 0 0;
     padding: 12px 16px;
     display: flex; align-items: center; justify-content: space-between;
-    border-radius: 12px 12px 0 0;
 }
-.price-pill { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.price-pill.entry  { background: #ecfdf5; color: #059669; }
-.price-pill.sl     { background: #fef2f2; color: #dc2626; }
-.price-pill.target { background: #eff6ff; color: #2563eb; }
-.risk-low    { color: #059669; font-weight: 600; font-size: 11px; }
-.risk-medium { color: #d97706; font-weight: 600; font-size: 11px; }
-.risk-high   { color: #dc2626; font-weight: 600; font-size: 11px; }
-
-/* ── Avatar colours ── */
-.av0{background:#3b82f6;} .av1{background:#8b5cf6;} .av2{background:#f97316;}
-.av3{background:#06b6d4;} .av4{background:#ec4899;} .av5{background:#10b981;}
-.av6{background:#f59e0b;} .av7{background:#6366f1;} .av8{background:#14b8a6;}
-.av9{background:#84cc16;}
+.sig-filters {
+    background: #fafbfc; border-left: 1px solid #eef0f3; border-right: 1px solid #eef0f3;
+    padding: 8px 14px;
+}
+.price-pill { display:inline-block; padding:2px 7px; border-radius:20px; font-size:11px; font-weight:600; white-space:nowrap; }
+.price-pill.entry  { background:#ecfdf5; color:#059669; }
+.price-pill.sl     { background:#fef2f2; color:#dc2626; }
+.price-pill.tgt    { background:#eff6ff; color:#2563eb; }
+.risk-low    { color:#059669; font-weight:600; font-size:11px; }
+.risk-medium { color:#d97706; font-weight:600; font-size:11px; }
+.risk-high   { color:#dc2626; font-weight:600; font-size:11px; }
 </style>
 {% endblock %}
 
 {% block dashboard_title %}Live Market Pulse{% endblock %}
-{% block dashboard_subtitle %}Nifty 50 · Sector Heat Map · AI Insights · Trading Signals{% endblock %}
+{% block dashboard_subtitle %}Real-time Nifty 50 · Sectors · AI Insights · Signals{% endblock %}
 
 {% block dashboard_toolbar %}
 <div class="d-flex align-items-center gap-2">
-    <span id="mpUpdated" class="text-muted" style="font-size:11px;"></span>
+    <span id="mpTs" style="font-size:11px; color:#94a3b8;"></span>
     <button class="btn btn-outline-primary btn-sm" onclick="location.reload()">
         <i class="fas fa-sync-alt me-1"></i>Refresh
     </button>
@@ -204,249 +183,240 @@
 
 {% block dashboard_content %}
 
-{# ══════════════════════════════════════════
-   ROW 1 — Market Indices
-══════════════════════════════════════════ #}
-<div class="row g-2 mb-3">
-    {% for key, icon in [('nifty_50','chart-line'), ('nifty_bank','university'), ('sensex','chart-bar'), ('nifty_it','microchip'), ('india_vix','bolt')] %}
+{# ═══════════════════════════════════
+   INDICES STRIP
+═══════════════════════════════════ #}
+<div class="idx-strip">
+    {% for key, icon in [('nifty_50','chart-line'),('nifty_bank','university'),('sensex','chart-bar'),('nifty_it','microchip'),('india_vix','bolt')] %}
     {% set d   = market_indices.get(key, {}) %}
     {% set val = d.get('value', 0) | float %}
     {% set chg = d.get('change_percent', 0) | float %}
-    {% set is_vix = (key == 'india_vix') %}
-    {% set state = 'neu' if is_vix else ('up' if chg >= 0 else 'down') %}
-    {% set stripe = '#f59e0b' if is_vix else ('#16a34a' if chg >= 0 else '#dc2626') %}
-    <div class="col">
-        <div class="mp-idx-card">
-            <div class="idx-stripe" style="background:{{ stripe }};"></div>
-            <div class="d-flex justify-content-between align-items-start mb-1">
-                <div class="mp-idx-label">{{ d.get('label', key.upper()) }}</div>
-                <i class="fas fa-{{ icon }}" style="font-size:10px; color:#cbd5e1;"></i>
-            </div>
-            <div class="mp-idx-value">{{ "{:,.0f}".format(val) if not is_vix else "{:.2f}".format(val) }}</div>
-            <div class="mp-idx-chg {{ state }}">
-                {% if not is_vix %}
-                <i class="fas fa-caret-{{ 'up' if chg >= 0 else 'down' }}" style="font-size:10px;"></i>
-                {{ "{:+.2f}".format(chg) }}%
-                {% else %}
-                <span style="font-size:10px; color:#f59e0b;">Volatility Index</span>
-                {% endif %}
-                {% if d.get('live') %}<span class="mp-idx-live-dot" style="background:#22c55e;" title="Live"></span>{% endif %}
-            </div>
+    {% set vix = (key == 'india_vix') %}
+    {% set state = 'nu' if vix else ('up' if chg >= 0 else 'dn') %}
+    {% set bar_c = '#f59e0b' if vix else ('#16a34a' if chg >= 0 else '#dc2626') %}
+    <div class="idx-item">
+        <div class="idx-bar" style="background:{{ bar_c }};"></div>
+        <div class="idx-label">{{ d.get('label', key|upper) }}</div>
+        <div class="idx-val">
+            {% if vix %}{{ "%.2f"|format(val) }}
+            {% else %}{{ "{:,.0f}".format(val) }}{% endif %}
+        </div>
+        <div class="idx-chg {{ state }}">
+            {% if not vix %}
+            <i class="fas fa-caret-{{ 'up' if chg >= 0 else 'down' }}" style="font-size:10px;"></i>
+            {{ "{:+.2f}".format(chg) }}%
+            {% else %}<span style="font-size:10px;">Volatility Index</span>{% endif %}
+            {% if d.get('live') %}<span class="idx-live" title="Live"></span>{% endif %}
         </div>
     </div>
     {% endfor %}
 </div>
 
-{# ══════════════════════════════════════════
-   ROW 2 — Treemap (left) + Top Movers (right)
-══════════════════════════════════════════ #}
-<div class="row g-3 mb-3">
-
-    {# ── Nifty 50 Heat Map ── #}
-    <div class="col-lg-8">
-        <div class="mp-panel">
-            <div class="mp-panel-hd">
-                <h6 class="mp-panel-title">
-                    <div class="mp-panel-icon" style="background:#eff6ff;">
-                        <i class="fas fa-th-large" style="color:#2563eb;"></i>
-                    </div>
-                    Nifty 50 Heat Map
-                </h6>
-                <div class="mp-legend">
-                    <div class="mp-legend-dot"><div class="mp-legend-sq" style="background:#14532d;"></div>&gt;+2%</div>
-                    <div class="mp-legend-dot"><div class="mp-legend-sq" style="background:#4ade80;"></div>0–2%</div>
-                    <div class="mp-legend-dot"><div class="mp-legend-sq" style="background:#94a3b8;"></div>Flat</div>
-                    <div class="mp-legend-dot"><div class="mp-legend-sq" style="background:#f87171;"></div>0–2%</div>
-                    <div class="mp-legend-dot"><div class="mp-legend-sq" style="background:#7f1d1d;"></div>&lt;-2%</div>
-                </div>
-            </div>
-            <div class="mp-panel-body">
-                <div id="treemapWrap" style="width:100%;"></div>
-            </div>
+{# ═══════════════════════════════════
+   AI COMMENTARY STRIP
+═══════════════════════════════════ #}
+<div class="ai-strip mb-3">
+    <div class="ai-icon">
+        <i class="fas fa-robot" style="color:rgba(255,255,255,.7); font-size:14px;"></i>
+    </div>
+    <div class="ai-body">
+        <div class="ai-label">Scentric AI · Market Brief</div>
+        <div id="aiText" class="ai-text">
+            <i class="fas fa-circle-notch fa-spin me-2" style="color:rgba(255,255,255,.3);"></i>
+            <span style="color:rgba(255,255,255,.35);">Analysing today's market…</span>
         </div>
     </div>
-
-    {# ── Top Movers ── #}
-    <div class="col-lg-4">
-        <div class="mp-panel" style="max-height:420px;">
-            <div class="mp-panel-hd">
-                <h6 class="mp-panel-title">
-                    <div class="mp-panel-icon" style="background:#fff7ed;">
-                        <i class="fas fa-fire-alt" style="color:#f97316;"></i>
-                    </div>
-                    Top Movers
-                </h6>
-                <span style="font-size:10px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">NSE Live</span>
-            </div>
-            <div class="mp-tabs">
-                <div class="mp-tab active"  onclick="switchTab('g',this)"><i class="fas fa-caret-up me-1 text-success"></i>Gainers</div>
-                <div class="mp-tab"         onclick="switchTab('l',this)"><i class="fas fa-caret-down me-1 text-danger"></i>Losers</div>
-                <div class="mp-tab"         onclick="switchTab('a',this)"><i class="fas fa-bolt me-1 text-warning"></i>Active</div>
-            </div>
-
-            <div id="tab-g" class="mp-tab-panel active" style="max-height:310px;">
-                {% for s in top_gainers %}{% set ci = loop.index0 % 10 %}
-                <div class="mp-stock-row">
-                    <div class="mp-av av{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
-                    <div class="mp-stock-info">
-                        <div class="mp-stock-sym">{{ s.symbol }}</div>
-                        <div class="mp-stock-co">{{ (s.company_name or '')[:24] }}</div>
-                    </div>
-                    <div class="mp-stock-r">
-                        <div class="mp-stock-price">₹{{ "{:,.0f}".format(s.current_price | float) }}</div>
-                        <div class="mp-stock-chg up"><i class="fas fa-caret-up" style="font-size:9px;"></i> {{ "{:.2f}".format(s.change_percent | float) }}%</div>
-                    </div>
-                </div>
-                {% else %}
-                <div class="p-4 text-center text-muted" style="font-size:12px;">No data right now</div>
-                {% endfor %}
-            </div>
-
-            <div id="tab-l" class="mp-tab-panel" style="max-height:310px;">
-                {% for s in top_losers %}{% set ci = loop.index0 % 10 %}
-                <div class="mp-stock-row">
-                    <div class="mp-av av{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
-                    <div class="mp-stock-info">
-                        <div class="mp-stock-sym">{{ s.symbol }}</div>
-                        <div class="mp-stock-co">{{ (s.company_name or '')[:24] }}</div>
-                    </div>
-                    <div class="mp-stock-r">
-                        <div class="mp-stock-price">₹{{ "{:,.0f}".format(s.current_price | float) }}</div>
-                        <div class="mp-stock-chg down"><i class="fas fa-caret-down" style="font-size:9px;"></i> {{ "{:.2f}".format(s.change_percent | float | abs) }}%</div>
-                    </div>
-                </div>
-                {% else %}
-                <div class="p-4 text-center text-muted" style="font-size:12px;">No data right now</div>
-                {% endfor %}
-            </div>
-
-            <div id="tab-a" class="mp-tab-panel" style="max-height:310px;">
-                {% for s in most_active %}{% set ci = loop.index0 % 10 %}{% set c = s.change_percent | float %}
-                <div class="mp-stock-row">
-                    <div class="mp-av av{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
-                    <div class="mp-stock-info">
-                        <div class="mp-stock-sym">{{ s.symbol }}</div>
-                        <div class="mp-stock-co">
-                            {% set vol = s.volume | int %}
-                            {% if vol >= 10000000 %}{{ "%.1f"|format(vol/10000000) }}Cr
-                            {% elif vol >= 100000 %}{{ "%.1f"|format(vol/100000) }}L
-                            {% else %}{{ "{:,}".format(vol) }}{% endif %}
-                        </div>
-                    </div>
-                    <div class="mp-stock-r">
-                        <div class="mp-stock-price">₹{{ "{:,.0f}".format(s.current_price | float) }}</div>
-                        <div class="mp-stock-chg {% if c >= 0 %}up{% else %}down{% endif %}">
-                            <i class="fas fa-caret-{% if c >= 0 %}up{% else %}down{% endif %}" style="font-size:9px;"></i>
-                            {{ "{:+.2f}".format(c) }}%
-                        </div>
-                    </div>
-                </div>
-                {% else %}
-                <div class="p-4 text-center text-muted" style="font-size:12px;">No data right now</div>
-                {% endfor %}
-            </div>
-        </div>
+    <div class="ai-actions">
+        <button class="ai-btn" onclick="loadAI()">
+            <i class="fas fa-sync-alt me-1" style="font-size:9px;"></i>Refresh
+        </button>
     </div>
 </div>
 
-{# ══════════════════════════════════════════
-   ROW 3 — Sector (left) + AI Commentary (right)
-══════════════════════════════════════════ #}
+{# ═══════════════════════════════════
+   TWO-COLUMN MAIN CONTENT
+═══════════════════════════════════ #}
 <div class="row g-3 mb-3">
 
-    {# ── Sector Performance ── #}
-    <div class="col-lg-4">
-        <div class="mp-panel">
-            <div class="mp-panel-hd">
-                <h6 class="mp-panel-title">
-                    <div class="mp-panel-icon" style="background:#f0fdf4;">
-                        <i class="fas fa-layer-group" style="color:#16a34a;"></i>
+    {# ── LEFT: Heatmap + Sectors ── #}
+    <div class="col-lg-7">
+
+        {# Nifty 50 Heatmap #}
+        <div class="lmp-card mb-3">
+            <div style="padding:10px 14px 8px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between;">
+                <div class="sec-hd" style="margin:0;">
+                    <div class="sec-hd-left">
+                        <i class="fas fa-th-large" style="color:#2563eb; font-size:12px;"></i>
+                        Nifty 50 Heat Map
                     </div>
-                    Sector Performance
-                </h6>
-                <span style="font-size:10px; color:#94a3b8; font-weight:600;">Wt. avg</span>
+                </div>
+                <div class="hm-legend">
+                    <div class="hm-leg-dot"><div class="hm-leg-sq" style="background:#14532d;"></div>&gt;+2%</div>
+                    <div class="hm-leg-dot"><div class="hm-leg-sq" style="background:#4ade80;"></div>+0–2%</div>
+                    <div class="hm-leg-dot"><div class="hm-leg-sq" style="background:#94a3b8;"></div>Flat</div>
+                    <div class="hm-leg-dot"><div class="hm-leg-sq" style="background:#f87171;"></div>0–2%</div>
+                    <div class="hm-leg-dot"><div class="hm-leg-sq" style="background:#7f1d1d;"></div>&lt;-2%</div>
+                </div>
             </div>
-            <div class="mp-panel-body" style="overflow-y:auto; max-height:350px;">
+            <div id="treemapWrap" style="width:100%;"></div>
+        </div>
+
+        {# Sector Performance #}
+        <div class="lmp-card">
+            <div style="padding:10px 14px 8px; border-bottom:1px solid #f1f5f9;">
+                <div class="sec-hd" style="margin:0;">
+                    <div class="sec-hd-left">
+                        <i class="fas fa-layer-group" style="color:#16a34a; font-size:12px;"></i>
+                        Sector Performance
+                    </div>
+                    <span style="font-size:10px; color:#94a3b8; font-weight:600;">Weighted avg · Today</span>
+                </div>
+            </div>
+            <div style="max-height:240px; overflow-y:auto;">
                 {% for sec in sector_data %}
                 {% set chg = sec.change_percent | float %}
-                {% set bar_w = ([([chg | abs, 5] | min) / 5 * 100, 4] | max) | round(1) %}
-                <div class="mp-sec-row">
-                    <div class="mp-sec-dot" style="background:{% if chg >= 0 %}#16a34a{% else %}#dc2626{% endif %};"></div>
-                    <div class="mp-sec-name">{{ sec.sector }}</div>
-                    <div class="mp-sec-bar-wrap">
-                        <div class="mp-sec-bar" style="width:{{ bar_w }}%; background:{% if chg >= 0 %}#16a34a{% else %}#dc2626{% endif %}; opacity:.8;"></div>
+                {% set bw  = ([([chg|abs, 5]|min)/5*100, 4]|max)|round(1) %}
+                <div class="sec-row">
+                    <div class="sec-dot" style="background:{% if chg>=0 %}#16a34a{% else %}#dc2626{% endif %};"></div>
+                    <div class="sec-name">{{ sec.sector }}</div>
+                    <div class="sec-bar-wrap">
+                        <div class="sec-bar" style="width:{{ bw }}%; background:{% if chg>=0 %}#16a34a{% else %}#dc2626{% endif %}; opacity:.7;"></div>
                     </div>
-                    <div class="mp-sec-pct {% if chg >= 0 %}up{% else %}down{% endif %}">
-                        {{ "{:+.2f}".format(chg) }}%
-                    </div>
+                    <div class="sec-pct {% if chg>=0 %}up{% else %}dn{% endif %}">{{ "{:+.2f}".format(chg) }}%</div>
                 </div>
                 {% endfor %}
             </div>
         </div>
+
     </div>
 
-    {# ── AI Commentary ── #}
-    <div class="col-lg-8">
-        <div class="mp-ai-card">
-            <div class="mp-ai-inner">
-                <div class="mp-ai-pill">
-                    <i class="fas fa-robot" style="font-size:9px;"></i>
-                    Scentric AI · Market Brief
+    {# ── RIGHT: Market Movers ── #}
+    <div class="col-lg-5">
+        <div class="lmp-card h-100" style="display:flex; flex-direction:column;">
+            <div style="padding:10px 14px 0; border-bottom:1px solid #f1f5f9;">
+                <div class="sec-hd" style="margin-bottom:8px;">
+                    <div class="sec-hd-left">
+                        <i class="fas fa-fire-alt" style="color:#f97316; font-size:12px;"></i>
+                        Market Movers
+                    </div>
+                    <span style="font-size:10px; color:#94a3b8; font-weight:600;">NSE Live</span>
                 </div>
-                <div id="aiText" class="mp-ai-text">
-                    <span style="color:rgba(255,255,255,.35);">
-                        <i class="fas fa-circle-notch fa-spin me-2"></i>Analysing today's market…
-                    </span>
-                </div>
-                <div class="mp-ai-footer">
-                    <span class="mp-ai-footnote">Powered by Claude · For information only · Not financial advice</span>
-                    <button class="mp-ai-reload" onclick="loadAI()">
-                        <i class="fas fa-sync-alt me-1" style="font-size:9px;"></i>Refresh
+                <div class="pill-tabs" style="padding:0 0 10px;">
+                    <button class="pill-tab active" onclick="pillTab('g',this)">
+                        <i class="fas fa-arrow-up me-1" style="font-size:9px; color:#16a34a;"></i>Gainers
+                    </button>
+                    <button class="pill-tab" onclick="pillTab('l',this)">
+                        <i class="fas fa-arrow-down me-1" style="font-size:9px; color:#dc2626;"></i>Losers
+                    </button>
+                    <button class="pill-tab" onclick="pillTab('a',this)">
+                        <i class="fas fa-bolt me-1" style="font-size:9px; color:#f59e0b;"></i>Top Volume
                     </button>
                 </div>
             </div>
+
+            <div style="flex:1; overflow-y:auto;">
+                {# GAINERS #}
+                <div id="pp-g" class="pill-pane active">
+                    {% for s in top_gainers %}{% set ci = loop.index0 % 10 %}
+                    <div class="mv-row">
+                        <div class="mv-av avc{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
+                        <div class="mv-name">
+                            <div class="mv-sym">{{ s.symbol }}</div>
+                            <div class="mv-co">{{ (s.company_name or '')[:26] }}</div>
+                        </div>
+                        <div class="mv-r">
+                            <div class="mv-price">₹{{ "{:,.2f}".format(s.current_price|float) }}</div>
+                            <div class="mv-chg up"><i class="fas fa-caret-up" style="font-size:9px;"></i> {{ "{:.2f}".format(s.change_percent|float) }}%</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center" style="color:#94a3b8; font-size:12px;">No data available</div>
+                    {% endfor %}
+                    {% if top_gainers %}<a class="view-all" href="#">view all ›</a>{% endif %}
+                </div>
+
+                {# LOSERS #}
+                <div id="pp-l" class="pill-pane">
+                    {% for s in top_losers %}{% set ci = loop.index0 % 10 %}
+                    <div class="mv-row">
+                        <div class="mv-av avc{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
+                        <div class="mv-name">
+                            <div class="mv-sym">{{ s.symbol }}</div>
+                            <div class="mv-co">{{ (s.company_name or '')[:26] }}</div>
+                        </div>
+                        <div class="mv-r">
+                            <div class="mv-price">₹{{ "{:,.2f}".format(s.current_price|float) }}</div>
+                            <div class="mv-chg dn"><i class="fas fa-caret-down" style="font-size:9px;"></i> {{ "{:.2f}".format(s.change_percent|float|abs) }}%</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center" style="color:#94a3b8; font-size:12px;">No data available</div>
+                    {% endfor %}
+                    {% if top_losers %}<a class="view-all" href="#">view all ›</a>{% endif %}
+                </div>
+
+                {# ACTIVE #}
+                <div id="pp-a" class="pill-pane">
+                    {% for s in most_active %}{% set ci = loop.index0 % 10 %}{% set c = s.change_percent|float %}
+                    <div class="mv-row">
+                        <div class="mv-av avc{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
+                        <div class="mv-name">
+                            <div class="mv-sym">{{ s.symbol }}</div>
+                            <div class="mv-co">
+                                {% set vol = s.volume|int %}
+                                {% if vol >= 10000000 %}{{ "%.1f"|format(vol/10000000) }} Cr
+                                {% elif vol >= 100000 %}{{ "%.1f"|format(vol/100000) }} L
+                                {% else %}{{ "{:,}".format(vol) }}{% endif %}
+                            </div>
+                        </div>
+                        <div class="mv-r">
+                            <div class="mv-price">₹{{ "{:,.2f}".format(s.current_price|float) }}</div>
+                            <div class="mv-chg {% if c>=0 %}up{% else %}dn{% endif %}">
+                                <i class="fas fa-caret-{% if c>=0 %}up{% else %}down{% endif %}" style="font-size:9px;"></i>
+                                {{ "{:+.2f}".format(c) }}%
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center" style="color:#94a3b8; font-size:12px;">No data available</div>
+                    {% endfor %}
+                    {% if most_active %}<a class="view-all" href="#">view all ›</a>{% endif %}
+                </div>
+            </div>
         </div>
     </div>
+
 </div>
 
-{# ══════════════════════════════════════════
-   ROW 4 — Trading Signals
-══════════════════════════════════════════ #}
-<div class="mp-panel mb-3" style="border-radius:12px;">
-    <div class="mp-sig-hd">
+{# ═══════════════════════════════════
+   TRADING SIGNALS
+═══════════════════════════════════ #}
+<div class="lmp-card mb-3">
+    <div class="sig-header">
         <div>
             <div style="font-size:14px; font-weight:700; color:#fff;">
                 <i class="fas fa-signal me-2" style="color:#60a5fa;"></i>Our Trading Signals
             </div>
-            <div style="font-size:11px; color:rgba(255,255,255,.4); margin-top:2px;">
-                {{ selected_date.strftime('%A, %d %B %Y') }}
-            </div>
+            <div style="font-size:11px; color:rgba(255,255,255,.4); margin-top:2px;">{{ selected_date.strftime('%A, %d %B %Y') }}</div>
         </div>
         <div class="d-flex gap-2 align-items-center">
             {% if summary_stats.success_rate > 0 %}
-            <span class="badge" style="background:rgba(34,197,94,.2); color:#4ade80; border:1px solid rgba(34,197,94,.25); font-size:11px;">
-                {{ summary_stats.success_rate }}% success
-            </span>
+            <span class="badge" style="background:rgba(34,197,94,.18); color:#4ade80; border:1px solid rgba(34,197,94,.2); font-size:11px;">{{ summary_stats.success_rate }}% success</span>
             {% endif %}
-            <span class="badge" style="background:rgba(255,255,255,.1); color:rgba(255,255,255,.7); font-size:11px;">
-                {{ signals|length }} signal{{ 's' if signals|length != 1 }}
-            </span>
+            <span class="badge" style="background:rgba(255,255,255,.1); color:rgba(255,255,255,.7); font-size:11px;">{{ signals|length }} signal{{ 's' if signals|length != 1 }}</span>
         </div>
     </div>
 
-    {# Filter bar #}
-    <div style="background:#fafbfc; border-bottom:1px solid #f1f5f9; padding:10px 14px;">
+    <div class="sig-filters">
         <div class="row g-2 align-items-end">
             <div class="col-6 col-md-3">
                 <label class="form-label mb-1" style="font-size:10px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.04em;">Date</label>
-                <input type="date" class="form-control form-control-sm" id="sigDate"
-                       value="{{ selected_date.strftime('%Y-%m-%d') }}"
-                       max="{{ date_range[0].strftime('%Y-%m-%d') if date_range else '' }}">
+                <input type="date" class="form-control form-control-sm" id="sigDate" value="{{ selected_date.strftime('%Y-%m-%d') }}">
             </div>
             <div class="col-6 col-md-3">
                 <label class="form-label mb-1" style="font-size:10px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.04em;">Asset</label>
                 <select class="form-select form-select-sm" id="sigAsset">
-                    <option value="all" {{ 'selected' if asset_type_filter=='all' }}>All Assets</option>
+                    <option value="all"       {{ 'selected' if asset_type_filter=='all' }}>All Assets</option>
                     <option value="NIFTY"     {{ 'selected' if asset_type_filter=='NIFTY' }}>Nifty</option>
                     <option value="BANKNIFTY" {{ 'selected' if asset_type_filter=='BANKNIFTY' }}>BankNifty</option>
                     <option value="SENSEX"    {{ 'selected' if asset_type_filter=='SENSEX' }}>Sensex</option>
@@ -463,12 +433,8 @@
                 </select>
             </div>
             <div class="col-6 col-md-3 d-flex gap-2">
-                <button class="btn btn-primary btn-sm flex-fill" onclick="applyFilters()" style="font-size:12px;">
-                    <i class="fas fa-filter me-1"></i>Apply
-                </button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="resetFilters()" title="Reset">
-                    <i class="fas fa-undo"></i>
-                </button>
+                <button class="btn btn-primary btn-sm flex-fill" onclick="applyFilters()" style="font-size:12px;"><i class="fas fa-filter me-1"></i>Apply</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="resetFilters()" title="Reset"><i class="fas fa-undo"></i></button>
             </div>
         </div>
     </div>
@@ -476,57 +442,40 @@
     {% if signals %}
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0" style="font-size:12px;">
-            <thead style="background:#f8fafc; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.04em;">
+            <thead style="background:#f8fafc; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.04em;">
                 <tr>
-                    <th class="ps-3 py-2">Asset</th>
-                    <th>Script</th>
-                    <th>Expiry</th>
-                    <th>LTP</th>
-                    <th>Entry</th>
-                    <th>T1</th>
-                    <th>T2</th>
-                    <th>SL</th>
-                    <th>Duration</th>
-                    <th>Risk</th>
-                    <th class="text-center pe-3">Action</th>
+                    <th class="ps-3 py-2">Asset</th><th>Script</th><th>Expiry</th>
+                    <th>LTP</th><th>Entry</th><th>T1</th><th>T2</th><th>SL</th>
+                    <th>Duration</th><th>Risk</th><th class="text-center pe-3">Action</th>
                 </tr>
             </thead>
             <tbody>
                 {% for s in signals %}
                 <tr>
-                    <td class="ps-3">
-                        <span style="background:#f1f5f9; color:#334155; border-radius:6px; padding:2px 7px; font-size:10px; font-weight:700;">{{ s.asset_type }}</span>
-                    </td>
+                    <td class="ps-3"><span style="background:#f1f5f9;color:#334155;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;">{{ s.asset_type }}</span></td>
                     <td>
-                        <div style="font-weight:700; color:#1e293b;">{{ s.script }}</div>
-                        {% if s.sub_type_display %}<div style="font-size:10px; color:#94a3b8;">{{ s.sub_type_display }}</div>{% endif %}
+                        <div style="font-weight:700;color:#1e293b;">{{ s.script }}</div>
+                        {% if s.sub_type_display %}<div style="font-size:10px;color:#94a3b8;">{{ s.sub_type_display }}</div>{% endif %}
                     </td>
-                    <td><span style="font-size:11px; color:#94a3b8;">{{ s.expiry_date.strftime('%d %b %y') if s.expiry_date else '—' }}</span></td>
-                    <td><span style="font-weight:700; color:#2563eb;">₹{{ s.current_price or '—' }}</span></td>
+                    <td><span style="font-size:11px;color:#94a3b8;">{{ s.expiry_date.strftime('%d %b %y') if s.expiry_date else '—' }}</span></td>
+                    <td><span style="font-weight:700;color:#2563eb;">₹{{ s.current_price or '—' }}</span></td>
                     <td><span class="price-pill entry">₹{{ s.buy_above }}</span></td>
-                    <td>{% if s.target_1 %}<span class="price-pill target">₹{{ s.target_1 }}</span>{% else %}—{% endif %}</td>
-                    <td>{% if s.target_2 %}<span class="price-pill target">₹{{ s.target_2 }}</span>{% else %}—{% endif %}</td>
+                    <td>{% if s.target_1 %}<span class="price-pill tgt">₹{{ s.target_1 }}</span>{% else %}—{% endif %}</td>
+                    <td>{% if s.target_2 %}<span class="price-pill tgt">₹{{ s.target_2 }}</span>{% else %}—{% endif %}</td>
                     <td><span class="price-pill sl">₹{{ s.stop_loss }}</span></td>
                     <td>
-                        {% set dur = (s.trade_duration or '') | lower %}
-                        <span style="border-radius:6px; padding:2px 7px; font-size:10px; font-weight:700;
+                        {% set dur = (s.trade_duration or '')|lower %}
+                        <span style="border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;
                             {% if dur=='day' %}background:#fef2f2;color:#dc2626;
                             {% elif dur=='week' %}background:#fffbeb;color:#d97706;
-                            {% else %}background:#f0fdf4;color:#16a34a;{% endif %}">
-                            {{ s.duration_display }}
-                        </span>
+                            {% else %}background:#f0fdf4;color:#16a34a;{% endif %}">{{ s.duration_display }}</span>
                     </td>
-                    <td><span class="risk-{{ (s.risk_level or 'medium') | lower }}">{{ s.risk_level or 'Med' }}</span></td>
+                    <td><span class="risk-{{ (s.risk_level or 'medium')|lower }}">{{ s.risk_level or 'Med' }}</span></td>
                     <td class="text-center pe-3">
                         <div class="d-flex gap-1 justify-content-center">
-                            <button class="btn btn-sm" onclick="showDetail({{ s.id }})"
-                                style="background:#f1f5f9; color:#334155; font-size:11px; padding:3px 9px; border:none; border-radius:6px;">
-                                <i class="fas fa-eye me-1"></i>View
-                            </button>
+                            <button class="btn btn-sm" onclick="showDetail({{ s.id }})" style="background:#f1f5f9;color:#334155;font-size:11px;padding:3px 9px;border:none;border-radius:6px;"><i class="fas fa-eye me-1"></i>View</button>
                             <a href="{{ url_for('trade_assist', symbol=s.symbol, script=s.script, asset_type=s.asset_type, sub_type=s.sub_type, action=s.action, price=s.buy_above, stop_loss=s.stop_loss, target=s.target_1, target_2=s.target_2, target_3=s.target_3, trade_duration=s.trade_duration, risk_level=s.risk_level, signal_id=s.id, source='daily_signals') }}"
-                               class="btn btn-sm" style="background:#00091a; color:#fff; font-size:11px; padding:3px 11px; border-radius:6px;">
-                                Trade
-                            </a>
+                               class="btn btn-sm" style="background:#00091a;color:#fff;font-size:11px;padding:3px 11px;border-radius:6px;">Trade</a>
                         </div>
                     </td>
                 </tr>
@@ -536,22 +485,20 @@
     </div>
     {% else %}
     <div class="text-center py-5">
-        <div style="width:52px;height:52px;background:#f1f5f9;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
-            <i class="fas fa-chart-line" style="font-size:20px; color:#cbd5e1;"></i>
+        <div style="width:48px;height:48px;background:#f1f5f9;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
+            <i class="fas fa-chart-line" style="font-size:18px;color:#cbd5e1;"></i>
         </div>
-        <div style="font-weight:700; color:#94a3b8;">No Signals for {{ selected_date.strftime('%d %B %Y') }}</div>
-        <div style="font-size:12px; color:#cbd5e1; margin-top:4px;">Select a different date above.</div>
+        <div style="font-weight:700;color:#94a3b8;">No Signals for {{ selected_date.strftime('%d %B %Y') }}</div>
+        <div style="font-size:12px;color:#cbd5e1;margin-top:4px;">Select a different date above.</div>
     </div>
     {% endif %}
 </div>
 
-{# Signal detail panel #}
-<div id="detailPanel" class="mp-panel mb-3" style="display:none;">
-    <div class="mp-panel-hd" style="background:linear-gradient(135deg,#00091a 0%,#1a365d 100%);">
-        <h6 class="mp-panel-title" id="detailTitle" style="color:#fff;"></h6>
-        <button style="background:rgba(255,255,255,.1); border:none; border-radius:6px; padding:4px 10px; color:#fff; font-size:11px;" onclick="closeDetail()">
-            <i class="fas fa-times me-1"></i>Close
-        </button>
+{# Signal detail #}
+<div id="detailPanel" class="lmp-card mb-3" style="display:none;">
+    <div style="background:linear-gradient(135deg,#00091a,#1a365d);padding:12px 16px;border-radius:10px 10px 0 0;display:flex;align-items:center;justify-content:space-between;">
+        <span id="detailTitle" style="font-size:13px;font-weight:700;color:#fff;"></span>
+        <button style="background:rgba(255,255,255,.1);border:none;border-radius:6px;padding:4px 10px;color:#fff;font-size:11px;" onclick="closeDetail()"><i class="fas fa-times me-1"></i>Close</button>
     </div>
     <div class="p-3" id="detailBody"></div>
 </div>
@@ -561,82 +508,74 @@
 {% block extra_js %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script>
-/* ─── Data ─────────────────────────────────── */
+/* ── Data ── */
 const N50 = {{ nifty50_data | tojson }};
 
-/* ─── Colour ───────────────────────────────── */
-function col(p) {
-    if (p >=  2.5) return '#14532d';
-    if (p >=  1.2) return '#16a34a';
-    if (p >=  0.2) return '#4ade80';
-    if (p >  -0.2) return '#94a3b8';
-    if (p >  -1.2) return '#f87171';
-    if (p >  -2.5) return '#ef4444';
+/* ── Colour ── */
+function hcol(p) {
+    if (p >= 2.5)  return '#14532d';
+    if (p >= 1.2)  return '#16a34a';
+    if (p >= 0.2)  return '#4ade80';
+    if (p > -0.2)  return '#94a3b8';
+    if (p > -1.2)  return '#f87171';
+    if (p > -2.5)  return '#ef4444';
     return '#7f1d1d';
 }
 
-/* ─── Treemap ──────────────────────────────── */
+/* ── Treemap ── */
 function buildMap() {
     const wrap = document.getElementById('treemapWrap');
     if (!wrap || !N50.length) return;
     wrap.innerHTML = '';
-    const W = wrap.clientWidth || 600, H = 340;
-    const root = d3.hierarchy({ children: N50 })
-        .sum(d => d.weight || 1).sort((a,b) => b.value - a.value);
-    d3.treemap().size([W, H]).paddingInner(2).paddingOuter(3)(root);
+    const W = wrap.clientWidth || 620, H = 300;
+    const root = d3.hierarchy({ children: N50 }).sum(d => d.weight || 1).sort((a,b) => b.value - a.value);
+    d3.treemap().size([W, H]).paddingInner(2).paddingOuter(2)(root);
     const svg = d3.select(wrap).append('svg').attr('width', W).attr('height', H).style('display','block');
-    const cell = svg.selectAll('g').data(root.leaves()).join('g')
-        .attr('transform', d => `translate(${d.x0},${d.y0})`);
+    const cell = svg.selectAll('g').data(root.leaves()).join('g').attr('transform', d => `translate(${d.x0},${d.y0})`);
     cell.append('rect')
         .attr('width',  d => Math.max(0, d.x1-d.x0))
         .attr('height', d => Math.max(0, d.y1-d.y0))
-        .attr('fill',   d => col(d.data.change_percent))
-        .attr('rx', 3).attr('ry', 3);
+        .attr('fill',   d => hcol(d.data.change_percent))
+        .attr('rx', 2);
     cell.each(function(d) {
-        const w = d.x1-d.x0, h = d.y1-d.y0;
-        if (w < 28 || h < 18) return;
-        const g = d3.select(this), c = d.data.change_percent;
-        const fs = Math.min(11, w/5);
-        if (h >= 40) {
-            g.append('text').attr('x', w/2).attr('y', h/2-5)
-             .attr('text-anchor','middle').attr('fill','rgba(255,255,255,.95)')
-             .attr('font-size', fs).attr('font-weight','700').text(d.data.symbol);
-            g.append('text').attr('x', w/2).attr('y', h/2+10)
-             .attr('text-anchor','middle').attr('fill','rgba(255,255,255,.7)')
-             .attr('font-size', Math.min(9.5,w/6))
+        const w=d.x1-d.x0, h=d.y1-d.y0;
+        if (w<26||h<16) return;
+        const g=d3.select(this), c=d.data.change_percent, fs=Math.min(11,w/5);
+        if (h>=38) {
+            g.append('text').attr('x',w/2).attr('y',h/2-5).attr('text-anchor','middle')
+             .attr('fill','rgba(255,255,255,.95)').attr('font-size',fs).attr('font-weight','700').text(d.data.symbol);
+            g.append('text').attr('x',w/2).attr('y',h/2+10).attr('text-anchor','middle')
+             .attr('fill','rgba(255,255,255,.7)').attr('font-size',Math.min(9,w/6))
              .text(`${c>=0?'+':''}${c.toFixed(2)}%`);
         } else {
-            g.append('text').attr('x', w/2).attr('y', h/2+4)
-             .attr('text-anchor','middle').attr('fill','rgba(255,255,255,.9)')
-             .attr('font-size', fs).attr('font-weight','700').text(d.data.symbol);
+            g.append('text').attr('x',w/2).attr('y',h/2+4).attr('text-anchor','middle')
+             .attr('fill','rgba(255,255,255,.9)').attr('font-size',fs).attr('font-weight','700').text(d.data.symbol);
         }
     });
-    const tip = d3.select('body').append('div')
-        .style('position','fixed').style('background','rgba(0,9,26,.92)')
-        .style('color','#fff').style('padding','8px 14px').style('border-radius','10px')
-        .style('font-size','12px').style('pointer-events','none')
-        .style('display','none').style('z-index','9999').style('line-height','1.75')
-        .style('box-shadow','0 4px 18px rgba(0,0,0,.3)');
-    cell.on('mousemove',(e,d) => {
-        const c = d.data.change_percent;
-        tip.style('display','block')
-           .style('left',(e.clientX+14)+'px').style('top',(e.clientY-26)+'px')
+    const tip=d3.select('body').append('div')
+        .style('position','fixed').style('background','rgba(0,9,26,.9)')
+        .style('color','#fff').style('padding','8px 13px').style('border-radius','9px')
+        .style('font-size','12px').style('pointer-events','none').style('display','none')
+        .style('z-index','9999').style('line-height','1.7').style('box-shadow','0 4px 18px rgba(0,0,0,.3)');
+    cell.on('mousemove',(e,d)=>{
+        const c=d.data.change_percent;
+        tip.style('display','block').style('left',(e.clientX+14)+'px').style('top',(e.clientY-26)+'px')
            .html(`<strong>${d.data.symbol}</strong> &nbsp;<span style="color:#94a3b8">${d.data.name}</span><br>
-                  <span style="color:${col(c)};font-weight:700">${c>=0?'+':''}${c.toFixed(2)}%</span>
-                  &nbsp;·&nbsp; ${d.data.sector} &nbsp;·&nbsp; Wt: ${d.data.weight.toFixed(1)}%`);
-    }).on('mouseleave', () => tip.style('display','none'));
+                  <span style="color:${hcol(c)};font-weight:700">${c>=0?'+':''}${c.toFixed(2)}%</span>
+                  &nbsp;·&nbsp;${d.data.sector}&nbsp;·&nbsp;Wt:${d.data.weight.toFixed(1)}%`);
+    }).on('mouseleave',()=>tip.style('display','none'));
 }
 
-/* ─── Tab switcher ─────────────────────────── */
-function switchTab(id, el) {
-    document.querySelectorAll('.mp-tab-panel').forEach(p=>p.classList.remove('active'));
-    document.querySelectorAll('.mp-tab').forEach(t=>t.classList.remove('active'));
-    document.getElementById('tab-'+id).classList.add('active');
+/* ── Pill tabs ── */
+function pillTab(id, el) {
+    document.querySelectorAll('.pill-pane').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.pill-tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById('pp-'+id).classList.add('active');
     el.classList.add('active');
 }
 
-/* ─── Filters ──────────────────────────────── */
-function applyFilters() {
+/* ── Filters ── */
+function applyFilters(){
     const d=document.getElementById('sigDate').value;
     const a=document.getElementById('sigAsset').value;
     const u=document.getElementById('sigDur').value;
@@ -645,24 +584,19 @@ function applyFilters() {
     if(u!=='all') url+=`&duration=${u}`;
     window.location.href=url;
 }
-function resetFilters(){
-    document.getElementById('sigAsset').value='all';
-    document.getElementById('sigDur').value='all';
-    applyFilters();
-}
+function resetFilters(){document.getElementById('sigAsset').value='all';document.getElementById('sigDur').value='all';applyFilters();}
 
-/* ─── Signal detail ────────────────────────── */
-const SIG = {
+/* ── Signal detail ── */
+const SIG={
     {% for s in signals %}
-    {{ s.id }}: {
-        id:{{s.id}}, script:"{{s.script}}", symbol:"{{s.symbol}}",
-        asset_type:"{{s.asset_type}}", sub_type:"{{s.sub_type or ''}}",
-        action:"{{s.action}}", buy_above:{{s.buy_above or 0}},
-        stop_loss:{{s.stop_loss or 0}}, target_1:{{s.target_1 or 'null'}},
-        target_2:{{s.target_2 or 'null'}}, target_3:{{s.target_3 or 'null'}},
+    {{ s.id }}:{
+        id:{{s.id}},script:"{{s.script}}",symbol:"{{s.symbol}}",
+        asset_type:"{{s.asset_type}}",sub_type:"{{s.sub_type or ''}}",
+        action:"{{s.action}}",buy_above:{{s.buy_above or 0}},
+        stop_loss:{{s.stop_loss or 0}},target_1:{{s.target_1 or 'null'}},
+        target_2:{{s.target_2 or 'null'}},target_3:{{s.target_3 or 'null'}},
         current_price:{{s.current_price or 0}},
-        duration_display:"{{s.duration_display}}",
-        risk_level:"{{s.risk_level or 'Medium'}}",
+        duration_display:"{{s.duration_display}}",risk_level:"{{s.risk_level or 'Medium'}}",
         notes:`{{ (s.notes or '')|replace('`',"'") }}`,
         expiry_date:"{{s.expiry_date.strftime('%d %b %Y') if s.expiry_date else 'N/A'}}"
     },
@@ -674,7 +608,7 @@ function showDetail(id){
     const risk=s.stop_loss&&s.buy_above?(((s.buy_above-s.stop_loss)/s.buy_above)*100).toFixed(1):'—';
     const rr=(parseFloat(ret)>0&&parseFloat(risk)>0)?(parseFloat(ret)/parseFloat(risk)).toFixed(2):'—';
     const ab=s.action==='BUY'?'bg-success':'bg-danger';
-    const tg=[s.target_1,s.target_2,s.target_3].filter(Boolean).map((t,i)=>`<span class="price-pill target me-1">T${i+1}: ₹${t}</span>`).join('');
+    const tg=[s.target_1,s.target_2,s.target_3].filter(Boolean).map((t,i)=>`<span class="price-pill tgt me-1">T${i+1}: ₹${t}</span>`).join('');
     document.getElementById('detailTitle').textContent=s.script+' · Signal Details';
     document.getElementById('detailBody').innerHTML=`
         <div class="row g-3">
@@ -691,7 +625,7 @@ function showDetail(id){
                 <div class="mb-2"><small class="text-muted d-block">Current</small><span style="font-size:20px;font-weight:800;color:#2563eb;">₹${s.current_price.toFixed(2)}</span></div>
                 <div class="mb-2"><small class="text-muted d-block">Entry</small><span class="price-pill entry">₹${s.buy_above}</span></div>
                 <div class="mb-2"><small class="text-muted d-block">Stop Loss</small><span class="price-pill sl">₹${s.stop_loss}</span></div>
-                <div><small class="text-muted d-block">Targets</small><div class="mt-1">${tg||'<span class="text-muted">—</span>'}</div></div>
+                <div><small class="text-muted d-block">Targets</small><div class="mt-1">${tg||'—'}</div></div>
             </div></div></div>
             <div class="col-md-4"><div class="card border-0 h-100" style="background:#f8fafc;"><div class="card-body">
                 <div class="text-muted mb-3" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Risk / Reward</div>
@@ -707,12 +641,12 @@ function showDetail(id){
     p.style.display='block';
     p.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-function closeDetail(){ document.getElementById('detailPanel').style.display='none'; }
+function closeDetail(){document.getElementById('detailPanel').style.display='none';}
 
-/* ─── AI Commentary ───────────────────────── */
+/* ── AI Commentary ── */
 async function loadAI(){
     const el=document.getElementById('aiText');
-    el.innerHTML='<span style="color:rgba(255,255,255,.35);"><i class="fas fa-circle-notch fa-spin me-2"></i>Analysing today\'s market…</span>';
+    el.innerHTML='<i class="fas fa-circle-notch fa-spin me-2" style="color:rgba(255,255,255,.3);"></i><span style="color:rgba(255,255,255,.35);">Analysing…</span>';
     try{
         const r=await fetch('{{ url_for("market_pulse_commentary") }}');
         const data=await r.json();
@@ -726,19 +660,19 @@ async function loadAI(){
     }
 }
 
-/* ─── Init ─────────────────────────────────── */
+/* ── Init ── */
 document.addEventListener('DOMContentLoaded',()=>{
     buildMap();
     loadAI();
-    document.getElementById('mpUpdated').textContent =
+    document.getElementById('mpTs').textContent =
         'as of '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
 });
-let resizeTimer;
+let rTimer;
 window.addEventListener('resize',()=>{
-    clearTimeout(resizeTimer);
-    resizeTimer=setTimeout(()=>{
+    clearTimeout(rTimer);
+    rTimer=setTimeout(()=>{
         const w=document.getElementById('treemapWrap');
-        if(w){w.innerHTML=''; buildMap();}
+        if(w){w.innerHTML='';buildMap();}
     },200);
 });
 </script>
