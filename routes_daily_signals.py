@@ -6,10 +6,27 @@ from flask_login import login_required, current_user
 from app import app, db
 from models import DailyTradingSignal, PricingPlan
 from datetime import datetime, date, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import json
+import time
 
 logger = logging.getLogger(__name__)
+
+# ── In-memory market data cache (5-minute TTL) ───────────────────────────────
+_MARKET_CACHE: dict = {}
+_CACHE_TTL = 300  # seconds
+
+
+def _market_cache_get(key):
+    entry = _MARKET_CACHE.get(key)
+    if entry and (time.time() - entry['ts']) < _CACHE_TTL:
+        return entry['data']
+    return None
+
+
+def _market_cache_set(key, data):
+    _MARKET_CACHE[key] = {'data': data, 'ts': time.time()}
 
 
 NIFTY50_STOCKS = [
@@ -76,12 +93,16 @@ SECTOR_COLORS = {
 
 
 def _get_live_nifty50_data():
-    """Fetch live quotes for Nifty 50 stocks; fall back to NSE service fallback data."""
+    """Fetch live quotes for Nifty 50 stocks with a 5-minute in-memory cache."""
+    cached = _market_cache_get('nifty50')
+    if cached is not None:
+        return cached
+
     try:
         from services.nse_service import NSEService
         nse = NSEService()
         symbols = [s['symbol'] for s in NIFTY50_STOCKS]
-        quotes = nse.get_multiple_quotes(symbols[:20])
+        quotes = nse.get_multiple_quotes(symbols[:20])   # now parallel inside NSEService
         quote_map = {q['symbol']: q for q in quotes if q and 'symbol' in q}
     except Exception:
         quote_map = {}
@@ -105,6 +126,8 @@ def _get_live_nifty50_data():
             'change_percent': float(chg),
             'price': float(price),
         })
+
+    _market_cache_set('nifty50', result)
     return result
 
 
@@ -164,7 +187,7 @@ def dashboard_daily_signals():
     date_range = [date.today() - timedelta(days=i) for i in range(30)]
     summary_stats = calculate_daily_summary(selected_date)
 
-    # ── Market data — always start from hardcoded fallback, then overlay live ──
+    # ── Market data — run all expensive calls in parallel ────────────────────
     FALLBACK_INDICES = {
         'nifty_50':   {'label': 'NIFTY 50',   'value': 24530.90, 'change_percent': 0.51,  'live': False},
         'nifty_bank': {'label': 'BANK NIFTY', 'value': 52840.75, 'change_percent': -0.29, 'live': False},
@@ -177,11 +200,58 @@ def dashboard_daily_signals():
     top_losers     = []
     most_active    = []
 
-    try:
+    # Helper to fetch and cache each piece of market data
+    def _fetch_indices():
+        cached = _market_cache_get('indices')
+        if cached is not None:
+            return cached
         from services.nse_service import NSEService
-        nse = NSEService()
-        live_indices = nse.get_market_indices()
-        # Merge live data only when value is meaningful (> 0)
+        result = NSEService().get_market_indices()
+        _market_cache_set('indices', result)
+        return result
+
+    def _fetch_gainers():
+        cached = _market_cache_get('gainers')
+        if cached is not None:
+            return cached
+        from services.nse_service import NSEService
+        result = NSEService().get_top_gainers(8)
+        _market_cache_set('gainers', result)
+        return result
+
+    def _fetch_losers():
+        cached = _market_cache_get('losers')
+        if cached is not None:
+            return cached
+        from services.nse_service import NSEService
+        result = NSEService().get_top_losers(8)
+        _market_cache_set('losers', result)
+        return result
+
+    def _fetch_most_active():
+        cached = _market_cache_get('most_active')
+        if cached is not None:
+            return cached
+        from services.nse_service import NSEService
+        result = NSEService().get_most_active(8)
+        _market_cache_set('most_active', result)
+        return result
+
+    try:
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            f_indices = pool.submit(_fetch_indices)
+            f_gainers = pool.submit(_fetch_gainers)
+            f_losers  = pool.submit(_fetch_losers)
+            f_active  = pool.submit(_fetch_most_active)
+            f_nifty50 = pool.submit(_get_live_nifty50_data)
+
+            live_indices = f_indices.result()
+            top_gainers  = f_gainers.result()
+            top_losers   = f_losers.result()
+            most_active  = f_active.result()
+            nifty50_data = f_nifty50.result()
+
+        # Merge live index data over fallback
         for key in ('nifty_50', 'nifty_bank', 'sensex', 'nifty_it'):
             d = live_indices.get(key, {})
             v = d.get('value', d.get('lastPrice', 0))
@@ -191,14 +261,11 @@ def dashboard_daily_signals():
                 if c is not None:
                     market_indices[key]['change_percent'] = float(c)
                 market_indices[key]['live'] = True
-        top_gainers = nse.get_top_gainers(8)
-        top_losers  = nse.get_top_losers(8)
-        most_active = nse.get_most_active(8)
     except Exception as e:
         logger.warning(f"Market data fetch failed: {e}")
+        nifty50_data = _get_live_nifty50_data()
 
-    nifty50_data  = _get_live_nifty50_data()
-    sector_data   = _get_sector_summary(nifty50_data)
+    sector_data = _get_sector_summary(nifty50_data)
 
     return render_template(
         'dashboard/live_market_pulse.html',

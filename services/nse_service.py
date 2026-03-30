@@ -105,17 +105,24 @@ class NSEService:
     
     def get_multiple_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
         """
-        Get quotes for multiple stocks
+        Get quotes for multiple stocks in parallel using a thread pool.
         Args:
             symbols: List of NSE stock symbols
         Returns:
-            List of stock data dictionaries
+            List of stock data dictionaries (order may differ from input)
         """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         quotes = []
-        for symbol in symbols:
-            quote = self.get_stock_quote(symbol)
-            if quote:
-                quotes.append(quote)
+        max_workers = min(10, len(symbols)) if symbols else 1
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(self.get_stock_quote, sym): sym for sym in symbols}
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    if result:
+                        quotes.append(result)
+                except Exception:
+                    pass
         return quotes
     
     def get_market_indices(self) -> Dict[str, Any]:
