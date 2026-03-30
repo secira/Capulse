@@ -576,7 +576,7 @@
                 No live data available right now
             </div>
             {% endfor %}
-            {% if top_gainers %}<a class="view-all-link" href="#">view all ›</a>{% endif %}
+            {% if top_gainers %}<a class="view-all-link" href="#" onclick="openMoversModal('g');return false;">view all ›</a>{% endif %}
         </div>
 
         <div id="mvp-l" class="mv-pane">
@@ -598,7 +598,7 @@
                 No live data available right now
             </div>
             {% endfor %}
-            {% if top_losers %}<a class="view-all-link" href="#">view all ›</a>{% endif %}
+            {% if top_losers %}<a class="view-all-link" href="#" onclick="openMoversModal('l');return false;">view all ›</a>{% endif %}
         </div>
 
         <div id="mvp-a" class="mv-pane">
@@ -628,7 +628,7 @@
                 No live data available right now
             </div>
             {% endfor %}
-            {% if most_active %}<a class="view-all-link" href="#">view all ›</a>{% endif %}
+            {% if most_active %}<a class="view-all-link" href="#" onclick="openMoversModal('a');return false;">view all ›</a>{% endif %}
         </div>
 
     </div>
@@ -1357,5 +1357,212 @@ window.addEventListener('resize', () => {
         }
     }, 220);
 });
+</script>
+
+{# ══ Market Movers — View All Modal ══ #}
+<div class="modal fade" id="moversModal" tabindex="-1" aria-labelledby="moversModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius:14px; border:none; box-shadow:0 20px 60px rgba(0,0,0,.18);">
+
+      <div class="modal-header" style="border-bottom:1px solid #f1f3f4; padding:18px 24px 14px;">
+        <div>
+          <h5 class="modal-title fw-semibold mb-0" id="moversModalLabel">
+            <i class="fas fa-fire-alt me-2" style="color:#666;"></i>
+            <span id="mvModalTitle">Market Movers</span>
+          </h5>
+          <small class="text-muted" id="mvModalSub" style="font-size:12px;">Today's session</small>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          {# Tab pills inside modal header #}
+          <div class="btn-group btn-group-sm" id="mvModalTabs" role="group">
+            <button type="button" class="btn btn-outline-secondary mvmt active" data-t="g" onclick="mvModalTab('g',this)">
+              <i class="fas fa-arrow-up me-1" style="color:#16a34a;font-size:10px;"></i>Gainers
+            </button>
+            <button type="button" class="btn btn-outline-secondary mvmt" data-t="l" onclick="mvModalTab('l',this)">
+              <i class="fas fa-arrow-down me-1" style="color:#dc2626;font-size:10px;"></i>Losers
+            </button>
+            <button type="button" class="btn btn-outline-secondary mvmt" data-t="a" onclick="mvModalTab('a',this)">
+              <i class="fas fa-bolt me-1" style="color:#ca8a04;font-size:10px;"></i>Volume
+            </button>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+
+      <div class="modal-body p-0">
+
+        {# Gainers table #}
+        <div id="mvmt-g" class="mvmt-pane">
+          {% if top_gainers %}
+          <table class="table table-hover mb-0" style="font-size:13px;">
+            <thead style="background:#f8fafb; position:sticky; top:0;">
+              <tr style="font-size:11px; font-weight:600; color:#888; letter-spacing:.04em; text-transform:uppercase;">
+                <th class="ps-4 py-3" style="border:none;">#</th>
+                <th style="border:none;">Symbol</th>
+                <th style="border:none;">Company</th>
+                <th class="text-end" style="border:none;">Price</th>
+                <th class="text-end pe-4" style="border:none;">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in top_gainers %}
+              <tr style="border-bottom:1px solid #f5f5f5;">
+                <td class="ps-4 py-3 text-muted" style="width:40px; border:none;">{{ loop.index }}</td>
+                <td style="border:none; font-weight:600;">{{ s.symbol }}</td>
+                <td style="border:none; color:#555;">{{ s.company_name or '—' }}</td>
+                <td class="text-end" style="border:none; font-weight:600;">₹{{ "{:,.2f}".format(s.current_price|float) }}</td>
+                <td class="text-end pe-4" style="border:none;">
+                  <span style="color:#16a34a; font-weight:600;">
+                    <i class="fas fa-caret-up me-1" style="font-size:10px;"></i>{{ "{:.2f}".format(s.change_percent|float) }}%
+                  </span>
+                  {% if s.change_amount is defined and s.change_amount %}
+                  <div style="font-size:11px; color:#999;">+₹{{ "{:.2f}".format(s.change_amount|float) }}</div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="text-center py-5 text-muted">
+            <i class="fas fa-database fa-2x mb-3 d-block" style="opacity:.3;"></i>
+            No live data available right now
+          </div>
+          {% endif %}
+        </div>
+
+        {# Losers table #}
+        <div id="mvmt-l" class="mvmt-pane d-none">
+          {% if top_losers %}
+          <table class="table table-hover mb-0" style="font-size:13px;">
+            <thead style="background:#f8fafb; position:sticky; top:0;">
+              <tr style="font-size:11px; font-weight:600; color:#888; letter-spacing:.04em; text-transform:uppercase;">
+                <th class="ps-4 py-3" style="border:none;">#</th>
+                <th style="border:none;">Symbol</th>
+                <th style="border:none;">Company</th>
+                <th class="text-end" style="border:none;">Price</th>
+                <th class="text-end pe-4" style="border:none;">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in top_losers %}
+              <tr style="border-bottom:1px solid #f5f5f5;">
+                <td class="ps-4 py-3 text-muted" style="width:40px; border:none;">{{ loop.index }}</td>
+                <td style="border:none; font-weight:600;">{{ s.symbol }}</td>
+                <td style="border:none; color:#555;">{{ s.company_name or '—' }}</td>
+                <td class="text-end" style="border:none; font-weight:600;">₹{{ "{:,.2f}".format(s.current_price|float) }}</td>
+                <td class="text-end pe-4" style="border:none;">
+                  <span style="color:#dc2626; font-weight:600;">
+                    <i class="fas fa-caret-down me-1" style="font-size:10px;"></i>{{ "{:.2f}".format(s.change_percent|float|abs) }}%
+                  </span>
+                  {% if s.change_amount is defined and s.change_amount %}
+                  <div style="font-size:11px; color:#999;">−₹{{ "{:.2f}".format(s.change_amount|float|abs) }}</div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="text-center py-5 text-muted">
+            <i class="fas fa-database fa-2x mb-3 d-block" style="opacity:.3;"></i>
+            No live data available right now
+          </div>
+          {% endif %}
+        </div>
+
+        {# Most Active / Volume table #}
+        <div id="mvmt-a" class="mvmt-pane d-none">
+          {% if most_active %}
+          <table class="table table-hover mb-0" style="font-size:13px;">
+            <thead style="background:#f8fafb; position:sticky; top:0;">
+              <tr style="font-size:11px; font-weight:600; color:#888; letter-spacing:.04em; text-transform:uppercase;">
+                <th class="ps-4 py-3" style="border:none;">#</th>
+                <th style="border:none;">Symbol</th>
+                <th style="border:none;">Company</th>
+                <th class="text-end" style="border:none;">Price</th>
+                <th class="text-end" style="border:none;">Volume</th>
+                <th class="text-end pe-4" style="border:none;">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in most_active %}{% set c = s.change_percent|float %}{% set vol = s.volume|int %}
+              <tr style="border-bottom:1px solid #f5f5f5;">
+                <td class="ps-4 py-3 text-muted" style="width:40px; border:none;">{{ loop.index }}</td>
+                <td style="border:none; font-weight:600;">{{ s.symbol }}</td>
+                <td style="border:none; color:#555;">{{ s.company_name or '—' }}</td>
+                <td class="text-end" style="border:none; font-weight:600;">₹{{ "{:,.2f}".format(s.current_price|float) }}</td>
+                <td class="text-end" style="border:none; color:#555;">
+                  {% if vol >= 10000000 %}{{ "%.1f"|format(vol/10000000) }} Cr
+                  {% elif vol >= 100000 %}{{ "%.2f"|format(vol/100000) }} L
+                  {% else %}{{ "{:,}".format(vol) }}{% endif %}
+                </td>
+                <td class="text-end pe-4" style="border:none;">
+                  <span style="color:{% if c>=0 %}#16a34a{% else %}#dc2626{% endif %}; font-weight:600;">
+                    <i class="fas fa-caret-{% if c>=0 %}up{% else %}down{% endif %} me-1" style="font-size:10px;"></i>{{ "{:+.2f}".format(c) }}%
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="text-center py-5 text-muted">
+            <i class="fas fa-database fa-2x mb-3 d-block" style="opacity:.3;"></i>
+            No live data available right now
+          </div>
+          {% endif %}
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="border-top:1px solid #f1f3f4; padding:12px 24px; background:#fafafa; border-radius:0 0 14px 14px;">
+        <small class="text-muted me-auto" style="font-size:11px;">
+          <i class="fas fa-clock me-1"></i>Data as of last market session
+        </small>
+        <a href="{{ url_for('dashboard_nse_stocks') }}" class="btn btn-sm btn-outline-primary">
+          <i class="fas fa-external-link-alt me-1" style="font-size:10px;"></i>NSE Stocks Page
+        </a>
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var _mvModal = null;
+  var TITLES = {
+    g: ['Top Gainers', "Today&#39;s best performers"],
+    l: ['Top Losers',  "Today&#39;s biggest declines"],
+    a: ['Top Volume',  "Most actively traded stocks"],
+  };
+
+  window.openMoversModal = function(tab) {
+    if (!_mvModal) {
+      var el = document.getElementById('moversModal');
+      if (!el) return;
+      _mvModal = new bootstrap.Modal(el);
+    }
+    mvModalTab(tab, document.querySelector('.mvmt[data-t="' + tab + '"]'));
+    _mvModal.show();
+  };
+
+  window.mvModalTab = function(t, btn) {
+    document.querySelectorAll('.mvmt-pane').forEach(function(p) { p.classList.add('d-none'); });
+    var pane = document.getElementById('mvmt-' + t);
+    if (pane) pane.classList.remove('d-none');
+
+    document.querySelectorAll('.mvmt').forEach(function(b) { b.classList.remove('active'); });
+    if (btn) btn.classList.add('active');
+
+    var info = TITLES[t] || ['Market Movers', ''];
+    var titleEl = document.getElementById('mvModalTitle');
+    var subEl   = document.getElementById('mvModalSub');
+    if (titleEl) titleEl.innerHTML = info[0];
+    if (subEl)   subEl.innerHTML   = info[1];
+  };
+}());
 </script>
 {% endblock %}
