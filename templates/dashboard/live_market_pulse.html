@@ -1,0 +1,736 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block title %}Live Market Pulse - Target Capital{% endblock %}
+
+{% block extra_css %}
+<style>
+.dashboard-content, .header-content {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+}
+
+/* ── Index strip ── */
+.index-strip { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.index-card {
+    flex: 1; min-width: 140px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex; flex-direction: column; gap: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.index-card.positive { border-left: 4px solid #16a34a; }
+.index-card.negative { border-left: 4px solid #dc2626; }
+.index-name  { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing:.04em; }
+.index-value { font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1.1; }
+.index-chg   { font-size: 12px; font-weight: 600; }
+.index-chg.up   { color: #16a34a; }
+.index-chg.down { color: #dc2626; }
+
+/* ── AI Commentary ── */
+.ai-commentary-card {
+    background: linear-gradient(135deg, #00091a 0%, #0f2d5e 100%);
+    border-radius: 12px;
+    padding: 20px 24px;
+    color: #fff;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+}
+.ai-commentary-card::before {
+    content: '';
+    position: absolute; top: 0; right: 0;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(99,102,241,.15) 0%, transparent 70%);
+    pointer-events: none;
+}
+.ai-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 20px; padding: 3px 12px;
+    font-size: 11px; font-weight: 600; letter-spacing:.04em;
+    margin-bottom: 10px;
+}
+.ai-commentary-text {
+    font-size: 14px; line-height: 1.8; color: rgba(255,255,255,.9);
+    white-space: pre-line;
+}
+.ai-commentary-text p { margin-bottom: .5em; }
+
+/* ── Heat maps section ── */
+.heatmap-row { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-bottom: 20px; }
+@media(max-width: 900px) { .heatmap-row { grid-template-columns: 1fr; } }
+
+.heatmap-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.heatmap-card .hc-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid #f1f5f9;
+}
+.heatmap-card .hc-header h6 { margin: 0; font-size: 13px; font-weight: 700; color: #1e293b; }
+.heatmap-card .hc-body { padding: 16px; }
+
+/* Nifty 50 treemap */
+#treemapContainer { width: 100%; height: 380px; position: relative; }
+.treemap-cell {
+    cursor: default;
+    transition: opacity .15s;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 2px;
+}
+.treemap-cell:hover { opacity: .85; }
+.treemap-symbol { font-size: 11px; font-weight: 700; color: #fff; text-align: center; line-height:1.2; }
+.treemap-change { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.85); }
+
+/* Sector grid */
+.sector-grid { display: flex; flex-direction: column; gap: 6px; }
+.sector-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+.sector-bar-wrap { flex: 1; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+.sector-bar { height: 100%; border-radius: 3px; transition: width .6s ease; }
+.sector-name-label { font-size: 11px; font-weight: 600; color: #374151; width: 80px; flex-shrink: 0; }
+.sector-chg-label  { font-size: 11px; font-weight: 700; width: 44px; text-align: right; flex-shrink: 0; }
+.sector-chg-label.up   { color: #16a34a; }
+.sector-chg-label.down { color: #dc2626; }
+
+/* ── Top Movers ── */
+.movers-tabs { display: flex; gap: 4px; padding: 0; border-bottom: 1px solid #f1f5f9; }
+.movers-tab {
+    padding: 10px 18px;
+    font-size: 12px; font-weight: 600;
+    color: #64748b; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all .15s;
+    white-space: nowrap;
+}
+.movers-tab.active { color: #00091a; border-bottom-color: #00091a; }
+.movers-panel { display: none; }
+.movers-panel.active { display: block; }
+
+.mover-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 18px;
+    border-bottom: 1px solid #f8fafc;
+    transition: background .12s;
+}
+.mover-row:last-child { border-bottom: none; }
+.mover-row:hover { background: #f8fafc; }
+.mover-rank { font-size: 11px; font-weight: 700; color: #94a3b8; width: 18px; flex-shrink: 0; }
+.mover-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.mover-info { flex: 1; min-width: 0; }
+.mover-sym  { font-size: 13px; font-weight: 700; color: #1e293b; }
+.mover-co   { font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mover-price { font-size: 13px; font-weight: 600; color: #1e293b; text-align: right; flex-shrink: 0; }
+.mover-chg  { font-size: 12px; font-weight: 700; text-align: right; flex-shrink: 0; width: 54px; }
+.mover-chg.up   { color: #16a34a; }
+.mover-chg.down { color: #dc2626; }
+.mover-vol  { font-size: 11px; color: #94a3b8; text-align: right; flex-shrink: 0; width: 60px; }
+
+/* ── Signals section ── */
+.price-pill { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.price-pill.entry  { background: #ecfdf5; color: #059669; }
+.price-pill.sl     { background: #fef2f2; color: #dc2626; }
+.price-pill.target { background: #eff6ff; color: #2563eb; }
+.risk-low    { color: #059669; font-weight: 600; }
+.risk-medium { color: #d97706; font-weight: 600; }
+.risk-high   { color: #dc2626; font-weight: 600; }
+.signal-detail-card .card-header { background: linear-gradient(135deg, #00091a 0%, #1a365d 100%); }
+
+/* Legend */
+.hm-legend { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.hm-legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #64748b; }
+.hm-legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
+</style>
+{% endblock %}
+
+{% block dashboard_title %}Live Market Pulse{% endblock %}
+{% block dashboard_subtitle %}Real-time market data, heat maps &amp; AI insights{% endblock %}
+
+{% block dashboard_toolbar %}
+<div class="header-actions">
+    <span id="lastUpdated" class="text-muted small me-3" style="font-size:11px;"></span>
+    <button class="btn btn-outline-primary btn-sm me-2" onclick="location.reload()">
+        <i class="fas fa-sync-alt me-1"></i>Refresh
+    </button>
+    <a href="{{ url_for('daily_signals_analysis') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-chart-bar me-1"></i>Analysis
+    </a>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+
+{# ── 1. Market Indices Strip ────────────────────────────────────────────── #}
+<div class="index-strip">
+    {% set idx = market_indices %}
+    {% for key, label in [('nifty_50','NIFTY 50'), ('nifty_bank','BANK NIFTY'), ('sensex','SENSEX'), ('nifty_it','NIFTY IT')] %}
+    {% set d = idx.get(key, {}) %}
+    {% set chg = d.get('change_percent', d.get('pChange', 0)) | float %}
+    {% set val = d.get('value', d.get('lastPrice', 0)) | float %}
+    <div class="index-card {% if chg >= 0 %}positive{% else %}negative{% endif %}">
+        <div class="index-name">{{ label }}</div>
+        <div class="index-value">
+            {% if val > 0 %}{{ "{:,.2f}".format(val) }}{% else %}<span class="text-muted" style="font-size:13px;">—</span>{% endif %}
+        </div>
+        <div class="index-chg {% if chg >= 0 %}up{% else %}down{% endif %}">
+            {% if val > 0 %}
+            <i class="fas fa-arrow-{% if chg >= 0 %}up{% else %}down{% endif %}" style="font-size:9px;"></i>
+            {{ "{:+.2f}".format(chg) }}%
+            {% else %}No data{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% set vix = idx.get('india_vix', {}) %}
+    {% if vix %}
+    <div class="index-card" style="border-left: 4px solid #f59e0b;">
+        <div class="index-name">INDIA VIX</div>
+        <div class="index-value" style="font-size:18px;">{{ "{:.2f}".format(vix.get('value', vix.get('lastPrice', 0)) | float) }}</div>
+        <div class="index-chg" style="color:#f59e0b;">Volatility Index</div>
+    </div>
+    {% endif %}
+</div>
+
+{# ── 2. AI Commentary ──────────────────────────────────────────────────── #}
+<div class="ai-commentary-card mb-4" id="aiCommentaryCard">
+    <div class="ai-badge">
+        <i class="fas fa-robot" style="font-size:10px;"></i>
+        AI Market Commentary
+    </div>
+    <div id="aiCommentaryText" class="ai-commentary-text">
+        <span class="text-white-50"><i class="fas fa-circle-notch fa-spin me-2"></i>Generating market analysis…</span>
+    </div>
+    <div class="mt-2" style="font-size:10px; color: rgba(255,255,255,.35);">
+        Powered by Claude · Not financial advice
+    </div>
+</div>
+
+{# ── 3. Heat Maps ─────────────────────────────────────────────────────── #}
+<div class="heatmap-row">
+
+    {# Nifty 50 Treemap #}
+    <div class="heatmap-card">
+        <div class="hc-header">
+            <h6><i class="fas fa-th me-2 text-primary"></i>Nifty 50 Heat Map</h6>
+            <div class="hm-legend">
+                <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#16a34a;"></div>&gt;2%</div>
+                <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#4ade80;"></div>0–2%</div>
+                <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#94a3b8;"></div>0%</div>
+                <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#f87171;"></div>0–2%</div>
+                <div class="hm-legend-item"><div class="hm-legend-swatch" style="background:#dc2626;"></div>&lt;-2%</div>
+            </div>
+        </div>
+        <div class="hc-body p-0">
+            <div id="treemapContainer"></div>
+        </div>
+    </div>
+
+    {# Sector Heat Map #}
+    <div class="heatmap-card">
+        <div class="hc-header">
+            <h6><i class="fas fa-layer-group me-2 text-indigo-600"></i>Sector Performance</h6>
+            <span class="text-muted" style="font-size:11px;">Nifty-weighted avg</span>
+        </div>
+        <div class="hc-body" style="max-height:430px; overflow-y:auto;">
+            <div class="sector-grid">
+                {% for sec in sector_data %}
+                {% set chg = sec.change_percent | float %}
+                {% set bar_pct = [([chg | abs, 5] | min) / 5 * 100, 4] | max %}
+                <div class="sector-row">
+                    <div class="sector-name-label" title="{{ sec.sector }}">{{ sec.sector }}</div>
+                    <div class="sector-bar-wrap">
+                        <div class="sector-bar" style="width:{{ bar_pct }}%; background:{% if chg >= 0 %}#16a34a{% else %}#dc2626{% endif %};"></div>
+                    </div>
+                    <div class="sector-chg-label {% if chg >= 0 %}up{% else %}down{% endif %}">
+                        {{ "{:+.2f}".format(chg) }}%
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── 4. Top Movers ────────────────────────────────────────────────────── #}
+<div class="heatmap-card mb-4">
+    <div class="hc-header" style="padding-bottom:0; border-bottom:none;">
+        <h6><i class="fas fa-fire me-2 text-danger"></i>Top Movers</h6>
+        <span class="text-muted" style="font-size:11px;">Live NSE data</span>
+    </div>
+    <div class="movers-tabs px-3 pt-2">
+        <div class="movers-tab active" onclick="switchTab('gainers', this)">
+            <i class="fas fa-arrow-up me-1 text-success"></i>Top Gainers
+        </div>
+        <div class="movers-tab" onclick="switchTab('losers', this)">
+            <i class="fas fa-arrow-down me-1 text-danger"></i>Top Losers
+        </div>
+        <div class="movers-tab" onclick="switchTab('active', this)">
+            <i class="fas fa-bolt me-1 text-warning"></i>Most Active
+        </div>
+    </div>
+
+    <div id="tab-gainers" class="movers-panel active">
+        {% if top_gainers %}
+        {% for s in top_gainers %}
+        <div class="mover-row">
+            <div class="mover-rank">{{ loop.index }}</div>
+            <div class="mover-dot" style="background:#16a34a;"></div>
+            <div class="mover-info">
+                <div class="mover-sym">{{ s.symbol }}</div>
+                <div class="mover-co">{{ s.company_name or '' }}</div>
+            </div>
+            <div class="mover-price">₹{{ "{:,.2f}".format(s.current_price | float) }}</div>
+            <div class="mover-chg up"><i class="fas fa-arrow-up" style="font-size:8px;"></i> {{ "{:.2f}".format(s.change_percent | float) }}%</div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="p-4 text-center text-muted small">Market data unavailable</div>
+        {% endif %}
+    </div>
+
+    <div id="tab-losers" class="movers-panel">
+        {% if top_losers %}
+        {% for s in top_losers %}
+        <div class="mover-row">
+            <div class="mover-rank">{{ loop.index }}</div>
+            <div class="mover-dot" style="background:#dc2626;"></div>
+            <div class="mover-info">
+                <div class="mover-sym">{{ s.symbol }}</div>
+                <div class="mover-co">{{ s.company_name or '' }}</div>
+            </div>
+            <div class="mover-price">₹{{ "{:,.2f}".format(s.current_price | float) }}</div>
+            <div class="mover-chg down"><i class="fas fa-arrow-down" style="font-size:8px;"></i> {{ "{:.2f}".format(s.change_percent | float | abs) }}%</div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="p-4 text-center text-muted small">Market data unavailable</div>
+        {% endif %}
+    </div>
+
+    <div id="tab-active" class="movers-panel">
+        {% if most_active %}
+        {% for s in most_active %}
+        {% set chg = s.change_percent | float %}
+        <div class="mover-row">
+            <div class="mover-rank">{{ loop.index }}</div>
+            <div class="mover-dot" style="background:{% if chg >= 0 %}#16a34a{% else %}#dc2626{% endif %};"></div>
+            <div class="mover-info">
+                <div class="mover-sym">{{ s.symbol }}</div>
+                <div class="mover-co">{{ s.company_name or '' }}</div>
+            </div>
+            <div class="mover-price">₹{{ "{:,.2f}".format(s.current_price | float) }}</div>
+            <div class="mover-vol">
+                {% set vol = s.volume | int %}
+                {% if vol >= 10000000 %}{{ "%.1f"|format(vol/10000000) }}Cr
+                {% elif vol >= 100000 %}{{ "%.1f"|format(vol/100000) }}L
+                {% else %}{{ "{:,}".format(vol) }}{% endif %}
+            </div>
+            <div class="mover-chg {% if chg >= 0 %}up{% else %}down{% endif %}">
+                {{ "{:+.2f}".format(chg) }}%
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="p-4 text-center text-muted small">Market data unavailable</div>
+        {% endif %}
+    </div>
+</div>
+
+{# ── 5. Our Signals ───────────────────────────────────────────────────── #}
+<div class="card mb-3">
+    <div class="card-body py-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Signal Date</label>
+                <input type="date" class="form-control form-control-sm" id="signalDate"
+                       value="{{ selected_date.strftime('%Y-%m-%d') }}"
+                       max="{{ date_range[0].strftime('%Y-%m-%d') if date_range else '' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Asset Type</label>
+                <select class="form-select form-select-sm" id="assetTypeFilter">
+                    <option value="all"       {{ 'selected' if asset_type_filter == 'all' }}>All Assets</option>
+                    <option value="NIFTY"     {{ 'selected' if asset_type_filter == 'NIFTY' }}>Nifty</option>
+                    <option value="BANKNIFTY" {{ 'selected' if asset_type_filter == 'BANKNIFTY' }}>BankNifty</option>
+                    <option value="SENSEX"    {{ 'selected' if asset_type_filter == 'SENSEX' }}>Sensex</option>
+                    <option value="FINNIFTY"  {{ 'selected' if asset_type_filter == 'FINNIFTY' }}>FinNifty</option>
+                    <option value="STOCK"     {{ 'selected' if asset_type_filter == 'STOCK' }}>Stocks</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Duration</label>
+                <select class="form-select form-select-sm" id="durationFilter">
+                    <option value="all"   {{ 'selected' if duration_filter == 'all' }}>All Durations</option>
+                    <option value="DAY"   {{ 'selected' if duration_filter == 'DAY' }}>Day Trading</option>
+                    <option value="WEEK"  {{ 'selected' if duration_filter == 'WEEK' }}>Swing Trading</option>
+                    <option value="MONTH" {{ 'selected' if duration_filter == 'MONTH' }}>Long Term</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button class="btn btn-primary btn-sm flex-fill" onclick="applyFilters()">
+                    <i class="fas fa-filter me-1"></i>Filter
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="resetFilters()" title="Reset">
+                    <i class="fas fa-undo"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header text-white d-flex justify-content-between align-items-center"
+         style="background: linear-gradient(135deg, #00091a 0%, #1a365d 100%);">
+        <h5 class="mb-0">
+            <i class="fas fa-signal me-2"></i>
+            Our Signals — {{ selected_date.strftime('%d %B %Y') }}
+        </h5>
+        <div class="d-flex gap-2 align-items-center">
+            <span class="badge bg-white text-dark">{{ signals|length }} signal{{ 's' if signals|length != 1 }}</span>
+            {% if summary_stats.success_rate > 0 %}
+            <span class="badge bg-success">{{ summary_stats.success_rate }}% success</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if signals %}
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Asset</th>
+                        <th>Script</th>
+                        <th>Expiry</th>
+                        <th>LTP</th>
+                        <th>Entry</th>
+                        <th>T1</th>
+                        <th>T2</th>
+                        <th>Stop Loss</th>
+                        <th>Duration</th>
+                        <th>Risk</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for signal in signals %}
+                    <tr>
+                        <td><span class="badge bg-secondary">{{ signal.asset_type }}</span></td>
+                        <td>
+                            <div class="fw-semibold">{{ signal.script }}</div>
+                            {% if signal.sub_type_display %}<small class="text-muted">{{ signal.sub_type_display }}</small>{% endif %}
+                        </td>
+                        <td><small class="text-muted">{{ signal.expiry_date.strftime('%d %b %Y') if signal.expiry_date else 'N/A' }}</small></td>
+                        <td><span class="fw-bold text-primary">₹{{ signal.current_price or '—' }}</span></td>
+                        <td><span class="price-pill entry">₹{{ signal.buy_above }}</span></td>
+                        <td>{% if signal.target_1 %}<span class="price-pill target">₹{{ signal.target_1 }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td>{% if signal.target_2 %}<span class="price-pill target">₹{{ signal.target_2 }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td><span class="price-pill sl">₹{{ signal.stop_loss }}</span></td>
+                        <td>
+                            {% set dur = (signal.trade_duration or '') | lower %}
+                            <span class="badge {% if dur == 'day' %}bg-danger{% elif dur == 'week' %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                                {{ signal.duration_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="risk-{{ (signal.risk_level or 'medium') | lower }}">{{ signal.risk_level or 'Medium' }}</span>
+                        </td>
+                        <td class="text-center">
+                            <div class="d-flex gap-1 justify-content-center">
+                                <button class="btn btn-outline-primary btn-sm" onclick="viewSignalDetail({{ signal.id }})">
+                                    <i class="fas fa-eye me-1"></i>View
+                                </button>
+                                <a href="{{ url_for('trade_assist',
+                                    symbol=signal.symbol, script=signal.script,
+                                    asset_type=signal.asset_type, sub_type=signal.sub_type,
+                                    action=signal.action, price=signal.buy_above,
+                                    stop_loss=signal.stop_loss, target=signal.target_1,
+                                    target_2=signal.target_2, target_3=signal.target_3,
+                                    trade_duration=signal.trade_duration,
+                                    risk_level=signal.risk_level, signal_id=signal.id,
+                                    source='daily_signals') }}"
+                                   class="btn btn-primary btn-sm" style="background:#00091a; border-color:#00091a;">
+                                    Trade
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card-body text-center py-5">
+        <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">No Signals for {{ selected_date.strftime('%d %B %Y') }}</h5>
+        <p class="text-muted small">Check back later or select a different date.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div id="signalDetailSection" class="card mt-4 signal-detail-card" style="display:none;">
+    <div class="card-header text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0" id="signalDetailTitle">Signal Details</h5>
+        <button class="btn btn-sm btn-light" onclick="closeSignalDetail()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="card-body" id="signalDetailBody"></div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+// ── Nifty 50 data ──────────────────────────────────────────────────────
+const nifty50Data = {{ nifty50_data | tojson }};
+
+// ── Colour scale ───────────────────────────────────────────────────────
+function changeColor(pct) {
+    if (pct >=  2.0) return '#15803d';
+    if (pct >=  1.0) return '#22c55e';
+    if (pct >=  0.2) return '#4ade80';
+    if (pct >  -0.2) return '#94a3b8';
+    if (pct >  -1.0) return '#f87171';
+    if (pct >  -2.0) return '#ef4444';
+    return '#b91c1c';
+}
+
+// ── D3 Treemap ─────────────────────────────────────────────────────────
+function buildTreemap() {
+    const container = document.getElementById('treemapContainer');
+    if (!container || !nifty50Data.length) return;
+
+    const W = container.offsetWidth  || 600;
+    const H = 380;
+
+    const root = d3.hierarchy({ children: nifty50Data })
+        .sum(d => d.weight || 1)
+        .sort((a, b) => b.value - a.value);
+
+    d3.treemap()
+        .size([W, H])
+        .paddingInner(2)
+        .paddingOuter(2)
+        (root);
+
+    const svg = d3.select('#treemapContainer')
+        .append('svg')
+        .attr('width', W)
+        .attr('height', H)
+        .style('display', 'block');
+
+    const cell = svg.selectAll('g')
+        .data(root.leaves())
+        .join('g')
+        .attr('transform', d => `translate(${d.x0},${d.y0})`);
+
+    cell.append('rect')
+        .attr('width',  d => Math.max(0, d.x1 - d.x0))
+        .attr('height', d => Math.max(0, d.y1 - d.y0))
+        .attr('fill',   d => changeColor(d.data.change_percent))
+        .attr('rx', 3)
+        .attr('ry', 3);
+
+    // Only show text if cell is wide/tall enough
+    cell.each(function(d) {
+        const cellW = d.x1 - d.x0;
+        const cellH = d.y1 - d.y0;
+        if (cellW < 28 || cellH < 20) return;
+
+        const g = d3.select(this);
+        const chg = d.data.change_percent;
+        const sign = chg >= 0 ? '+' : '';
+
+        if (cellH >= 40) {
+            g.append('text')
+                .attr('x', cellW / 2)
+                .attr('y', cellH / 2 - 7)
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#fff')
+                .attr('font-size', Math.min(12, cellW / 4))
+                .attr('font-weight', '700')
+                .text(d.data.symbol);
+
+            g.append('text')
+                .attr('x', cellW / 2)
+                .attr('y', cellH / 2 + 9)
+                .attr('text-anchor', 'middle')
+                .attr('fill', 'rgba(255,255,255,.85)')
+                .attr('font-size', Math.min(10, cellW / 5))
+                .text(`${sign}${chg.toFixed(2)}%`);
+        } else {
+            g.append('text')
+                .attr('x', cellW / 2)
+                .attr('y', cellH / 2 + 4)
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#fff')
+                .attr('font-size', Math.min(10, cellW / 4))
+                .attr('font-weight', '700')
+                .text(d.data.symbol);
+        }
+    });
+
+    // Tooltip
+    const tip = d3.select('body').append('div')
+        .style('position', 'fixed')
+        .style('background', 'rgba(0,9,26,.92)')
+        .style('color', '#fff')
+        .style('padding', '8px 14px')
+        .style('border-radius', '8px')
+        .style('font-size', '12px')
+        .style('pointer-events', 'none')
+        .style('display', 'none')
+        .style('z-index', '9999');
+
+    cell.on('mousemove', (event, d) => {
+        const chg = d.data.change_percent;
+        tip.style('display', 'block')
+           .style('left', (event.clientX + 14) + 'px')
+           .style('top',  (event.clientY - 20) + 'px')
+           .html(`<strong>${d.data.symbol}</strong> · ${d.data.name}<br>
+                  Change: <span style="color:${changeColor(chg)}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span><br>
+                  Sector: ${d.data.sector} · Weight: ${d.data.weight.toFixed(1)}%`);
+    }).on('mouseleave', () => tip.style('display', 'none'));
+}
+
+// ── Tab switcher ───────────────────────────────────────────────────────
+function switchTab(name, el) {
+    document.querySelectorAll('.movers-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.movers-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    el.classList.add('active');
+}
+
+// ── Signal filters ─────────────────────────────────────────────────────
+function applyFilters() {
+    const d  = document.getElementById('signalDate').value;
+    const at = document.getElementById('assetTypeFilter').value;
+    const dur = document.getElementById('durationFilter').value;
+    let url = `{{ url_for('dashboard_daily_signals') }}?date=${d}`;
+    if (at  !== 'all') url += `&asset_type=${at}`;
+    if (dur !== 'all') url += `&duration=${dur}`;
+    window.location.href = url;
+}
+function resetFilters() {
+    document.getElementById('assetTypeFilter').value = 'all';
+    document.getElementById('durationFilter').value  = 'all';
+    applyFilters();
+}
+
+// ── Signal detail ──────────────────────────────────────────────────────
+const signalData = {
+    {% for signal in signals %}
+    {{ signal.id }}: {
+        id: {{ signal.id }},
+        script: "{{ signal.script }}",
+        symbol: "{{ signal.symbol }}",
+        asset_type: "{{ signal.asset_type }}",
+        sub_type: "{{ signal.sub_type or '' }}",
+        action: "{{ signal.action }}",
+        buy_above: {{ signal.buy_above or 0 }},
+        stop_loss: {{ signal.stop_loss or 0 }},
+        target_1: {{ signal.target_1 or 'null' }},
+        target_2: {{ signal.target_2 or 'null' }},
+        target_3: {{ signal.target_3 or 'null' }},
+        current_price: {{ signal.current_price or 0 }},
+        duration_display: "{{ signal.duration_display }}",
+        risk_level: "{{ signal.risk_level or 'Medium' }}",
+        notes: `{{ (signal.notes or '') | replace('`', "'") }}`,
+        expiry_date: "{{ signal.expiry_date.strftime('%d %b %Y') if signal.expiry_date else 'N/A' }}"
+    },
+    {% endfor %}
+};
+
+function viewSignalDetail(signalId) {
+    const s = signalData[signalId];
+    if (!s) return;
+    const potReturn = s.target_1 && s.buy_above ? (((s.target_1 - s.buy_above) / s.buy_above) * 100).toFixed(1) : '—';
+    const riskPct   = s.stop_loss && s.buy_above ? (((s.buy_above - s.stop_loss) / s.buy_above) * 100).toFixed(1) : '—';
+    const rr = (parseFloat(potReturn) > 0 && parseFloat(riskPct) > 0) ? (parseFloat(potReturn) / parseFloat(riskPct)).toFixed(2) : '—';
+    const actionBg = s.action === 'BUY' ? 'bg-success' : 'bg-danger';
+    const targets  = [s.target_1, s.target_2, s.target_3].filter(Boolean)
+        .map((t, i) => `<span class="price-pill target me-1">T${i+1}: ₹${t}</span>`).join('');
+
+    document.getElementById('signalDetailTitle').textContent = s.script;
+    document.getElementById('signalDetailBody').innerHTML = `
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card h-100 border-0 bg-light"><div class="card-body">
+                    <h6 class="text-muted mb-3">Signal Details</h6>
+                    <div class="mb-2"><small class="text-muted d-block">Action</small><span class="badge ${actionBg} fs-6">${s.action}</span></div>
+                    <div class="mb-2"><small class="text-muted d-block">Asset</small><span class="fw-semibold">${s.asset_type}${s.sub_type ? ' · '+s.sub_type : ''}</span></div>
+                    <div class="mb-2"><small class="text-muted d-block">Expiry</small><span class="fw-semibold">${s.expiry_date}</span></div>
+                    <div class="mb-2"><small class="text-muted d-block">Duration</small><span class="fw-semibold">${s.duration_display}</span></div>
+                    <div><small class="text-muted d-block">Risk Level</small><span class="fw-semibold risk-${s.risk_level.toLowerCase()}">${s.risk_level}</span></div>
+                </div></div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 bg-light"><div class="card-body">
+                    <h6 class="text-muted mb-3">Price Levels</h6>
+                    <div class="mb-2"><small class="text-muted d-block">Current Price</small><span class="fw-bold text-primary fs-5">₹${s.current_price.toFixed(2)}</span></div>
+                    <div class="mb-2"><small class="text-muted d-block">Entry</small><span class="price-pill entry">₹${s.buy_above}</span></div>
+                    <div class="mb-2"><small class="text-muted d-block">Stop Loss</small><span class="price-pill sl">₹${s.stop_loss}</span></div>
+                    <div><small class="text-muted d-block">Targets</small><div class="mt-1">${targets || '<span class="text-muted">—</span>'}</div></div>
+                </div></div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 bg-light"><div class="card-body">
+                    <h6 class="text-muted mb-3">Risk / Reward</h6>
+                    <div class="row text-center g-2">
+                        <div class="col-4"><div class="fw-bold fs-5 text-success">${potReturn}%</div><small class="text-muted">Return</small></div>
+                        <div class="col-4"><div class="fw-bold fs-5 text-danger">${riskPct}%</div><small class="text-muted">Risk</small></div>
+                        <div class="col-4"><div class="fw-bold fs-5">${rr}</div><small class="text-muted">R:R</small></div>
+                    </div>
+                    ${s.notes ? `<hr><p class="small text-muted mb-0"><strong>Notes:</strong> ${s.notes}</p>` : ''}
+                </div></div>
+            </div>
+        </div>`;
+    const panel = document.getElementById('signalDetailSection');
+    panel.style.display = 'block';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function closeSignalDetail() { document.getElementById('signalDetailSection').style.display = 'none'; }
+
+// ── AI Commentary fetch ────────────────────────────────────────────────
+async function fetchCommentary() {
+    try {
+        const res  = await fetch('{{ url_for("market_pulse_commentary") }}');
+        const data = await res.json();
+        const el   = document.getElementById('aiCommentaryText');
+        if (data.success && data.commentary) {
+            el.innerHTML = data.commentary.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
+        } else {
+            el.textContent = 'Market commentary unavailable. Please refresh.';
+        }
+    } catch(e) {
+        document.getElementById('aiCommentaryText').textContent = 'Could not load commentary.';
+    }
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    buildTreemap();
+    fetchCommentary();
+    document.getElementById('lastUpdated').textContent =
+        'Updated: ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+});
+window.addEventListener('resize', () => {
+    const c = document.getElementById('treemapContainer');
+    if (c) { c.innerHTML = ''; buildTreemap(); }
+});
+</script>
+{% endblock %}

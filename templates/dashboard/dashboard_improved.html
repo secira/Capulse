@@ -181,21 +181,21 @@
         </div>
     </div>
 
-    <!-- AI Trading Signals -->
+    <!-- Live Market Pulse -->
     <div class="dashboard-card clickable-card" onclick="window.location.href='{{ url_for('dashboard_daily_signals') }}'">
         <div class="card-body">
             <div class="flex-between mb-3">
                 <div class="metric-icon">
-                    <i class="fas fa-chart-line text-success"></i>
+                    <i class="fas fa-wave-square text-success"></i>
                 </div>
                 <div class="metric-badge">
                     <span class="badge bg-success">Live</span>
                 </div>
             </div>
             <h3 class="metric-value">{{ trading_signals_count }}</h3>
-            <p class="metric-label">Active Signals</p>
+            <p class="metric-label">Live Market Pulse</p>
             <div class="metric-trend">
-                <small class="text-muted">Click to view all signals</small>
+                <small class="text-muted">Heatmaps · Movers · Signals</small>
             </div>
         </div>
     </div>
