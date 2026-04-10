@@ -447,7 +447,8 @@
                 <div class="ai-panel-name">Scentric AI</div>
                 <div class="ai-panel-sub">Market Brief · Today</div>
             </div>
-            <div style="display:flex; gap:6px; align-items:center;">
+            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                <span id="briefLangBadge" style="display:none; font-size:11px; background:rgba(74,111,165,.12); color:#4a6fa5; border:1px solid rgba(74,111,165,.25); border-radius:20px; padding:2px 10px; font-weight:600;"></span>
                 <button class="ai-refresh-btn" id="speakBriefBtn" onclick="speakBrief()" title="Read aloud" style="display:none;">
                     <i class="fas fa-volume-up me-1" style="font-size:10px;" id="speakBriefIcon"></i><span id="speakBriefLabel">Listen</span>
                 </button>
@@ -1011,7 +1012,9 @@ function cleanForTTS(text) {
 async function loadAI() {
     const el=document.getElementById('aiText');
     const btn=document.getElementById('speakBriefBtn');
+    const badge=document.getElementById('briefLangBadge');
     btn.style.display='none';
+    if (badge) badge.style.display='none';
     stopSpeech();
     el.innerHTML='<span style="color:#999999;"><i class="fas fa-circle-notch fa-spin me-2"></i>Analysing…</span>';
     try {
@@ -1020,6 +1023,16 @@ async function loadAI() {
         if (d.success && d.commentary) {
             el.innerHTML = fmtDisplay(d.commentary);
             btn.style.display='';
+            /* Show language badge when non-English */
+            if (badge) {
+                const lc = d.lang || 'en';
+                if (lc !== 'en' && LANG_LABEL[lc]) {
+                    badge.textContent = '🔊 ' + LANG_LABEL[lc];
+                    badge.style.display = '';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
         } else {
             el.innerHTML='<span style="color:#999999;">Commentary unavailable — try refreshing.</span>';
         }
@@ -1078,7 +1091,7 @@ function renderAnswer(answer) {
         const ttsBtn = el.querySelector('#ttsAnswerBtn');
         if (ttsBtn) {
             ttsBtn.addEventListener('click', function() {
-                startTTS(answer, this);
+                startTTS(answer, this, USER_LANG_BCP47);
             });
         }
     }
@@ -1190,6 +1203,13 @@ let ttsQueue      = [];
 let ttsActive     = false;
 let ttsKeepAlive  = null;
 let _ttsActiveBtn = null;   // the button currently driving speech
+let _ttsLang      = 'en-IN'; // BCP-47 tag for the current TTS session (set by startTTS)
+
+/* ── Language Configuration ── */
+const USER_LANG       = '{{ current_user.preferred_language | default("en") }}';
+const LANG_BCP47      = {en:'en-IN', hi:'hi-IN', ta:'ta-IN', te:'te-IN', mr:'mr-IN', gu:'gu-IN', kn:'kn-IN'};
+const LANG_LABEL      = {en:'English', hi:'हिन्दी', ta:'தமிழ்', te:'తెలుగు', mr:'मराठी', gu:'ગુજરાતી', kn:'ಕನ್ನಡ'};
+const USER_LANG_BCP47 = LANG_BCP47[USER_LANG] || 'en-IN';
 
 /* Split text into sentence-sized chunks (≤ 200 chars), keeping punctuation. */
 function splitSentences(text) {
@@ -1210,15 +1230,19 @@ function splitSentences(text) {
     return chunks.length ? chunks : [text];
 }
 
-/* Pick the best available voice for en-IN / en-GB / en-US */
-function pickVoice() {
+/* Pick the best available voice for the given BCP-47 tag, falling back to English */
+function pickVoice(bcp47) {
     const voices = window.speechSynthesis.getVoices();
-    const priority = ['en-IN', 'en-GB', 'en-US', 'en'];
-    for (const lang of priority) {
-        const v = voices.find(v => v.lang.startsWith(lang));
-        if (v) return v;
-    }
-    return null;
+    const target = bcp47 || USER_LANG_BCP47;
+    const langPrefix = target.split('-')[0];
+    return (
+        voices.find(v => v.lang === target)                     // exact match
+        || voices.find(v => v.lang.startsWith(langPrefix + '-'))// same language, any region
+        || voices.find(v => v.lang.startsWith(langPrefix))      // broad prefix
+        || voices.find(v => v.lang === 'en-IN')                 // English India fallback
+        || voices.find(v => v.lang.startsWith('en'))            // any English
+        || null
+    );
 }
 
 /* Set a TTS button into its "speaking" state */
@@ -1262,10 +1286,10 @@ function _speakNext() {
     }
     const chunk = ttsQueue.shift();
     const utt   = new SpeechSynthesisUtterance(chunk);
-    utt.lang    = 'en-IN';
+    utt.lang    = _ttsLang;
     utt.rate    = 0.92;
     utt.pitch   = 1.0;
-    const voice = pickVoice();
+    const voice = pickVoice(_ttsLang);
     if (voice) utt.voice = voice;
     utt.onend   = () => { if (ttsActive) _speakNext(); };
     utt.onerror = (e) => { if (e.error !== 'interrupted') _speakNext(); };
@@ -1273,11 +1297,12 @@ function _speakNext() {
 }
 
 /**
- * startTTS(text, btn)
+ * startTTS(text, btn, langBCP47)
  * If btn is already speaking → stop (toggle off).
  * Otherwise → stop any current speech, then start fresh on btn.
+ * langBCP47 defaults to the user's preferred language (USER_LANG_BCP47).
  */
-function startTTS(text, btn) {
+function startTTS(text, btn, langBCP47) {
     if (!window.speechSynthesis) return;
 
     /* Toggle: clicking the active button stops speech */
@@ -1294,6 +1319,7 @@ function startTTS(text, btn) {
     const clean = cleanForTTS(text);
     if (!clean.trim()) return;
 
+    _ttsLang      = langBCP47 || USER_LANG_BCP47;
     ttsQueue      = splitSentences(clean);
     ttsActive     = true;
     _ttsActiveBtn = btn;
@@ -1321,7 +1347,7 @@ function stopSpeech() {
 function speakBrief() {
     const btn = document.getElementById('speakBriefBtn');
     const raw = document.getElementById('aiText').innerText || '';
-    startTTS(raw, btn);
+    startTTS(raw, btn, USER_LANG_BCP47);
 }
 
 /* resetBriefBtn kept for any legacy calls */

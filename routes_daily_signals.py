@@ -13,6 +13,11 @@ import time
 
 logger = logging.getLogger(__name__)
 
+LANG_NAMES = {
+    'en': 'English', 'hi': 'Hindi', 'ta': 'Tamil',
+    'te': 'Telugu',  'mr': 'Marathi', 'gu': 'Gujarati', 'kn': 'Kannada',
+}
+
 # ── In-memory market data cache (5-minute TTL) ───────────────────────────────
 _MARKET_CACHE: dict = {}
 _CACHE_TTL = 300  # seconds
@@ -344,6 +349,13 @@ def market_pulse_commentary():
         top_g = ', '.join(f"{g['symbol']} (+{g['change_percent']:.1f}%)" for g in gainers[:3])
         top_l = ', '.join(f"{l['symbol']} ({l['change_percent']:.1f}%)" for l in losers[:3])
 
+        lang_code = getattr(current_user, 'preferred_language', 'en') or 'en'
+        lang_name = LANG_NAMES.get(lang_code, 'English')
+        lang_instr = (
+            f" Respond entirely in {lang_name}. Every word of your response must be written in {lang_name}."
+            if lang_code != 'en' else ''
+        )
+
         prompt = (
             f"You are a concise Indian market analyst writing for retail traders.\n\n"
             f"Today's Indian market snapshot:\n"
@@ -354,13 +366,13 @@ def market_pulse_commentary():
             "Write a concise 2-paragraph market commentary (max 120 words total) for an Indian retail trader. "
             "First paragraph: today's market tone and key index moves. "
             "Second paragraph: 1-2 sector themes or stocks to watch. "
-            "Use plain, direct language. No disclaimers."
+            f"Use plain, direct language. No disclaimers.{lang_instr}"
         )
 
         perplexity = PerplexityAPI()
         text, _ = perplexity.get_investment_advice(prompt)
 
-        return jsonify({'success': True, 'commentary': (text or '').strip()})
+        return jsonify({'success': True, 'commentary': (text or '').strip(), 'lang': lang_code})
 
     except Exception as e:
         logger.error(f"AI commentary error: {e}")
@@ -397,6 +409,13 @@ def market_pulse_query():
         top_g = ', '.join(f"{g['symbol']} (+{g['change_percent']:.1f}%)" for g in gainers[:5])
         top_l = ', '.join(f"{l['symbol']} ({l['change_percent']:.1f}%)" for l in losers[:5])
 
+        lang_code = getattr(current_user, 'preferred_language', 'en') or 'en'
+        lang_name = LANG_NAMES.get(lang_code, 'English')
+        lang_instr = (
+            f"\n\nIMPORTANT: You must respond entirely in {lang_name}. Every word must be in {lang_name}."
+            if lang_code != 'en' else ''
+        )
+
         market_ctx = (
             "You are Scentric AI, an expert Indian market analyst built by Target Capital. "
             "Help retail traders understand markets, stocks, sectors, and strategies. "
@@ -408,16 +427,16 @@ def market_pulse_query():
             f"• Sensex: {sensex_val:,.0f} ({'+' if sensex_chg >= 0 else ''}{sensex_chg:.2f}%)\n"
             f"• Top gainers today: {top_g or 'N/A'}\n"
             f"• Top losers today: {top_l or 'N/A'}\n\n"
-            f"User question: {query}"
+            f"User question: {query}{lang_instr}"
         )
 
         perplexity = PerplexityAPI()
         text, _ = perplexity.get_investment_advice(market_ctx)
 
         if text and text.strip():
-            return jsonify({'response': text.strip()})
+            return jsonify({'response': text.strip(), 'lang': lang_code})
         else:
-            return jsonify({'response': 'I couldn\'t generate a response. Please try rephrasing your question.'})
+            return jsonify({'response': 'I couldn\'t generate a response. Please try rephrasing your question.', 'lang': lang_code})
 
     except Exception as e:
         logger.error(f"Market pulse query error: {e}")
