@@ -150,6 +150,10 @@ if is_production:
             'data:',
             'https:',
         ],
+        'media-src': [
+            "'self'",
+            'blob:',
+        ],
         'connect-src': [
             "'self'",
             'wss:',
@@ -189,6 +193,7 @@ else:
             'style-src': ["'self'", "'unsafe-inline'", "*"],
             'font-src': ["'self'", "*"],
             'img-src': ["'self'", "data:", "https:", "*"],
+            'media-src': ["'self'", "blob:"],
             'connect-src': ["'self'", "ws:", "wss:", "*"],
             'frame-ancestors': [
                 "'self'",
