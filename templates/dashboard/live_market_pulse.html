@@ -1343,11 +1343,62 @@ function stopSpeech() {
     _cancelAudio();
 }
 
+/* Check if a native (non-English-fallback) voice exists for bcp47 */
+function hasNativeVoice(bcp47) {
+    if (!window.speechSynthesis) return false;
+    const voices = window.speechSynthesis.getVoices();
+    const prefix = bcp47.split('-')[0];
+    return !!(
+        voices.find(v => v.lang === bcp47) ||
+        voices.find(v => v.lang.startsWith(prefix + '-')) ||
+        voices.find(v => v.lang.startsWith(prefix))
+    );
+}
+
+/* Show a small dismissible info strip below the brief panel */
+function _showTTSNote(msg) {
+    let strip = document.getElementById('ttsLangNote');
+    if (!strip) {
+        strip = document.createElement('div');
+        strip.id = 'ttsLangNote';
+        strip.style.cssText = 'margin:8px 0 0; padding:8px 12px; border-radius:8px; font-size:12px; background:#fff8e1; border:1px solid #ffe082; color:#7c5c00; display:flex; align-items:center; gap:8px;';
+        const aiText = document.getElementById('aiText');
+        aiText && aiText.parentNode.insertBefore(strip, aiText.nextSibling);
+    }
+    strip.innerHTML = `<i class="fas fa-info-circle" style="flex-shrink:0;"></i><span>${msg}</span>`;
+    strip.style.display = 'flex';
+}
+
 /* Convenience wrapper for the Market Brief "Listen" button */
 function speakBrief() {
     const btn = document.getElementById('speakBriefBtn');
+
+    /* For non-English: verify a native voice is installed */
+    if (USER_LANG !== 'en' && !hasNativeVoice(USER_LANG_BCP47)) {
+        _showTTSNote(
+            `<strong>${LANG_LABEL[USER_LANG]}</strong> text-to-speech is not installed on this browser. ` +
+            `To hear audio in ${LANG_LABEL[USER_LANG]}, add the language to your OS settings or use Chrome on Android. ` +
+            `<a href="#" onclick="event.preventDefault(); _startBriefInEnglish();">Listen in English instead</a>.`
+        );
+        return;
+    }
+
+    /* Hide any previous note */
+    const note = document.getElementById('ttsLangNote');
+    if (note) note.style.display = 'none';
+
     const raw = document.getElementById('aiText').innerText || '';
     startTTS(raw, btn, USER_LANG_BCP47);
+}
+
+/* English fallback — re-fetch and speak the brief in English */
+async function _startBriefInEnglish() {
+    const note = document.getElementById('ttsLangNote');
+    if (note) note.style.display = 'none';
+    const btn = document.getElementById('speakBriefBtn');
+    const raw = document.getElementById('aiText').innerText || '';
+    /* English voice for reading whatever text is visible */
+    startTTS(raw, btn, 'en-IN');
 }
 
 /* resetBriefBtn kept for any legacy calls */

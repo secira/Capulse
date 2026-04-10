@@ -20,12 +20,13 @@ LANG_NAMES = {
 
 # ── In-memory market data cache (5-minute TTL) ───────────────────────────────
 _MARKET_CACHE: dict = {}
-_CACHE_TTL = 300  # seconds
+_CACHE_TTL         = 300  # seconds — general market data (gainers/losers/movers)
+_CACHE_TTL_INDICES = 60   # seconds — index prices refresh every minute
 
 
-def _market_cache_get(key):
+def _market_cache_get(key, ttl=None):
     entry = _MARKET_CACHE.get(key)
-    if entry and (time.time() - entry['ts']) < _CACHE_TTL:
+    if entry and (time.time() - entry['ts']) < (ttl or _CACHE_TTL):
         return entry['data']
     return None
 
@@ -207,7 +208,7 @@ def dashboard_daily_signals():
 
     # Helper to fetch and cache each piece of market data
     def _fetch_indices():
-        cached = _market_cache_get('indices')
+        cached = _market_cache_get('indices', ttl=_CACHE_TTL_INDICES)
         if cached is not None:
             return cached
 
@@ -225,13 +226,33 @@ def dashboard_daily_signals():
         def _yf_index(yf_sym):
             try:
                 import yfinance as yf
-                hist = yf.Ticker(yf_sym).history(period='5d')
-                if hist.empty:
-                    return yf_sym, None
-                last = float(hist['Close'].iloc[-1])
-                prev = float(hist['Close'].iloc[-2]) if len(hist) >= 2 else last
-                chg  = round((last - prev) / prev * 100, 2) if prev else 0.0
-                return yf_sym, {'value': last, 'change_percent': chg}
+                ticker = yf.Ticker(yf_sym)
+
+                # Primary: fast_info gives real-time / near-real-time prices
+                try:
+                    fi   = ticker.fast_info
+                    last = float(fi.last_price)
+                    prev = float(fi.previous_close or fi.regular_market_previous_close)
+                    if last > 0 and prev > 0:
+                        chg = round((last - prev) / prev * 100, 2)
+                        return yf_sym, {'value': round(last, 2), 'change_percent': chg}
+                except Exception:
+                    pass
+
+                # Fallback: intraday 1-day bars (gives today's actual last price)
+                hist_1d = ticker.history(period='1d', interval='5m')
+                if not hist_1d.empty:
+                    last = float(hist_1d['Close'].iloc[-1])
+                    # Get previous close from daily history
+                    hist_5d = ticker.history(period='5d')
+                    if len(hist_5d) >= 2:
+                        prev = float(hist_5d['Close'].iloc[-2])
+                        chg  = round((last - prev) / prev * 100, 2)
+                    else:
+                        chg = 0.0
+                    return yf_sym, {'value': round(last, 2), 'change_percent': chg}
+
+                return yf_sym, None
             except Exception:
                 return yf_sym, None
 
