@@ -483,12 +483,17 @@ def market_pulse_tts():
             return jsonify({'error': 'No text provided'}), 400
 
         # Truncate to keep TTS fast and avoid hitting gTTS limits
-        text = text[:3000]
+        text = text[:2000]
 
         lang = getattr(current_user, 'preferred_language', 'en') or 'en'
 
-        # gTTS language codes match our codes (en, hi, ta, te, mr, gu, kn)
-        tts = gTTS(text=text, lang=lang, slow=False)
+        # Indian regional languages need Google India servers (co.in) for
+        # correct audio encoding — the default US (com) server produces
+        # a stream Chrome cannot decode for Tamil, Telugu, Kannada, etc.
+        INDIAN_LANGS = {'hi', 'ta', 'te', 'mr', 'gu', 'kn'}
+        tld = 'co.in' if lang in INDIAN_LANGS else 'com'
+
+        tts = gTTS(text=text, lang=lang, slow=False, tld=tld)
         buf = io.BytesIO()
         tts.write_to_fp(buf)
         buf.seek(0)
