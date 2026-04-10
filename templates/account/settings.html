@@ -142,6 +142,94 @@
             </div>
         </div>
 
+        <!-- Language Preference -->
+        <div class="card mb-4">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="fas fa-language text-primary"></i>
+                <h5 class="mb-0">Language Preference</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">Choose the language for your dashboard and communications. More translated content coming soon.</p>
+                <form method="POST" action="{{ url_for('update_language') }}">
+                    <div class="row g-2 mb-4" id="langGrid">
+                        {% set langs = [
+                            ('en', 'English',  '🇬🇧', 'English'),
+                            ('hi', 'Hindi',    '🇮🇳', 'हिन्दी'),
+                            ('ta', 'Tamil',    '🇮🇳', 'தமிழ்'),
+                            ('te', 'Telugu',   '🇮🇳', 'తెలుగు'),
+                            ('mr', 'Marathi',  '🇮🇳', 'मराठी'),
+                            ('gu', 'Gujarati', '🇮🇳', 'ગુજરાતી'),
+                            ('kn', 'Kannada',  '🇮🇳', 'ಕನ್ನಡ'),
+                        ] %}
+                        {% for code, name, flag, native in langs %}
+                        <div class="col-6 col-md-4 col-lg-3">
+                            <label class="lang-card w-100 {% if current_user.preferred_language == code %}selected{% endif %}"
+                                   for="lang_{{ code }}">
+                                <input type="radio" name="language" id="lang_{{ code }}" value="{{ code }}"
+                                       {% if current_user.preferred_language == code %}checked{% endif %}
+                                       class="lang-radio">
+                                <span class="lang-flag">{{ flag }}</span>
+                                <span class="lang-name">{{ name }}</span>
+                                <span class="lang-native">{{ native }}</span>
+                                <span class="lang-check"><i class="fas fa-check-circle"></i></span>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Save Language
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <style>
+        .lang-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 14px 10px 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: center;
+            transition: border-color .15s, background .15s, box-shadow .15s;
+            position: relative;
+            background: #fff;
+            user-select: none;
+        }
+        .lang-card:hover {
+            border-color: #4a6fa5;
+            background: #f0f5ff;
+        }
+        .lang-card.selected {
+            border-color: #4a6fa5;
+            background: #eef3fc;
+            box-shadow: 0 0 0 3px rgba(74,111,165,.15);
+        }
+        .lang-radio { display: none; }
+        .lang-flag { font-size: 1.6rem; line-height: 1; }
+        .lang-name { font-size: 13px; font-weight: 600; color: #212529; }
+        .lang-native { font-size: 12px; color: #6c757d; }
+        .lang-check {
+            position: absolute;
+            top: 6px; right: 8px;
+            color: #4a6fa5;
+            font-size: 14px;
+            display: none;
+        }
+        .lang-card.selected .lang-check { display: block; }
+        </style>
+        <script>
+        document.querySelectorAll('.lang-radio').forEach(radio => {
+            radio.addEventListener('change', () => {
+                document.querySelectorAll('.lang-card').forEach(c => c.classList.remove('selected'));
+                radio.closest('.lang-card').classList.add('selected');
+            });
+        });
+        </script>
+
         <!-- Danger Zone -->
         <div class="card border-danger">
             <div class="card-header bg-danger text-white">

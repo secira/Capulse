@@ -339,6 +339,9 @@ class User(UserMixin, db.Model):
     
     # Profile image (for OAuth login)
     profile_image_url = db.Column(db.String(500), nullable=True)
+
+    # Language preference
+    preferred_language = db.Column(db.String(10), nullable=False, default='en')
     
     # Subscription and Billing Information
     pricing_plan = db.Column(db.Enum(PricingPlan), default=PricingPlan.FREE, nullable=False)

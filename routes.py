@@ -1013,6 +1013,27 @@ def update_preferences():
     return redirect(url_for('account_settings'))
 
 
+SUPPORTED_LANGUAGES = {'en', 'hi', 'ta', 'te', 'mr', 'gu', 'kn'}
+
+@app.route('/account/update-language', methods=['POST'])
+@login_required
+def update_language():
+    """Save the user's preferred language to the database"""
+    lang = request.form.get('language', 'en').strip().lower()
+    if lang not in SUPPORTED_LANGUAGES:
+        flash('Invalid language selection.', 'error')
+        return redirect(url_for('account_settings'))
+    try:
+        current_user.preferred_language = lang
+        db.session.commit()
+        flash('Language preference saved.', 'success')
+        logging.info(f"User {current_user.id} set language to {lang}")
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Language update failed for user {current_user.id}: {e}")
+        flash('Could not save language preference. Please try again.', 'error')
+    return redirect(url_for('account_settings'))
+
 
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
