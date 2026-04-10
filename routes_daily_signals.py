@@ -1,7 +1,7 @@
 """
 Routes for Live Market Pulse (formerly Daily Trading Signals)
 """
-from flask import render_template, request, jsonify, flash, redirect, url_for
+from flask import render_template, request, jsonify, flash, redirect, url_for, send_file
 from flask_login import login_required, current_user
 from app import app, db
 from models import DailyTradingSignal, PricingPlan
@@ -462,6 +462,47 @@ def market_pulse_query():
     except Exception as e:
         logger.error(f"Market pulse query error: {e}")
         return jsonify({'error': 'Something went wrong. Please try again.'}), 500
+
+
+@app.route('/api/market-pulse/tts', methods=['POST'])
+@login_required
+def market_pulse_tts():
+    """
+    Server-side Text-to-Speech using gTTS.
+    Converts text to MP3 audio in the user's preferred language.
+    Works on all devices and browsers — no OS language pack required.
+    """
+    try:
+        from gtts import gTTS
+        import io
+
+        data = request.get_json() or {}
+        text = data.get('text', '').strip()
+
+        if not text:
+            return jsonify({'error': 'No text provided'}), 400
+
+        # Truncate to keep TTS fast and avoid hitting gTTS limits
+        text = text[:3000]
+
+        lang = getattr(current_user, 'preferred_language', 'en') or 'en'
+
+        # gTTS language codes match our codes (en, hi, ta, te, mr, gu, kn)
+        tts = gTTS(text=text, lang=lang, slow=False)
+        buf = io.BytesIO()
+        tts.write_to_fp(buf)
+        buf.seek(0)
+
+        return send_file(
+            buf,
+            mimetype='audio/mpeg',
+            as_attachment=False,
+            download_name='speech.mp3'
+        )
+
+    except Exception as e:
+        logger.error(f"gTTS error: {e}")
+        return jsonify({'error': 'Could not generate audio. Please try again.'}), 500
 
 
 @app.route('/dashboard/daily-signals/api')

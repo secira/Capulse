@@ -1091,7 +1091,11 @@ function renderAnswer(answer) {
         const ttsBtn = el.querySelector('#ttsAnswerBtn');
         if (ttsBtn) {
             ttsBtn.addEventListener('click', function() {
-                startTTS(answer, this, USER_LANG_BCP47);
+                if (USER_LANG === 'en') {
+                    startTTS(answer, this, 'en-IN');
+                } else {
+                    speakServerTTS(answer, this);
+                }
             });
         }
     }
@@ -1341,64 +1345,97 @@ function stopSpeech() {
     _btnIdle(_ttsActiveBtn);
     _ttsActiveBtn = null;
     _cancelAudio();
+    _stopServerTTS();
 }
 
-/* Check if a native (non-English-fallback) voice exists for bcp47 */
-function hasNativeVoice(bcp47) {
-    if (!window.speechSynthesis) return false;
-    const voices = window.speechSynthesis.getVoices();
-    const prefix = bcp47.split('-')[0];
-    return !!(
-        voices.find(v => v.lang === bcp47) ||
-        voices.find(v => v.lang.startsWith(prefix + '-')) ||
-        voices.find(v => v.lang.startsWith(prefix))
-    );
-}
+/* ── Server-side TTS (gTTS) — works on all devices, no voice install needed ── */
+let _serverAudio = null;   // current HTMLAudioElement for server TTS
 
-/* Show a small dismissible info strip below the brief panel */
-function _showTTSNote(msg) {
-    let strip = document.getElementById('ttsLangNote');
-    if (!strip) {
-        strip = document.createElement('div');
-        strip.id = 'ttsLangNote';
-        strip.style.cssText = 'margin:8px 0 0; padding:8px 12px; border-radius:8px; font-size:12px; background:#fff8e1; border:1px solid #ffe082; color:#7c5c00; display:flex; align-items:center; gap:8px;';
-        const aiText = document.getElementById('aiText');
-        aiText && aiText.parentNode.insertBefore(strip, aiText.nextSibling);
+function _stopServerTTS() {
+    if (_serverAudio) {
+        _serverAudio.pause();
+        _serverAudio.src = '';
+        _serverAudio = null;
     }
-    strip.innerHTML = `<i class="fas fa-info-circle" style="flex-shrink:0;"></i><span>${msg}</span>`;
-    strip.style.display = 'flex';
+}
+
+/**
+ * speakServerTTS(text, btn)
+ * Sends text to /api/market-pulse/tts, gets MP3 back, plays it.
+ * Toggling the same button stops playback.
+ */
+async function speakServerTTS(text, btn) {
+    /* Toggle off if already playing this button */
+    if (_serverAudio && !_serverAudio.paused && _ttsActiveBtn === btn) {
+        _stopServerTTS();
+        _btnIdle(btn);
+        _ttsActiveBtn = null;
+        return;
+    }
+
+    /* Stop anything else */
+    stopSpeech();
+    _stopServerTTS();
+
+    _ttsActiveBtn = btn;
+    /* Show loading spinner on button while generating */
+    if (btn) {
+        btn.classList.add('active');
+        btn.dataset.speaking = '1';
+        const icon = btn.querySelector('i');
+        if (icon) icon.className = btn.id === 'speakBriefBtn' ? 'fas fa-circle-notch fa-spin me-1' : 'fas fa-circle-notch fa-spin';
+        const lbl = btn.querySelector('#speakBriefLabel');
+        if (lbl) lbl.textContent = 'Generating…';
+    }
+
+    try {
+        const resp = await fetch('{{ url_for("market_pulse_tts") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+
+        if (!resp.ok) throw new Error('TTS request failed');
+
+        const blob = await resp.blob();
+        const url  = URL.createObjectURL(blob);
+        _serverAudio = new Audio(url);
+
+        _btnSpeaking(btn);   /* Switch to stop icon once audio is ready */
+
+        _serverAudio.onended = () => {
+            URL.revokeObjectURL(url);
+            _serverAudio = null;
+            _btnIdle(btn);
+            _ttsActiveBtn = null;
+        };
+        _serverAudio.onerror = () => {
+            URL.revokeObjectURL(url);
+            _serverAudio = null;
+            _btnIdle(btn);
+            _ttsActiveBtn = null;
+        };
+        _serverAudio.play();
+
+    } catch (err) {
+        console.warn('Server TTS error:', err);
+        _btnIdle(btn);
+        _ttsActiveBtn = null;
+    }
 }
 
 /* Convenience wrapper for the Market Brief "Listen" button */
 function speakBrief() {
     const btn = document.getElementById('speakBriefBtn');
+    const raw = document.getElementById('aiText').innerText || '';
 
-    /* For non-English: verify a native voice is installed */
-    if (USER_LANG !== 'en' && !hasNativeVoice(USER_LANG_BCP47)) {
-        _showTTSNote(
-            `<strong>${LANG_LABEL[USER_LANG]}</strong> text-to-speech is not installed on this browser. ` +
-            `To hear audio in ${LANG_LABEL[USER_LANG]}, add the language to your OS settings or use Chrome on Android. ` +
-            `<a href="#" onclick="event.preventDefault(); _startBriefInEnglish();">Listen in English instead</a>.`
-        );
-        return;
+    if (USER_LANG === 'en') {
+        /* English: use fast browser Web Speech API */
+        startTTS(raw, btn, 'en-IN');
+    } else {
+        /* All other languages: server-side gTTS (works everywhere) */
+        speakServerTTS(raw, btn);
     }
-
-    /* Hide any previous note */
-    const note = document.getElementById('ttsLangNote');
-    if (note) note.style.display = 'none';
-
-    const raw = document.getElementById('aiText').innerText || '';
-    startTTS(raw, btn, USER_LANG_BCP47);
-}
-
-/* English fallback — re-fetch and speak the brief in English */
-async function _startBriefInEnglish() {
-    const note = document.getElementById('ttsLangNote');
-    if (note) note.style.display = 'none';
-    const btn = document.getElementById('speakBriefBtn');
-    const raw = document.getElementById('aiText').innerText || '';
-    /* English voice for reading whatever text is visible */
-    startTTS(raw, btn, 'en-IN');
 }
 
 /* resetBriefBtn kept for any legacy calls */
