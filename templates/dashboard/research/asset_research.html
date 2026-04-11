@@ -355,9 +355,9 @@
                     <div class="quick-actions">
                         <h6 class="fw-semibold mb-3">Quick Actions</h6>
                         {% if current_user.can_access_menu('dashboard_trade_now') %}
-                        <a href="{{ url_for('dashboard_trade_now') }}" class="btn btn-primary w-100">
+                        <button onclick="tradeFromResearch()" class="btn btn-primary w-100">
                             <i class="fas fa-exchange-alt me-2"></i>Trade {{ asset.name }}
-                        </a>
+                        </button>
                         {% endif %}
                     </div>
                 </div>
@@ -622,6 +622,10 @@ function displayIScoreResult(data) {
         
         console.log('Parsed Price:', price, 'Parsed Change:', change);
         
+        // Store for the Trade button
+        window._tradeSymbol = data.symbol;
+        window._tradePrice  = price > 0 ? price : null;
+        
         if (document.getElementById('currentPrice')) {
             document.getElementById('currentPrice').textContent = price > 0 ? '₹' + price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '₹--';
         }
@@ -645,6 +649,10 @@ function displayIScoreResult(data) {
                 const price = parseFloat(priceData.current) || 0;
                 const change = parseFloat(priceData.change_pct) || 0;
                 console.log('Fallback Price from components:', price);
+                
+                // Store for trade button (fallback path)
+                window._tradeSymbol = data.symbol;
+                window._tradePrice  = price > 0 ? price : null;
                 
                 if (document.getElementById('currentPrice') && price > 0) {
                     document.getElementById('currentPrice').textContent = '₹' + price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -1655,5 +1663,35 @@ function formatDetailValue(value) {
         }
     }
 })();
+
+// ── Trade button: pass symbol + current price to Trade Now ─────────────────
+function tradeFromResearch() {
+    // Try stored globals first (set after I-Score runs)
+    let symbol = window._tradeSymbol || '';
+    let price  = window._tradePrice  || null;
+
+    // Fallback: read from the symbol input box
+    if (!symbol) {
+        const input = document.getElementById('iscoreSymbol');
+        if (input && input.value.trim()) {
+            symbol = input.value.trim().toUpperCase();
+        }
+    }
+
+    // If still no symbol, ask the user
+    if (!symbol) {
+        const entered = prompt('Enter the stock symbol you want to trade (e.g., RELIANCE, TCS, INFY):');
+        if (entered && entered.trim()) {
+            symbol = entered.trim().toUpperCase();
+        } else {
+            return; // user cancelled
+        }
+    }
+
+    const params = new URLSearchParams({ symbol, source: 'research' });
+    if (price) params.set('price', price.toFixed(2));
+
+    window.location.href = `/dashboard/trade-now?${params.toString()}`;
+}
 </script>
 {% endblock %}
