@@ -192,11 +192,14 @@
 <div class="bi-no-data">
     <i class="fas fa-brain"></i>
     <h4 style="color:#2d3748;">Your Behavioural AI needs more data</h4>
-    <p style="max-width:420px; margin:0 auto 20px;">
-        Behavioural pattern detection requires at least 5 completed trades.
-        As you trade through the platform, this page will build a detailed picture of your trading psychology.
+    <p style="max-width:460px; margin:0 auto 20px;">
+        Behavioural pattern detection requires at least 5 completed trades from your broker history.
+        Connect your broker account to import your trade data — the engine will then analyse your
+        patterns and build a personalised picture of your trading psychology.
     </p>
-    <a href="{{ url_for('dashboard_trade_now') }}" class="btn btn-dark">Start Trading</a>
+    <a href="{{ url_for('dashboard_broker_accounts') }}" class="btn btn-dark">
+        <i class="fas fa-link me-2"></i>Get Trade Data
+    </a>
 </div>
 
 {% else %}
