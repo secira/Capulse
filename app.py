@@ -303,7 +303,22 @@ with app.app_context():
         logging.info("✅ Database tables created (development mode)")
     else:
         logging.info("⚠️ Skipping db.create_all() in production - use Alembic migrations")
-    
+
+    # ── Incremental column migrations (safe to run on every startup) ──────────
+    # ADD COLUMN IF NOT EXISTS is idempotent — no-op when column already exists.
+    _pending_migrations = [
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT \'en\'',
+    ]
+    try:
+        with db.engine.connect() as _conn:
+            for _sql in _pending_migrations:
+                _conn.execute(db.text(_sql))
+            _conn.commit()
+        logging.info("✅ Incremental column migrations applied")
+    except Exception as _e:
+        logging.warning(f"⚠️ Column migration skipped (table may not exist yet): {_e}")
+    # ─────────────────────────────────────────────────────────────────────────
+
     # Initialize default 'live' tenant (Target Capital) - only if tables exist
     try:
         models.Tenant.get_or_create_default()
