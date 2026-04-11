@@ -340,6 +340,28 @@
     opacity: 0.85;
 }
 
+.btn-trade-watchlist {
+    padding: 5px 12px;
+    background: linear-gradient(135deg, #276749, #38a169);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.btn-trade-watchlist:hover {
+    opacity: 0.85;
+    color: white;
+}
+
 .watchlist-empty {
     text-align: center;
     padding: 24px;
@@ -1212,10 +1234,16 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <button class="btn-research-now"
-                                    onclick="researchStock('{{ stock.symbol }}', '{{ (stock.company_name or stock.symbol) | replace("'", "\\'") }}', '{{ stock.asset_type }}')">
-                                    <i class="fas fa-search"></i> Research
-                                </button>
+                                <div class="d-flex gap-1 align-items-center">
+                                    <button class="btn-research-now"
+                                        onclick="researchStock('{{ stock.symbol }}', '{{ (stock.company_name or stock.symbol) | replace("'", "\\'") }}', '{{ stock.asset_type }}')">
+                                        <i class="fas fa-search"></i> Analyze
+                                    </button>
+                                    <a href="/dashboard/trade-now?symbol={{ stock.symbol }}&{% if stock.current_price and stock.current_price > 0 %}price={{ '%.2f' | format(stock.current_price | float) }}&{% endif %}source=research"
+                                       class="btn-trade-watchlist">
+                                        <i class="fas fa-exchange-alt"></i> Trade
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
