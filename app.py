@@ -308,6 +308,19 @@ with app.app_context():
     # ADD COLUMN IF NOT EXISTS is idempotent — no-op when column already exists.
     _pending_migrations = [
         'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT \'en\'',
+        '''CREATE TABLE IF NOT EXISTS behavioural_alerts (
+            id SERIAL PRIMARY KEY,
+            tenant_id VARCHAR(255) DEFAULT \'live\',
+            user_id INTEGER NOT NULL REFERENCES "user"(id),
+            alert_type VARCHAR(50) NOT NULL,
+            severity VARCHAR(10) NOT NULL,
+            title VARCHAR(200),
+            description TEXT,
+            advice TEXT,
+            acknowledged BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            acknowledged_at TIMESTAMP
+        )''',
     ]
     try:
         with db.engine.connect() as _conn:

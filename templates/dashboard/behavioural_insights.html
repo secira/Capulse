@@ -1,0 +1,530 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block dashboard_title %}Behavioural Insights{% endblock %}
+{% block dashboard_subtitle %}Understanding your trading psychology to reduce losses and improve discipline{% endblock %}
+
+{% block dashboard_content %}
+<style>
+/* ── Behavioural Insights Styles ─────────────────────────────────── */
+.bi-score-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.07);
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    flex-wrap: wrap;
+}
+.bi-score-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 6px solid;
+}
+.bi-score-num  { font-size: 36px; font-weight: 800; line-height: 1; }
+.bi-score-lbl  { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; opacity: .8; }
+.bi-score-info { flex: 1; min-width: 220px; }
+.bi-score-info h2 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.bi-score-info p  { font-size: 14px; color: #555; margin-bottom: 0; }
+.bi-stat-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.bi-stat-pill {
+    background: #f7f8fa;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: #333;
+}
+.bi-stat-pill strong { font-weight: 700; }
+
+/* Pattern cards */
+.bi-pattern-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+.bi-pattern-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 8px rgba(0,0,0,.06);
+    border-left: 4px solid #e2e8f0;
+    transition: transform .15s;
+}
+.bi-pattern-card:hover { transform: translateY(-2px); }
+.bi-pattern-card.sev-high   { border-left-color: #e53e3e; }
+.bi-pattern-card.sev-medium { border-left-color: #dd6b20; }
+.bi-pattern-card.sev-low    { border-left-color: #d69e2e; }
+.bi-pattern-card.sev-none   { border-left-color: #38a169; }
+.bi-pattern-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; margin-bottom: 12px;
+}
+.bi-pattern-title  { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.bi-pattern-desc   { font-size: 13px; color: #555; margin-bottom: 8px; line-height: 1.5; }
+.bi-pattern-advice {
+    font-size: 12px;
+    color: #4a5568;
+    background: #f7f8fa;
+    border-radius: 6px;
+    padding: 8px 10px;
+    line-height: 1.5;
+}
+.bi-sev-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 8px;
+}
+.bi-sev-badge.high   { background: #fff5f5; color: #e53e3e; }
+.bi-sev-badge.medium { background: #fffaf0; color: #dd6b20; }
+.bi-sev-badge.low    { background: #fffff0; color: #b7791f; }
+.bi-sev-badge.none   { background: #f0fff4; color: #38a169; }
+
+/* Personality card */
+.bi-personality {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 8px rgba(0,0,0,.06);
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+}
+.bi-personality-icon {
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+.bi-personality h4   { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.bi-personality p    { font-size: 13px; color: #555; margin-bottom: 8px; }
+.bi-str-weak { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; }
+.bi-str-weak div strong { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #888; margin-bottom: 2px; }
+
+/* Win-rate bars */
+.bi-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.bi-bar-label { font-size: 13px; color: #444; width: 80px; flex-shrink: 0; text-align: right; }
+.bi-bar-wrap  { flex: 1; background: #f0f4f8; border-radius: 4px; height: 10px; overflow: hidden; }
+.bi-bar-fill  { height: 100%; border-radius: 4px; transition: width .4s; }
+.bi-bar-rate  { font-size: 12px; font-weight: 700; width: 38px; text-align: right; flex-shrink: 0; }
+.bi-bar-count { font-size: 11px; color: #999; width: 50px; }
+
+/* Symbol table */
+.bi-sym-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #888; font-weight: 600; border: none; background: #f7f8fa; }
+.bi-sym-table td { font-size: 13px; vertical-align: middle; border-color: #f0f0f0; }
+.bi-pnl-pos { color: #38a169; font-weight: 600; }
+.bi-pnl-neg { color: #e53e3e; font-weight: 600; }
+
+/* Alert banner */
+.bi-alert-banner {
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.bi-alert-banner.high   { background: #fff5f5; border: 1px solid #feb2b2; color: #742a2a; }
+.bi-alert-banner.medium { background: #fffaf0; border: 1px solid #fbd38d; color: #7b341e; }
+.bi-alert-banner.low    { background: #fffff0; border: 1px solid #faf089; color: #744210; }
+
+/* No data */
+.bi-no-data {
+    text-align: center;
+    padding: 60px 20px;
+    color: #888;
+}
+.bi-no-data i { font-size: 48px; margin-bottom: 16px; color: #cbd5e0; }
+
+/* Section header */
+.bi-section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a202c;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.bi-section-title i { color: #00091a; opacity: .7; }
+.bi-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 8px rgba(0,0,0,.06);
+    height: 100%;
+}
+
+@media (max-width: 576px) {
+    .bi-score-circle { width: 90px; height: 90px; }
+    .bi-score-num    { font-size: 28px; }
+    .bi-bar-label    { width: 60px; }
+}
+</style>
+
+<div class="container-fluid px-3 py-3">
+
+{% if not analysis %}
+<!-- Error state -->
+<div class="bi-no-data">
+    <i class="fas fa-exclamation-triangle"></i>
+    <h5>Analysis Unavailable</h5>
+    <p>Could not load behavioural analysis. Please try again later.</p>
+</div>
+
+{% elif not analysis.has_data %}
+<!-- Not enough trade data -->
+<div class="bi-no-data">
+    <i class="fas fa-brain"></i>
+    <h4 style="color:#2d3748;">Your Behavioural AI needs more data</h4>
+    <p style="max-width:420px; margin:0 auto 20px;">
+        Behavioural pattern detection requires at least 5 completed trades.
+        As you trade through the platform, this page will build a detailed picture of your trading psychology.
+    </p>
+    <a href="{{ url_for('dashboard_trade_now') }}" class="btn btn-dark">Start Trading</a>
+</div>
+
+{% else %}
+<!-- ── Score + Personality Row ─────────────────────────────────────── -->
+<div class="row g-3 mb-3">
+
+    <!-- Trading Discipline Score -->
+    <div class="col-12 col-lg-8">
+        <div class="bi-score-card">
+            <div class="bi-score-circle"
+                 style="border-color:{{ analysis.score_color }};
+                        color:{{ analysis.score_color }};">
+                <span class="bi-score-num">{{ analysis.score }}</span>
+                <span class="bi-score-lbl">Score</span>
+            </div>
+            <div class="bi-score-info">
+                <h2 style="color:{{ analysis.score_color }};">
+                    Trading Discipline: {{ analysis.score_label }}
+                </h2>
+                <p>
+                    Your Discipline Score measures how well your trading decisions align with
+                    rational, rule-based behaviour. Emotional patterns detected in your trade
+                    history reduce this score.
+                </p>
+                <div class="bi-stat-row">
+                    <div class="bi-stat-pill">
+                        <strong>{{ analysis.stats.total_trades }}</strong> Trades Analysed
+                    </div>
+                    <div class="bi-stat-pill">
+                        <strong>{{ analysis.stats.win_rate }}%</strong> Win Rate
+                    </div>
+                    <div class="bi-stat-pill">
+                        <strong class="{{ 'text-success' if analysis.stats.total_pnl >= 0 else 'text-danger' }}">
+                            ₹{{ '{:,.0f}'.format(analysis.stats.total_pnl|abs) }}
+                        </strong>
+                        {{ 'Profit' if analysis.stats.total_pnl >= 0 else 'Loss' }}
+                    </div>
+                    <div class="bi-stat-pill">
+                        <strong>{{ analysis.stats.risk_reward }}:1</strong> Risk-Reward
+                    </div>
+                    <div class="bi-stat-pill">
+                        <strong>{{ analysis.active_alerts|length }}</strong> Active Alerts
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trading Personality -->
+    <div class="col-12 col-lg-4">
+        <div class="bi-card h-100">
+            <div class="bi-section-title">
+                <i class="fas fa-user-circle"></i> Trading Personality
+            </div>
+            <div class="bi-personality p-0 shadow-none" style="background:transparent;">
+                <div class="bi-personality-icon"
+                     style="background:{{ analysis.personality.color }}20;
+                            color:{{ analysis.personality.color }};">
+                    <i class="{{ analysis.personality.icon }}"></i>
+                </div>
+                <div>
+                    <h4 style="color:{{ analysis.personality.color }};">
+                        {{ analysis.personality.type }}
+                    </h4>
+                    <p>{{ analysis.personality.description }}</p>
+                    <div class="bi-str-weak">
+                        <div>
+                            <strong>Strength</strong>
+                            {{ analysis.personality.strength }}
+                        </div>
+                        <div>
+                            <strong>Watch Out</strong>
+                            {{ analysis.personality.weakness }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Active Alerts ──────────────────────────────────────────────── -->
+{% if analysis.active_alerts %}
+<div class="mb-3">
+    <div class="bi-section-title">
+        <i class="fas fa-exclamation-triangle"></i> Active Behavioural Alerts
+        <span class="badge bg-danger ms-1">{{ analysis.active_alerts|length }}</span>
+    </div>
+    <div class="row g-2">
+        {% for alert in analysis.active_alerts %}
+        <div class="col-12 col-md-6">
+            <div class="bi-alert-banner {{ alert.severity }}">
+                <i class="{{ alert.icon }}" style="margin-top:2px;flex-shrink:0;"></i>
+                <div>
+                    <strong>{{ alert.label }}</strong> —
+                    {{ alert.description }}
+                    {% if alert.advice %}
+                    <div class="mt-1" style="opacity:.8;">
+                        <i class="fas fa-lightbulb" style="font-size:11px;"></i>
+                        {{ alert.advice }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Pattern Detection Grid ─────────────────────────────────────── -->
+<div class="mb-3">
+    <div class="bi-section-title">
+        <i class="fas fa-search"></i> Pattern Detection — Last 90 Days
+    </div>
+    <div class="bi-pattern-grid">
+        {% for key, pattern in analysis.patterns.items() %}
+        <div class="bi-pattern-card sev-{{ pattern.severity }}">
+            <div class="bi-pattern-icon"
+                 style="background:{{ pattern.color }}18; color:{{ pattern.color }};">
+                <i class="{{ pattern.icon }}"></i>
+            </div>
+            <span class="bi-sev-badge {{ pattern.severity }}">
+                {% if pattern.severity == 'none' %}
+                    All Clear
+                {% else %}
+                    {{ pattern.severity|title }} Risk
+                {% endif %}
+            </span>
+            <div class="bi-pattern-title">{{ pattern.label }}</div>
+            <div class="bi-pattern-desc">{{ pattern.description }}</div>
+            {% if pattern.detected and pattern.advice %}
+            <div class="bi-pattern-advice">
+                <i class="fas fa-lightbulb me-1" style="color:#f6ad55;"></i>
+                {{ pattern.advice }}
+            </div>
+            {% endif %}
+            {% if not pattern.detected %}
+            <div style="font-size:12px;color:#38a169;font-weight:600;">
+                <i class="fas fa-check-circle me-1"></i>Not detected
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ── Win Rate Analysis ──────────────────────────────────────────── -->
+<div class="row g-3 mb-3">
+
+    <!-- By Hour -->
+    <div class="col-12 col-md-4">
+        <div class="bi-card">
+            <div class="bi-section-title">
+                <i class="fas fa-clock"></i> Win Rate by Hour
+            </div>
+            {% if analysis.by_hour %}
+                {% for row in analysis.by_hour %}
+                <div class="bi-bar-row">
+                    <div class="bi-bar-label">{{ row.hour }}</div>
+                    <div class="bi-bar-wrap">
+                        <div class="bi-bar-fill"
+                             style="width:{{ row.win_rate }}%;
+                                    background:{% if row.win_rate >= 60 %}#38a169{% elif row.win_rate >= 45 %}#d69e2e{% else %}#e53e3e{% endif %};">
+                        </div>
+                    </div>
+                    <div class="bi-bar-rate"
+                         style="color:{% if row.win_rate >= 60 %}#38a169{% elif row.win_rate >= 45 %}#d69e2e{% else %}#e53e3e{% endif %};">
+                        {{ row.win_rate }}%
+                    </div>
+                    <div class="bi-bar-count">{{ row.total }}T</div>
+                </div>
+                {% endfor %}
+                <p class="text-muted mt-2 mb-0" style="font-size:11px;">
+                    Identifies your strongest and weakest trading hours.
+                </p>
+            {% else %}
+                <p class="text-muted" style="font-size:13px;">No hourly data available yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- By Day -->
+    <div class="col-12 col-md-4">
+        <div class="bi-card">
+            <div class="bi-section-title">
+                <i class="fas fa-calendar-alt"></i> Win Rate by Day
+            </div>
+            {% if analysis.by_day %}
+                {% for row in analysis.by_day %}
+                <div class="bi-bar-row">
+                    <div class="bi-bar-label">{{ row.day_short }}</div>
+                    <div class="bi-bar-wrap">
+                        <div class="bi-bar-fill"
+                             style="width:{{ row.win_rate }}%;
+                                    background:{% if row.win_rate >= 60 %}#38a169{% elif row.win_rate >= 45 %}#d69e2e{% else %}#e53e3e{% endif %};">
+                        </div>
+                    </div>
+                    <div class="bi-bar-rate"
+                         style="color:{% if row.win_rate >= 60 %}#38a169{% elif row.win_rate >= 45 %}#d69e2e{% else %}#e53e3e{% endif %};">
+                        {{ row.win_rate }}%
+                    </div>
+                    <div class="bi-bar-count">{{ row.total }}T</div>
+                </div>
+                {% endfor %}
+                <p class="text-muted mt-2 mb-0" style="font-size:11px;">
+                    Avoid trading on days with consistently low win rates.
+                </p>
+            {% else %}
+                <p class="text-muted" style="font-size:13px;">No daily data available yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- By Symbol -->
+    <div class="col-12 col-md-4">
+        <div class="bi-card">
+            <div class="bi-section-title">
+                <i class="fas fa-chart-line"></i> Win Rate by Symbol
+            </div>
+            {% if analysis.by_symbol %}
+            <table class="table table-sm bi-sym-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th class="text-center">W%</th>
+                        <th class="text-center">Trades</th>
+                        <th class="text-end">P&L</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in analysis.by_symbol %}
+                    <tr>
+                        <td><strong>{{ row.symbol }}</strong></td>
+                        <td class="text-center">
+                            <span style="color:{% if row.win_rate >= 60 %}#38a169{% elif row.win_rate >= 45 %}#d69e2e{% else %}#e53e3e{% endif %};font-weight:700;">
+                                {{ row.win_rate }}%
+                            </span>
+                        </td>
+                        <td class="text-center text-muted">{{ row.total }}</td>
+                        <td class="text-end {{ 'bi-pnl-pos' if row.pnl >= 0 else 'bi-pnl-neg' }}">
+                            ₹{{ '{:,.0f}'.format(row.pnl|abs) }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p class="text-muted mt-2 mb-0" style="font-size:11px;">
+                Focus on symbols with 60%+ win rates.
+            </p>
+            {% else %}
+                <p class="text-muted" style="font-size:13px;">No symbol data available yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ── Avg Win vs Loss ────────────────────────────────────────────── -->
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="bi-card">
+            <div class="bi-section-title">
+                <i class="fas fa-balance-scale"></i> Average Win vs Average Loss
+            </div>
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="text-center p-3" style="background:#f0fff4;border-radius:10px;">
+                        <div style="font-size:24px;font-weight:800;color:#38a169;">
+                            ₹{{ '{:,.0f}'.format(analysis.stats.avg_win|abs) }}
+                        </div>
+                        <div style="font-size:12px;color:#888;">Avg Win</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-center p-3" style="background:#fff5f5;border-radius:10px;">
+                        <div style="font-size:24px;font-weight:800;color:#e53e3e;">
+                            ₹{{ '{:,.0f}'.format(analysis.stats.avg_loss|abs) }}
+                        </div>
+                        <div style="font-size:12px;color:#888;">Avg Loss</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-center p-3" style="background:#ebf8ff;border-radius:10px;">
+                        <div style="font-size:24px;font-weight:800;color:#3182ce;">
+                            {{ analysis.stats.risk_reward }}:1
+                        </div>
+                        <div style="font-size:12px;color:#888;">Risk-Reward Ratio</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="text-center p-3" style="background:#f7f8fa;border-radius:10px;">
+                        <div style="font-size:24px;font-weight:800;color:#4a5568;">
+                            {{ analysis.stats.wins }}W / {{ analysis.stats.losses }}L
+                        </div>
+                        <div style="font-size:12px;color:#888;">Win / Loss Count</div>
+                    </div>
+                </div>
+            </div>
+            {% if analysis.stats.risk_reward < 1 %}
+            <div class="bi-alert-banner medium mt-3 mb-0">
+                <i class="fas fa-exclamation-circle"></i>
+                <div>
+                    Your average loss (<strong>₹{{ '{:,.0f}'.format(analysis.stats.avg_loss|abs) }}</strong>)
+                    is larger than your average win (<strong>₹{{ '{:,.0f}'.format(analysis.stats.avg_win|abs) }}</strong>).
+                    Even with a 60% win rate, a risk-reward below 1:1 leads to net losses.
+                    Tighten your stop-losses or let winners run longer.
+                </div>
+            </div>
+            {% elif analysis.stats.risk_reward >= 2 %}
+            <div class="bi-alert-banner" style="background:#f0fff4;border:1px solid #9ae6b4;color:#276749;margin-top:12px;margin-bottom:0;">
+                <i class="fas fa-check-circle"></i>
+                <div>
+                    Excellent risk-reward ratio of <strong>{{ analysis.stats.risk_reward }}:1</strong>.
+                    Your winners are significantly larger than your losers — keep maintaining this discipline.
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ── Disclaimer ────────────────────────────────────────────────── -->
+<p class="text-muted text-center mb-4" style="font-size:11px;">
+    Analysis based on last 90 days of trade history recorded on this platform.
+    Insights are for educational purposes and to improve self-awareness — not trading advice.
+</p>
+
+{% endif %}
+</div>
+
+{% endblock %}

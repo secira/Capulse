@@ -69,6 +69,17 @@
                 </li>
                 {% endif %}
 
+                {% if current_user.is_authenticated %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint == 'behavioural_insights' else '' }}"
+                       href="{{ url_for('behavioural_insights') }}">
+                        <i class="nav-icon fas fa-brain"></i>
+                        <span class="nav-text">Behavioural Insights</span>
+                        <span class="nav-badge-new">USP</span>
+                    </a>
+                </li>
+                {% endif %}
+
 
             </ul>
         </div>
