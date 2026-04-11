@@ -234,10 +234,16 @@
 
                         <!-- Action -->
                         <td class="text-center">
-                            <a href="{{ _base }}?symbol={{ s.symbol | urlencode }}"
-                               class="btn btn-outline-primary btn-sm">
-                                <i class="fas fa-search me-1"></i>Analyze
-                            </a>
+                            <div class="d-flex gap-1 justify-content-center">
+                                <a href="{{ _base }}?symbol={{ s.symbol | urlencode }}"
+                                   class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-search me-1"></i>Analyze
+                                </a>
+                                <a href="/dashboard/trade-now?symbol={{ s.symbol | urlencode }}{% if s.current_price and s.current_price > 0 %}&price={{ '%.2f'|format(s.current_price|float) }}{% endif %}&source=research"
+                                   class="btn btn-success btn-sm">
+                                    <i class="fas fa-exchange-alt me-1"></i>Trade
+                                </a>
+                            </div>
                         </td>
 
                     </tr>
