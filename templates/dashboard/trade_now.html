@@ -110,6 +110,24 @@
                             <input type="hidden" id="strategySelect" name="strategy_id" value="1">
                         </div>
                         
+                        <!-- Current Price Display (shown after asset selection) -->
+                        <div class="col-12 d-none" id="currentPriceSection">
+                            <div class="d-flex align-items-center gap-3 p-3 rounded-3" style="background: linear-gradient(135deg, #f0fff4 0%, #e6fffa 100%); border: 1px solid #9ae6b4;">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="fas fa-chart-line" style="color: #276749;"></i>
+                                    <span class="fw-bold" style="color: #276749;">Live Market Price</span>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <span class="fs-4 fw-bold" id="currentPriceDisplay" style="color: #22543d;">—</span>
+                                </div>
+                                <div class="d-flex gap-3 text-muted" style="font-size: 12px;">
+                                    <span><i class="fas fa-arrow-up text-success me-1"></i>Entry: <strong id="hintEntry">—</strong></span>
+                                    <span><i class="fas fa-bullseye text-primary me-1"></i>Target: <strong id="hintTarget">—</strong></span>
+                                    <span><i class="fas fa-shield-alt text-danger me-1"></i>SL: <strong id="hintSL">—</strong></span>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Order Parameters -->
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Entry Price</label>
@@ -261,62 +279,96 @@
 </div>
 
 <script>
-// Trading form functionality
+// ─── Price Defaults Helper ─────────────────────────────────────────────────
+// currentPrice  : the live market price (number or string)
+// keepTarget    : true = don't overwrite Target Price (signal already set it)
+// keepSL        : true = don't overwrite Stop Loss   (signal already set it)
+function populatePriceDefaults(currentPrice, keepTarget, keepSL) {
+    const price = parseFloat(currentPrice);
+    if (isNaN(price) || price <= 0) return;
+
+    const entryPrice  = parseFloat((price * 1.01).toFixed(2));   // +1 %
+    const targetPrice = parseFloat((price + 20).toFixed(2));      // +20 pts
+    const slPrice     = parseFloat((price - 10).toFixed(2));      // −10 pts
+
+    // — Current price banner —
+    const section = document.getElementById('currentPriceSection');
+    const display = document.getElementById('currentPriceDisplay');
+    if (section && display) {
+        section.classList.remove('d-none');
+        display.textContent = '₹' + price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+    // Hint labels
+    const hintEntry  = document.getElementById('hintEntry');
+    const hintTarget = document.getElementById('hintTarget');
+    const hintSL     = document.getElementById('hintSL');
+    if (hintEntry)  hintEntry.textContent  = '₹' + entryPrice.toFixed(2);
+    if (hintTarget) hintTarget.textContent = '₹' + targetPrice.toFixed(2);
+    if (hintSL)     hintSL.textContent     = '₹' + slPrice.toFixed(2);
+
+    // — Fill form fields (user can still change them) —
+    const entryInput  = document.getElementById('entryPriceInput');
+    const targetInput = document.getElementById('targetPriceInput');
+    const slInput     = document.getElementById('stopLossInput');
+
+    if (entryInput)              entryInput.value  = entryPrice;
+    if (targetInput && !keepTarget) targetInput.value = targetPrice;
+    if (slInput     && !keepSL)     slInput.value     = slPrice;
+}
+
+// ─── Main DOMContentLoaded ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
-    const assetSelect = document.getElementById('assetSelect');
-    const strategySelect = document.getElementById('strategySelect');
+    const assetSelect  = document.getElementById('assetSelect');
     const optionsFields = document.getElementById('optionsFields');
     const quantityInput = document.getElementById('quantityInput');
-    
+
     // Available strategies data
     const strategies = {{ strategies | tojson }};
-    
+
     // Check for URL parameters to pre-populate form
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('symbol')) {
         prePopulateForm(urlParams);
     }
-    
-    // Handle asset selection
+
+    // Handle asset selection from dropdown
     assetSelect.addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
-        if (!selectedOption) return;
-        
+        if (!selectedOption || !selectedOption.value) return;
+
         const assetClass = selectedOption.dataset.assetClass;
-        
-        // Show/hide options fields for options trading
-        if (assetClass === 'options') {
-            optionsFields.style.display = 'block';
-        } else {
-            optionsFields.style.display = 'none';
-        }
-        
-        // Set default quantity based on asset type
-        if (assetClass === 'options') {
-            quantityInput.value = 3; // 3 lots for options
-        } else if (assetClass === 'futures') {
-            quantityInput.value = 1; // 1 lot for futures
-        } else {
-            quantityInput.value = 100; // 100 shares for stocks
+        const assetPrice = selectedOption.dataset.price;
+
+        // Show/hide options fields
+        optionsFields.style.display = (assetClass === 'options') ? 'block' : 'none';
+
+        // Default quantity by asset type
+        if (assetClass === 'options')       quantityInput.value = 3;
+        else if (assetClass === 'futures')  quantityInput.value = 1;
+        else                                quantityInput.value = 100;
+
+        // Auto-populate price defaults from asset's stored price
+        if (assetPrice && parseFloat(assetPrice) > 0) {
+            populatePriceDefaults(assetPrice, false, false);
         }
     });
 
-    // Set Signal Source if pre-populated from signal
+    // Set Signal Source label if arriving from another screen
     if (urlParams.has('source')) {
-        const source = urlParams.get('source');
+        const source   = urlParams.get('source');
         const strategy = urlParams.get('strategy');
         const sourceInfo = {
             'trading_signals': 'Admin Trading Signal',
-            'stock_picker': 'AI Stock Recommendation',
-            'my_portfolio': 'Portfolio Holding',
-            'daily_signals': 'Daily Trading Signal'
+            'stock_picker':    'AI Stock Recommendation',
+            'my_portfolio':    'Portfolio Holding',
+            'daily_signals':   'Daily Trading Signal',
+            'research':        'AI Research Co-Pilot',
+            'market_pulse':    'Live Market Pulse'
         };
         const signalSourceDisplay = document.getElementById('signalSourceDisplay');
         if (signalSourceDisplay) {
             let displayText = sourceInfo[source] || 'Trading Signal';
-            if (strategy) {
-                displayText += ` - Strategy: ${strategy}`;
-            }
+            if (strategy) displayText += ` — Strategy: ${strategy}`;
             signalSourceDisplay.value = displayText;
         }
     }
@@ -350,124 +402,132 @@ function exitTrade(tradeId) {
 }
 
 function prePopulateForm(urlParams) {
-    const symbol = urlParams.get('symbol');
-    const script = urlParams.get('script');
-    const action = urlParams.get('action');
-    const price = urlParams.get('price');
-    const quantity = urlParams.get('quantity');
-    const type = urlParams.get('type');
-    const source = urlParams.get('source');
-    const stopLoss = urlParams.get('stop_loss');
-    const target = urlParams.get('target');
-    const target2 = urlParams.get('target_2');
-    const target3 = urlParams.get('target_3');
+    const symbol    = urlParams.get('symbol');
+    const script    = urlParams.get('script');
+    const action    = urlParams.get('action');
+    const price     = urlParams.get('price');       // current market price from source screen
+    const quantity  = urlParams.get('quantity');
+    const type      = urlParams.get('type');
+    const source    = urlParams.get('source');
+    const stopLoss  = urlParams.get('stop_loss');   // explicit SL from a trading signal
+    const target    = urlParams.get('target');       // explicit target from a trading signal
+    const target2   = urlParams.get('target_2');
+    const target3   = urlParams.get('target_3');
     const riskLevel = urlParams.get('risk_level');
-    const signalId = urlParams.get('signal_id');
-    
-    // Find and select the asset
+    const signalId  = urlParams.get('signal_id');
+
+    // ── 1. Select the asset in the dropdown ──────────────────────────────────
     const assetSelect = document.getElementById('assetSelect');
+    let dropdownPrice = null;
     for (let option of assetSelect.options) {
         if (option.value === symbol) {
             option.selected = true;
+            // Read the price stored on the option before firing change
+            if (option.dataset.price && parseFloat(option.dataset.price) > 0) {
+                dropdownPrice = parseFloat(option.dataset.price);
+            }
             assetSelect.dispatchEvent(new Event('change'));
             break;
         }
     }
-    
-    // Pre-populate form fields
-    // Set entry price
-    if (price) {
-        const entryPriceInput = document.getElementById('entryPriceInput');
-        if (entryPriceInput) entryPriceInput.value = price;
+
+    // ── 2. Determine the best "current price" to use ─────────────────────────
+    // Priority: explicit ?price= param (from source screen) > dropdown stored price
+    const currentPrice = (price && parseFloat(price) > 0)
+        ? parseFloat(price)
+        : dropdownPrice;
+
+    // ── 3. Auto-fill price defaults ───────────────────────────────────────────
+    // If the source screen sent explicit signal targets/SL (e.g. Trading Signals page),
+    // honour those and don't overwrite them with the calculated defaults.
+    if (currentPrice) {
+        const hasSignalTarget = !!(target);
+        const hasSignalSL     = !!(stopLoss);
+        populatePriceDefaults(currentPrice, hasSignalTarget, hasSignalSL);
+
+        // Apply the explicit signal target / SL on top of the defaults
+        if (hasSignalTarget) {
+            const targetInput = document.getElementById('targetPriceInput');
+            if (targetInput) targetInput.value = parseFloat(target).toFixed(2);
+        }
+        if (hasSignalSL) {
+            const slInput = document.getElementById('stopLossInput');
+            if (slInput) slInput.value = parseFloat(stopLoss).toFixed(2);
+        }
     }
-    
-    // Set quantity based on asset type - 3 lots for options, 100 for stocks
+
+    // ── 4. Quantity ───────────────────────────────────────────────────────────
+    const quantityInput = document.getElementById('quantityInput');
     if (quantity) {
         quantityInput.value = quantity;
     } else if (type) {
-        // Default quantity based on type
-        if (type.toLowerCase() === 'options' || type.toLowerCase() === 'option') {
-            quantityInput.value = 3; // 3 lots for options
-        } else if (type.toLowerCase() === 'futures' || type.toLowerCase() === 'future') {
-            quantityInput.value = 1; // 1 lot for futures
-        } else {
-            quantityInput.value = 100; // 100 shares for stocks
-        }
+        const t = type.toLowerCase();
+        if (t === 'options' || t === 'option')   quantityInput.value = 3;
+        else if (t === 'futures' || t === 'future') quantityInput.value = 1;
+        else                                       quantityInput.value = 100;
     }
-    
-    // Set target and stop loss if coming from signal
-    if (target) {
-        const targetInput = document.getElementById('targetPriceInput');
-        if (targetInput) targetInput.value = target;
-    }
-    
-    if (stopLoss) {
-        const stopLossInput = document.getElementById('stopLossInput');
-        if (stopLossInput) stopLossInput.value = stopLoss;
-    }
-    
-    // Show source information with all signal details
+
+    // ── 5. Signal source info banner ──────────────────────────────────────────
     if (source) {
         const sourceInfo = {
             'trading_signals': 'Admin Trading Signal',
-            'stock_picker': 'AI Stock Recommendation',
-            'my_portfolio': 'Portfolio Holding',
-            'daily_signals': 'Daily Trading Signal'
+            'stock_picker':    'AI Stock Recommendation',
+            'my_portfolio':    'Portfolio Holding',
+            'daily_signals':   'Daily Trading Signal',
+            'research':        'AI Research Co-Pilot',
+            'market_pulse':    'Live Market Pulse'
         };
-        
+
         const signalSourceDisplay = document.getElementById('signalSourceDisplay');
         if (signalSourceDisplay) {
             signalSourceDisplay.value = sourceInfo[source] || 'Trading Signal';
         }
-        
-        // Create info alert with full signal details
+
+        // Banner card
         const alertDiv = document.createElement('div');
         alertDiv.className = 'alert alert-info alert-dismissible fade show mb-4';
-        
-        let detailsHtml = `
+        alertDiv.innerHTML = `
             <div class="d-flex align-items-start">
-                <i class="fas fa-chart-line fa-2x me-3 text-primary"></i>
+                <i class="fas fa-chart-line fa-2x me-3 text-primary mt-1"></i>
                 <div class="flex-grow-1">
                     <h5 class="alert-heading mb-2">${sourceInfo[source] || 'Trading Signal'}</h5>
-                    <div class="row g-2">
-                        <div class="col-md-3">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-auto">
                             <small class="text-muted d-block">Symbol</small>
                             <strong>${script || symbol}</strong>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-auto">
                             <small class="text-muted d-block">Action</small>
-                            <span class="badge ${action === 'BUY' ? 'bg-success' : 'bg-danger'}">${action || 'BUY'}</span>
+                            <span class="badge ${action === 'BUY' ? 'bg-success' : 'bg-danger'} fs-6">${action || 'BUY'}</span>
                         </div>
-                        ${price ? `
-                        <div class="col-md-2">
-                            <small class="text-muted d-block">Entry Price</small>
-                            <strong class="text-success">₹${price}</strong>
-                        </div>` : ''}
-                        ${stopLoss ? `
-                        <div class="col-md-2">
-                            <small class="text-muted d-block">Stop Loss</small>
-                            <strong class="text-danger">₹${stopLoss}</strong>
+                        ${currentPrice ? `
+                        <div class="col-auto">
+                            <small class="text-muted d-block">Current Price</small>
+                            <strong class="text-success">₹${parseFloat(currentPrice).toLocaleString('en-IN', {minimumFractionDigits: 2})}</strong>
                         </div>` : ''}
                         ${target ? `
-                        <div class="col-md-3">
-                            <small class="text-muted d-block">Targets</small>
-                            <strong class="text-primary">₹${target}</strong>
-                            ${target2 ? `, ₹${target2}` : ''}
-                            ${target3 ? `, ₹${target3}` : ''}
+                        <div class="col-auto">
+                            <small class="text-muted d-block">Signal Targets</small>
+                            <strong class="text-primary">₹${target}</strong>${target2 ? `, ₹${target2}` : ''}${target3 ? `, ₹${target3}` : ''}
+                        </div>` : ''}
+                        ${stopLoss ? `
+                        <div class="col-auto">
+                            <small class="text-muted d-block">Signal SL</small>
+                            <strong class="text-danger">₹${stopLoss}</strong>
+                        </div>` : ''}
+                        ${riskLevel ? `
+                        <div class="col-auto">
+                            <small class="text-muted d-block">Risk Level</small>
+                            <span class="badge bg-warning text-dark">${riskLevel}</span>
                         </div>` : ''}
                     </div>
-                    ${riskLevel ? `<div class="mt-2"><small class="text-muted">Risk Level: </small><span class="badge bg-warning text-dark">${riskLevel}</span></div>` : ''}
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         `;
-        
-        alertDiv.innerHTML = detailsHtml;
-        
-        const formCard = document.querySelector('.card-body');
-        if (formCard) {
-            formCard.insertBefore(alertDiv, formCard.firstChild);
-        }
+
+        const formCard = document.querySelector('#tradeRecommendationForm .card-body, .card-body');
+        if (formCard) formCard.insertBefore(alertDiv, formCard.firstChild);
     }
 }
 

@@ -1758,7 +1758,7 @@ function prepareTradeFromResearch(messageId) {
     }
     
     // Redirect to trade page with pre-filled parameters
-    window.location.href = `{{ url_for('dashboard_trade_now') }}?symbol=${symbol}&action=${action}&from=research`;
+    window.location.href = `{{ url_for('dashboard_trade_now') }}?symbol=${encodeURIComponent(symbol)}&action=${action}&source=research`;
 }
 
 // Format existing messages on page load
