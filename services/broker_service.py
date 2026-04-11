@@ -108,6 +108,20 @@ class BaseBrokerClient(ABC):
         """Get user profile/account info"""
         pass
 
+    @abstractmethod
+    def get_trade_history(self, from_date: Optional[datetime] = None,
+                          to_date: Optional[datetime] = None) -> List[Dict]:
+        """Get historical executed trades (trade book) from the broker.
+        Returns a list of dicts in the unified BrokerTrade schema:
+          symbol, trading_symbol, exchange, security_id,
+          transaction_type, product_type, order_type,
+          quantity, price, trade_value,
+          trade_id, order_id,
+          trade_date (datetime),
+          broker_name
+        """
+        pass
+
 class DhanBrokerClient(BaseBrokerClient):
     """Dhan broker client implementation"""
     
@@ -389,10 +403,46 @@ class DhanBrokerClient(BaseBrokerClient):
         if not dt_string:
             return datetime.utcnow()
         try:
-            # Dhan typically returns datetime in ISO format
             return datetime.fromisoformat(dt_string.replace('Z', '+00:00'))
         except:
             return datetime.utcnow()
+
+    def get_trade_history(self, from_date: Optional[datetime] = None,
+                          to_date: Optional[datetime] = None) -> List[Dict]:
+        """Get Dhan trade book (executed trades)"""
+        if not self._client:
+            raise BrokerAPIError("Not connected to Dhan")
+        try:
+            trades = self._client.get_trade_book()
+            return self._normalize_dhan_trades(trades)
+        except Exception as e:
+            logger.error(f"Error fetching Dhan trade history: {e}")
+            raise BrokerAPIError(f"Failed to fetch trade history: {e}")
+
+    def _normalize_dhan_trades(self, trades: List) -> List[Dict]:
+        """Normalize Dhan trade book to unified schema"""
+        normalized = []
+        for t in trades or []:
+            qty = float(t.get('tradedQuantity', 0))
+            price = float(t.get('tradedPrice', 0.0))
+            normalized.append({
+                'symbol': t.get('tradingSymbol', ''),
+                'trading_symbol': t.get('tradingSymbol', ''),
+                'exchange': t.get('exchangeSegment', 'NSE'),
+                'security_id': t.get('securityId', ''),
+                'transaction_type': 'BUY' if t.get('transactionType') == 'BUY' else 'SELL',
+                'product_type': self._map_dhan_product_type(t.get('productType', '')).value,
+                'order_type': 'MARKET',
+                'quantity': qty,
+                'price': price,
+                'trade_value': qty * price,
+                'trade_id': t.get('exchangeTradeId', ''),
+                'order_id': t.get('orderId', ''),
+                'trade_date': self._parse_dhan_datetime(t.get('createTime')),
+                'broker_name': 'Dhan',
+            })
+        return normalized
+
 
 class ZerodhaBrokerClient(BaseBrokerClient):
     """Zerodha Kite Connect broker client implementation"""
@@ -665,6 +715,43 @@ class ZerodhaBrokerClient(BaseBrokerClient):
             return datetime.fromisoformat(dt_string.replace('Z', '+00:00'))
         except:
             return datetime.utcnow()
+
+    def get_trade_history(self, from_date: Optional[datetime] = None,
+                          to_date: Optional[datetime] = None) -> List[Dict]:
+        """Get Zerodha executed trade book"""
+        if not self._client:
+            raise BrokerAPIError("Not connected to Zerodha")
+        try:
+            trades = self._client.trades()
+            return self._normalize_zerodha_trades(trades)
+        except Exception as e:
+            logger.error(f"Error fetching Zerodha trade history: {e}")
+            raise BrokerAPIError(f"Failed to fetch trade history: {e}")
+
+    def _normalize_zerodha_trades(self, trades: List) -> List[Dict]:
+        """Normalize Zerodha trades() response to unified schema"""
+        normalized = []
+        for t in trades or []:
+            qty = float(t.get('quantity', 0))
+            price = float(t.get('average_price', 0.0))
+            normalized.append({
+                'symbol': t.get('tradingsymbol', ''),
+                'trading_symbol': t.get('tradingsymbol', ''),
+                'exchange': t.get('exchange', 'NSE'),
+                'security_id': str(t.get('instrument_token', '')),
+                'transaction_type': t.get('transaction_type', 'BUY').upper(),
+                'product_type': self._map_zerodha_product_type(t.get('product', '')).value,
+                'order_type': t.get('order_type', 'MARKET').upper(),
+                'quantity': qty,
+                'price': price,
+                'trade_value': qty * price,
+                'trade_id': t.get('trade_id', ''),
+                'order_id': t.get('order_id', ''),
+                'trade_date': self._parse_zerodha_datetime(t.get('fill_timestamp')),
+                'broker_name': 'Zerodha',
+            })
+        return normalized
+
 
 class AngelBrokerClient(BaseBrokerClient):
     """Angel One SmartAPI broker client implementation"""
@@ -971,7 +1058,6 @@ class AngelBrokerClient(BaseBrokerClient):
         if not dt_string:
             return datetime.utcnow()
         try:
-            # Angel One typically returns datetime in DD-MMM-YYYY HH:MM:SS format
             return datetime.strptime(dt_string, "%d-%b-%Y %H:%M:%S")
         except:
             try:
@@ -979,591 +1065,340 @@ class AngelBrokerClient(BaseBrokerClient):
             except:
                 return datetime.utcnow()
 
+    def get_trade_history(self, from_date: Optional[datetime] = None,
+                          to_date: Optional[datetime] = None) -> List[Dict]:
+        """Get Angel One executed trade book"""
+        if not self._client:
+            raise BrokerAPIError("Not connected to Angel One")
+        try:
+            response = self._client.tradeBook()
+            if response.get('status'):
+                return self._normalize_angel_trades(response.get('data', []))
+            else:
+                raise BrokerAPIError(f"Failed to fetch trade book: {response.get('message')}")
+        except Exception as e:
+            logger.error(f"Error fetching Angel One trade history: {e}")
+            raise BrokerAPIError(f"Failed to fetch trade history: {e}")
+
+    def _normalize_angel_trades(self, trades: List) -> List[Dict]:
+        """Normalize Angel One tradeBook() response to unified schema"""
+        normalized = []
+        for t in trades or []:
+            qty = float(t.get('fillsize', 0))
+            price = float(t.get('fillprice', 0.0))
+            normalized.append({
+                'symbol': t.get('tradingsymbol', ''),
+                'trading_symbol': t.get('tradingsymbol', ''),
+                'exchange': t.get('exchange', 'NSE'),
+                'security_id': t.get('symboltoken', ''),
+                'transaction_type': t.get('transactiontype', 'BUY').upper(),
+                'product_type': self._map_angel_product_type(t.get('producttype', '')).value,
+                'order_type': t.get('ordertype', 'MARKET').upper(),
+                'quantity': qty,
+                'price': price,
+                'trade_value': qty * price,
+                'trade_id': t.get('tradeuniqueno', ''),
+                'order_id': t.get('orderid', ''),
+                'trade_date': self._parse_angel_datetime(t.get('filltime')),
+                'broker_name': 'Angel One',
+            })
+        return normalized
+
+
+# ── Broker Registry ───────────────────────────────────────────────────────────
+# Add new brokers here: map BrokerType enum value → client class
+# The class must extend BaseBrokerClient and implement all abstract methods.
+_BROKER_REGISTRY: Dict[str, Any] = {
+    BrokerType.DHAN.value: DhanBrokerClient,
+    BrokerType.ZERODHA.value: ZerodhaBrokerClient,
+    BrokerType.ANGEL_BROKING.value: AngelBrokerClient,
+    # Future brokers — uncomment when implemented:
+    # BrokerType.UPSTOX.value: UpstoxBrokerClient,
+    # BrokerType.FYERS.value: FyersBrokerClient,
+}
+
+SUPPORTED_BROKERS = list(_BROKER_REGISTRY.keys())
+
+
 class BrokerService:
-    """Main service for managing multiple broker connections"""
-    
+    """Main service for managing multiple broker connections.
+
+    All interaction with broker APIs should go through this class.
+    Brokers are registered via _BROKER_REGISTRY — adding a new broker
+    only requires implementing BaseBrokerClient and adding one line there.
+    """
+
+    # ── Connection management ─────────────────────────────────────────────────
+
     @staticmethod
     def get_broker_client(broker_account: BrokerAccount) -> BaseBrokerClient:
-        """Get appropriate broker client for account"""
-        if broker_account.broker_type == BrokerType.DHAN.value:
-            return DhanBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.ZERODHA.value:
-            return ZerodhaBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.ANGEL_BROKING.value:
-            return AngelBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.UPSTOX.value:
-            return UpstoxBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.FYERS.value:
-            return FyersBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.GROWW.value:
-            return GrowwBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.ICICIDIRECT.value:
-            return ICICIDirectBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.HDFC_SECURITIES.value:
-            return HDFCSecuritiesBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.KOTAK_SECURITIES.value:
-            return KotakSecuritiesBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.FIVE_PAISA.value:
-            return FivePaisaBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.CHOICE_INDIA.value:
-            return ChoiceIndiaBrokerClient(broker_account)
-        elif broker_account.broker_type == BrokerType.GOODWILL.value:
-            return GoodwillBrokerClient(broker_account)
-        else:
-            raise BrokerAPIError(f"Unsupported broker type: {broker_account.broker_type}")
-    
+        """Return the correct broker client for the given account."""
+        client_cls = _BROKER_REGISTRY.get(broker_account.broker_type)
+        if not client_cls:
+            raise BrokerAPIError(
+                f"Broker '{broker_account.broker_type}' is not yet supported. "
+                f"Supported brokers: {SUPPORTED_BROKERS}"
+            )
+        return client_cls(broker_account)
+
     @staticmethod
-    def add_broker_account(user_id: int, broker_type: BrokerType, credentials: Dict) -> BrokerAccount:
-        """Add a new broker account for user"""
+    def add_broker_account(user_id: int, broker_type: BrokerType,
+                            credentials: Dict) -> BrokerAccount:
+        """Add and connect a new broker account for a user."""
         try:
-            # Handle None values properly for api_secret
             api_secret = credentials.get('api_secret')
             if api_secret is not None and api_secret.strip() == '':
                 api_secret = None
-                
-            # Create broker account
+
             broker_account = BrokerAccount(
                 user_id=user_id,
-                broker_type=broker_type.value,  # Store enum value as string
+                broker_type=broker_type.value,
                 broker_name=broker_type.value.replace('_', ' ').title(),
                 api_key=credentials.get('client_id'),
                 access_token=credentials.get('access_token'),
                 api_secret=api_secret,
                 connection_status='disconnected',
-                is_active=True
+                is_active=True,
             )
-            
-            # Set credentials using encryption if available
+
             if hasattr(broker_account, 'set_credentials'):
                 broker_account.set_credentials(
                     client_id=credentials.get('client_id'),
                     access_token=credentials.get('access_token'),
-                    api_secret=credentials.get('api_secret')
+                    api_secret=credentials.get('api_secret'),
                 )
-            
-            # Save to database
+
             db.session.add(broker_account)
             db.session.commit()
-            
-            # Test connection
+
             client = BrokerService.get_broker_client(broker_account)
             if client.connect():
-                # If this is the first broker account, make it primary
                 user_accounts = BrokerAccount.query.filter_by(user_id=user_id).all()
                 if len(user_accounts) == 1:
                     broker_account.set_as_primary()
-                
+
                 logger.info(f"Successfully added {broker_type.value} account for user {user_id}")
-                
-                # Skip auto-sync for test accounts to avoid API errors
+
                 if 'test' not in credentials.get('client_id', '').lower():
-                    # Only sync real accounts with proper credentials
                     try:
                         BrokerService.sync_broker_data(broker_account)
                     except Exception as e:
                         logger.warning(f"Initial sync failed for {broker_type.value}: {e}")
-                        # Don't fail account creation due to sync issues
-                        
+
                 return broker_account
             else:
-                # Connection failed, remove account
                 db.session.delete(broker_account)
                 db.session.commit()
                 raise BrokerAPIError("Failed to connect to broker")
-                
+
         except Exception as e:
             db.session.rollback()
             import traceback
             error_msg = str(e) if str(e) else f"Unknown error: {type(e).__name__}"
-            logger.error(f"Error adding broker account: {error_msg}")
-            logger.error(f"Full traceback: {traceback.format_exc()}")
+            logger.error(f"Error adding broker account: {error_msg}\n{traceback.format_exc()}")
             raise BrokerAPIError(f"Failed to add broker account: {error_msg}")
 
-# Additional Broker Client Implementations
-class GrowwBrokerClient(BaseBrokerClient):
-    """Groww broker client - REST API based"""
-    
-    def connect(self) -> bool:
-        """Test connection to Groww"""
-        try:
-            username = self.credentials.get('client_id')
-            password = self.credentials.get('access_token')
-            
-            if not username or not password:
-                return False
-            
-            # Allow test credentials for demo
-            if 'test' in username.lower():
-                logger.info(f"Test credentials detected for Groww: {username}")
-                return True
-                
-            # Groww uses session-based auth
-            login_data = {
-                "username": username,
-                "password": password
-            }
-            response = requests.post("https://groww.in/v1/api/auth/v2/user/login", 
-                                   json=login_data, timeout=10)
-            return response.status_code == 200
-        except Exception as e:
-            logger.error(f"Groww connection failed: {e}")
-            return False
-            
-    def get_holdings(self) -> List[Dict]:
-        return []  # Will be implemented when Groww is activated
-        
-    def get_positions(self) -> List[Dict]:
-        return []
-        
-    def get_orders(self) -> List[Dict]:
-        return []
-        
-    def place_order(self, order_data: Dict) -> Dict:
-        raise BrokerAPIError("Groww trading not yet implemented")
-        
-    def cancel_order(self, order_id: str) -> Dict:
-        raise BrokerAPIError("Groww trading not yet implemented")
-        
-    def get_profile(self) -> Dict:
-        return {}
+    # ── Data sync ─────────────────────────────────────────────────────────────
 
-class ICICIDirectBrokerClient(BaseBrokerClient):
-    """ICICI Direct broker client"""
-    
-    def connect(self) -> bool:
-        """Test connection to ICICI Direct"""
-        try:
-            session_token = self.credentials.get('access_token')
-            if not session_token:
-                return False
-            
-            # Allow test credentials for demo
-            if 'test' in session_token.lower():
-                logger.info(f"Test credentials detected for ICICI Direct")
-                return True
-                
-            headers = {
-                'X-SessionToken': session_token,
-                'Content-Type': 'application/json'
-            }
-            response = requests.get("https://api.icicidirect.com/breezeapi/api/v1/customerdetails", 
-                                  headers=headers, timeout=10)
-            return response.status_code == 200
-        except Exception as e:
-            logger.error(f"ICICI Direct connection failed: {e}")
-            return False
-            
-    def get_holdings(self) -> List[Dict]:
-        return []
-        
-    def get_positions(self) -> List[Dict]:
-        return []
-        
-    def get_orders(self) -> List[Dict]:
-        return []
-        
-    def place_order(self, order_data: Dict) -> Dict:
-        raise BrokerAPIError("ICICI Direct trading not yet implemented")
-        
-    def cancel_order(self, order_id: str) -> Dict:
-        raise BrokerAPIError("ICICI Direct trading not yet implemented")
-        
-    def get_profile(self) -> Dict:
-        return {}
-
-class HDFCSecuritiesBrokerClient(BaseBrokerClient):
-    """HDFC Securities broker client"""
-    
-    def connect(self) -> bool:
-        """Test connection to HDFC Securities"""
-        try:
-            access_token = self.credentials.get('access_token')
-            if not access_token:
-                return False
-            
-            # Allow test credentials for demo
-            if 'test' in access_token.lower():
-                logger.info(f"Test credentials detected for HDFC Securities")
-                return True
-                
-            headers = {
-                'Authorization': f'Bearer {access_token}',
-                'Content-Type': 'application/json'
-            }
-            response = requests.get("https://api.hdfcsec.com/data/profile", 
-                                  headers=headers, timeout=10)
-            return response.status_code == 200
-        except Exception as e:
-            logger.error(f"HDFC Securities connection failed: {e}")
-            return False
-            
-    def get_holdings(self) -> List[Dict]:
-        return []
-        
-    def get_positions(self) -> List[Dict]:
-        return []
-        
-    def get_orders(self) -> List[Dict]:
-        return []
-        
-    def place_order(self, order_data: Dict) -> Dict:
-        raise BrokerAPIError("HDFC Securities trading not yet implemented")
-        
-    def cancel_order(self, order_id: str) -> Dict:
-        raise BrokerAPIError("HDFC Securities trading not yet implemented")
-        
-    def get_profile(self) -> Dict:
-        return {}
-
-class KotakSecuritiesBrokerClient(BaseBrokerClient):
-    """Kotak Securities broker client"""
-    
-    def connect(self) -> bool:
-        """Test connection to Kotak Securities"""
-        try:
-            access_token = self.credentials.get('access_token')
-            consumer_key = self.credentials.get('client_id')
-            
-            if not access_token or not consumer_key:
-                return False
-            
-            # Allow test credentials for demo
-            if 'test' in access_token.lower() or 'test' in consumer_key.lower():
-                logger.info(f"Test credentials detected for Kotak Securities")
-                return True
-                
-            headers = {
-                'Authorization': f'Bearer {access_token}',
-                'consumerKey': consumer_key,
-                'Content-Type': 'application/json'
-            }
-            response = requests.get("https://tradeapi.kotaksecurities.com/apim/session/2.0/session/profile", 
-                                  headers=headers, timeout=10)
-            return response.status_code == 200
-        except Exception as e:
-            logger.error(f"Kotak Securities connection failed: {e}")
-            return False
-            
-    def get_holdings(self) -> List[Dict]:
-        return []
-        
-    def get_positions(self) -> List[Dict]:
-        return []
-        
-    def get_orders(self) -> List[Dict]:
-        return []
-        
-    def place_order(self, order_data: Dict) -> Dict:
-        raise BrokerAPIError("Kotak Securities trading not yet implemented")
-        
-    def cancel_order(self, order_id: str) -> Dict:
-        raise BrokerAPIError("Kotak Securities trading not yet implemented")
-        
-    def get_profile(self) -> Dict:
-        return {}
-
-class FivePaisaBrokerClient(BaseBrokerClient):
-    """5Paisa broker client"""
-    
-    def connect(self) -> bool:
-        """Test connection to 5Paisa"""
-        try:
-            email = self.credentials.get('client_id')
-            password = self.credentials.get('access_token')
-            
-            if not email or not password:
-                return False
-            
-            # Allow test credentials for demo
-            if 'test' in email.lower():
-                logger.info(f"Test credentials detected for 5Paisa: {email}")
-                return True
-                
-            login_data = {
-                "Email": email,
-                "Password": password,
-                "DOB": self.credentials.get('api_secret', '01/01/1990')  # DOB required for 5Paisa
-            }
-            response = requests.post("https://Openapi.5paisa.com/VendorsAPI/Service1.svc/V3/LoginCheck", 
-                                   json=login_data, timeout=10)
-            return response.status_code == 200
-        except Exception as e:
-            logger.error(f"5Paisa connection failed: {e}")
-            return False
-            
-    def get_holdings(self) -> List[Dict]:
-        return []
-        
-    def get_positions(self) -> List[Dict]:
-        return []
-        
-    def get_orders(self) -> List[Dict]:
-        return []
-        
-    def place_order(self, order_data: Dict) -> Dict:
-        raise BrokerAPIError("5Paisa trading not yet implemented")
-        
-    def cancel_order(self, order_id: str) -> Dict:
-        raise BrokerAPIError("5Paisa trading not yet implemented")
-        
-    def get_profile(self) -> Dict:
-        return {}
-
-class ChoiceIndiaBrokerClient(BaseBrokerClient):
-    """Choice India broker client"""
-    
-    def connect(self) -> bool:
-        """Test connection to Choice India"""
-        try:
-            user_id = self.credentials.get('client_id')
-            password = self.credentials.get('access_token')
-            
-            if not user_id or not password:
-                return False
-            
-            # Allow test credentials for demo
-            if 'test' in user_id.lower():
-                logger.info(f"Test credentials detected for Choice India: {user_id}")
-                return True
-                
-            login_data = {
-                "userId": user_id,
-                "password": password
-            }
-            response = requests.post("https://api.choiceindia.com/auth/login", 
-                                   json=login_data, timeout=10)
-            return response.status_code == 200
-        except Exception as e:
-            logger.error(f"Choice India connection failed: {e}")
-            return False
-            
-    def get_holdings(self) -> List[Dict]:
-        return []
-        
-    def get_positions(self) -> List[Dict]:
-        return []
-        
-    def get_orders(self) -> List[Dict]:
-        return []
-        
-    def place_order(self, order_data: Dict) -> Dict:
-        raise BrokerAPIError("Choice India trading not yet implemented")
-        
-    def cancel_order(self, order_id: str) -> Dict:
-        raise BrokerAPIError("Choice India trading not yet implemented")
-        
-    def get_profile(self) -> Dict:
-        return {}
-
-class GoodwillBrokerClient(BaseBrokerClient):
-    """Goodwill broker client"""
-    
-    def connect(self) -> bool:
-        """Test connection to Goodwill"""
-        try:
-            client_code = self.credentials.get('client_id')
-            password = self.credentials.get('access_token')
-            
-            if not client_code or not password:
-                return False
-            
-            # Allow test credentials for demo
-            if 'test' in client_code.lower():
-                logger.info(f"Test credentials detected for Goodwill: {client_code}")
-                return True
-                
-            login_data = {
-                "clientCode": client_code,
-                "password": password
-            }
-            response = requests.post("https://api.goodwillcommodities.com/api/login", 
-                                   json=login_data, timeout=10)
-            return response.status_code == 200
-        except Exception as e:
-            logger.error(f"Goodwill connection failed: {e}")
-            return False
-            
-    def get_holdings(self) -> List[Dict]:
-        return []
-        
-    def get_positions(self) -> List[Dict]:
-        return []
-        
-    def get_orders(self) -> List[Dict]:
-        return []
-        
-    def place_order(self, order_data: Dict) -> Dict:
-        raise BrokerAPIError("Goodwill trading not yet implemented")
-        
-    def cancel_order(self, order_id: str) -> Dict:
-        raise BrokerAPIError("Goodwill trading not yet implemented")
-        
-    def get_profile(self) -> Dict:
-        return {}
-    
     @staticmethod
-    def sync_broker_data(broker_account: BrokerAccount, data_types: List[str] = None) -> Dict:
-        """Sync data from broker for given account"""
+    def sync_broker_data(broker_account: BrokerAccount,
+                          data_types: List[str] = None) -> Dict:
+        """Sync all data types from the broker into the database.
+
+        data_types defaults to all available types:
+          holdings, positions, orders, trade_history, profile
+        """
         if data_types is None:
-            data_types = ['holdings', 'positions', 'orders', 'profile']
-        
+            data_types = ['holdings', 'positions', 'orders', 'trade_history', 'profile']
+
         client = BrokerService.get_broker_client(broker_account)
         if not client.connect():
             raise BrokerAPIError("Failed to connect to broker")
-        
-        results = {}
+
+        results: Dict[str, int] = {}
         start_time = time.time()
-        
+
         try:
-            # Sync holdings
             if 'holdings' in data_types:
-                holdings_data = client.get_holdings()
-                BrokerService._sync_holdings(broker_account, holdings_data)
-                results['holdings'] = len(holdings_data)
-            
-            # Sync positions
+                data = client.get_holdings()
+                BrokerService._sync_holdings(broker_account, data)
+                results['holdings'] = len(data)
+
             if 'positions' in data_types:
-                positions_data = client.get_positions()
-                BrokerService._sync_positions(broker_account, positions_data)
-                results['positions'] = len(positions_data)
-            
-            # Sync orders
+                data = client.get_positions()
+                BrokerService._sync_positions(broker_account, data)
+                results['positions'] = len(data)
+
             if 'orders' in data_types:
-                orders_data = client.get_orders()
-                BrokerService._sync_orders(broker_account, orders_data)
-                results['orders'] = len(orders_data)
-            
-            # Sync profile
+                data = client.get_orders()
+                BrokerService._sync_orders(broker_account, data)
+                results['orders'] = len(data)
+
+            if 'trade_history' in data_types:
+                try:
+                    data = client.get_trade_history()
+                    BrokerService._sync_trade_history(broker_account, data)
+                    results['trade_history'] = len(data)
+                except Exception as e:
+                    logger.warning(f"Trade history sync skipped for "
+                                   f"{broker_account.broker_name}: {e}")
+                    results['trade_history'] = 0
+
             if 'profile' in data_types:
-                profile_data = client.get_profile()
-                BrokerService._sync_profile(broker_account, profile_data)
+                data = client.get_profile()
+                BrokerService._sync_profile(broker_account, data)
                 results['profile'] = 1
-            
-            # Update last sync time
+
             broker_account.last_sync = datetime.utcnow()
             db.session.commit()
-            
-            # Log successful sync
-            sync_duration = time.time() - start_time
-            total_records = sum(results.values())
-            
+
+            duration = time.time() - start_time
             sync_log = BrokerSyncLog(
                 broker_account_id=broker_account.id,
                 sync_type=','.join(data_types),
                 sync_status='success',
-                records_synced=total_records,
-                sync_duration=sync_duration
+                records_synced=sum(results.values()),
+                sync_duration=duration,
             )
             db.session.add(sync_log)
             db.session.commit()
-            
-            # Automatically generate embeddings for synced holdings
+
+            # Auto-generate vector embeddings for AI portfolio analysis
             if 'holdings' in data_types:
                 try:
                     from services.portfolio_embedding_service import PortfolioEmbeddingService
-                    embedding_service = PortfolioEmbeddingService()
-                    embedding_service.generate_embeddings_for_broker_holdings(broker_account.user_id)
-                    logger.info(f"Generated vector embeddings for synced holdings")
+                    PortfolioEmbeddingService().generate_embeddings_for_broker_holdings(
+                        broker_account.user_id
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to generate embeddings after sync: {e}")
-            
-            logger.info(f"Successfully synced {total_records} records for {broker_account.broker_name}")
+                    logger.warning(f"Embedding generation skipped: {e}")
+
+            logger.info(f"Synced {sum(results.values())} records for "
+                        f"{broker_account.broker_name}: {results}")
             return results
-            
+
         except Exception as e:
             db.session.rollback()
-            
-            # Log failed sync
-            sync_duration = time.time() - start_time
+            duration = time.time() - start_time
             sync_log = BrokerSyncLog(
                 broker_account_id=broker_account.id,
                 sync_type=','.join(data_types),
                 sync_status='error',
                 error_message=str(e),
-                sync_duration=sync_duration
+                sync_duration=duration,
             )
             db.session.add(sync_log)
             db.session.commit()
-            
-            logger.error(f"Failed to sync broker data: {e}")
+            logger.error(f"Sync failed for {broker_account.broker_name}: {e}")
             raise BrokerAPIError(f"Sync failed: {e}")
-    
+
+    # ── Private sync helpers ──────────────────────────────────────────────────
+
     @staticmethod
     def _sync_holdings(broker_account: BrokerAccount, holdings_data: List[Dict]):
-        """Sync holdings data to database"""
-        # Clear existing holdings
+        """Replace all holdings for this account with fresh broker data."""
         BrokerHolding.query.filter_by(broker_account_id=broker_account.id).delete()
-        
-        # Add new holdings
-        for holding_data in holdings_data:
-            holding = BrokerHolding(
-                broker_account_id=broker_account.id,
-                **holding_data
-            )
+        for h in holdings_data:
+            holding = BrokerHolding(broker_account_id=broker_account.id, **h)
             holding.calculate_pnl()
             db.session.add(holding)
-    
+
     @staticmethod
     def _sync_positions(broker_account: BrokerAccount, positions_data: List[Dict]):
-        """Sync positions data to database"""
-        # Clear existing positions for today
+        """Replace today's positions with fresh broker data."""
         today = datetime.utcnow().date()
         BrokerPosition.query.filter_by(
             broker_account_id=broker_account.id,
-            position_date=today
+            position_date=today,
         ).delete()
-        
-        # Add new positions
-        for position_data in positions_data:
+        for p in positions_data:
             position = BrokerPosition(
                 broker_account_id=broker_account.id,
                 position_date=today,
-                **position_data
+                **p,
             )
             db.session.add(position)
-    
+
     @staticmethod
     def _sync_orders(broker_account: BrokerAccount, orders_data: List[Dict]):
-        """Sync orders data to database"""
-        for order_data in orders_data:
-            # Check if order already exists
-            existing_order = BrokerOrder.query.filter_by(
+        """Upsert orders from broker (today's order book)."""
+        for o in orders_data:
+            existing = BrokerOrder.query.filter_by(
                 broker_account_id=broker_account.id,
-                broker_order_id=order_data.get('broker_order_id')
+                broker_order_id=o.get('broker_order_id'),
             ).first()
-            
-            if existing_order:
-                # Update existing order
-                for key, value in order_data.items():
-                    if hasattr(existing_order, key):
-                        setattr(existing_order, key, value)
+            if existing:
+                for k, v in o.items():
+                    if hasattr(existing, k):
+                        setattr(existing, k, v)
             else:
-                # Create new order
-                order = BrokerOrder(
-                    broker_account_id=broker_account.id,
-                    **order_data
-                )
-                db.session.add(order)
-    
+                db.session.add(BrokerOrder(broker_account_id=broker_account.id, **o))
+
+    @staticmethod
+    def _sync_trade_history(broker_account: BrokerAccount, trades_data: List[Dict]):
+        """Persist the broker trade book (executed trades) into BrokerOrder.
+
+        Uses (broker_account_id, trade_id / order_id) as idempotency key so
+        re-syncing is safe. Completed trades feed the Behavioural AI engine.
+        """
+        for t in trades_data:
+            idempotency_key = t.get('trade_id') or t.get('order_id')
+            if not idempotency_key:
+                continue
+
+            if BrokerOrder.query.filter_by(
+                broker_account_id=broker_account.id,
+                broker_order_id=idempotency_key,
+            ).first():
+                continue  # Already stored; trade history is immutable
+
+            raw_type = (t.get('transaction_type') or 'BUY').upper()
+            tx_type = TransactionType.BUY if raw_type == 'BUY' else TransactionType.SELL
+
+            order = BrokerOrder(
+                broker_account_id=broker_account.id,
+                broker_order_id=idempotency_key,
+                symbol=t.get('symbol', ''),
+                trading_symbol=t.get('trading_symbol', ''),
+                exchange=t.get('exchange', 'NSE'),
+                security_id=t.get('security_id', ''),
+                transaction_type=tx_type,
+                order_type=OrderType.MARKET,
+                product_type=ProductType.DELIVERY,
+                quantity=int(t.get('quantity', 0)),
+                price=float(t.get('price', 0.0)),
+                order_status=OrderStatus.COMPLETE,
+                avg_execution_price=float(t.get('price', 0.0)),
+                order_time=t.get('trade_date') or datetime.utcnow(),
+            )
+            db.session.add(order)
+
+        db.session.flush()
+
     @staticmethod
     def _sync_profile(broker_account: BrokerAccount, profile_data: Dict):
-        """Sync profile data to broker account"""
-        broker_account.account_name = profile_data.get('account_name', broker_account.account_name)
-        # Update other profile fields as needed
-    
+        """Update broker account metadata from profile response."""
+        if profile_data.get('account_name'):
+            broker_account.account_name = profile_data['account_name']
+
+    # ── Order placement ───────────────────────────────────────────────────────
+
     @staticmethod
-    def place_order_via_broker(broker_account: BrokerAccount, order_data: Dict) -> BrokerOrder:
-        """Place order through broker and save to database"""
+    def place_order_via_broker(broker_account: BrokerAccount,
+                                order_data: Dict) -> BrokerOrder:
+        """Place an order via the broker API and persist it to the database.
+
+        The user monitors order status on the broker's own platform.
+        We record the order for audit/research linkage purposes.
+        """
         client = BrokerService.get_broker_client(broker_account)
         if not client.connect():
             raise BrokerAPIError("Failed to connect to broker")
-        
+
         try:
-            # Place order with broker
             response = client.place_order(order_data)
-            
+
             if response.get('status') == 'success':
-                # Create order record in database
                 order = BrokerOrder(
                     broker_account_id=broker_account.id,
                     broker_order_id=response.get('order_id'),
@@ -1580,981 +1415,63 @@ class GoodwillBrokerClient(BaseBrokerClient):
                     trigger_price=order_data.get('trigger_price', 0.0),
                     disclosed_quantity=order_data.get('disclosed_quantity', 0),
                     order_status=OrderStatus.PENDING,
-                    trading_signal_id=order_data.get('trading_signal_id')
+                    trading_signal_id=order_data.get('trading_signal_id'),
                 )
-                
                 db.session.add(order)
                 db.session.commit()
-                
-                logger.info(f"Order placed successfully: {response.get('order_id')}")
+                logger.info(f"Order placed: {response.get('order_id')} via "
+                            f"{broker_account.broker_name}")
                 return order
             else:
-                raise BrokerAPIError(f"Order placement failed: {response.get('message')}")
-                
+                raise BrokerAPIError(f"Order rejected: {response.get('message')}")
+
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error placing order: {e}")
             raise BrokerAPIError(f"Failed to place order: {e}")
-    
+
+    # ── Portfolio summary ─────────────────────────────────────────────────────
+
     @staticmethod
     def get_user_portfolio_summary(user_id: int) -> Dict:
-        """Get consolidated portfolio summary for user across all brokers"""
-        broker_accounts = BrokerAccount.query.filter_by(user_id=user_id, is_active=True).all()
-        
-        summary = {
+        """Return consolidated portfolio value across all connected brokers."""
+        broker_accounts = BrokerAccount.query.filter_by(
+            user_id=user_id, is_active=True
+        ).all()
+
+        summary: Dict[str, Any] = {
             'total_value': 0.0,
             'total_investment': 0.0,
             'total_pnl': 0.0,
             'total_pnl_percentage': 0.0,
             'holdings_count': 0,
             'brokers_count': len(broker_accounts),
-            'broker_accounts': []
+            'broker_accounts': [],
         }
-        
+
         for account in broker_accounts:
-            holdings = BrokerHolding.query.filter_by(broker_account_id=account.id).all()
-            
-            account_value = sum(h.total_value for h in holdings)
-            account_investment = sum(h.investment_value for h in holdings)
-            account_pnl = sum(h.pnl for h in holdings)
-            
-            summary['total_value'] += account_value
-            summary['total_investment'] += account_investment
-            summary['total_pnl'] += account_pnl
+            holdings = BrokerHolding.query.filter_by(
+                broker_account_id=account.id
+            ).all()
+            acct_value = sum(h.total_value for h in holdings)
+            acct_investment = sum(h.investment_value for h in holdings)
+            acct_pnl = sum(h.pnl for h in holdings)
+
+            summary['total_value'] += acct_value
+            summary['total_investment'] += acct_investment
+            summary['total_pnl'] += acct_pnl
             summary['holdings_count'] += len(holdings)
-            
             summary['broker_accounts'].append({
                 'broker_name': account.broker_name,
-                'account_value': account_value,
+                'account_value': acct_value,
                 'holdings_count': len(holdings),
                 'connection_status': account.connection_status.value,
-                'last_sync': account.last_sync
+                'last_sync': account.last_sync,
             })
-        
+
         if summary['total_investment'] > 0:
-            summary['total_pnl_percentage'] = (summary['total_pnl'] / summary['total_investment']) * 100
-        
+            summary['total_pnl_percentage'] = (
+                summary['total_pnl'] / summary['total_investment'] * 100
+            )
+
         return summary
-
-
-# Additional Broker Client Implementations
-
-class UpstoxBrokerClient(BaseBrokerClient):
-    """Upstox broker client implementation"""
-    
-    def connect(self) -> bool:
-        """Connect to Upstox API"""
-        try:
-            if not UPSTOX_AVAILABLE:
-                raise BrokerAPIError("Upstox client not available")
-            
-            api_key = self.credentials.get('client_id')
-            access_token = self.credentials.get('access_token')
-            
-            if not api_key or not access_token:
-                raise BrokerAPIError("Missing Upstox credentials")
-            
-            # Configure API client
-            configuration = upstox_client.Configuration()
-            configuration.access_token = access_token
-            self._client = upstox_client.ApiClient(configuration)
-            
-            # Test connection
-            user_api = upstox_client.UserApi(self._client)
-            profile = user_api.get_profile()
-            
-            if profile and profile.data:
-                self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
-                logger.info(f"Successfully connected to Upstox for account {api_key}")
-                return True
-            else:
-                raise BrokerAPIError("Invalid response from Upstox API")
-                
-        except Exception as e:
-            error_msg = f"Failed to connect to Upstox: {str(e)}"
-            self.broker_account.update_connection_status(ConnectionStatus.ERROR, error_msg)
-            logger.error(error_msg)
-            return False
-    
-    def get_holdings(self) -> List[Dict]:
-        """Get Upstox holdings"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to Upstox")
-        
-        try:
-            portfolio_api = upstox_client.PortfolioApi(self._client)
-            holdings = portfolio_api.get_holdings()
-            return self._normalize_upstox_holdings(holdings.data if holdings.data else [])
-        except Exception as e:
-            logger.error(f"Error fetching Upstox holdings: {e}")
-            raise BrokerAPIError(f"Failed to fetch holdings: {e}")
-    
-    def get_positions(self) -> List[Dict]:
-        """Get Upstox positions"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to Upstox")
-        
-        try:
-            portfolio_api = upstox_client.PortfolioApi(self._client)
-            positions = portfolio_api.get_positions()
-            return self._normalize_upstox_positions(positions.data if positions.data else [])
-        except Exception as e:
-            logger.error(f"Error fetching Upstox positions: {e}")
-            raise BrokerAPIError(f"Failed to fetch positions: {e}")
-    
-    def get_orders(self) -> List[Dict]:
-        """Get Upstox orders"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to Upstox")
-        
-        try:
-            orders_api = upstox_client.OrderApi(self._client)
-            orders = orders_api.get_orders()
-            return self._normalize_upstox_orders(orders.data if orders.data else [])
-        except Exception as e:
-            logger.error(f"Error fetching Upstox orders: {e}")
-            raise BrokerAPIError(f"Failed to fetch orders: {e}")
-    
-    def place_order(self, order_data: Dict) -> Dict:
-        """Place order with Upstox"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to Upstox")
-        
-        try:
-            orders_api = upstox_client.OrderApi(self._client)
-            upstox_order = self._convert_to_upstox_order(order_data)
-            response = orders_api.place_order(upstox_order)
-            return {'status': 'success', 'order_id': response.data.order_id, 'message': 'Order placed successfully'}
-        except Exception as e:
-            logger.error(f"Error placing Upstox order: {e}")
-            raise BrokerAPIError(f"Failed to place order: {e}")
-    
-    def cancel_order(self, order_id: str) -> Dict:
-        """Cancel Upstox order"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to Upstox")
-        
-        try:
-            orders_api = upstox_client.OrderApi(self._client)
-            response = orders_api.cancel_order(order_id)
-            return {'status': 'success', 'message': 'Order cancelled', 'data': response.data}
-        except Exception as e:
-            logger.error(f"Error cancelling Upstox order: {e}")
-            raise BrokerAPIError(f"Failed to cancel order: {e}")
-    
-    def get_profile(self) -> Dict:
-        """Get Upstox profile"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to Upstox")
-        
-        try:
-            user_api = upstox_client.UserApi(self._client)
-            profile = user_api.get_profile()
-            funds = user_api.get_user_fund_margin()
-            return self._normalize_upstox_profile(profile.data, funds.data)
-        except Exception as e:
-            logger.error(f"Error fetching Upstox profile: {e}")
-            raise BrokerAPIError(f"Failed to fetch profile: {e}")
-    
-    def _normalize_upstox_holdings(self, holdings: List) -> List[Dict]:
-        """Normalize Upstox holdings to our format"""
-        normalized = []
-        for holding in holdings or []:
-            normalized.append({
-                'symbol': holding.trading_symbol if hasattr(holding, 'trading_symbol') else '',
-                'trading_symbol': holding.trading_symbol if hasattr(holding, 'trading_symbol') else '',
-                'company_name': holding.company_name if hasattr(holding, 'company_name') else '',
-                'exchange': holding.exchange if hasattr(holding, 'exchange') else 'NSE',
-                'security_id': holding.instrument_token if hasattr(holding, 'instrument_token') else '',
-                'isin': holding.isin if hasattr(holding, 'isin') else '',
-                'total_quantity': holding.quantity if hasattr(holding, 'quantity') else 0,
-                'available_quantity': holding.quantity if hasattr(holding, 'quantity') else 0,
-                'avg_cost_price': holding.average_price if hasattr(holding, 'average_price') else 0.0,
-                'current_price': holding.last_price if hasattr(holding, 'last_price') else 0.0,
-                'last_trade_price': holding.last_price if hasattr(holding, 'last_price') else 0.0
-            })
-        return normalized
-    
-    def _normalize_upstox_positions(self, positions: List) -> List[Dict]:
-        """Normalize Upstox positions to our format"""
-        normalized = []
-        for position in positions or []:
-            normalized.append({
-                'symbol': position.trading_symbol if hasattr(position, 'trading_symbol') else '',
-                'trading_symbol': position.trading_symbol if hasattr(position, 'trading_symbol') else '',
-                'exchange': position.exchange if hasattr(position, 'exchange') else 'NSE',
-                'security_id': position.instrument_token if hasattr(position, 'instrument_token') else '',
-                'product_type': ProductType.INTRADAY,  # Default mapping
-                'quantity': position.quantity if hasattr(position, 'quantity') else 0,
-                'buy_quantity': position.buy_quantity if hasattr(position, 'buy_quantity') else 0,
-                'sell_quantity': position.sell_quantity if hasattr(position, 'sell_quantity') else 0,
-                'avg_buy_price': position.buy_price if hasattr(position, 'buy_price') else 0.0,
-                'avg_sell_price': position.sell_price if hasattr(position, 'sell_price') else 0.0,
-                'current_price': position.last_price if hasattr(position, 'last_price') else 0.0,
-                'realized_pnl': position.realised if hasattr(position, 'realised') else 0.0,
-                'unrealized_pnl': position.unrealised if hasattr(position, 'unrealised') else 0.0,
-                'total_pnl': position.pnl if hasattr(position, 'pnl') else 0.0
-            })
-        return normalized
-    
-    def _normalize_upstox_orders(self, orders: List) -> List[Dict]:
-        """Normalize Upstox orders to our format"""
-        normalized = []
-        for order in orders or []:
-            normalized.append({
-                'broker_order_id': order.order_id if hasattr(order, 'order_id') else '',
-                'symbol': order.trading_symbol if hasattr(order, 'trading_symbol') else '',
-                'trading_symbol': order.trading_symbol if hasattr(order, 'trading_symbol') else '',
-                'exchange': order.exchange if hasattr(order, 'exchange') else 'NSE',
-                'security_id': order.instrument_token if hasattr(order, 'instrument_token') else '',
-                'transaction_type': TransactionType.BUY if hasattr(order, 'transaction_type') and order.transaction_type == 'BUY' else TransactionType.SELL,
-                'order_type': OrderType.MARKET,  # Default mapping
-                'product_type': ProductType.INTRADAY,  # Default mapping
-                'quantity': order.quantity if hasattr(order, 'quantity') else 0,
-                'filled_quantity': order.filled_quantity if hasattr(order, 'filled_quantity') else 0,
-                'pending_quantity': order.pending_quantity if hasattr(order, 'pending_quantity') else 0,
-                'price': order.price if hasattr(order, 'price') else 0.0,
-                'trigger_price': order.trigger_price if hasattr(order, 'trigger_price') else 0.0,
-                'order_status': OrderStatus.PENDING,  # Default mapping
-                'avg_execution_price': order.average_price if hasattr(order, 'average_price') else 0.0,
-                'order_time': datetime.utcnow(),
-                'status_message': order.status_message if hasattr(order, 'status_message') else ''
-            })
-        return normalized
-    
-    def _normalize_upstox_profile(self, profile, funds) -> Dict:
-        """Normalize Upstox profile to our format"""
-        return {
-            'client_id': profile.user_id if hasattr(profile, 'user_id') else '',
-            'account_name': profile.user_name if hasattr(profile, 'user_name') else '',
-            'email': profile.email if hasattr(profile, 'email') else '',
-            'mobile': profile.mobile if hasattr(profile, 'mobile') else '',
-            'available_balance': funds.available_margin if hasattr(funds, 'available_margin') else 0.0,
-            'used_margin': funds.used_margin if hasattr(funds, 'used_margin') else 0.0
-        }
-    
-    def _convert_to_upstox_order(self, order_data: Dict) -> Dict:
-        """Convert our order format to Upstox API format"""
-        return {
-            'instrument_token': order_data.get('security_id', ''),
-            'quantity': order_data.get('quantity'),
-            'price': order_data.get('price', 0),
-            'transaction_type': 'BUY' if order_data.get('transaction_type') == TransactionType.BUY else 'SELL',
-            'order_type': 'MARKET' if order_data.get('order_type') == OrderType.MARKET else 'LIMIT',
-            'product': 'I' if order_data.get('product_type') == ProductType.INTRADAY else 'D',
-            'validity': 'DAY',
-            'disclosed_quantity': order_data.get('disclosed_quantity', 0),
-            'trigger_price': order_data.get('trigger_price', 0),
-            'is_amo': False
-        }
-
-
-class FyersBrokerClient(BaseBrokerClient):
-    """FYERS broker client implementation"""
-    
-    def connect(self) -> bool:
-        """Connect to FYERS API"""
-        try:
-            if not FYERS_AVAILABLE:
-                raise BrokerAPIError("FYERS client not available")
-            
-            api_key = self.credentials.get('client_id')
-            access_token = self.credentials.get('access_token')
-            
-            if not api_key or not access_token:
-                raise BrokerAPIError("Missing FYERS credentials")
-            
-            # Initialize FYERS client
-            self._client = fyersModel.FyersModel(client_id=api_key, token=access_token, log_path="")
-            
-            # Test connection by getting profile
-            response = self._client.get_profile()
-            if response and response.get('s') == 'ok':
-                self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
-                logger.info(f"Successfully connected to FYERS for account {api_key}")
-                return True
-            else:
-                raise BrokerAPIError("Invalid response from FYERS API")
-                
-        except Exception as e:
-            error_msg = f"Failed to connect to FYERS: {str(e)}"
-            self.broker_account.update_connection_status(ConnectionStatus.ERROR, error_msg)
-            logger.error(error_msg)
-            return False
-    
-    def get_holdings(self) -> List[Dict]:
-        """Get FYERS holdings"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to FYERS")
-        
-        try:
-            response = self._client.holdings()
-            if response and response.get('s') == 'ok':
-                return self._normalize_fyers_holdings(response.get('holdings', []))
-            else:
-                raise BrokerAPIError(f"FYERS API error: {response.get('message', 'Unknown error')}")
-        except Exception as e:
-            logger.error(f"Error fetching FYERS holdings: {e}")
-            raise BrokerAPIError(f"Failed to fetch holdings: {e}")
-    
-    def get_positions(self) -> List[Dict]:
-        """Get FYERS positions"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to FYERS")
-        
-        try:
-            response = self._client.positions()
-            if response and response.get('s') == 'ok':
-                return self._normalize_fyers_positions(response.get('netPositions', []))
-            else:
-                raise BrokerAPIError(f"FYERS API error: {response.get('message', 'Unknown error')}")
-        except Exception as e:
-            logger.error(f"Error fetching FYERS positions: {e}")
-            raise BrokerAPIError(f"Failed to fetch positions: {e}")
-    
-    def get_orders(self) -> List[Dict]:
-        """Get FYERS orders"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to FYERS")
-        
-        try:
-            response = self._client.orderbook()
-            if response and response.get('s') == 'ok':
-                return self._normalize_fyers_orders(response.get('orderBook', []))
-            else:
-                raise BrokerAPIError(f"FYERS API error: {response.get('message', 'Unknown error')}")
-        except Exception as e:
-            logger.error(f"Error fetching FYERS orders: {e}")
-            raise BrokerAPIError(f"Failed to fetch orders: {e}")
-    
-    def place_order(self, order_data: Dict) -> Dict:
-        """Place order with FYERS"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to FYERS")
-        
-        try:
-            fyers_order = self._convert_to_fyers_order(order_data)
-            response = self._client.place_order(fyers_order)
-            if response and response.get('s') == 'ok':
-                return {
-                    'status': 'success', 
-                    'order_id': response.get('id'), 
-                    'message': 'Order placed successfully'
-                }
-            else:
-                raise BrokerAPIError(f"FYERS API error: {response.get('message', 'Unknown error')}")
-        except Exception as e:
-            logger.error(f"Error placing FYERS order: {e}")
-            raise BrokerAPIError(f"Failed to place order: {e}")
-    
-    def cancel_order(self, order_id: str) -> Dict:
-        """Cancel FYERS order"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to FYERS")
-        
-        try:
-            response = self._client.cancel_order({'id': order_id})
-            if response and response.get('s') == 'ok':
-                return {'status': 'success', 'message': 'Order cancelled', 'data': response}
-            else:
-                raise BrokerAPIError(f"FYERS API error: {response.get('message', 'Unknown error')}")
-        except Exception as e:
-            logger.error(f"Error cancelling FYERS order: {e}")
-            raise BrokerAPIError(f"Failed to cancel order: {e}")
-    
-    def get_profile(self) -> Dict:
-        """Get FYERS profile"""
-        if not self._client:
-            raise BrokerAPIError("Not connected to FYERS")
-        
-        try:
-            profile_response = self._client.get_profile()
-            funds_response = self._client.funds()
-            
-            profile_data = profile_response.get('data', {}) if profile_response.get('s') == 'ok' else {}
-            funds_data = funds_response.get('fund_limit', []) if funds_response.get('s') == 'ok' else []
-            
-            return self._normalize_fyers_profile(profile_data, funds_data)
-        except Exception as e:
-            logger.error(f"Error fetching FYERS profile: {e}")
-            raise BrokerAPIError(f"Failed to fetch profile: {e}")
-    
-    def _normalize_fyers_holdings(self, holdings: List) -> List[Dict]:
-        """Normalize FYERS holdings to our format"""
-        normalized = []
-        for holding in holdings or []:
-            normalized.append({
-                'symbol': holding.get('symbol', ''),
-                'trading_symbol': holding.get('symbol', ''),
-                'company_name': holding.get('holdingType', ''),
-                'exchange': 'NSE',  # Default
-                'security_id': holding.get('id', ''),
-                'isin': holding.get('isin', ''),
-                'total_quantity': holding.get('quantity', 0),
-                'available_quantity': holding.get('quantity', 0),
-                'avg_cost_price': holding.get('costPrice', 0.0),
-                'current_price': holding.get('marketVal', 0.0) / holding.get('quantity', 1) if holding.get('quantity', 0) > 0 else 0.0,
-                'last_trade_price': holding.get('ltp', 0.0)
-            })
-        return normalized
-    
-    def _normalize_fyers_positions(self, positions: List) -> List[Dict]:
-        """Normalize FYERS positions to our format"""
-        normalized = []
-        for position in positions or []:
-            normalized.append({
-                'symbol': position.get('symbol', ''),
-                'trading_symbol': position.get('symbol', ''),
-                'exchange': 'NSE',  # Default
-                'security_id': position.get('id', ''),
-                'product_type': ProductType.INTRADAY,  # Default
-                'quantity': position.get('netQty', 0),
-                'buy_quantity': position.get('buyQty', 0),
-                'sell_quantity': position.get('sellQty', 0),
-                'avg_buy_price': position.get('buyAvg', 0.0),
-                'avg_sell_price': position.get('sellAvg', 0.0),
-                'current_price': position.get('ltp', 0.0),
-                'realized_pnl': position.get('realized_pnl', 0.0),
-                'unrealized_pnl': position.get('unrealized_pnl', 0.0),
-                'total_pnl': position.get('pl', 0.0)
-            })
-        return normalized
-    
-    def _normalize_fyers_orders(self, orders: List) -> List[Dict]:
-        """Normalize FYERS orders to our format"""
-        normalized = []
-        for order in orders or []:
-            normalized.append({
-                'broker_order_id': order.get('id', ''),
-                'symbol': order.get('symbol', ''),
-                'trading_symbol': order.get('symbol', ''),
-                'exchange': 'NSE',  # Default
-                'security_id': order.get('fyToken', ''),
-                'transaction_type': TransactionType.BUY if order.get('side') == 1 else TransactionType.SELL,
-                'order_type': OrderType.MARKET if order.get('type') == 2 else OrderType.LIMIT,
-                'product_type': ProductType.INTRADAY,  # Default
-                'quantity': order.get('qty', 0),
-                'filled_quantity': order.get('filledQty', 0),
-                'pending_quantity': order.get('remainingQuantity', 0),
-                'price': order.get('limitPrice', 0.0),
-                'trigger_price': order.get('stopPrice', 0.0),
-                'order_status': OrderStatus.COMPLETE if order.get('status') == 2 else OrderStatus.PENDING,
-                'avg_execution_price': order.get('tradedPrice', 0.0),
-                'order_time': datetime.utcnow(),
-                'status_message': order.get('message', '')
-            })
-        return normalized
-    
-    def _normalize_fyers_profile(self, profile: Dict, funds: List) -> Dict:
-        """Normalize FYERS profile to our format"""
-        equity_funds = {}
-        for fund in funds:
-            if fund.get('title') == 'Equity':
-                equity_funds = fund
-                break
-        
-        return {
-            'client_id': profile.get('fy_id', ''),
-            'account_name': profile.get('name', ''),
-            'email': profile.get('email_id', ''),
-            'mobile': profile.get('mobile_number', ''),
-            'available_balance': equity_funds.get('availableBalance', 0.0),
-            'used_margin': equity_funds.get('utilized_amount', 0.0)
-        }
-    
-    def _convert_to_fyers_order(self, order_data: Dict) -> Dict:
-        """Convert our order format to FYERS API format"""
-        return {
-            'symbol': order_data.get('trading_symbol'),
-            'qty': order_data.get('quantity'),
-            'type': 2 if order_data.get('order_type') == OrderType.MARKET else 1,
-            'side': 1 if order_data.get('transaction_type') == TransactionType.BUY else -1,
-            'productType': 'INTRADAY' if order_data.get('product_type') == ProductType.INTRADAY else 'CNC',
-            'limitPrice': order_data.get('price', 0),
-            'stopPrice': order_data.get('trigger_price', 0),
-            'validity': 'DAY',
-            'disclosedQty': order_data.get('disclosed_quantity', 0),
-            'offlineOrder': 'False'
-        }
-
-
-# REST API-based broker clients for brokers without official Python SDKs
-
-class GrowwBrokerClient(BaseBrokerClient):
-    """Groww broker client implementation using REST API"""
-    
-    BASE_URL = "https://api.groww.in"
-    
-    def connect(self) -> bool:
-        """Connect to Groww API"""
-        try:
-            api_key = self.credentials.get('client_id')
-            access_token = self.credentials.get('access_token')
-            
-            if not api_key or not access_token:
-                raise BrokerAPIError("Missing Groww credentials")
-            
-            # Test connection with profile API
-            headers = {
-                'Authorization': f'Bearer {access_token}',
-                'Content-Type': 'application/json'
-            }
-            
-            response = requests.get(f"{self.BASE_URL}/v1/account/profile", headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
-                logger.info(f"Successfully connected to Groww for account {api_key}")
-                return True
-            else:
-                raise BrokerAPIError(f"Groww API error: {response.status_code}")
-                
-        except Exception as e:
-            error_msg = f"Failed to connect to Groww: {str(e)}"
-            self.broker_account.update_connection_status(ConnectionStatus.ERROR, error_msg)
-            logger.error(error_msg)
-            return False
-    
-    def get_holdings(self) -> List[Dict]:
-        """Get Groww holdings"""
-        try:
-            headers = self._get_headers()
-            response = requests.get(f"{self.BASE_URL}/v1/portfolio/holdings", headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                data = response.json()
-                return self._normalize_groww_holdings(data.get('holdings', []))
-            else:
-                raise BrokerAPIError(f"Groww API error: {response.status_code}")
-        except Exception as e:
-            logger.error(f"Error fetching Groww holdings: {e}")
-            raise BrokerAPIError(f"Failed to fetch holdings: {e}")
-    
-    def get_positions(self) -> List[Dict]:
-        """Get Groww positions"""
-        try:
-            headers = self._get_headers()
-            response = requests.get(f"{self.BASE_URL}/v1/portfolio/positions", headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                data = response.json()
-                return self._normalize_groww_positions(data.get('positions', []))
-            else:
-                raise BrokerAPIError(f"Groww API error: {response.status_code}")
-        except Exception as e:
-            logger.error(f"Error fetching Groww positions: {e}")
-            raise BrokerAPIError(f"Failed to fetch positions: {e}")
-    
-    def get_orders(self) -> List[Dict]:
-        """Get Groww orders"""
-        try:
-            headers = self._get_headers()
-            response = requests.get(f"{self.BASE_URL}/v1/orders", headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                data = response.json()
-                return self._normalize_groww_orders(data.get('orders', []))
-            else:
-                raise BrokerAPIError(f"Groww API error: {response.status_code}")
-        except Exception as e:
-            logger.error(f"Error fetching Groww orders: {e}")
-            raise BrokerAPIError(f"Failed to fetch orders: {e}")
-    
-    def place_order(self, order_data: Dict) -> Dict:
-        """Place order with Groww"""
-        try:
-            headers = self._get_headers()
-            groww_order = self._convert_to_groww_order(order_data)
-            
-            response = requests.post(f"{self.BASE_URL}/v1/orders", 
-                                   json=groww_order, headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                data = response.json()
-                return {
-                    'status': 'success',
-                    'order_id': data.get('order_id'),
-                    'message': 'Order placed successfully'
-                }
-            else:
-                raise BrokerAPIError(f"Groww API error: {response.status_code}")
-        except Exception as e:
-            logger.error(f"Error placing Groww order: {e}")
-            raise BrokerAPIError(f"Failed to place order: {e}")
-    
-    def cancel_order(self, order_id: str) -> Dict:
-        """Cancel Groww order"""
-        try:
-            headers = self._get_headers()
-            response = requests.delete(f"{self.BASE_URL}/v1/orders/{order_id}", 
-                                     headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                return {'status': 'success', 'message': 'Order cancelled'}
-            else:
-                raise BrokerAPIError(f"Groww API error: {response.status_code}")
-        except Exception as e:
-            logger.error(f"Error cancelling Groww order: {e}")
-            raise BrokerAPIError(f"Failed to cancel order: {e}")
-    
-    def get_profile(self) -> Dict:
-        """Get Groww profile"""
-        try:
-            headers = self._get_headers()
-            profile_response = requests.get(f"{self.BASE_URL}/v1/account/profile", 
-                                          headers=headers, timeout=30)
-            funds_response = requests.get(f"{self.BASE_URL}/v1/account/funds", 
-                                        headers=headers, timeout=30)
-            
-            profile_data = profile_response.json() if profile_response.status_code == 200 else {}
-            funds_data = funds_response.json() if funds_response.status_code == 200 else {}
-            
-            return self._normalize_groww_profile(profile_data, funds_data)
-        except Exception as e:
-            logger.error(f"Error fetching Groww profile: {e}")
-            raise BrokerAPIError(f"Failed to fetch profile: {e}")
-    
-    def _get_headers(self) -> Dict:
-        """Get API headers for Groww requests"""
-        access_token = self.credentials.get('access_token')
-        return {
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json',
-            'User-Agent': 'Target Capital/1.0'
-        }
-    
-    def _normalize_groww_holdings(self, holdings: List) -> List[Dict]:
-        """Normalize Groww holdings to our format"""
-        normalized = []
-        for holding in holdings or []:
-            normalized.append({
-                'symbol': holding.get('symbol', ''),
-                'trading_symbol': holding.get('trading_symbol', ''),
-                'company_name': holding.get('company_name', ''),
-                'exchange': holding.get('exchange', 'NSE'),
-                'security_id': holding.get('isin', ''),
-                'isin': holding.get('isin', ''),
-                'total_quantity': holding.get('quantity', 0),
-                'available_quantity': holding.get('free_quantity', 0),
-                'avg_cost_price': holding.get('avg_price', 0.0),
-                'current_price': holding.get('ltp', 0.0),
-                'last_trade_price': holding.get('ltp', 0.0)
-            })
-        return normalized
-    
-    def _normalize_groww_positions(self, positions: List) -> List[Dict]:
-        """Normalize Groww positions to our format"""
-        normalized = []
-        for position in positions or []:
-            normalized.append({
-                'symbol': position.get('symbol', ''),
-                'trading_symbol': position.get('trading_symbol', ''),
-                'exchange': position.get('exchange', 'NSE'),
-                'security_id': position.get('isin', ''),
-                'product_type': ProductType.INTRADAY,
-                'quantity': position.get('net_qty', 0),
-                'buy_quantity': position.get('buy_qty', 0),
-                'sell_quantity': position.get('sell_qty', 0),
-                'avg_buy_price': position.get('buy_avg', 0.0),
-                'avg_sell_price': position.get('sell_avg', 0.0),
-                'current_price': position.get('ltp', 0.0),
-                'realized_pnl': position.get('realized_pnl', 0.0),
-                'unrealized_pnl': position.get('day_pnl', 0.0),
-                'total_pnl': position.get('total_pnl', 0.0)
-            })
-        return normalized
-    
-    def _normalize_groww_orders(self, orders: List) -> List[Dict]:
-        """Normalize Groww orders to our format"""
-        normalized = []
-        for order in orders or []:
-            normalized.append({
-                'broker_order_id': order.get('order_id', ''),
-                'symbol': order.get('symbol', ''),
-                'trading_symbol': order.get('trading_symbol', ''),
-                'exchange': order.get('exchange', 'NSE'),
-                'security_id': order.get('isin', ''),
-                'transaction_type': TransactionType.BUY if order.get('side') == 'BUY' else TransactionType.SELL,
-                'order_type': OrderType.MARKET if order.get('order_type') == 'MARKET' else OrderType.LIMIT,
-                'product_type': ProductType.INTRADAY,
-                'quantity': order.get('quantity', 0),
-                'filled_quantity': order.get('filled_qty', 0),
-                'pending_quantity': order.get('pending_qty', 0),
-                'price': order.get('price', 0.0),
-                'trigger_price': order.get('trigger_price', 0.0),
-                'order_status': self._map_groww_order_status(order.get('status', '')),
-                'avg_execution_price': order.get('avg_price', 0.0),
-                'order_time': datetime.utcnow(),
-                'status_message': order.get('status_message', '')
-            })
-        return normalized
-    
-    def _normalize_groww_profile(self, profile: Dict, funds: Dict) -> Dict:
-        """Normalize Groww profile to our format"""
-        return {
-            'client_id': profile.get('user_id', ''),
-            'account_name': profile.get('name', ''),
-            'email': profile.get('email', ''),
-            'mobile': profile.get('mobile', ''),
-            'available_balance': funds.get('available_margin', 0.0),
-            'used_margin': funds.get('used_margin', 0.0)
-        }
-    
-    def _convert_to_groww_order(self, order_data: Dict) -> Dict:
-        """Convert our order format to Groww API format"""
-        return {
-            'symbol': order_data.get('symbol'),
-            'trading_symbol': order_data.get('trading_symbol'),
-            'exchange': order_data.get('exchange', 'NSE'),
-            'side': 'BUY' if order_data.get('transaction_type') == TransactionType.BUY else 'SELL',
-            'order_type': 'MARKET' if order_data.get('order_type') == OrderType.MARKET else 'LIMIT',
-            'product_type': 'INTRADAY' if order_data.get('product_type') == ProductType.INTRADAY else 'CNC',
-            'quantity': order_data.get('quantity'),
-            'price': order_data.get('price', 0),
-            'trigger_price': order_data.get('trigger_price', 0),
-            'validity': 'DAY'
-        }
-    
-    def _map_groww_order_status(self, status: str) -> OrderStatus:
-        """Map Groww order status to our enum"""
-        mapping = {
-            'OPEN': OrderStatus.OPEN,
-            'COMPLETE': OrderStatus.COMPLETE,
-            'CANCELLED': OrderStatus.CANCELLED,
-            'REJECTED': OrderStatus.REJECTED,
-            'PENDING': OrderStatus.PENDING
-        }
-        return mapping.get(status.upper(), OrderStatus.PENDING)
-
-
-# Similar implementations for other REST API-based brokers
-class ICICIDirectBrokerClient(BaseBrokerClient):
-    """ICICIDirect broker client implementation"""
-    
-    BASE_URL = "https://api.icicidirect.com"
-    
-    def connect(self) -> bool:
-        """Connect to ICICIDirect API"""
-        # Implementation similar to Groww but with ICICIDirect-specific endpoints
-        return self._generic_rest_connect("ICICIDirect")
-    
-    def get_holdings(self) -> List[Dict]:
-        return self._generic_rest_holdings("ICICIDirect")
-    
-    def get_positions(self) -> List[Dict]:
-        return self._generic_rest_positions("ICICIDirect")
-    
-    def get_orders(self) -> List[Dict]:
-        return self._generic_rest_orders("ICICIDirect")
-    
-    def place_order(self, order_data: Dict) -> Dict:
-        return self._generic_rest_place_order(order_data, "ICICIDirect")
-    
-    def cancel_order(self, order_id: str) -> Dict:
-        return self._generic_rest_cancel_order(order_id, "ICICIDirect")
-    
-    def get_profile(self) -> Dict:
-        return self._generic_rest_profile("ICICIDirect")
-
-
-class HDFCSecuritiesBrokerClient(BaseBrokerClient):
-    """HDFC Securities broker client implementation"""
-    
-    BASE_URL = "https://api.hdfcsec.com"
-    
-    def connect(self) -> bool:
-        return self._generic_rest_connect("HDFC Securities")
-    
-    def get_holdings(self) -> List[Dict]:
-        return self._generic_rest_holdings("HDFC Securities")
-    
-    def get_positions(self) -> List[Dict]:
-        return self._generic_rest_positions("HDFC Securities")
-    
-    def get_orders(self) -> List[Dict]:
-        return self._generic_rest_orders("HDFC Securities")
-    
-    def place_order(self, order_data: Dict) -> Dict:
-        return self._generic_rest_place_order(order_data, "HDFC Securities")
-    
-    def cancel_order(self, order_id: str) -> Dict:
-        return self._generic_rest_cancel_order(order_id, "HDFC Securities")
-    
-    def get_profile(self) -> Dict:
-        return self._generic_rest_profile("HDFC Securities")
-
-
-class KotakSecuritiesBrokerClient(BaseBrokerClient):
-    """Kotak Securities broker client implementation"""
-    
-    BASE_URL = "https://api.kotaksecurities.com"
-    
-    def connect(self) -> bool:
-        return self._generic_rest_connect("Kotak Securities")
-    
-    def get_holdings(self) -> List[Dict]:
-        return self._generic_rest_holdings("Kotak Securities")
-    
-    def get_positions(self) -> List[Dict]:
-        return self._generic_rest_positions("Kotak Securities")
-    
-    def get_orders(self) -> List[Dict]:
-        return self._generic_rest_orders("Kotak Securities")
-    
-    def place_order(self, order_data: Dict) -> Dict:
-        return self._generic_rest_place_order(order_data, "Kotak Securities")
-    
-    def cancel_order(self, order_id: str) -> Dict:
-        return self._generic_rest_cancel_order(order_id, "Kotak Securities")
-    
-    def get_profile(self) -> Dict:
-        return self._generic_rest_profile("Kotak Securities")
-
-
-class FivePaisaBrokerClient(BaseBrokerClient):
-    """5Paisa broker client implementation"""
-    
-    BASE_URL = "https://api.5paisa.com"
-    
-    def connect(self) -> bool:
-        return self._generic_rest_connect("5Paisa")
-    
-    def get_holdings(self) -> List[Dict]:
-        return self._generic_rest_holdings("5Paisa")
-    
-    def get_positions(self) -> List[Dict]:
-        return self._generic_rest_positions("5Paisa")
-    
-    def get_orders(self) -> List[Dict]:
-        return self._generic_rest_orders("5Paisa")
-    
-    def place_order(self, order_data: Dict) -> Dict:
-        return self._generic_rest_place_order(order_data, "5Paisa")
-    
-    def cancel_order(self, order_id: str) -> Dict:
-        return self._generic_rest_cancel_order(order_id, "5Paisa")
-    
-    def get_profile(self) -> Dict:
-        return self._generic_rest_profile("5Paisa")
-
-
-# Generic REST API methods for brokers without official SDKs
-class BaseBrokerClient:
-    """Updated base class with generic REST methods"""
-    
-    def _generic_rest_connect(self, broker_name: str) -> bool:
-        """Generic REST API connection for brokers without SDKs"""
-        try:
-            api_key = self.credentials.get('client_id')
-            access_token = self.credentials.get('access_token')
-            
-            if not api_key or not access_token:
-                raise BrokerAPIError(f"Missing {broker_name} credentials")
-            
-            # For demo purposes, we'll simulate successful connection
-            # In production, this would make actual API calls to test connectivity
-            self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
-            logger.info(f"Successfully connected to {broker_name} for account {api_key}")
-            return True
-            
-        except Exception as e:
-            error_msg = f"Failed to connect to {broker_name}: {str(e)}"
-            self.broker_account.update_connection_status(ConnectionStatus.ERROR, error_msg)
-            logger.error(error_msg)
-            return False
-    
-    def _generic_rest_holdings(self, broker_name: str) -> List[Dict]:
-        """Generic holdings fetch for REST API brokers"""
-        logger.info(f"Fetching holdings from {broker_name}")
-        # Return empty list for now - in production, implement actual API calls
-        return []
-    
-    def _generic_rest_positions(self, broker_name: str) -> List[Dict]:
-        """Generic positions fetch for REST API brokers"""
-        logger.info(f"Fetching positions from {broker_name}")
-        return []
-    
-    def _generic_rest_orders(self, broker_name: str) -> List[Dict]:
-        """Generic orders fetch for REST API brokers"""
-        logger.info(f"Fetching orders from {broker_name}")
-        return []
-    
-    def _generic_rest_place_order(self, order_data: Dict, broker_name: str) -> Dict:
-        """Generic order placement for REST API brokers"""
-        logger.info(f"Placing order with {broker_name}")
-        return {
-            'status': 'success',
-            'order_id': f'{broker_name.lower()}_order_{int(time.time())}',
-            'message': f'Order placed successfully with {broker_name}'
-        }
-    
-    def _generic_rest_cancel_order(self, order_id: str, broker_name: str) -> Dict:
-        """Generic order cancellation for REST API brokers"""
-        logger.info(f"Cancelling order {order_id} with {broker_name}")
-        return {'status': 'success', 'message': f'Order cancelled with {broker_name}'}
-    
-    def _generic_rest_profile(self, broker_name: str) -> Dict:
-        """Generic profile fetch for REST API brokers"""
-        logger.info(f"Fetching profile from {broker_name}")
-        return {
-            'client_id': 'demo_client',
-            'account_name': f'{broker_name} User',
-            'email': 'user@example.com',
-            'mobile': '9999999999',
-            'available_balance': 100000.0,
-            'used_margin': 0.0
-        }
-
-
-class ChoiceIndiaBrokerClient(BaseBrokerClient):
-    """Choice India broker client implementation"""
-    
-    BASE_URL = "https://api.choiceindia.com"
-    
-    def connect(self) -> bool:
-        return self._generic_rest_connect("Choice India")
-    
-    def get_holdings(self) -> List[Dict]:
-        return self._generic_rest_holdings("Choice India")
-    
-    def get_positions(self) -> List[Dict]:
-        return self._generic_rest_positions("Choice India")
-    
-    def get_orders(self) -> List[Dict]:
-        return self._generic_rest_orders("Choice India")
-    
-    def place_order(self, order_data: Dict) -> Dict:
-        return self._generic_rest_place_order(order_data, "Choice India")
-    
-    def cancel_order(self, order_id: str) -> Dict:
-        return self._generic_rest_cancel_order(order_id, "Choice India")
-    
-    def get_profile(self) -> Dict:
-        return self._generic_rest_profile("Choice India")
-
-
-class GoodwillBrokerClient(BaseBrokerClient):
-    """Goodwill broker client implementation"""
-    
-    BASE_URL = "https://api.goodwillcomm.com"
-    
-    def connect(self) -> bool:
-        return self._generic_rest_connect("Goodwill")
-    
-    def get_holdings(self) -> List[Dict]:
-        return self._generic_rest_holdings("Goodwill")
-    
-    def get_positions(self) -> List[Dict]:
-        return self._generic_rest_positions("Goodwill")
-    
-    def get_orders(self) -> List[Dict]:
-        return self._generic_rest_orders("Goodwill")
-    
-    def place_order(self, order_data: Dict) -> Dict:
-        return self._generic_rest_place_order(order_data, "Goodwill")
-    
-    def cancel_order(self, order_id: str) -> Dict:
-        return self._generic_rest_cancel_order(order_id, "Goodwill")
-    
-    def get_profile(self) -> Dict:
-        return self._generic_rest_profile("Goodwill")

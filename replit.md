@@ -36,6 +36,15 @@ Target Capital employs a dual AI engine approach:
 
 **B2B/B2C Multi-Tenant Data Architecture**: Supports B2C user-connected brokers (Dhan, Zerodha, Angel) via `BrokerService` and B2B partner broker APIs with configurable `B2BConnector`. A database fallback reads from the local `Portfolio` model. Each B2B partner operates as a distinct tenant.
 
+**Broker Integration Architecture** (`services/broker_service.py`):
+- **3 fully implemented brokers**: Dhan (dhanhq SDK), Zerodha (kiteconnect SDK), Angel One (SmartAPI SDK)
+- **BaseBrokerClient** abstract interface — all brokers implement: `connect()`, `get_holdings()`, `get_positions()`, `get_orders()`, `get_trade_history()`, `place_order()`, `cancel_order()`, `get_profile()`
+- **`get_trade_history()`**: Fetches executed trade book from broker (Dhan: `get_trade_book()`, Zerodha: `trades()`, Angel: `tradeBook()`). All normalized to unified schema: symbol, quantity, price, trade_date, trade_id, broker_name.
+- **Broker Registry** (`_BROKER_REGISTRY` dict): Adding a new broker = implement `BaseBrokerClient` + add one line. Future: Upstox, Fyers.
+- **`BrokerService.sync_broker_data()`**: Syncs all 5 data types (holdings, positions, orders, trade_history, profile). Trade history stored in `BrokerOrder` table with idempotency key (trade_id/order_id) — safe to re-sync.
+- **`BrokerService.place_order_via_broker()`**: Places order via broker SDK, records in DB. User monitors execution on broker's own platform.
+- **Behavioural AI feed**: Completed trades from `BrokerOrder` feed the Behaviour Engine's pattern detection.
+
 **Key Features & Design Patterns**:
 -   **Agentic AI Tools**: Leverages OpenAI, Perplexity, and LangGraph for advanced analytics.
 -   **Multi-Broker Integration**: Unified API support for 12 major Indian brokers.
