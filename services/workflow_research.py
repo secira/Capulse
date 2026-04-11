@@ -234,17 +234,22 @@ class ResearchWorkflowPipeline:
         retrieved_context = state.get("retrieved_context", "")
 
         perplexity_context = ""
+        perplexity_citations: list = []
         entities = query_analysis.get("entities", [])
         try:
             from services.perplexity_service import PerplexityService
             pplx = PerplexityService()
-            entities_str_search = ", ".join(entities) if entities else "Indian stock market"
-            search_query = f"Latest news and analysis for {entities_str_search} NSE India stock market"
-            search_result = pplx.research_stock(search_query) if hasattr(pplx, 'research_stock') else None
-            if search_result and isinstance(search_result, dict):
-                perplexity_context = search_result.get('analysis', search_result.get('content', ''))
-            elif search_result and isinstance(search_result, str):
-                perplexity_context = search_result
+            primary_symbol = entities[0] if entities else ""
+            if primary_symbol:
+                result = pplx.research_indian_stock(primary_symbol, research_type="comprehensive")
+            else:
+                result = pplx.get_market_insights(focus_area="general")
+            if result.get("success"):
+                perplexity_context = result.get("research_content", result.get("insights", ""))
+                perplexity_citations = result.get("citations", [])
+                logger.info(f"Perplexity market intelligence fetched ({len(perplexity_context)} chars)")
+            else:
+                logger.info("Perplexity returned fallback — API key may be absent")
         except Exception as e:
             logger.warning(f"Perplexity search unavailable: {e}")
 
@@ -294,7 +299,10 @@ class ResearchWorkflowPipeline:
 
         parsed = result.get("parsed") or {"analysis_summary": result.get("text", "")}
         logger.info("Market analysis completed")
-        return {"market_analysis_result": parsed}
+        return {
+            "market_analysis_result": parsed,
+            "perplexity_citations": perplexity_citations,
+        }
 
     def _response_generation(self, state: WorkflowState) -> Dict[str, Any]:
         query = state.get("query", "")
@@ -341,7 +349,12 @@ class ResearchWorkflowPipeline:
 
         response_text = result.get("text", "")
 
+        perplexity_citations = state.get("perplexity_citations", [])
         citations: List[Dict[str, str]] = []
+        if perplexity_citations:
+            citations.append({"source": "Perplexity AI (real-time web search)", "type": "web_search"})
+            for url in perplexity_citations[:5]:
+                citations.append({"source": str(url), "type": "web_citation"})
         if market_analysis.get("key_metrics"):
             citations.append({"source": "Claude Market Analysis", "type": "ai_analysis"})
         if "Research Documents" in retrieved_context:

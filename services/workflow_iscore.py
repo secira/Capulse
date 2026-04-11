@@ -171,6 +171,21 @@ class IScoreWorkflow:
         previous_close = _safe_float(nse_quote.get("previous_close", market.get("previous_close", 0)))
         change_pct = _safe_float(nse_quote.get("change_percent", market.get("change_pct", 0)))
 
+        perplexity_news_context = ""
+        perplexity_citations: List[str] = []
+        try:
+            from services.perplexity_service import PerplexityService
+            pplx = PerplexityService()
+            result = pplx.research_indian_stock(symbol, research_type="news_sentiment")
+            if result.get("success"):
+                perplexity_news_context = result.get("research_content", "")
+                perplexity_citations = result.get("citations", [])
+                logger.info(f"Perplexity news context fetched for {symbol} ({len(perplexity_news_context)} chars)")
+            else:
+                logger.info(f"Perplexity returned fallback for {symbol} — API key may be absent")
+        except Exception as exc:
+            logger.warning(f"Perplexity news fetch failed for {symbol}: {exc}")
+
         return {
             "market_data_summary": {
                 "current_price": current_price,
@@ -184,30 +199,41 @@ class IScoreWorkflow:
             "current_price": current_price,
             "previous_close": previous_close,
             "price_change_pct": change_pct,
+            "perplexity_news_context": perplexity_news_context,
+            "perplexity_citations": perplexity_citations,
         }
 
     def _node_qualitative(self, state: WorkflowState) -> Dict[str, Any]:
         symbol = state.get("symbol", "")
         price = state.get("current_price", 0)
         change = state.get("price_change_pct", 0)
+        news_context = state.get("perplexity_news_context", "")
 
         system_prompt = (
             "You are a senior financial analyst at Target Capital specializing in Indian equity markets. "
-            "Analyze qualitative sentiment for the given stock using news, social media, annual reports, "
-            "analyst ratings, and corporate governance signals. "
+            "Analyze qualitative sentiment for the given stock using the real-time news and analyst data provided. "
+            "Where specific data is given, use it directly — do not rely on training data alone. "
             "Return a JSON object."
+        )
+
+        news_section = (
+            f"\n\nReal-time news and analyst intelligence (Perplexity web search):\n{news_context}"
+            if news_context
+            else "\n\n(No real-time news context available — use available training knowledge with lower confidence.)"
         )
 
         user_prompt = (
             f"Analyze qualitative sentiment for {symbol} in the Indian stock market.\n"
-            f"Current price: {price}, recent change: {change}%.\n\n"
-            "Consider:\n"
+            f"Current price: ₹{price:,.2f}, recent change: {change:+.2f}%."
+            f"{news_section}\n\n"
+            "Based on the context above, evaluate:\n"
             "1. Recent news from Moneycontrol, Economic Times, NSE/BSE announcements\n"
-            "2. Social media / Twitter sentiment\n"
-            "3. Annual report highlights and corporate governance\n"
-            "4. Analyst ratings and brokerage recommendations\n"
-            "5. Employee sentiment (Glassdoor)\n\n"
-            "Score 0-100 (0=very negative, 100=very positive).\n"
+            "2. Social media and Twitter/X sentiment from Indian retail investors\n"
+            "3. Annual report highlights and corporate governance quality\n"
+            "4. Analyst ratings and brokerage recommendations (Indian brokerages)\n"
+            "5. Management commentary and earnings guidance\n\n"
+            "Score 0-100 (0=very negative sentiment, 100=very positive sentiment). "
+            "Set confidence lower if news context was unavailable.\n"
         )
 
         result = self._anthropic.structured_output(
@@ -229,6 +255,8 @@ class IScoreWorkflow:
                 "key_findings": parsed.get("key_findings", []),
                 "reasoning": parsed.get("reasoning", ""),
                 "model": result.get("model", ""),
+                "data_source": "Perplexity + Claude" if news_context else "Claude (no live news)",
+                "perplexity_sourced": bool(news_context),
             },
         }
 
@@ -282,23 +310,34 @@ class IScoreWorkflow:
     def _node_search_sentiment(self, state: WorkflowState) -> Dict[str, Any]:
         symbol = state.get("symbol", "")
         price = state.get("current_price", 0)
+        news_context = state.get("perplexity_news_context", "")
 
         system_prompt = (
             "You are a market intelligence analyst at Target Capital. "
-            "Evaluate search-based sentiment for the stock – Google Trends interest, "
-            "retail investor buzz, online forum discussions, and Perplexity-style web search results. "
+            "Evaluate search-based and social sentiment for the stock using the real-time web data provided. "
+            "Focus specifically on retail investor interest, search popularity, and online community buzz — "
+            "distinct from news quality or analyst opinion. "
             "Return a JSON object."
         )
 
+        news_section = (
+            f"\n\nReal-time web intelligence (Perplexity search):\n{news_context}"
+            if news_context
+            else "\n\n(No real-time web context available — estimate from training knowledge with lower confidence.)"
+        )
+
         user_prompt = (
-            f"Assess search / web sentiment for {symbol} (Indian market).\n"
-            f"Current price: {price}.\n\n"
-            "Consider:\n"
-            "1. Google Trends interest over last 30 days\n"
-            "2. Retail investor buzz on trading forums\n"
-            "3. YouTube / social media discussion volume\n"
-            "4. Search volume relative to sector peers\n\n"
-            "Score 0-100 (0=very low interest / negative buzz, 100=very high positive interest).\n"
+            f"Assess search and social media sentiment for {symbol} (Indian market).\n"
+            f"Current price: ₹{price:,.2f}."
+            f"{news_section}\n\n"
+            "From the context above, specifically evaluate:\n"
+            "1. Retail investor discussion volume on Moneycontrol, StockEdge, Reddit r/IndiaInvestments\n"
+            "2. Social media buzz on Twitter/X among Indian traders and investors\n"
+            "3. Trending interest vs sector peers (relative search popularity)\n"
+            "4. Sentiment polarity in online discussions (positive/neutral/negative)\n"
+            "5. Any viral or newsworthy events driving unusual search interest\n\n"
+            "Score 0-100 (0=very low or negative buzz, 100=very high positive retail interest). "
+            "Set confidence lower if web context was unavailable.\n"
         )
 
         result = self._anthropic.structured_output(
@@ -320,6 +359,8 @@ class IScoreWorkflow:
                 "key_findings": parsed.get("key_findings", []),
                 "reasoning": parsed.get("reasoning", ""),
                 "model": result.get("model", ""),
+                "data_source": "Perplexity + Claude" if news_context else "Claude (no live web data)",
+                "perplexity_sourced": bool(news_context),
             },
         }
 
