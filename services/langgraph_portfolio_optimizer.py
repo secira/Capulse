@@ -24,6 +24,7 @@ class PortfolioState(TypedDict):
     messages: Annotated[List, operator.add]
     user_id: int
     portfolio_data: Dict
+    user_preferences: Dict
     risk_analysis: Dict
     sector_analysis: Dict
     allocation_recommendations: Dict
@@ -94,6 +95,34 @@ class LangGraphPortfolioOptimizer:
             self._graph = self._build_graph()
         return self._graph
     
+    @staticmethod
+    def _parse_llm_json(content: str, fallback_key: str = "raw_output") -> any:
+        """
+        Robustly parse JSON from LLM output.
+        Handles markdown code fences, trailing commas, and whitespace.
+        Returns parsed object, or a fallback dict on failure.
+        """
+        import re as _re
+        text = content if isinstance(content, str) else str(content)
+        # Strip ```json ... ``` or ``` ... ``` fences
+        text = _re.sub(r'^```(?:json)?\s*', '', text.strip(), flags=_re.IGNORECASE | _re.MULTILINE)
+        text = _re.sub(r'\s*```$', '', text.strip(), flags=_re.MULTILINE)
+        # Remove trailing commas before ] or } (common LLM mistake)
+        text = _re.sub(r',\s*([}\]])', r'\1', text)
+        text = text.strip()
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            # Try to extract first JSON object or array
+            match = _re.search(r'(\{.*\}|\[.*\])', text, _re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(1))
+                except json.JSONDecodeError:
+                    pass
+        logger.warning(f"JSON parse failed for {fallback_key}, returning raw text")
+        return {fallback_key: content}
+
     def _build_graph(self):
         """Build the multi-agent coordination graph"""
         workflow = StateGraph(PortfolioState)
@@ -189,77 +218,81 @@ class LangGraphPortfolioOptimizer:
     def risk_analyzer_agent(self, state: PortfolioState) -> Dict:
         """Agent 1: Analyze portfolio risk and volatility"""
         logger.info("Risk Analyzer Agent running")
-        
+
         portfolio = state.get("portfolio_data", {})
         user_preferences = state.get("user_preferences", {})
-        
-        system_prompt = """You are a Risk Analysis Specialist at Target Capital.
-Analyze the portfolio and provide:
-1. Overall risk score (1-10)
-2. Volatility assessment
-3. Diversification quality
-4. Concentration risks
-5. Risk-adjusted returns analysis
-6. Specific risk mitigation recommendations
-7. Alignment with user's risk tolerance and preferences
 
-IMPORTANT: Consider the user's portfolio preferences in your analysis.
-Be precise and quantitative. Output as structured JSON."""
-        
-        portfolio_summary = json.dumps(portfolio, indent=2)
-        preferences_summary = json.dumps(user_preferences, indent=2) if user_preferences else "No preferences set"
-        
+        system_prompt = """You are a Risk Analysis Specialist at Target Capital covering Indian equity markets.
+Analyze the portfolio and return ONLY a raw JSON object (no markdown, no code fences) with this exact schema:
+{
+  "overall_risk_score": <number 1-10>,
+  "volatility_assessment": "<Low|Medium|High|Very High>",
+  "diversification_quality": "<Poor|Fair|Good|Excellent>",
+  "concentration_risks": ["<risk description>"],
+  "risk_adjusted_return_comment": "<string>",
+  "risk_mitigation_recommendations": ["<actionable recommendation>"],
+  "preference_alignment": "<how well portfolio matches user risk tolerance>",
+  "summary": "<2-3 sentence overall risk summary>"
+}
+Be precise and quantitative. Use INR (₹) for amounts. Output ONLY the JSON object."""
+
+        portfolio_summary = json.dumps(portfolio, indent=2, default=str)
+        preferences_summary = json.dumps(user_preferences, indent=2, default=str) if user_preferences else "No preferences set"
+
         response = self.risk_llm.invoke([
             SystemMessage(content=system_prompt),
             HumanMessage(content=f"Analyze this portfolio for risk:\n\nPortfolio:\n{portfolio_summary}\n\nUser Preferences:\n{preferences_summary}")
         ])
-        
-        try:
-            content = response.content if isinstance(response.content, str) else str(response.content)
-            risk_analysis = json.loads(content)
-        except:
-            risk_analysis = {"raw_analysis": str(response.content)}
-        
+
+        content = response.content if isinstance(response.content, str) else str(response.content)
+        risk_analysis = self._parse_llm_json(content, fallback_key="raw_analysis")
+
+        logger.info(f"Risk analysis parsed — keys: {list(risk_analysis.keys()) if isinstance(risk_analysis, dict) else 'list'}")
         return {
             "risk_analysis": risk_analysis,
             "messages": [AIMessage(content="Risk analysis completed")],
-            "agent_outputs": {"risk_agent": risk_analysis}
+            "agent_outputs": {"risk_agent": risk_analysis},
         }
     
     def sector_analyzer_agent(self, state: PortfolioState) -> Dict:
         """Agent 2: Analyze sector allocation and concentration"""
         logger.info("Sector Analyzer Agent running")
-        
-        portfolio = state.get("portfolio_data", {})
-        
-        system_prompt = """You are a Sector Analysis Specialist at Target Capital.
-Analyze the portfolio's sector allocation:
-1. Current sector breakdown
-2. Over/under-exposed sectors
-3. Sector correlation analysis
-4. Cyclical vs defensive balance
-5. Sector-specific opportunities and risks
-6. Rebalancing recommendations
 
-Provide specific percentages and actionable insights. Output as JSON."""
-        
-        portfolio_summary = json.dumps(portfolio, indent=2)
-        
+        portfolio = state.get("portfolio_data", {})
+        user_preferences = state.get("user_preferences", {})
+
+        system_prompt = """You are a Sector Analysis Specialist at Target Capital covering Indian equity markets (NSE/BSE).
+Analyze the portfolio's sector allocation and return ONLY a raw JSON object (no markdown, no code fences) with this exact schema:
+{
+  "current_sector_breakdown": {"<SectorName>": <percentage as number>},
+  "overexposed_sectors": ["<sector name>"],
+  "underexposed_sectors": ["<sector name>"],
+  "cyclical_vs_defensive_ratio": "<e.g. 60% Cyclical / 40% Defensive>",
+  "sector_concentration_risk": "<Low|Medium|High>",
+  "sector_opportunities": ["<specific opportunity>"],
+  "sector_risks": ["<specific risk>"],
+  "rebalancing_recommendations": ["<actionable recommendation with target %>"],
+  "summary": "<2-3 sentence sector outlook summary>"
+}
+Provide specific percentages for Indian market sectors (Banking, IT, FMCG, Pharma, Auto, Energy, etc.).
+Output ONLY the JSON object."""
+
+        portfolio_summary = json.dumps(portfolio, indent=2, default=str)
+        preferences_summary = json.dumps(user_preferences, indent=2, default=str) if user_preferences else "No preferences set"
+
         response = self.balanced_llm.invoke([
             SystemMessage(content=system_prompt),
-            HumanMessage(content=f"Analyze sector allocation:\n{portfolio_summary}")
+            HumanMessage(content=f"Analyze sector allocation:\n\nPortfolio:\n{portfolio_summary}\n\nUser Preferences:\n{preferences_summary}")
         ])
-        
-        try:
-            content = response.content if isinstance(response.content, str) else str(response.content)
-            sector_analysis = json.loads(content)
-        except:
-            sector_analysis = {"raw_analysis": str(response.content)}
-        
+
+        content = response.content if isinstance(response.content, str) else str(response.content)
+        sector_analysis = self._parse_llm_json(content, fallback_key="raw_analysis")
+
+        logger.info(f"Sector analysis parsed — keys: {list(sector_analysis.keys()) if isinstance(sector_analysis, dict) else 'list'}")
         return {
             "sector_analysis": sector_analysis,
             "messages": [AIMessage(content="Sector analysis completed")],
-            "agent_outputs": {**state.get("agent_outputs", {}), "sector_agent": sector_analysis}
+            "agent_outputs": {**state.get("agent_outputs", {}), "sector_agent": sector_analysis},
         }
     
     def asset_allocator_agent(self, state: PortfolioState) -> Dict:
@@ -298,23 +331,15 @@ User Preferences: {preferences_summary}"""
             SystemMessage(content=system_prompt),
             HumanMessage(content=f"Recommend asset allocation:\n{context}")
         ])
-        
-        try:
-            content = response.content if isinstance(response.content, str) else str(response.content)
-            # Strip markdown code fences the LLM often wraps JSON in
-            import re as _re
-            code_block = _re.search(r'```(?:json)?\s*(\{.*\})\s*```', content, _re.DOTALL)
-            if code_block:
-                content = code_block.group(1)
-            allocation_recs = json.loads(content)
-        except:
-            # Last-resort fallback – still try to strip fences before giving up
-            allocation_recs = {"raw_recommendations": str(response.content)}
-        
+
+        content = response.content if isinstance(response.content, str) else str(response.content)
+        allocation_recs = self._parse_llm_json(content, fallback_key="raw_recommendations")
+
+        logger.info(f"Allocation recommendations parsed — keys: {list(allocation_recs.keys()) if isinstance(allocation_recs, dict) else 'list'}")
         return {
             "allocation_recommendations": allocation_recs,
             "messages": [AIMessage(content="Allocation recommendations generated")],
-            "agent_outputs": {**state.get("agent_outputs", {}), "allocation_agent": allocation_recs}
+            "agent_outputs": {**state.get("agent_outputs", {}), "allocation_agent": allocation_recs},
         }
     
     def opportunity_finder_agent(self, state: PortfolioState) -> Dict:
@@ -358,25 +383,16 @@ User Preferences: {preferences_summary}"""
             SystemMessage(content=system_prompt),
             HumanMessage(content=f"Find investment opportunities:\n{context}")
         ])
-        
-        try:
-            content = response.content if isinstance(response.content, str) else str(response.content)
-            # Strip markdown code fences before parsing
-            import re as _re
-            clean = _re.sub(r'^```(?:json)?\s*', '', content.strip(), flags=_re.IGNORECASE)
-            clean = _re.sub(r'\s*```$', '', clean.strip())
-            # Remove trailing commas before ] or } (common LLM mistake)
-            clean = _re.sub(r',\s*([}\]])', r'\1', clean)
-            opportunities = json.loads(clean)
-            if not isinstance(opportunities, list):
-                opportunities = [opportunities]
-        except:
-            opportunities = [{"raw_opportunities": str(response.content)}]
-        
+
+        content = response.content if isinstance(response.content, str) else str(response.content)
+        parsed = self._parse_llm_json(content, fallback_key="raw_opportunities")
+        opportunities = parsed if isinstance(parsed, list) else [parsed]
+
+        logger.info(f"Opportunity finder parsed — {len(opportunities)} opportunities")
         return {
             "opportunities": opportunities,
             "messages": [AIMessage(content=f"Found {len(opportunities)} opportunities")],
-            "agent_outputs": {**state.get("agent_outputs", {}), "opportunity_agent": opportunities}
+            "agent_outputs": {**state.get("agent_outputs", {}), "opportunity_agent": opportunities},
         }
     
     def coordinator_agent(self, state: PortfolioState) -> Dict:
@@ -455,6 +471,7 @@ Investment Opportunities:
             "messages": [],
             "user_id": user_id,
             "portfolio_data": {},
+            "user_preferences": {},
             "risk_analysis": {},
             "sector_analysis": {},
             "allocation_recommendations": {},
