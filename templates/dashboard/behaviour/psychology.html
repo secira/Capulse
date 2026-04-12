@@ -27,6 +27,11 @@
 .diff-bar{flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden}
 .diff-bar .fill{height:100%;border-radius:4px}
 .diff-val{font-size:.8rem;font-weight:600;width:50px;text-align:right}
+.narrative-box{background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:12px;color:#fff;padding:14px 16px;margin-top:12px}
+.narr-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin-bottom:6px}
+.narr-text{font-size:.82rem;line-height:1.5;color:#e2e8f0;margin-bottom:8px}
+.trigger-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:4px 10px;font-size:.72rem;font-weight:600;margin-bottom:8px}
+.self-aware-box{background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:8px 12px;font-size:.78rem;color:#a5b4fc}
 </style>
 
 <div class="container-fluid px-0">
@@ -71,6 +76,15 @@
           {% if ps.advice %}
           <div class="advice-box mt-3"><i class="fas fa-check-circle text-primary me-2"></i>{{ ps.advice }}</div>
           {% endif %}
+          {% if ps.detected and narratives and narratives.panic_selling %}
+          {% set pn = narratives.panic_selling %}
+          <div class="narrative-box">
+            <div class="narr-label"><i class="fas fa-brain me-1"></i>Emotional Narrative</div>
+            <div class="narr-text">{{ pn.narrative }}</div>
+            {% if pn.trigger %}<span class="trigger-pill"><i class="fas fa-clock"></i>{{ pn.trigger }}</span>{% endif %}
+            {% if pn.self_awareness %}<div class="self-aware-box"><i class="fas fa-question-circle me-1"></i>{{ pn.self_awareness }}</div>{% endif %}
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -100,6 +114,15 @@
           </div>
           {% if fo.advice %}
           <div class="advice-box mt-3"><i class="fas fa-check-circle text-primary me-2"></i>{{ fo.advice }}</div>
+          {% endif %}
+          {% if fo.detected and narratives and narratives.fomo %}
+          {% set fn = narratives.fomo %}
+          <div class="narrative-box">
+            <div class="narr-label"><i class="fas fa-brain me-1"></i>Emotional Narrative</div>
+            <div class="narr-text">{{ fn.narrative }}</div>
+            {% if fn.trigger %}<span class="trigger-pill"><i class="fas fa-clock"></i>{{ fn.trigger }}</span>{% endif %}
+            {% if fn.self_awareness %}<div class="self-aware-box"><i class="fas fa-question-circle me-1"></i>{{ fn.self_awareness }}</div>{% endif %}
+          </div>
           {% endif %}
         </div>
       </div>
@@ -154,6 +177,15 @@
           {% endif %}
           {% if bd.advice %}
           <div class="advice-box mt-3"><i class="fas fa-check-circle text-primary me-2"></i>{{ bd.advice }}</div>
+          {% endif %}
+          {% if bd.detected and narratives and narratives.behavioral_drift %}
+          {% set dn = narratives.behavioral_drift %}
+          <div class="narrative-box">
+            <div class="narr-label"><i class="fas fa-brain me-1"></i>Emotional Narrative</div>
+            <div class="narr-text">{{ dn.narrative }}</div>
+            {% if dn.trigger %}<span class="trigger-pill"><i class="fas fa-clock"></i>{{ dn.trigger }}</span>{% endif %}
+            {% if dn.self_awareness %}<div class="self-aware-box"><i class="fas fa-question-circle me-1"></i>{{ dn.self_awareness }}</div>{% endif %}
+          </div>
           {% endif %}
         </div>
       </div>

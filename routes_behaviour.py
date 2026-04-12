@@ -100,13 +100,16 @@ def behavioural_performance():
     try:
         engine = _get_engine()
         data = engine.get_performance_patterns()
+        root_cause = engine.get_performance_root_cause()
     except Exception as e:
         logger.error(f"Performance patterns error: {e}")
         data = None
+        root_cause = None
 
     return render_template(
         'dashboard/behaviour/performance.html',
         data=data,
+        root_cause=root_cause,
         page_title='Performance Patterns',
     )
 
@@ -117,13 +120,16 @@ def behavioural_psychology():
     try:
         engine = _get_engine()
         data = engine.get_psychology_patterns()
+        narratives = engine.get_psychology_narratives()
     except Exception as e:
         logger.error(f"Psychology patterns error: {e}")
         data = None
+        narratives = {}
 
     return render_template(
         'dashboard/behaviour/psychology.html',
         data=data,
+        narratives=narratives,
         page_title='Psychological Patterns',
     )
 
@@ -581,6 +587,20 @@ def behaviour_today_alerts():
     except Exception as e:
         logger.error(f"Today alerts error: {e}")
         return jsonify({'alerts': []})
+
+
+@app.route('/api/behaviour/trading-dna')
+@login_required
+def behaviour_trading_dna():
+    """Trading DNA archetype + cross-module correlations for overview AJAX."""
+    try:
+        engine = _get_engine()
+        dna = engine.get_trading_dna()
+        correlations = engine.get_cross_module_correlations()
+        return jsonify({'dna': dna, 'correlations': correlations})
+    except Exception as e:
+        logger.error(f"Trading DNA error: {e}")
+        return jsonify({'dna': None, 'correlations': [], 'error': str(e)})
 
 
 @app.route('/api/behaviour/portfolio-narrative')

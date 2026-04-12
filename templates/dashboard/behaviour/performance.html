@@ -42,6 +42,52 @@
     </div>
   </div>
 
+  <!-- ── Root Cause Analysis ──────────────────────────────────────────────── -->
+  {% if root_cause %}
+  {% set rc = root_cause %}
+  <div class="card border-0 shadow-sm mb-4" style="border-left:4px solid {% if rc.root_cause.severity == 'critical' %}#ef4444{% elif rc.root_cause.severity == 'warning' %}#f59e0b{% else %}#22c55e{% endif %} !important;border-radius:14px;overflow:hidden">
+    <div class="card-body p-0">
+      <div class="px-4 pt-4 pb-3" style="background:{% if rc.root_cause.severity == 'critical' %}#fef2f2{% elif rc.root_cause.severity == 'warning' %}#fffbeb{% else %}#f0fdf4{% endif %}">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="fas {% if rc.root_cause.severity == 'critical' %}fa-exclamation-circle text-danger{% elif rc.root_cause.severity == 'warning' %}fa-exclamation-triangle text-warning{% else %}fa-check-circle text-success{% endif %} fa-lg"></i>
+          <span class="fw-bold small text-uppercase" style="letter-spacing:.06em;color:#64748b">Root Cause Analysis</span>
+        </div>
+        <h5 class="fw-bold mb-1" style="color:{% if rc.root_cause.severity == 'critical' %}#dc2626{% elif rc.root_cause.severity == 'warning' %}#d97706{% else %}#16a34a{% endif %}">{{ rc.root_cause.label }}</h5>
+        <p class="small mb-0 text-muted">{{ rc.root_cause.detail }}</p>
+      </div>
+      <div class="row g-0">
+        <div class="col-md-6 p-4" style="border-right:1px solid #f1f5f9">
+          <div class="d-flex align-items-start gap-2 mb-1">
+            <i class="fas fa-bullseye text-primary mt-1"></i>
+            <div>
+              <div class="small fw-bold text-uppercase text-muted" style="letter-spacing:.05em">Fix Priority</div>
+              <div class="small mt-1">{{ rc.fix_priority }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 p-4">
+          <div class="d-flex align-items-start gap-2 mb-1">
+            <i class="fas fa-arrow-trend-up text-success mt-1"></i>
+            <div>
+              <div class="small fw-bold text-uppercase text-muted" style="letter-spacing:.05em">Potential Upside</div>
+              <div class="small mt-1">{{ rc.potential_upside }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="px-4 pb-4 pt-0">
+        <div class="d-flex gap-2 flex-wrap">
+          <span class="badge" style="background:#f1f5f9;color:#475569;font-weight:600;padding:6px 12px">Win Rate: {{ rc.win_rate }}%</span>
+          <span class="badge" style="background:#f1f5f9;color:#475569;font-weight:600;padding:6px 12px">R:R Ratio: {{ rc.rr }}:1</span>
+          <span class="badge" style="background:#f1f5f9;color:#475569;font-weight:600;padding:6px 12px">Avg Win: ₹{{ '{:,.0f}'.format(rc.avg_win) }}</span>
+          <span class="badge" style="background:#f1f5f9;color:#475569;font-weight:600;padding:6px 12px">Avg Loss: ₹{{ '{:,.0f}'.format(rc.avg_loss | abs) }}</span>
+          <span class="badge" style="background:#f1f5f9;color:#475569;font-weight:600;padding:6px 12px">Breakeven R:R: {{ rc.breakeven_rr }}:1</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="row g-4">
 
     <!-- Win Rate Card -->

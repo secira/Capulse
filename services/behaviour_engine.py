@@ -1624,6 +1624,375 @@ class BehaviourEngine:
         }
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # CROSS-MODULE INTELLIGENCE
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def get_trading_dna(self):
+        """Classify the user into a trading archetype from all modules combined."""
+        trades = self._get_trades()
+        n = len(trades)
+        if n < 5:
+            return {'has_data': False}
+
+        win_pnl = [t.realized_pnl for t in trades if t.trade_result == 'WIN']
+        loss_pnl = [t.realized_pnl for t in trades if t.trade_result == 'LOSS']
+        avg_win = sum(win_pnl) / len(win_pnl) if win_pnl else 0
+        avg_loss = sum(loss_pnl) / len(loss_pnl) if loss_pnl else 0
+        rr = abs(avg_win / avg_loss) if avg_loss != 0 else 0
+        win_rate = sum(1 for t in trades if t.trade_result == 'WIN') / n * 100
+        total_pnl = sum(t.realized_pnl for t in trades)
+
+        now = datetime.utcnow()
+        month_trades = [t for t in trades if (now - t.entry_time).days <= 30]
+        monthly_count = len(month_trades)
+        activity = 'High' if monthly_count >= 20 else 'Medium' if monthly_count >= 8 else 'Low'
+
+        revenge = self.detect_revenge_trading()
+        overtrade = self.detect_overtrading()
+        panic = self.detect_panic_selling()
+        drift = self.detect_behavioral_drift()
+        overconf = self.detect_overconfidence()
+        loss_av = self.detect_loss_aversion()
+
+        emotional_score = sum([
+            3 if revenge.get('detected') else 0,
+            2 if overtrade.get('detected') else 0,
+            2 if panic.get('detected') else 0,
+            1 if drift.get('detected') else 0,
+            1 if overconf.get('detected') else 0,
+            1 if loss_av.get('detected') else 0,
+        ])
+        emotional_level = 'High' if emotional_score >= 4 else 'Medium' if emotional_score >= 2 else 'Low'
+        rr_quality = 'Good' if rr >= 1.5 else 'Fair' if rr >= 0.9 else 'Poor'
+
+        if activity == 'High' and rr_quality == 'Poor' and emotional_level in ('High', 'Medium'):
+            archetype = 'High-Activity, Low-Reward Trader'
+            summary = f'You trade frequently ({monthly_count}/month) but with a poor {round(rr, 1)}:1 risk-reward, which compounds losses over time.'
+            strength = 'Quick decision-making and high market engagement'
+            weakness = f'Low risk-reward ({round(rr, 1)}:1) negates high trading frequency'
+            key_issue = 'Low risk-reward'
+            priority_fix = 'Cut losers earlier and let winners run — target 1.5:1 minimum'
+        elif emotional_level == 'High' and rr_quality == 'Poor':
+            archetype = 'Emotional Reactive Trader'
+            summary = 'Multiple emotional patterns detected — revenge trading, panic, or drift — combined with poor risk-reward creates a compounding loss engine.'
+            strength = 'High market awareness and quick execution'
+            weakness = 'Emotions consistently override strategy'
+            key_issue = 'Emotional trading patterns'
+            priority_fix = 'Address emotional triggers before improving technical strategy'
+        elif rr_quality == 'Good' and activity in ('Medium', 'High') and emotional_level == 'Low':
+            archetype = 'Disciplined Systematic Trader'
+            summary = f'Good risk-reward ({round(rr, 1)}:1) with disciplined emotional control. Primary focus: improve win rate and scale up.'
+            strength = 'Emotional control and strong risk-reward discipline'
+            weakness = 'Win rate improvement needed' if win_rate < 50 else 'Maintain consistency while scaling'
+            key_issue = 'Optimize win rate'
+            priority_fix = 'Focus on high-probability setups and position sizing'
+        elif loss_av.get('detected') and panic.get('detected'):
+            archetype = 'Fearful Speculator'
+            summary = 'You hold losing positions too long (loss aversion) but panic-exit others early — the worst combination of both fear responses.'
+            strength = 'Patience on some positions'
+            weakness = 'Fear distorts hold times in both directions'
+            key_issue = 'Inconsistent fear response'
+            priority_fix = 'Set mechanical stop-losses to remove emotion from exit decisions'
+        elif activity == 'Low' and emotional_level == 'Low' and rr_quality != 'Good':
+            archetype = 'Cautious Underperformer'
+            summary = f'Low trading frequency with poor risk-reward ({round(rr, 1)}:1) — careful but not yet capturing enough upside per trade.'
+            strength = 'Controlled, low-frequency approach'
+            weakness = f'Risk-reward of {round(rr, 1)}:1 needs improvement before scaling'
+            key_issue = 'Risk-reward too low'
+            priority_fix = 'Keep trade count low, but improve position exit discipline'
+        elif drift.get('detected') and overconf.get('detected'):
+            archetype = 'Overconfident Drifter'
+            summary = 'Your strategy keeps changing (drift) and winning streaks push you toward oversized positions — a volatile and costly combination.'
+            strength = 'Adaptable and energetic market participant'
+            weakness = 'No stable strategy + oversizing on winning streaks'
+            key_issue = 'Strategy instability'
+            priority_fix = 'Commit to one strategy for 3 months before evaluating'
+        else:
+            archetype = 'Developing Systematic Trader'
+            summary = 'You are building trading habits with some inconsistencies. A clear pattern has not fully emerged — this is a critical decision point.'
+            strength = 'Self-awareness and willingness to improve'
+            weakness = 'Needs consistent strategy and risk-reward improvement'
+            key_issue = 'Consistency'
+            priority_fix = 'Pick one strategy, track it rigorously, and review weekly'
+
+        return {
+            'has_data': True,
+            'archetype': archetype,
+            'summary': summary,
+            'strength': strength,
+            'weakness': weakness,
+            'key_issue': key_issue,
+            'priority_fix': priority_fix,
+            'activity': activity,
+            'monthly_trades': monthly_count,
+            'rr': round(rr, 1),
+            'rr_quality': rr_quality,
+            'win_rate': round(win_rate, 1),
+            'emotional_level': emotional_level,
+            'total_pnl': round(total_pnl, 2),
+            'detected_patterns': {
+                'revenge': revenge.get('detected'),
+                'overtrade': overtrade.get('detected'),
+                'panic': panic.get('detected'),
+                'drift': drift.get('detected'),
+                'overconf': overconf.get('detected'),
+                'loss_aversion': loss_av.get('detected'),
+            },
+        }
+
+    def get_cross_module_correlations(self):
+        """Detect causal chains between behavior, performance, and psychology."""
+        trades = self._get_trades()
+        if len(trades) < 5:
+            return []
+
+        win_pnl = [t.realized_pnl for t in trades if t.trade_result == 'WIN']
+        loss_pnl = [t.realized_pnl for t in trades if t.trade_result == 'LOSS']
+        avg_win = sum(win_pnl) / len(win_pnl) if win_pnl else 0
+        avg_loss = sum(loss_pnl) / len(loss_pnl) if loss_pnl else 0
+        rr = abs(avg_win / avg_loss) if avg_loss != 0 else 0
+        total_pnl = sum(t.realized_pnl for t in trades)
+        n = len(trades)
+        win_rate = sum(1 for t in trades if t.trade_result == 'WIN') / n * 100
+
+        overtrade = self.detect_overtrading()
+        revenge = self.detect_revenge_trading()
+        panic = self.detect_panic_selling()
+        drift = self.detect_behavioral_drift()
+        overconf = self.detect_overconfidence()
+        loss_av = self.detect_loss_aversion()
+
+        correlations = []
+
+        if overtrade.get('detected') and rr < 1:
+            correlations.append({
+                'type': 'critical',
+                'cause': 'Overtrading',
+                'cause_module': 'Behavior',
+                'effect': f'Low risk-reward ({round(rr, 1)}:1)',
+                'effect_module': 'Performance',
+                'outcome': 'Net losses from rushed exits',
+                'chain': f'High trading frequency forces rushed exits — cutting winners short while letting losers run. This compresses your R:R to {round(rr, 1)}:1 and makes profitability mathematically impossible.',
+                'fix': 'Limit to your top 2–3 setups per day. Quality over quantity.',
+                'icon': 'fas fa-fire',
+                'color': '#ef4444',
+            })
+
+        if revenge.get('detected') and total_pnl < 0:
+            correlations.append({
+                'type': 'critical',
+                'cause': 'Revenge Trading',
+                'cause_module': 'Psychology',
+                'effect': 'Amplified losses',
+                'effect_module': 'Performance',
+                'outcome': f'Net P&L ₹{round(total_pnl):,}',
+                'chain': 'Each loss triggers an unplanned recovery trade. These revenge trades have lower win rates and are entered without proper setups — each one compounds the original loss.',
+                'fix': 'After any loss, implement a mandatory 30-minute break. No exceptions.',
+                'icon': 'fas fa-redo',
+                'color': '#ef4444',
+            })
+
+        if panic.get('detected') and loss_av.get('detected'):
+            correlations.append({
+                'type': 'critical',
+                'cause': 'Panic Selling + Loss Aversion',
+                'cause_module': 'Psychology',
+                'effect': 'Inverted hold times',
+                'effect_module': 'Performance',
+                'outcome': 'Winners cut short, losers held long',
+                'chain': 'You exit winning trades quickly (panic) but hold losing trades too long hoping they recover (loss aversion). This directly destroys risk-reward and is the most common retail trading mistake.',
+                'fix': 'Set mechanical stop-loss and take-profit levels before every entry. Remove the decision from the moment.',
+                'icon': 'fas fa-random',
+                'color': '#ef4444',
+            })
+
+        if drift.get('detected') and win_rate < 45:
+            correlations.append({
+                'type': 'warning',
+                'cause': 'Behavioral Drift',
+                'cause_module': 'Psychology',
+                'effect': f'Low win rate ({round(win_rate, 1)}%)',
+                'effect_module': 'Performance',
+                'outcome': 'Inconsistent results',
+                'chain': f'Strategy kept changing — win rate shifted {drift.get("wr_change", 0)}pp between your early and recent trades. Switching strategies prevents you from learning which approach actually works.',
+                'fix': 'Commit to one strategy for a minimum of 50 trades before evaluating its effectiveness.',
+                'icon': 'fas fa-wind',
+                'color': '#f59e0b',
+            })
+
+        if overconf.get('detected') and rr < 1.5:
+            correlations.append({
+                'type': 'warning',
+                'cause': 'Overconfidence after wins',
+                'cause_module': 'Psychology',
+                'effect': 'Oversized losing positions',
+                'effect_module': 'Portfolio',
+                'outcome': 'Large drawdowns after win streaks',
+                'chain': 'After winning streaks, position size increases significantly — exactly when mean reversion is most likely. These oversized trades produce outsized losses that offset multiple small wins.',
+                'fix': 'Fix position size as a fixed % of capital. Never adjust it based on recent performance.',
+                'icon': 'fas fa-trophy',
+                'color': '#f59e0b',
+            })
+
+        if not correlations and rr >= 1.5 and win_rate >= 50:
+            correlations.append({
+                'type': 'success',
+                'cause': 'Disciplined Behavior',
+                'cause_module': 'All Modules',
+                'effect': f'Good R:R ({round(rr, 1)}:1) + {round(win_rate, 1)}% win rate',
+                'effect_module': 'Performance',
+                'outcome': 'Positive expectancy',
+                'chain': 'Your behavioral discipline — low emotional trading and consistent strategy — is directly contributing to a positive expectancy per trade. This is the foundation for compounding.',
+                'fix': 'Protect this by maintaining position sizing discipline and not deviating from your strategy during drawdowns.',
+                'icon': 'fas fa-medal',
+                'color': '#22c55e',
+            })
+
+        return correlations[:4]
+
+    def get_performance_root_cause(self):
+        """Root cause, fix priority, and potential upside for the performance screen."""
+        trades = self._get_trades()
+        if len(trades) < 5:
+            return None
+
+        win_pnl = [t.realized_pnl for t in trades if t.trade_result == 'WIN']
+        loss_pnl = [t.realized_pnl for t in trades if t.trade_result == 'LOSS']
+        avg_win = sum(win_pnl) / len(win_pnl) if win_pnl else 0
+        avg_loss = sum(loss_pnl) / len(loss_pnl) if loss_pnl else 0
+        rr = abs(avg_win / avg_loss) if avg_loss != 0 else 0
+        n = len(trades)
+        wins = sum(1 for t in trades if t.trade_result == 'WIN')
+        win_rate = wins / n * 100
+        total_pnl = sum(t.realized_pnl for t in trades)
+        breakeven_rr = (1 - win_rate / 100) / (win_rate / 100) if win_rate > 0 else 99
+        breakeven_wr = (1 / (1 + rr)) * 100 if rr > 0 else 99
+
+        if rr < 1 and total_pnl < 0:
+            root_cause = {
+                'label': 'Low Risk-Reward Ratio',
+                'detail': f'Your {round(rr, 1)}:1 R:R means you need to win {round(breakeven_wr)}%+ of trades to break even — but you\'re winning {round(win_rate)}%.',
+                'severity': 'critical',
+            }
+            fix_priority = f'Fix risk-reward before working on win rate. R:R must exceed {round(breakeven_rr, 1)}:1 to make your current {round(win_rate)}% win rate profitable.'
+            if avg_loss != 0:
+                target_rr = 1.5
+                target_avg_win = abs(avg_loss) * target_rr
+                cur_exp = win_rate / 100 * avg_win + (1 - win_rate / 100) * avg_loss
+                tgt_exp = win_rate / 100 * target_avg_win + (1 - win_rate / 100) * avg_loss
+                if cur_exp < 0 and tgt_exp > 0:
+                    potential_upside = f'Improving R:R from {round(rr, 1)} → 1.5 flips expectancy from ₹{round(cur_exp):,} to ₹{round(tgt_exp):+,} per trade.'
+                elif cur_exp != 0:
+                    mult = round(abs(tgt_exp / cur_exp), 1)
+                    potential_upside = f'Improving R:R from {round(rr, 1)} → 1.5 could increase expected return by approximately {mult}x per trade.'
+                else:
+                    potential_upside = 'Even a modest improvement in risk-reward will have a compounding positive effect on P&L.'
+            else:
+                potential_upside = 'Improving risk-reward from current level to 1.5:1 is achievable by setting tighter stop-losses and wider take-profits.'
+
+        elif win_rate < 40 and total_pnl < 0:
+            root_cause = {
+                'label': 'Low Win Rate',
+                'detail': f'Only {round(win_rate)}% of trades are profitable. With your {round(rr, 1)}:1 R:R, you need at least {round(breakeven_wr)}% wins to break even.',
+                'severity': 'critical',
+            }
+            fix_priority = f'Focus on trade selection quality — fewer, higher-quality setups targeting {round(breakeven_wr) + 5}%+ win rate'
+            tgt_pnl = (0.5 * avg_win + 0.5 * avg_loss) * n
+            potential_upside = f'Improving win rate from {round(win_rate)}% → 50% could generate ₹{round(tgt_pnl):,} in expected P&L across {n} trades.'
+
+        elif rr < 0.8 and win_rate < 55:
+            root_cause = {
+                'label': 'Compound Weakness — Both Metrics Below Threshold',
+                'detail': f'{round(win_rate)}% win rate AND {round(rr, 1)}:1 R:R are both below minimum thresholds — compounding each other and accelerating losses.',
+                'severity': 'critical',
+            }
+            fix_priority = 'Address risk-reward first (faster to improve), then win rate — fixing exits is easier than fixing entries'
+            potential_upside = 'Improving either metric by 30% will significantly improve profitability. Both are learnable with the right framework.'
+
+        elif total_pnl >= 0 and rr >= 1.5:
+            root_cause = {
+                'label': 'No Critical Issue — Strategy Working',
+                'detail': f'Positive P&L of ₹{round(total_pnl):,} with {round(rr, 1)}:1 R:R and {round(win_rate)}% win rate. Focus is now on consistency and scaling.',
+                'severity': 'good',
+            }
+            fix_priority = 'Maintain and scale — do not deviate from what is working. Focus on consistency before increasing position size.'
+            potential_upside = f'Scaling to 20% larger positions on your top-conviction setups could increase monthly P&L by ~20% without additional risk.'
+
+        else:
+            root_cause = {
+                'label': 'Suboptimal Risk-Reward',
+                'detail': f'Risk-reward of {round(rr, 1)}:1 is below the ideal 2:1. Performance will improve quickly as this improves.',
+                'severity': 'warning',
+            }
+            fix_priority = 'Target 1.5:1 minimum R:R — cut losers at -1R, let winners run to +2R before exiting'
+            potential_upside = f'Moving average R:R from {round(rr, 1)} → 2.0 could increase returns by 40–60% with the same win rate.'
+
+        return {
+            'root_cause': root_cause,
+            'fix_priority': fix_priority,
+            'potential_upside': potential_upside,
+            'win_rate': round(win_rate, 1),
+            'rr': round(rr, 2),
+            'avg_win': round(avg_win, 2),
+            'avg_loss': round(avg_loss, 2),
+            'total_pnl': round(total_pnl, 2),
+            'breakeven_rr': round(breakeven_rr, 2),
+            'breakeven_wr': round(breakeven_wr, 1),
+        }
+
+    def get_psychology_narratives(self):
+        """Emotional narrative + trigger detection + self-awareness for each psychology module."""
+        trades = self._get_trades()
+        narratives = {}
+
+        drift = self.detect_behavioral_drift()
+        panic = self.detect_panic_selling()
+        overconf = self.detect_overconfidence()
+        loss_av = self.detect_loss_aversion()
+
+        if drift.get('detected'):
+            half = len(trades) // 2
+            trigger_trade = trades[half] if half < len(trades) else None
+            trigger_date = trigger_trade.entry_time.strftime('%d %b %Y') if trigger_trade else 'mid-period'
+            wr_change = drift.get('wr_change', 0)
+            size_change = round(drift.get('size_change', 0))
+            narratives['behavioral_drift'] = {
+                'narrative': f'Your trading changed significantly around {trigger_date} — win rate shifted {wr_change}pp and position size changed {size_change}%. This suggests emotional decisions (not strategic adjustments) began overriding your original plan.',
+                'trigger': f'Behavioral shift detected starting around {trigger_date}.',
+                'self_awareness': 'Was this change intentional (planned strategy update) or emotional (reacting to a losing streak)? If unplanned, this is behavioral drift — the silent capital destroyer.',
+            }
+
+        if panic.get('detected'):
+            panics = sorted(
+                [t for t in trades if t.exit_reason == 'MANUAL' and t.trade_result == 'LOSS' and t.holding_period_hours <= 2],
+                key=lambda x: x.exit_time, reverse=True
+            )
+            trigger_date = panics[0].exit_time.strftime('%d %b %Y') if panics else 'recently'
+            narratives['panic_selling'] = {
+                'narrative': f'You exited {panic["count"]} trade(s) within 2 hours at a loss — driven by fear of further downside. The most recent panic exit was on {trigger_date}. These exits typically happen at the worst possible price, locking in losses that would have recovered.',
+                'trigger': f'Most recent panic exit: {trigger_date}.',
+                'self_awareness': 'Ask yourself: Was the original thesis for this trade actually invalidated — or were you just uncomfortable with an unrealized loss?',
+            }
+
+        if overconf.get('detected'):
+            narratives['fomo'] = {
+                'narrative': f'After winning streaks, your position size jumped significantly ({overconf["count"]} instance(s)). This is classic overconfidence — past wins feel like proof of skill, but markets do not reward yesterday\'s results.',
+                'trigger': 'Triggered after consecutive winning trades — each streak makes the next oversized bet more likely.',
+                'self_awareness': 'Would you take the same position size if your last 3 trades were losses? If not, emotions are driving your sizing decisions — not strategy.',
+            }
+
+        if loss_av.get('detected'):
+            avg_loss_hold = loss_av.get('avg_loss_hold', 0)
+            avg_win_hold = loss_av.get('avg_win_hold', 0)
+            narratives['loss_aversion'] = {
+                'narrative': f'You hold losing positions {avg_loss_hold:.1f}h on average vs {avg_win_hold:.1f}h for winners. This asymmetry — cutting winners early and holding losers long — is loss aversion in action. It directly destroys your risk-reward ratio.',
+                'trigger': 'Pattern detected across multiple trades — specifically the duration asymmetry between wins and losses.',
+                'self_awareness': 'When a stop-loss level is reached, is there a new, specific reason to stay in the trade — or are you just hoping it will recover? Hope is not a strategy.',
+            }
+
+        return narratives
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # FULL ANALYSIS (overview)
     # ═══════════════════════════════════════════════════════════════════════════
 
