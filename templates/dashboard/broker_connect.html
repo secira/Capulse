@@ -1,0 +1,497 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block title %}Connect Broker - Target Capital{% endblock %}
+{% block dashboard_title %}Connect Your Broker{% endblock %}
+{% block dashboard_subtitle %}Link your trading account to access live portfolio data and place orders{% endblock %}
+
+{% block dashboard_content %}
+<div class="container-fluid px-0">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show mx-3 mb-4" role="alert">
+          <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }} me-2"></i>{{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-10">
+
+      <!-- Hero Banner -->
+      <div class="broker-hero mb-4">
+        <div class="d-flex align-items-center gap-3">
+          <div class="hero-icon">
+            <i class="fas fa-shield-alt"></i>
+          </div>
+          <div>
+            <h5 class="mb-1 fw-semibold">Secure broker connection</h5>
+            <p class="mb-0 text-muted small">
+              We use official OAuth APIs — your password is never stored.
+              Read-only data access unless you explicitly place a trade.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Primary Broker: Zerodha -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body p-4">
+          <div class="row align-items-center">
+            <div class="col-md-6">
+              <div class="d-flex align-items-center gap-3 mb-3 mb-md-0">
+                <div class="broker-logo-lg zerodha-logo d-flex align-items-center justify-content-center">
+                  <span class="broker-letter">Z</span>
+                </div>
+                <div>
+                  <h4 class="mb-0 fw-bold">Zerodha</h4>
+                  <p class="text-muted mb-0 small">India's largest broker · KiteConnect OAuth</p>
+                  {% set zerodha = broker_catalog | selectattr('type.value', 'equalto', 'zerodha') | first %}
+                  {% if zerodha and zerodha.account and zerodha.account.connection_status == 'connected' %}
+                    <span class="badge bg-success mt-1"><i class="fas fa-circle me-1" style="font-size:7px;vertical-align:middle"></i>Connected</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6 text-md-end">
+              {% if zerodha and zerodha.account and zerodha.account.connection_status == 'connected' %}
+                <div class="d-flex gap-2 justify-content-md-end">
+                  <a href="{{ url_for('dashboard_live_portfolio') }}" class="btn btn-primary">
+                    <i class="fas fa-chart-line me-2"></i>View Portfolio
+                  </a>
+                  <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug='zerodha') }}" class="d-inline">
+                    <button type="submit" class="btn btn-outline-danger">
+                      <i class="fas fa-unlink me-1"></i>Disconnect
+                    </button>
+                  </form>
+                </div>
+              {% else %}
+                <button class="btn btn-primary btn-lg px-5" data-bs-toggle="modal" data-bs-target="#modal-zerodha">
+                  <i class="fas fa-sign-in-alt me-2"></i>Login with Zerodha
+                </button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Other Brokers Grid -->
+      <h6 class="text-muted text-uppercase fw-semibold small mb-3 px-1">
+        <i class="fas fa-th me-2"></i>More brokers
+      </h6>
+      <div class="row g-3 mb-4">
+
+        <!-- Upstox -->
+        {% set upstox = broker_catalog | selectattr('type.value', 'equalto', 'upstox') | first %}
+        <div class="col-md-4">
+          <div class="card broker-card h-100">
+            <div class="card-body p-3">
+              <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="broker-logo-sm upstox-logo d-flex align-items-center justify-content-center">
+                  <span class="broker-letter-sm">U</span>
+                </div>
+                <div>
+                  <h6 class="mb-0 fw-bold">Upstox</h6>
+                  <small class="text-muted">Tech-first discount broker</small>
+                </div>
+              </div>
+              {% if upstox and upstox.account and upstox.account.connection_status == 'connected' %}
+                <span class="badge bg-success w-100 py-2 mb-2">
+                  <i class="fas fa-check me-1"></i>Connected
+                </span>
+                <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug='upstox') }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                    <i class="fas fa-unlink me-1"></i>Disconnect
+                  </button>
+                </form>
+              {% else %}
+                <button class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#modal-upstox">
+                  <i class="fas fa-plug me-2"></i>Connect Upstox
+                </button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Angel One -->
+        {% set angel = broker_catalog | selectattr('type.value', 'equalto', 'angel_broking') | first %}
+        <div class="col-md-4">
+          <div class="card broker-card h-100">
+            <div class="card-body p-3">
+              <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="broker-logo-sm angel-logo d-flex align-items-center justify-content-center">
+                  <span class="broker-letter-sm">A</span>
+                </div>
+                <div>
+                  <h6 class="mb-0 fw-bold">Angel One</h6>
+                  <small class="text-muted">Full-service · TOTP login</small>
+                </div>
+              </div>
+              {% if angel and angel.account and angel.account.connection_status == 'connected' %}
+                <span class="badge bg-success w-100 py-2 mb-2">
+                  <i class="fas fa-check me-1"></i>Connected
+                </span>
+                <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug='angel_broking') }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                    <i class="fas fa-unlink me-1"></i>Disconnect
+                  </button>
+                </form>
+              {% else %}
+                <button class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#modal-angel">
+                  <i class="fas fa-plug me-2"></i>Connect Angel One
+                </button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- ICICI Direct -->
+        {% set icici = broker_catalog | selectattr('type.value', 'equalto', 'icicidirect') | first %}
+        <div class="col-md-4">
+          <div class="card broker-card h-100">
+            <div class="card-body p-3">
+              <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="broker-logo-sm icici-logo d-flex align-items-center justify-content-center">
+                  <span class="broker-letter-sm">I</span>
+                </div>
+                <div>
+                  <h6 class="mb-0 fw-bold">ICICI Direct</h6>
+                  <small class="text-muted">Breeze Connect OAuth</small>
+                </div>
+              </div>
+              {% if icici and icici.account and icici.account.connection_status == 'connected' %}
+                <span class="badge bg-success w-100 py-2 mb-2">
+                  <i class="fas fa-check me-1"></i>Connected
+                </span>
+                <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug='icicidirect') }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                    <i class="fas fa-unlink me-1"></i>Disconnect
+                  </button>
+                </form>
+              {% else %}
+                <button class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#modal-icici">
+                  <i class="fas fa-plug me-2"></i>Connect ICICI Direct
+                </button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- How it works -->
+      <div class="card bg-light border-0 mb-4">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-3"><i class="fas fa-info-circle text-primary me-2"></i>How broker connection works</h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <div class="d-flex gap-2">
+                <div class="step-num">1</div>
+                <div>
+                  <div class="fw-semibold small">Enter your API credentials</div>
+                  <div class="text-muted small">Found in your broker's developer console</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="d-flex gap-2">
+                <div class="step-num">2</div>
+                <div>
+                  <div class="fw-semibold small">Authorise on broker's site</div>
+                  <div class="text-muted small">You log in directly on the broker's secure page</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="d-flex gap-2">
+                <div class="step-num">3</div>
+                <div>
+                  <div class="fw-semibold small">Token stored securely</div>
+                  <div class="text-muted small">Encrypted and scoped to read portfolio + trade</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ─── Modals ───────────────────────────────────────────────────────────── -->
+
+<!-- Zerodha Modal -->
+<div class="modal fade" id="modal-zerodha" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <div class="broker-logo-sm zerodha-logo d-flex align-items-center justify-content-center">
+            <span class="broker-letter-sm">Z</span>
+          </div>
+          <div>
+            <h5 class="modal-title mb-0">Connect Zerodha</h5>
+            <small class="text-muted">KiteConnect OAuth</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('broker_oauth.auth_zerodha') }}">
+        <div class="modal-body pt-3">
+          <div class="alert alert-info small mb-3">
+            <i class="fas fa-lightbulb me-1"></i>
+            Go to <a href="https://developers.kite.trade/apps" target="_blank">developers.kite.trade</a>,
+            create an app, and paste your credentials below.
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">API Key <span class="text-danger">*</span></label>
+            <input type="text" name="api_key" class="form-control" placeholder="e.g. xxxyyy123" required autocomplete="off">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">API Secret <span class="text-danger">*</span></label>
+            <input type="password" name="api_secret" class="form-control" placeholder="Your Kite API secret" required autocomplete="off">
+          </div>
+          <p class="text-muted small mb-0">
+            <i class="fas fa-lock me-1 text-success"></i>
+            You will be redirected to Zerodha to complete login. We never see your trading password.
+          </p>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary px-4">
+            <i class="fas fa-sign-in-alt me-2"></i>Continue to Zerodha
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Upstox Modal -->
+<div class="modal fade" id="modal-upstox" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <div class="broker-logo-sm upstox-logo d-flex align-items-center justify-content-center">
+            <span class="broker-letter-sm">U</span>
+          </div>
+          <div>
+            <h5 class="modal-title mb-0">Connect Upstox</h5>
+            <small class="text-muted">Upstox v2 API OAuth</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('broker_oauth.auth_upstox') }}">
+        <div class="modal-body pt-3">
+          <div class="alert alert-info small mb-3">
+            <i class="fas fa-lightbulb me-1"></i>
+            Create an app at <a href="https://developer.upstox.com" target="_blank">developer.upstox.com</a> and set the redirect URI to
+            <code>{{ request.host_url.rstrip('/') }}/broker/callback/upstox</code>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">API Key (Client ID) <span class="text-danger">*</span></label>
+            <input type="text" name="api_key" class="form-control" placeholder="Your Upstox API key" required autocomplete="off">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">API Secret <span class="text-danger">*</span></label>
+            <input type="password" name="api_secret" class="form-control" placeholder="Your Upstox API secret" required autocomplete="off">
+          </div>
+          <p class="text-muted small mb-0">
+            <i class="fas fa-lock me-1 text-success"></i>
+            You will be redirected to Upstox to authorise access. We never store your password.
+          </p>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary px-4">
+            <i class="fas fa-sign-in-alt me-2"></i>Continue to Upstox
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Angel One Modal -->
+<div class="modal fade" id="modal-angel" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <div class="broker-logo-sm angel-logo d-flex align-items-center justify-content-center">
+            <span class="broker-letter-sm">A</span>
+          </div>
+          <div>
+            <h5 class="modal-title mb-0">Connect Angel One</h5>
+            <small class="text-muted">SmartAPI · TOTP-based</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('broker_oauth.auth_angel') }}">
+        <div class="modal-body pt-3">
+          <div class="alert alert-info small mb-3">
+            <i class="fas fa-lightbulb me-1"></i>
+            Get your credentials from <a href="https://smartapi.angelbroking.com" target="_blank">smartapi.angelbroking.com</a>.
+            You need to have TOTP enabled on your account.
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Client ID <span class="text-danger">*</span></label>
+            <input type="text" name="client_id" class="form-control" placeholder="Angel One Client ID" required autocomplete="off">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">API Key <span class="text-danger">*</span></label>
+            <input type="text" name="api_key" class="form-control" placeholder="SmartAPI key" required autocomplete="off">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Trading Password <span class="text-danger">*</span></label>
+            <input type="password" name="password" class="form-control" placeholder="Your trading/PIN password" required autocomplete="off">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">TOTP Secret Key <span class="text-danger">*</span></label>
+            <input type="text" name="totp_secret" class="form-control" placeholder="Base32 TOTP secret" required autocomplete="off">
+            <div class="form-text">Found in Angel One app under Profile → Security → Authenticator App setup</div>
+          </div>
+          <p class="text-muted small mb-0">
+            <i class="fas fa-lock me-1 text-success"></i>
+            Credentials are encrypted with AES-256 before storage.
+          </p>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary px-4">
+            <i class="fas fa-plug me-2"></i>Connect Angel One
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ICICI Direct Modal -->
+<div class="modal fade" id="modal-icici" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <div class="broker-logo-sm icici-logo d-flex align-items-center justify-content-center">
+            <span class="broker-letter-sm">I</span>
+          </div>
+          <div>
+            <h5 class="modal-title mb-0">Connect ICICI Direct</h5>
+            <small class="text-muted">Breeze Connect OAuth</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('broker_oauth.auth_icici') }}">
+        <div class="modal-body pt-3">
+          <div class="alert alert-info small mb-3">
+            <i class="fas fa-lightbulb me-1"></i>
+            Register at <a href="https://api.icicidirect.com" target="_blank">api.icicidirect.com</a> and
+            add <code>{{ request.host_url.rstrip('/') }}/broker/callback/icici</code> as your redirect URL.
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">App Key <span class="text-danger">*</span></label>
+            <input type="text" name="api_key" class="form-control" placeholder="Breeze App Key" required autocomplete="off">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">App Secret <span class="text-danger">*</span></label>
+            <input type="password" name="api_secret" class="form-control" placeholder="Breeze App Secret" required autocomplete="off">
+          </div>
+          <p class="text-muted small mb-0">
+            <i class="fas fa-lock me-1 text-success"></i>
+            You will be redirected to ICICI Direct to complete login.
+          </p>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary px-4">
+            <i class="fas fa-sign-in-alt me-2"></i>Continue to ICICI Direct
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<style>
+.broker-hero {
+  background: linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%);
+  border: 1px solid #e0e7ff;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+.hero-icon {
+  width: 48px;
+  height: 48px;
+  background: #4f46e5;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+.broker-logo-lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  flex-shrink: 0;
+}
+.broker-logo-sm {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.broker-letter {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: white;
+  line-height: 1;
+}
+.broker-letter-sm {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: white;
+  line-height: 1;
+}
+.zerodha-logo { background: #387ed1; }
+.upstox-logo  { background: #5a3fc0; }
+.angel-logo   { background: #e03c31; }
+.icici-logo   { background: #c41230; }
+
+.broker-card {
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.broker-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+.step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #4f46e5;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+</style>
+{% endblock %}

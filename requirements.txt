@@ -58,3 +58,4 @@ langgraph>=1.0.2
 Flask-Mail
 anthropic
 gTTS
+breeze-connect

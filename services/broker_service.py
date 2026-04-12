@@ -1105,6 +1105,364 @@ class AngelBrokerClient(BaseBrokerClient):
         return normalized
 
 
+class UpstoxBrokerClient(BaseBrokerClient):
+    """Upstox v2 REST API broker client — no external SDK required"""
+
+    UPSTOX_BASE = "https://api.upstox.com/v2"
+
+    def __init__(self, broker_account: BrokerAccount):
+        super().__init__(broker_account)
+        self._headers: Dict[str, str] = {}
+
+    def connect(self) -> bool:
+        try:
+            access_token = self.credentials.get('access_token')
+            if not access_token:
+                raise BrokerAPIError("Missing Upstox access token")
+            self._headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/json",
+            }
+            profile = self._request("GET", "/user/profile")
+            if profile and profile.get("data", {}).get("user_id"):
+                self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
+                logger.info("Connected to Upstox successfully")
+                return True
+            raise BrokerAPIError("Invalid Upstox profile response")
+        except Exception as e:
+            self.broker_account.update_connection_status(ConnectionStatus.ERROR, str(e))
+            logger.error(f"Upstox connect error: {e}")
+            return False
+
+    def _request(self, method: str, path: str, **kwargs) -> Dict:
+        url = f"{self.UPSTOX_BASE}{path}"
+        resp = requests.request(method, url, headers=self._headers, timeout=10, **kwargs)
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_holdings(self) -> List[Dict]:
+        data = self._request("GET", "/portfolio/long-term-holdings")
+        return [self._normalize_holding(h) for h in (data.get("data") or [])]
+
+    def _normalize_holding(self, h: Dict) -> Dict:
+        qty = float(h.get("quantity", 0))
+        avg = float(h.get("average_price", 0))
+        ltp = float(h.get("last_price", 0))
+        return {
+            "symbol": h.get("trading_symbol", ""),
+            "trading_symbol": h.get("trading_symbol", ""),
+            "exchange": h.get("exchange", "NSE"),
+            "isin": h.get("isin", ""),
+            "total_quantity": qty,
+            "available_quantity": qty,
+            "avg_cost_price": avg,
+            "current_price": ltp,
+            "current_value": qty * ltp,
+            "invested_value": qty * avg,
+            "pnl": (ltp - avg) * qty,
+            "pnl_percentage": ((ltp - avg) / avg * 100) if avg else 0,
+            "product_type": h.get("product", "CNC"),
+        }
+
+    def get_positions(self) -> List[Dict]:
+        data = self._request("GET", "/portfolio/short-term-positions")
+        return [self._normalize_position(p) for p in (data.get("data") or [])]
+
+    def _normalize_position(self, p: Dict) -> Dict:
+        buy_qty = float(p.get("buy_quantity", 0))
+        sell_qty = float(p.get("sell_quantity", 0))
+        net_qty = float(p.get("quantity", 0))
+        buy_avg = float(p.get("buy_average_price", 0))
+        sell_avg = float(p.get("sell_average_price", 0))
+        ltp = float(p.get("last_price", 0))
+        pnl = float(p.get("pnl", 0))
+        return {
+            "symbol": p.get("trading_symbol", ""),
+            "trading_symbol": p.get("trading_symbol", ""),
+            "exchange": p.get("exchange", "NSE"),
+            "net_quantity": net_qty,
+            "buy_quantity": buy_qty,
+            "sell_quantity": sell_qty,
+            "buy_average_price": buy_avg,
+            "sell_average_price": sell_avg,
+            "current_price": ltp,
+            "pnl": pnl,
+            "product_type": p.get("product", "I"),
+            "value": net_qty * ltp,
+        }
+
+    def get_orders(self) -> List[Dict]:
+        data = self._request("GET", "/order/retrieve-all")
+        return [self._normalize_order(o) for o in (data.get("data") or [])]
+
+    def _normalize_order(self, o: Dict) -> Dict:
+        return {
+            "order_id": o.get("order_id", ""),
+            "symbol": o.get("trading_symbol", ""),
+            "trading_symbol": o.get("trading_symbol", ""),
+            "exchange": o.get("exchange", "NSE"),
+            "transaction_type": o.get("transaction_type", "BUY").upper(),
+            "order_type": o.get("order_type", "MARKET").upper(),
+            "product_type": o.get("product", "I"),
+            "quantity": float(o.get("quantity", 0)),
+            "price": float(o.get("price", 0)),
+            "trigger_price": float(o.get("trigger_price", 0)),
+            "status": o.get("status", "").upper(),
+            "order_timestamp": o.get("order_timestamp"),
+        }
+
+    def get_trade_history(self, from_date=None, to_date=None) -> List[Dict]:
+        data = self._request("GET", "/order/trades/get-trades-for-day")
+        return [self._normalize_trade(t) for t in (data.get("data") or [])]
+
+    def _normalize_trade(self, t: Dict) -> Dict:
+        qty = float(t.get("quantity", 0))
+        price = float(t.get("average_price", 0))
+        return {
+            "symbol": t.get("trading_symbol", ""),
+            "trading_symbol": t.get("trading_symbol", ""),
+            "exchange": t.get("exchange", "NSE"),
+            "security_id": t.get("instrument_token", ""),
+            "transaction_type": t.get("transaction_type", "BUY").upper(),
+            "product_type": t.get("product", "I"),
+            "order_type": "MARKET",
+            "quantity": qty,
+            "price": price,
+            "trade_value": qty * price,
+            "trade_id": t.get("trade_id", ""),
+            "order_id": t.get("order_id", ""),
+            "trade_date": datetime.utcnow(),
+            "broker_name": "Upstox",
+        }
+
+    def place_order(self, order_data: Dict) -> Dict:
+        payload = {
+            "quantity": int(order_data.get("quantity", 1)),
+            "product": order_data.get("product_type", "I"),
+            "validity": "DAY",
+            "price": float(order_data.get("price", 0)),
+            "tag": "TargetCapital",
+            "instrument_token": order_data.get("instrument_token", ""),
+            "order_type": order_data.get("order_type", "MARKET").upper(),
+            "transaction_type": order_data.get("transaction_type", "BUY").upper(),
+            "disclosed_quantity": 0,
+            "trigger_price": float(order_data.get("trigger_price", 0)),
+            "is_amo": False,
+        }
+        resp = self._request("POST", "/order/place", json=payload)
+        return {"status": "success", "order_id": resp.get("data", {}).get("order_id"), "message": "Order placed"}
+
+    def cancel_order(self, order_id: str) -> Dict:
+        resp = self._request("DELETE", f"/order/cancel?order_id={order_id}")
+        return {"status": "success", "message": resp.get("message", "Order cancelled")}
+
+    def get_profile(self) -> Dict:
+        data = self._request("GET", "/user/profile")
+        d = data.get("data", {})
+        return {
+            "user_id": d.get("user_id", ""),
+            "user_name": d.get("user_name", ""),
+            "email": d.get("email", ""),
+            "broker": "Upstox",
+        }
+
+
+class ICICIBrokerClient(BaseBrokerClient):
+    """ICICI Direct Breeze Connect broker client"""
+
+    def __init__(self, broker_account: BrokerAccount):
+        super().__init__(broker_account)
+        try:
+            from breeze_connect import BreezeConnect
+            self._BreezeConnect = BreezeConnect
+        except ImportError:
+            raise BrokerAPIError("breeze-connect not installed. Run: pip install breeze-connect")
+
+    def connect(self) -> bool:
+        try:
+            app_key = self.credentials.get('client_id')
+            session_token = self.credentials.get('access_token')
+            app_secret = self.credentials.get('api_secret')
+            if not all([app_key, session_token, app_secret]):
+                raise BrokerAPIError("Missing ICICI Direct credentials (app_key, session_token, app_secret)")
+            self._client = self._BreezeConnect(api_key=app_key)
+            self._client.generate_session(api_secret=app_secret, session_token=session_token)
+            profile = self._client.get_customer_details(api_session=session_token)
+            if profile and profile.get("Success"):
+                self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
+                logger.info("Connected to ICICI Direct Breeze")
+                return True
+            raise BrokerAPIError("ICICI Direct auth failed")
+        except Exception as e:
+            self.broker_account.update_connection_status(ConnectionStatus.ERROR, str(e))
+            logger.error(f"ICICI Direct connect error: {e}")
+            return False
+
+    def _ensure_connected(self):
+        if not self._client:
+            raise BrokerAPIError("Not connected to ICICI Direct")
+
+    def get_holdings(self) -> List[Dict]:
+        self._ensure_connected()
+        try:
+            resp = self._client.get_portfolio_holdings()
+            return [self._normalize_holding(h) for h in (resp.get("Success") or [])]
+        except Exception as e:
+            raise BrokerAPIError(f"ICICI Direct holdings error: {e}")
+
+    def _normalize_holding(self, h: Dict) -> Dict:
+        qty = float(h.get("quantity", 0))
+        avg = float(h.get("average_cost", 0))
+        ltp = float(h.get("current_market_price", 0))
+        return {
+            "symbol": h.get("stock_code", ""),
+            "trading_symbol": h.get("stock_code", ""),
+            "exchange": h.get("exchange_code", "NSE"),
+            "isin": h.get("isin_code", ""),
+            "total_quantity": qty,
+            "available_quantity": qty,
+            "avg_cost_price": avg,
+            "current_price": ltp,
+            "current_value": qty * ltp,
+            "invested_value": qty * avg,
+            "pnl": (ltp - avg) * qty,
+            "pnl_percentage": ((ltp - avg) / avg * 100) if avg else 0,
+            "product_type": "CNC",
+        }
+
+    def get_positions(self) -> List[Dict]:
+        self._ensure_connected()
+        try:
+            resp = self._client.get_portfolio_positions()
+            return [self._normalize_position(p) for p in (resp.get("Success") or [])]
+        except Exception as e:
+            raise BrokerAPIError(f"ICICI Direct positions error: {e}")
+
+    def _normalize_position(self, p: Dict) -> Dict:
+        qty = float(p.get("quantity", 0))
+        avg = float(p.get("average_cost", 0))
+        ltp = float(p.get("ltp", 0))
+        return {
+            "symbol": p.get("stock_code", ""),
+            "trading_symbol": p.get("stock_code", ""),
+            "exchange": p.get("exchange_code", "NSE"),
+            "net_quantity": qty,
+            "buy_quantity": max(qty, 0),
+            "sell_quantity": abs(min(qty, 0)),
+            "buy_average_price": avg,
+            "sell_average_price": avg,
+            "current_price": ltp,
+            "pnl": (ltp - avg) * qty,
+            "product_type": p.get("product_type", "Intraday"),
+            "value": qty * ltp,
+        }
+
+    def get_orders(self) -> List[Dict]:
+        self._ensure_connected()
+        try:
+            today = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            resp = self._client.get_order_list(
+                exchange_code="NSE",
+                from_date=today,
+                to_date=today,
+            )
+            return [self._normalize_order(o) for o in (resp.get("Success") or [])]
+        except Exception as e:
+            raise BrokerAPIError(f"ICICI Direct orders error: {e}")
+
+    def _normalize_order(self, o: Dict) -> Dict:
+        return {
+            "order_id": o.get("order_id", ""),
+            "symbol": o.get("stock_code", ""),
+            "trading_symbol": o.get("stock_code", ""),
+            "exchange": o.get("exchange_code", "NSE"),
+            "transaction_type": o.get("action", "buy").upper(),
+            "order_type": o.get("order_type", "market").upper(),
+            "product_type": o.get("product_type", "margin"),
+            "quantity": float(o.get("quantity", 0)),
+            "price": float(o.get("price", 0)),
+            "trigger_price": float(o.get("stoploss", 0)),
+            "status": o.get("status", "").upper(),
+            "order_timestamp": o.get("order_datetime"),
+        }
+
+    def get_trade_history(self, from_date=None, to_date=None) -> List[Dict]:
+        self._ensure_connected()
+        try:
+            end = (to_date or datetime.utcnow()).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            start = (from_date or (datetime.utcnow() - timedelta(days=30))).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            resp = self._client.get_trades(
+                exchange_code="NSE",
+                from_date=start,
+                to_date=end,
+            )
+            return [self._normalize_trade(t) for t in (resp.get("Success") or [])]
+        except Exception as e:
+            raise BrokerAPIError(f"ICICI Direct trade history error: {e}")
+
+    def _normalize_trade(self, t: Dict) -> Dict:
+        qty = float(t.get("quantity", 0))
+        price = float(t.get("trade_price", 0))
+        return {
+            "symbol": t.get("stock_code", ""),
+            "trading_symbol": t.get("stock_code", ""),
+            "exchange": t.get("exchange_code", "NSE"),
+            "security_id": t.get("isin_code", ""),
+            "transaction_type": t.get("action", "buy").upper(),
+            "product_type": t.get("product_type", "margin"),
+            "order_type": "MARKET",
+            "quantity": qty,
+            "price": price,
+            "trade_value": qty * price,
+            "trade_id": t.get("trade_id", ""),
+            "order_id": t.get("order_id", ""),
+            "trade_date": datetime.utcnow(),
+            "broker_name": "ICICI Direct",
+        }
+
+    def place_order(self, order_data: Dict) -> Dict:
+        self._ensure_connected()
+        try:
+            resp = self._client.place_order(
+                stock_code=order_data.get("symbol", ""),
+                exchange_code=order_data.get("exchange", "NSE"),
+                product=order_data.get("product_type", "margin"),
+                action=order_data.get("transaction_type", "buy").lower(),
+                order_type=order_data.get("order_type", "market").lower(),
+                stoploss=str(order_data.get("trigger_price", "0")),
+                quantity=str(int(order_data.get("quantity", 1))),
+                price=str(order_data.get("price", "0")),
+                validity="day",
+            )
+            return {"status": "success", "order_id": resp.get("Success", {}).get("order_id"), "message": "Order placed"}
+        except Exception as e:
+            raise BrokerAPIError(f"ICICI Direct place order error: {e}")
+
+    def cancel_order(self, order_id: str) -> Dict:
+        self._ensure_connected()
+        try:
+            resp = self._client.cancel_order(exchange_code="NSE", order_id=order_id)
+            return {"status": "success", "message": "Order cancelled"}
+        except Exception as e:
+            raise BrokerAPIError(f"ICICI Direct cancel order error: {e}")
+
+    def get_profile(self) -> Dict:
+        self._ensure_connected()
+        try:
+            creds = self.credentials
+            session_token = creds.get('access_token', '')
+            resp = self._client.get_customer_details(api_session=session_token)
+            d = resp.get("Success", {})
+            return {
+                "user_id": d.get("idirect_userid", ""),
+                "user_name": d.get("idirect_userid", ""),
+                "email": "",
+                "broker": "ICICI Direct",
+            }
+        except Exception as e:
+            raise BrokerAPIError(f"ICICI Direct profile error: {e}")
+
+
 # ── Broker Registry ───────────────────────────────────────────────────────────
 # Add new brokers here: map BrokerType enum value → client class
 # The class must extend BaseBrokerClient and implement all abstract methods.
@@ -1112,8 +1470,9 @@ _BROKER_REGISTRY: Dict[str, Any] = {
     BrokerType.DHAN.value: DhanBrokerClient,
     BrokerType.ZERODHA.value: ZerodhaBrokerClient,
     BrokerType.ANGEL_BROKING.value: AngelBrokerClient,
-    # Future brokers — uncomment when implemented:
-    # BrokerType.UPSTOX.value: UpstoxBrokerClient,
+    BrokerType.UPSTOX.value: UpstoxBrokerClient,
+    BrokerType.ICICIDIRECT.value: ICICIBrokerClient,
+    # Future brokers:
     # BrokerType.FYERS.value: FyersBrokerClient,
 }
 

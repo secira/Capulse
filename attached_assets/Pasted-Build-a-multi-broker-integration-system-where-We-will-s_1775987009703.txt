@@ -1,0 +1,213 @@
+Build a multi-broker integration system where:
+•	We will support 4 brokers, 
+o	Zerodha (Kite Connect)
+o	Upstox (Upstox API)
+o	Angel One (SmartAPI)
+o	ICICI Direct (Breeze API)
+o	
+•	Data is stored segregated by broker
+
+•	System aggregates:
+o	Holdings
+o	Positions
+o	Orders / trades
+•	Enables:
+o	Portfolio analytics
+o	Behavioral insights
+o	Optional trade routing (future)
+________________________________________
+SYSTEM ARCHITECTURE
+Frontend (React / App)
+        ↓
+Backend API (Node.js / Python)
+        ↓
+Broker Adapter Layer
+(Zerodha / Upstox / Angel)
+        ↓
+Normalization Layer
+        ↓
+Database (Postgres + Redis)
+        ↓
+AI / Analytics Engine
+________________________________________
+BROKER SELECTION
+PHASE 1
+Integrate:
+•	Zerodha (Kite Connect)
+•	Upstox
+•	Angel One
+•	ICICI Direct
+PHASE 1
+•	Groww
+•	5paisa
+•	Alice Blue
+
+________________________________________AUTHENTICATION MODEL (CRITICAL)
+✅ Use: OAuth / Token-Based Login
+❌ DO NOT:
+•	Store user passwords
+•	Scrape broker UI
+________________________________________
+🔄 Standard Flow
+Step 1: User clicks “Login using  Broker”. See the Sample screen attached from Sensibull. 
+Frontend → Backend → Broker Auth URL
+________________________________________
+Step 2: Redirect to Broker Login
+Example (Zerodha):
+https://kite.zerodha.com/connect/login?v=3&api_key=YOUR_API_KEY
+________________________________________
+Step 3: Broker redirects back with request_token
+https://yourapp.com/callback?request_token=XYZ
+________________________________________
+Step 4: Exchange token
+Backend:
+access_token = exchange_request_token(request_token)
+________________________________________
+Step 5: Store securely
+{
+  "broker": "zerodha",
+  "access_token": "...",
+  "expires_at": "...",
+  "user_id": "..."
+}
+________________________________________DATABASE DESIGN
+
+Please check the current database support this.
+Users
+users (
+  id UUID PRIMARY KEY,
+  email TEXT,
+  created_at TIMESTAMP
+)
+________________________________________
+Broker Accounts
+broker_accounts (
+  id UUID PRIMARY KEY,
+  user_id UUID,
+  broker_name TEXT,
+  broker_user_id TEXT,
+  access_token TEXT,
+  refresh_token TEXT,
+  expires_at TIMESTAMP,
+  created_at TIMESTAMP
+)
+________________________________________
+Holdings
+holdings (
+  id UUID,
+  user_id UUID,
+  broker_account_id UUID,
+  symbol TEXT,
+  quantity FLOAT,
+  avg_price FLOAT,
+  last_updated TIMESTAMP
+)
+________________________________________
+Trades
+trades (
+  id UUID,
+  user_id UUID,
+  broker_account_id UUID,
+  symbol TEXT,
+  side TEXT,
+  quantity FLOAT,
+  price FLOAT,
+  trade_time TIMESTAMP
+)
+________________________________________
+DATA INGESTION (CORE LOGIC)
+🔹 Fetch Holdings
+Zerodha API:
+kite.holdings()
+________________________________________
+🔹 Fetch Positions
+kite.positions()
+________________________________________
+🔹 Fetch Trades / Orders
+kite.orders()
+kite.trades()
+________________________________________
+🔹 Upstox / Angel:
+Use equivalent endpoints
+________________________________________
+🔁 Sync Strategy
+MVP:
+•	On login → fetch all data
+•	Manual refresh button
+________________________________________
+Production:
+•	Cron job every 5–15 mins
+•	Refresh tokens if expired
+________________________________________NORMALIZATION LAYER
+Convert all broker formats into:
+{
+  "symbol": "RELIANCE",
+  "quantity": 10,
+  "avg_price": 2450,
+  "broker": "zerodha"
+}
+________________________________________
+Symbol Mapping Example
+Broker	Raw	Normalized
+Zerodha	NSE:RELIANCE	RELIANCE
+Upstox	RELIANCE-EQ	RELIANCE
+________________________________________PORTFOLIO AGGREGATION
+Compute:
+total_quantity = sum(all brokers)
+avg_price = weighted average
+current_value = quantity * live_price
+________________________________________
+Store aggregated view (optional cache)
+portfolio_summary {
+  total_value,
+  total_pnl,
+  sector_exposure
+}
+________________________________________
+BEHAVIORAL ANALYSIS PIPELINE
+Use trades table:
+Detect:
+•	Overtrading frequency
+•	Loss streaks
+•	Sector bias
+•	Timing patterns
+________________________________________
+Example:
+if trades_per_day > threshold:
+    flag = "Overtrading behavior"
+________________________________________
+TRADE ROUTING (FUTURE PHASE)
+Flow:
+1.	User clicks “Trade” in TargetCapital
+2.	Select broker
+3.	Redirect or call broker API
+________________________________________
+Example (Zerodha):
+kite.place_order(
+  variety="regular",
+  exchange="NSE",
+  tradingsymbol="RELIANCE",
+  transaction_type="BUY",
+  quantity=10
+)
+________________________________________
+⚠️ IMPORTANT:
+•	Always require user confirmation
+•	No auto-trading 
+________________________________________
+SECURITY BEST PRACTICES
+•	Encrypt access tokens (AES-256)
+•	Use HTTPS everywhere
+•	Store tokens in secure vault
+•	Rotate tokens periodically
+________________________________________
+EDGE CASES
+Token expiry
+•	Refresh automatically
+•	Reconnect flow if failed
+________________________________________
+API rate limits
+•	Cache responses (Redis)
+•	Avoid frequent polling
+________________________________________
+

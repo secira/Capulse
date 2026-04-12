@@ -46,7 +46,7 @@ BROKER_CATALOG = [
         'type': BrokerType.ANGEL_BROKING,
         'name': 'Angel One',
         'logo': 'https://angelone.in/logo.png',
-        'status': 'coming_soon',
+        'status': 'active',
         'description': 'Full-service broker with research',
         'fields': ['client_id', 'access_token', 'totp_secret']
     },
@@ -70,8 +70,8 @@ BROKER_CATALOG = [
         'type': BrokerType.ICICIDIRECT,
         'name': 'ICICI Direct',
         'logo': 'https://icicidirect.com/logo.png',
-        'status': 'coming_soon',
-        'description': 'Full-service broker with research',
+        'status': 'active',
+        'description': 'Full-service broker with Breeze Connect',
         'fields': ['client_id', 'access_token', 'api_secret']
     },
     {

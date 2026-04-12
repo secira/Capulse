@@ -98,14 +98,21 @@
                     <ul class="nav-list submenu-list" id="portfolioHubMenu" style="display: none;">
 
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'dashboard_broker_accounts' else '' }}"
-                               href="{{ url_for('dashboard_broker_accounts') }}">
-                                <i class="nav-icon fas fa-link"></i>
-                                <span class="nav-text">Broker Management</span>
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'broker_oauth.broker_connect' else '' }}"
+                               href="{{ url_for('broker_oauth.broker_connect') }}">
+                                <i class="nav-icon fas fa-plug"></i>
+                                <span class="nav-text">Connect Broker</span>
                                 {% set connected_brokers = broker_accounts|selectattr('connection_status', 'equalto', 'connected')|list if broker_accounts else [] %}
                                 {% if connected_brokers %}
                                 <span class="nav-count">{{ connected_brokers|length }}</span>
                                 {% endif %}
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'dashboard_broker_accounts' else '' }}"
+                               href="{{ url_for('dashboard_broker_accounts') }}">
+                                <i class="nav-icon fas fa-cog"></i>
+                                <span class="nav-text">Manage Brokers</span>
                             </a>
                         </li>
 
@@ -356,7 +363,7 @@ function toggleAdminMenu() {
 
 document.addEventListener('DOMContentLoaded', function() {
     const currentEndpoint = '{{ request.endpoint }}';
-    const portfolioHubPages = ['dashboard_broker_accounts', 'dashboard_banks', 'dashboard_insurance',
+    const portfolioHubPages = ['dashboard_broker_accounts', 'broker_oauth.broker_connect', 'dashboard_banks', 'dashboard_insurance',
                                'dashboard_equities', 'dashboard_mutual_funds', 'dashboard_fixed_deposits',
                                'dashboard_futures_options', 'dashboard_real_estate', 'dashboard_commodities'];
     const portfolioMenu = document.getElementById('portfolioHubMenu');
