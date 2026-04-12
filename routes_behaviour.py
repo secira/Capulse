@@ -236,6 +236,146 @@ def behaviour_csv_template():
     )
 
 
+@app.route('/api/behaviour/narrative')
+@login_required
+def behaviour_narrative():
+    """Generate a personalized AI narrative using Claude (async-loaded)."""
+    try:
+        engine = _get_engine()
+        analysis = engine.get_full_analysis()
+
+        if not analysis.get('has_data'):
+            return jsonify({'narrative': None, 'error': 'Not enough data'})
+
+        patterns = analysis.get('categories', {})
+        stats = analysis.get('stats', {})
+        personality = analysis.get('personality', {})
+
+        # Build a rich context for Claude
+        detected_issues = []
+        for cat_key, cat in patterns.items():
+            for mod_key, mod in cat.get('modules', {}).items():
+                if mod.get('severity') in ('high', 'medium') and mod.get('detected', True):
+                    detected_issues.append(f"- {mod['label']}: {mod['insight']}")
+
+        prompt = f"""Analyze this Indian retail trader's behavioral data and generate personalized insights.
+
+Trading Stats (Last 90 days):
+- Total trades: {stats.get('total_trades', 0)}
+- Win rate: {stats.get('win_rate', 0)}%
+- Total P&L: ₹{stats.get('total_pnl', 0):,.0f}
+- Risk-Reward: {stats.get('risk_reward', 0)}:1
+- Behavioral Score: {analysis.get('score', 50)}/100
+- Trading Personality: {personality.get('type', 'Unknown')}
+
+Detected behavioral issues:
+{chr(10).join(detected_issues) if detected_issues else '- No major issues detected'}
+
+Generate exactly 3 items in JSON format:
+1. key_insight: One specific insight about their trading (reference actual numbers)
+2. risk_warning: One concrete risk warning (or null if no major risks)  
+3. action: One actionable next step they can take today
+
+Rules:
+- Be specific, not generic (use the actual numbers)
+- Tone: Direct, human, supportive — like a mentor, not an advisor
+- Keep each item under 20 words
+- Do NOT say "consider" or "you might want to"
+- Do NOT give financial advice
+
+Respond only with valid JSON: {{"key_insight": "...", "risk_warning": "...", "action": "..."}}"""
+
+        from services.anthropic_service import AnthropicService
+        svc = AnthropicService()
+        resp = svc._call_with_retry(
+            model=AnthropicService.FALLBACK_MODEL,
+            messages=[{'role': 'user', 'content': prompt}],
+            max_tokens=300,
+            temperature=0.4,
+        )
+        raw = resp.content[0].text.strip()
+        # Extract JSON
+        import re
+        m = re.search(r'\{.*\}', raw, re.DOTALL)
+        if m:
+            import json
+            narrative = json.loads(m.group())
+        else:
+            narrative = {'key_insight': raw[:120], 'risk_warning': None, 'action': None}
+
+        return jsonify({'narrative': narrative})
+
+    except Exception as e:
+        logger.error(f"AI narrative error: {e}")
+        return jsonify({'narrative': None, 'error': str(e)})
+
+
+@app.route('/api/behaviour/timeline')
+@login_required
+def behaviour_timeline():
+    """Return 30-day behavior timeline data."""
+    try:
+        engine = _get_engine()
+        days = int(request.args.get('days', 30))
+        timeline = engine.get_behavior_timeline(days=days)
+        return jsonify({'timeline': timeline})
+    except Exception as e:
+        logger.error(f"Timeline error: {e}")
+        return jsonify({'timeline': [], 'error': str(e)})
+
+
+@app.route('/api/behaviour/cross-broker')
+@login_required
+def behaviour_cross_broker():
+    """Return cross-broker intelligence data."""
+    try:
+        engine = _get_engine()
+        data = engine.get_cross_broker_intelligence()
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Cross-broker error: {e}")
+        return jsonify({'brokers': [], 'insight': 'Error loading data.', 'detected': False})
+
+
+@app.route('/api/behaviour/today-alerts')
+@login_required
+def behaviour_today_alerts():
+    """Return today's real-time behavior alerts."""
+    try:
+        engine = _get_engine()
+        alerts = engine.get_today_alerts()
+        return jsonify({'alerts': alerts})
+    except Exception as e:
+        logger.error(f"Today alerts error: {e}")
+        return jsonify({'alerts': []})
+
+
+@app.route('/api/behaviour/progress')
+@login_required
+def behaviour_progress():
+    """Return month-over-month progress metrics."""
+    try:
+        engine = _get_engine()
+        progress = engine.get_progress_tracking()
+        return jsonify(progress)
+    except Exception as e:
+        logger.error(f"Progress tracking error: {e}")
+        return jsonify({'has_prev': False})
+
+
+@app.route('/api/behaviour/score-breakdown')
+@login_required
+def behaviour_score_breakdown():
+    """Return score breakdown by discipline/risk/timing/psychology."""
+    try:
+        engine = _get_engine()
+        breakdown = engine.get_score_breakdown()
+        return jsonify(breakdown)
+    except Exception as e:
+        logger.error(f"Score breakdown error: {e}")
+        return jsonify({'discipline': 0, 'risk': 0, 'timing': 0, 'psychology': 0})
+
+
 @app.route('/api/behaviour/pre-trade-check', methods=['POST'])
 @login_required
 def behaviour_pre_trade_check():

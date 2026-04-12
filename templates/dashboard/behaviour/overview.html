@@ -6,61 +6,105 @@
 
 {% block dashboard_content %}
 <style>
-/* Flash messages */
-.alert-flash{padding:12px 18px;border-radius:10px;margin-bottom:16px;font-size:.9rem;display:flex;align-items:center;gap:10px}
+/* Flash */
+.alert-flash{padding:12px 18px;border-radius:10px;margin-bottom:12px;font-size:.9rem;display:flex;align-items:center;gap:10px}
 .alert-flash.success{background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d}
 .alert-flash.danger{background:#fef2f2;border:1px solid #fecaca;color:#dc2626}
 .alert-flash.warning{background:#fffbeb;border:1px solid #fed7aa;color:#b45309}
 
+/* Today alert strip */
+.today-alert{border-radius:12px;padding:12px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;font-size:.875rem;border:1px solid transparent}
+.today-alert.warning{background:#fffbeb;border-color:#fed7aa;color:#92400e}
+.today-alert.danger{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.today-alert.info{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+.today-alert .action-text{font-size:.78rem;opacity:.8;margin-top:2px}
+
+/* AI narrative */
+.narrative-card{background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);border-radius:16px;color:#fff;padding:24px;position:relative;overflow:hidden}
+.narrative-card::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:rgba(99,102,241,.15);border-radius:50%}
+.narrative-card .tag{background:rgba(99,102,241,.3);color:#a5b4fc;font-size:.7rem;font-weight:700;padding:4px 10px;border-radius:6px;display:inline-block;margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em}
+.narrative-item{background:rgba(255,255,255,.07);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px}
+.narrative-item:last-child{margin-bottom:0}
+.narrative-item .ni-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0}
+.narrative-item .ni-text{font-size:.875rem;line-height:1.4}
+.narrative-skeleton{height:18px;background:rgba(255,255,255,.1);border-radius:6px;animation:shimmer 1.5s infinite}
+@keyframes shimmer{0%{opacity:.4}50%{opacity:.8}100%{opacity:.4}}
+
+/* Score breakdown */
+.breakdown-bar{height:10px;border-radius:5px;background:#e5e7eb;overflow:hidden;margin-top:4px}
+.breakdown-bar .fill{height:100%;border-radius:5px;transition:width .6s ease}
+.breakdown-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+.breakdown-label span:first-child{font-size:.8rem;font-weight:600;color:#374151}
+.breakdown-label span:last-child{font-size:.85rem;font-weight:700}
+
+/* Score ring */
+.score-ring{width:160px;height:160px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;position:relative}
+.score-ring .inner{width:130px;height:130px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1}
+.score-ring .value{font-size:2.5rem;font-weight:800;line-height:1}
+.score-ring .label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.delta-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.delta-badge.up{background:#dcfce7;color:#16a34a}
+.delta-badge.down{background:#fef2f2;color:#dc2626}
+.delta-badge.flat{background:#f1f5f9;color:#64748b}
+
+/* Category cards */
+.cat-card{border:none;border-radius:14px;transition:transform .15s,box-shadow .15s;cursor:pointer;text-decoration:none;color:inherit}
+.cat-card:hover{transform:translateY(-3px);box-shadow:0 8px 25px rgba(0,0,0,.08)}
+.cat-score{font-size:2rem;font-weight:800;line-height:1}
+.cat-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;font-weight:600;color:#64748b}
+
+/* Module badge */
+.module-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:8px;font-size:.78rem;font-weight:600}
+.module-badge.high{background:#fef2f2;color:#dc2626}
+.module-badge.medium{background:#fffbeb;color:#d97706}
+.module-badge.low{background:#eff6ff;color:#2563eb}
+.module-badge.none{background:#f0fdf4;color:#16a34a}
+
+/* Cross broker */
+.broker-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9}
+.broker-row:last-child{border-bottom:none}
+.broker-name{font-weight:700;font-size:.875rem;width:100px;flex-shrink:0}
+.risk-tag{padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.broker-bars{flex:1}
+.mini-bar{height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden}
+.mini-bar .fill{height:100%;border-radius:4px}
+.broker-stat{text-align:center;min-width:70px;flex-shrink:0}
+.broker-stat .bval{font-size:.95rem;font-weight:700}
+.broker-stat .blbl{font-size:.65rem;color:#94a3b8;text-transform:uppercase}
+
+/* Behaviour tag */
+.beh-tag{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:.78rem;font-weight:700;margin:2px}
+
+/* Insight cards */
+.insight-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px}
+.insight-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.9rem;color:#fff;flex-shrink:0}
+.stat-pill{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;text-align:center}
+.stat-pill .val{font-size:1.3rem;font-weight:700}
+.stat-pill .lbl{font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em}
+.section-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8}
+.personality-card{border-radius:14px;border:2px solid #e5e7eb;overflow:hidden}
+.personality-header{padding:20px 24px;color:#fff}
+
 /* Onboarding */
 .onboard-hero{background:linear-gradient(135deg,#f8faff 0%,#eef2ff 100%);border:1px solid #e0e7ff;border-radius:20px;padding:40px 32px;text-align:center}
 .onboard-hero h2{font-size:1.6rem;font-weight:800;color:#1e293b}
-.onboard-hero p{color:#475569;max-width:560px;margin:0 auto}
 .step-list{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;margin:32px 0 0}
-.step-item{background:#fff;border-radius:14px;padding:20px 22px;flex:1;min-width:200px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,.06);text-align:left;position:relative}
+.step-item{background:#fff;border-radius:14px;padding:20px 22px;flex:1;min-width:200px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,.06);text-align:left}
 .step-num{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:#fff;margin-bottom:12px}
-.step-title{font-weight:700;font-size:.95rem;color:#1e293b;margin-bottom:4px}
-.step-desc{font-size:.82rem;color:#64748b}
 .step-item.done .step-num{background:#22c55e}
 .step-item.active .step-num{background:#4f46e5}
 .step-item.pending .step-num{background:#94a3b8}
-
-/* Option cards */
+.step-title{font-weight:700;font-size:.95rem;color:#1e293b;margin-bottom:4px}
+.step-desc{font-size:.82rem;color:#64748b}
 .option-card{border-radius:16px;border:2px solid #e5e7eb;overflow:hidden;transition:border-color .15s,box-shadow .15s}
 .option-card:hover{border-color:#4f46e5;box-shadow:0 6px 24px rgba(79,70,229,.1)}
 .option-header{padding:20px 24px;display:flex;align-items:center;gap:14px}
 .option-icon{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:#fff;flex-shrink:0}
 .option-body{padding:0 24px 24px}
 .broker-chip{display:inline-flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;font-size:.78rem;font-weight:600;color:#374151;margin:3px}
-
-/* Upload zone */
 .upload-zone{border:2px dashed #c7d2fe;border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:background .15s,border-color .15s}
 .upload-zone:hover,.upload-zone.drag-over{background:#eef2ff;border-color:#6366f1}
 .upload-zone input[type=file]{display:none}
-.upload-zone label{cursor:pointer;display:block}
-
-/* Score display */
-.score-ring{width:160px;height:160px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;position:relative}
-.score-ring .inner{width:130px;height:130px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1}
-.score-ring .value{font-size:2.5rem;font-weight:800;line-height:1}
-.score-ring .label{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
-.cat-card{border:none;border-radius:14px;transition:transform .15s,box-shadow .15s;cursor:pointer;text-decoration:none;color:inherit}
-.cat-card:hover{transform:translateY(-3px);box-shadow:0 8px 25px rgba(0,0,0,.08)}
-.cat-score{font-size:2rem;font-weight:800;line-height:1}
-.cat-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;font-weight:600;color:#64748b}
-.module-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:.8rem;font-weight:600}
-.module-badge.high{background:#fef2f2;color:#dc2626}
-.module-badge.medium{background:#fffbeb;color:#d97706}
-.module-badge.low{background:#eff6ff;color:#2563eb}
-.module-badge.none{background:#f0fdf4;color:#16a34a}
-.insight-card{background:linear-gradient(135deg,#fafafa 0%,#f5f5f5 100%);border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px}
-.insight-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.9rem;color:#fff;flex-shrink:0}
-.personality-card{border-radius:14px;border:2px solid #e5e7eb;overflow:hidden}
-.personality-header{padding:20px 24px;color:#fff}
-.stat-pill{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;text-align:center}
-.stat-pill .val{font-size:1.3rem;font-weight:700}
-.stat-pill .lbl{font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em}
-.section-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8}
 </style>
 
 <div class="container-fluid px-0">
@@ -75,18 +119,18 @@
     {% endfor %}
   {% endwith %}
 
+  <!-- Live today-alerts (shown when data available) -->
+  <div id="todayAlertsStrip"></div>
+
 {% if not analysis or not analysis.has_data %}
 
-  <!-- ═══════════════════════════ EMPTY / ONBOARDING STATE ═══════════════════════════ -->
-
+  <!-- ══════════════════ ONBOARDING STATE ══════════════════ -->
   <div class="onboard-hero mb-4">
     <div class="d-inline-flex align-items-center justify-content-center bg-primary-subtle rounded-circle mb-3" style="width:64px;height:64px">
       <i class="fas fa-brain fa-2x text-primary"></i>
     </div>
     <h2>Unlock Your Trading Psychology</h2>
-    <p class="mt-2">The Scentric Behavioural AI Engine analyzes 20 psychological patterns — from panic selling to revenge trading — to help you trade smarter. You need at least <strong>5 completed trades</strong> to activate the full analysis.</p>
-
-    <!-- Progress steps -->
+    <p class="mt-2 text-muted">The Scentric Behavioural AI Engine analyzes 20 psychological patterns — from panic selling to revenge trading — to help you trade smarter. You need at least <strong>5 completed trades</strong> to activate the full analysis.</p>
     <div class="step-list">
       <div class="step-item done">
         <div class="step-num"><i class="fas fa-check"></i></div>
@@ -106,113 +150,82 @@
     </div>
   </div>
 
-  <!-- Option cards: Connect Broker vs Upload CSV -->
   <div class="row g-4 mb-4">
-
-    <!-- Option 1: Connect Broker -->
     <div class="col-lg-6">
       <div class="option-card h-100">
         <div class="option-header">
-          <div class="option-icon" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)">
-            <i class="fas fa-link"></i>
-          </div>
+          <div class="option-icon" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)"><i class="fas fa-link"></i></div>
           <div>
             <div class="fw-bold fs-6">Connect a Broker</div>
-            <div class="text-muted small">Auto-sync your live trade history — best for ongoing analysis</div>
+            <div class="text-muted small">Auto-sync your live trade history</div>
           </div>
           <span class="badge bg-primary-subtle text-primary ms-auto">Recommended</span>
         </div>
         <div class="option-body">
-          <p class="small text-muted mb-3">Once connected, your broker's completed trades sync automatically every day. No manual work — your analysis stays current.</p>
+          <p class="small text-muted mb-3">Once connected, your completed trades sync automatically. Your analysis stays current — no manual work.</p>
           <div class="mb-3">
-            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Zerodha</div>
-            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Dhan</div>
-            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Angel One</div>
-            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Upstox</div>
-            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>ICICI Direct</div>
-            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Groww</div>
-            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Alice Blue</div>
-            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>5 Paisa</div>
+            {% for b in ['Zerodha','Dhan','Angel One','Upstox','ICICI Direct','Groww','Alice Blue','5 Paisa'] %}
+            <span class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>{{ b }}</span>
+            {% endfor %}
           </div>
           <ol class="small text-muted ps-3 mb-3">
-            <li class="mb-1">Click "Connect Broker" below</li>
+            <li class="mb-1">Click Connect Broker below</li>
             <li class="mb-1">Choose your broker and enter credentials</li>
-            <li>Your trades sync automatically — come back here for analysis</li>
+            <li>Your trades sync automatically</li>
           </ol>
-          <a href="{{ url_for('broker_oauth.broker_connect') }}" class="btn btn-primary w-100">
-            <i class="fas fa-plug me-2"></i>Connect My Broker
-          </a>
+          <a href="{{ url_for('broker_oauth.broker_connect') }}" class="btn btn-primary w-100"><i class="fas fa-plug me-2"></i>Connect My Broker</a>
         </div>
       </div>
     </div>
-
-    <!-- Option 2: Upload CSV -->
     <div class="col-lg-6">
       <div class="option-card h-100">
         <div class="option-header">
-          <div class="option-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)">
-            <i class="fas fa-file-csv"></i>
-          </div>
+          <div class="option-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)"><i class="fas fa-file-csv"></i></div>
           <div>
             <div class="fw-bold fs-6">Upload Trade History</div>
-            <div class="text-muted small">Import from a CSV — works with any broker's export</div>
+            <div class="text-muted small">Import from any broker's CSV export</div>
           </div>
         </div>
         <div class="option-body">
-          <p class="small text-muted mb-3">Export your trade history from your broker's platform and upload it here. We'll process it and unlock your full Behavioural AI analysis immediately.</p>
-
           <div class="bg-light rounded p-3 mb-3 small">
-            <div class="fw-semibold mb-2"><i class="fas fa-info-circle text-primary me-2"></i>Required CSV columns:</div>
-            <code class="d-block mb-1">symbol, entry_date, exit_date, quantity, entry_price, exit_price</code>
-            <div class="text-muted">Optional: broker_name, strategy_name, exit_reason, charges</div>
-            <div class="text-muted mt-1">Date format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS</div>
+            <div class="fw-semibold mb-1"><i class="fas fa-info-circle text-primary me-1"></i>Required columns:</div>
+            <code>symbol, entry_date, exit_date, quantity, entry_price, exit_price</code>
+            <div class="text-muted mt-1">Optional: broker_name, strategy_name, exit_reason, charges</div>
           </div>
-
-          <form method="POST" action="{{ url_for('behaviour_upload_trades') }}" enctype="multipart/form-data" id="uploadForm">
-            <div class="upload-zone mb-3" id="uploadZone" onclick="document.getElementById('tradeFile').click()">
-              <label>
-                <input type="file" name="trade_file" id="tradeFile" accept=".csv" onchange="showFileName(this)">
-                <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2 d-block"></i>
-                <div id="uploadLabel" class="fw-semibold small">Click to choose your CSV file</div>
-                <div class="text-muted" style="font-size:.75rem">or drag and drop here</div>
-              </label>
+          <form method="POST" action="{{ url_for('behaviour_upload_trades') }}" enctype="multipart/form-data">
+            <div class="upload-zone mb-3" onclick="document.getElementById('tradeFile').click()">
+              <input type="file" name="trade_file" id="tradeFile" accept=".csv" onchange="showFileName(this)">
+              <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2 d-block"></i>
+              <div id="uploadLabel" class="fw-semibold small">Click to choose your CSV file</div>
+              <div class="text-muted" style="font-size:.75rem">or drag and drop here</div>
             </div>
             <div class="d-flex gap-2">
-              <button type="submit" class="btn btn-info text-white flex-grow-1" id="uploadBtn" disabled>
-                <i class="fas fa-upload me-2"></i>Import Trades
-              </button>
-              <a href="{{ url_for('behaviour_csv_template') }}" class="btn btn-outline-secondary" title="Download sample template">
-                <i class="fas fa-download me-1"></i>Template
-              </a>
+              <button type="submit" class="btn btn-info text-white flex-grow-1" id="uploadBtn" disabled><i class="fas fa-upload me-2"></i>Import Trades</button>
+              <a href="{{ url_for('behaviour_csv_template') }}" class="btn btn-outline-secondary" title="Download template"><i class="fas fa-download me-1"></i>Template</a>
             </div>
           </form>
         </div>
       </div>
     </div>
-
   </div>
 
   <!-- What you'll unlock -->
   <div class="card border-0 shadow-sm">
     <div class="card-body p-4">
-      <h6 class="fw-bold mb-3 section-label">What you'll unlock after adding your trades</h6>
+      <h6 class="section-label mb-3">What you'll unlock after adding your trades</h6>
       <div class="row g-3">
-        {% set previews = [
-          ('fas fa-fire','#ef4444','Revenge Trading Detection','Find out if you overtrade after a loss'),
-          ('fas fa-brain','#8b5cf6','Panic Selling Analysis','See how often emotions override your strategy'),
-          ('fas fa-balance-scale-right','#3b82f6','Risk-Reward Audit','Understand your real win/loss ratio'),
-          ('fas fa-wind','#64748b','Behavioural Drift','Track if your strategy is silently changing'),
-          ('fas fa-tachometer-alt','#4f46e5','Master Behavioral Score','One number summarising your trading psychology'),
-          ('fas fa-route','#6366f1','Strategy Consistency','See how disciplined you are over time'),
+        {% for icon, color, title, desc in [
+          ('fas fa-fire','#ef4444','Revenge Trading','Find out if you overtrade after a loss'),
+          ('fas fa-brain','#8b5cf6','Panic Selling','See how often emotions override strategy'),
+          ('fas fa-chart-line','#4f46e5','AI Narrative','Personalized insights from our AI engine'),
+          ('fas fa-wind','#64748b','Behavioral Drift','Track if your strategy is silently changing'),
+          ('fas fa-building','#a855f7','Cross-Broker Intel','Different risk behavior across brokers?'),
+          ('fas fa-tachometer-alt','#22c55e','Master Score','One number that summarises your psychology'),
         ] %}
-        {% for icon, color, title, desc in previews %}
         <div class="col-md-4">
           <div class="d-flex align-items-start gap-3">
-            <div class="insight-icon flex-shrink-0" style="background:{{ color }}"><i class="{{ icon }}"></i></div>
-            <div>
-              <div class="fw-semibold small">{{ title }}</div>
-              <div class="text-muted" style="font-size:.78rem">{{ desc }}</div>
-            </div>
+            <div class="insight-icon" style="background:{{ color }}"><i class="{{ icon }}"></i></div>
+            <div><div class="fw-semibold small">{{ title }}</div><div class="text-muted" style="font-size:.78rem">{{ desc }}</div></div>
           </div>
         </div>
         {% endfor %}
@@ -222,9 +235,9 @@
 
 {% else %}
 
-  <!-- ═══════════════════════════ FULL ANALYSIS VIEW ═══════════════════════════ -->
+  <!-- ══════════════════ FULL ANALYSIS VIEW ══════════════════ -->
 
-  <!-- Master Score + Personality Row -->
+  <!-- Row 1: Score + Personality + Stats -->
   <div class="row g-3 mb-4">
     <div class="col-lg-4">
       <div class="card border-0 shadow-sm h-100">
@@ -232,11 +245,32 @@
           <div class="score-ring mx-auto mb-3" style="background:conic-gradient({{ analysis.score_color }} {{ analysis.score * 3.6 }}deg, #e5e7eb {{ analysis.score * 3.6 }}deg)">
             <div class="inner">
               <div class="value" style="color:{{ analysis.score_color }}">{{ analysis.score }}</div>
-              <div class="label">{{ analysis.score_label }}</div>
+              <div class="label" style="color:{{ analysis.score_color }}">{{ analysis.score_label }}</div>
             </div>
           </div>
-          <h5 class="fw-bold mb-1">Behavioral Score</h5>
-          <p class="text-muted small mb-0">Weighted across 20 modules in 5 categories</p>
+          <h6 class="fw-bold mb-1">Behavioral Score</h6>
+          <div id="progressBadge" class="mt-2"></div>
+          <!-- Behavior Tags -->
+          <div class="mt-3" id="behaviorTags">
+            {% if analysis.score >= 75 %}
+            <span class="beh-tag" style="background:#dcfce7;color:#16a34a"><i class="fas fa-medal me-1"></i>Disciplined</span>
+            {% elif analysis.score >= 55 %}
+            <span class="beh-tag" style="background:#eff6ff;color:#2563eb"><i class="fas fa-chart-line me-1"></i>Developing</span>
+            {% elif analysis.score >= 40 %}
+            <span class="beh-tag" style="background:#fffbeb;color:#d97706"><i class="fas fa-exclamation-triangle me-1"></i>Needs Work</span>
+            {% else %}
+            <span class="beh-tag" style="background:#fef2f2;color:#dc2626"><i class="fas fa-fire me-1"></i>Emotional Trader</span>
+            {% endif %}
+            {% for key, cat in analysis.categories.items() %}
+              {% if cat.modules %}
+                {% for mkey, mod in cat.modules.items() %}
+                  {% if mod.severity == 'high' and loop.first %}
+                  <span class="beh-tag" style="background:#fef2f2;color:#dc2626"><i class="{{ mod.icon }} me-1"></i>{{ mod.label | truncate(15, True, '') }}</span>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          </div>
         </div>
       </div>
     </div>
@@ -258,6 +292,18 @@
             <div class="col-6"><span class="badge bg-success-subtle text-success w-100 py-2"><i class="fas fa-plus me-1"></i>{{ analysis.personality.strength }}</span></div>
             <div class="col-6"><span class="badge bg-danger-subtle text-danger w-100 py-2"><i class="fas fa-minus me-1"></i>{{ analysis.personality.weakness }}</span></div>
           </div>
+          <!-- Score breakdown bars -->
+          <hr class="my-3">
+          <div id="scoreBreakdownBars">
+            <div class="breakdown-label"><span>Discipline</span><span class="text-muted small">—</span></div>
+            <div class="breakdown-bar mb-2"><div class="fill" style="width:0%;background:#4f46e5"></div></div>
+            <div class="breakdown-label"><span>Risk</span><span class="text-muted small">—</span></div>
+            <div class="breakdown-bar mb-2"><div class="fill" style="width:0%;background:#22c55e"></div></div>
+            <div class="breakdown-label"><span>Timing</span><span class="text-muted small">—</span></div>
+            <div class="breakdown-bar mb-2"><div class="fill" style="width:0%;background:#f59e0b"></div></div>
+            <div class="breakdown-label"><span>Psychology</span><span class="text-muted small">—</span></div>
+            <div class="breakdown-bar"><div class="fill" style="width:0%;background:#8b5cf6"></div></div>
+          </div>
         </div>
       </div>
     </div>
@@ -277,10 +323,27 @@
     </div>
   </div>
 
-  <!-- Category Cards -->
+  <!-- Row 2: AI Narrative (AJAX) -->
+  <div class="narrative-card mb-4" id="narrativeCard">
+    <div class="tag"><i class="fas fa-robot me-1"></i>Scentric AI · Personalized Insight</div>
+    <div id="narrativeContent">
+      <div class="narrative-item">
+        <div class="ni-icon" style="background:rgba(255,255,255,.15)"><i class="fas fa-spinner fa-spin"></i></div>
+        <div class="narrative-skeleton" style="width:70%;height:14px;margin-top:4px"></div>
+      </div>
+      <div class="narrative-item">
+        <div class="narrative-skeleton" style="width:85%;height:14px"></div>
+      </div>
+      <div class="narrative-item">
+        <div class="narrative-skeleton" style="width:60%;height:14px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Category cards -->
   <h6 class="section-label mb-3">Analysis Categories</h6>
   <div class="row g-3 mb-4">
-    {% set cat_routes = {'trading': 'behavioural_trading', 'risk': 'behavioural_risk', 'portfolio': 'behavioural_portfolio', 'performance': 'behavioural_performance', 'psychology': 'behavioural_psychology'} %}
+    {% set cat_routes = {'trading':'behavioural_trading','risk':'behavioural_risk','portfolio':'behavioural_portfolio','performance':'behavioural_performance','psychology':'behavioural_psychology'} %}
     {% for key, cat in analysis.categories.items() %}
     <div class="col-sm-6 col-xl">
       <a href="{{ url_for(cat_routes[key]) }}" class="card cat-card h-100 shadow-sm">
@@ -288,94 +351,92 @@
           <div class="cat-score" style="color:{{ cat.color }}">{{ cat.score }}</div>
           <div class="cat-label mt-1 mb-2">{{ cat.label }}</div>
           <i class="{{ cat.icon }} fa-lg" style="color:{{ cat.color }};opacity:.5"></i>
-          <div class="text-muted mt-2" style="font-size:.75rem;">{{ cat.modules|length }} modules</div>
+          <div class="text-muted mt-2" style="font-size:.75rem">{{ cat.modules|length }} modules</div>
         </div>
       </a>
     </div>
     {% endfor %}
   </div>
 
-  <!-- Top Insights -->
-  {% if analysis.top_insights %}
-  <h6 class="section-label mb-3">Top Insights</h6>
+  <!-- Row 4: 30-Day Behavior Timeline + Cross-Broker Intelligence (AJAX) -->
   <div class="row g-3 mb-4">
-    {% for insight in analysis.top_insights %}
-    <div class="col-md-6">
-      <div class="insight-card d-flex align-items-start gap-3">
-        <div class="insight-icon" style="background:{{ analysis.active_alerts[loop.index0].color if loop.index0 < analysis.active_alerts|length else '#64748b' }}">
-          <i class="{{ analysis.active_alerts[loop.index0].icon if loop.index0 < analysis.active_alerts|length else 'fas fa-info' }}"></i>
-        </div>
-        <div>
-          <div class="fw-semibold small">{{ analysis.active_alerts[loop.index0].label if loop.index0 < analysis.active_alerts|length else 'Insight' }}</div>
-          <div class="text-muted small">{{ insight }}</div>
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <h6 class="fw-bold mb-0"><i class="fas fa-history me-2 text-primary"></i>30-Day Behavior Timeline</h6>
+            <span id="timelineEvents" class="text-muted small"></span>
+          </div>
+          <canvas id="timelineChart" height="160"></canvas>
+          <div id="timelineEventList" class="mt-2"></div>
         </div>
       </div>
     </div>
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  <!-- Pattern Detection Table -->
-  <h6 class="section-label mb-3">Pattern Detection (Last 90 Days)</h6>
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th class="ps-3">Pattern</th>
-              <th class="text-center">Severity</th>
-              <th class="text-center">Score</th>
-              <th class="text-end pe-3">Insight</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for key, cat in analysis.categories.items() %}
-              {% for mkey, mod in cat.modules.items() %}
-              <tr>
-                <td class="ps-3">
-                  <div class="d-flex align-items-center gap-2">
-                    <i class="{{ mod.icon }}" style="color:{{ mod.color }};width:20px;text-align:center"></i>
-                    <span class="fw-semibold small">{{ mod.label }}</span>
-                  </div>
-                </td>
-                <td class="text-center">
-                  <span class="module-badge {{ mod.severity }}">
-                    {% if mod.severity == 'high' %}<i class="fas fa-exclamation-circle"></i>High
-                    {% elif mod.severity == 'medium' %}<i class="fas fa-exclamation-triangle"></i>Medium
-                    {% elif mod.severity == 'low' %}<i class="fas fa-info-circle"></i>Low
-                    {% else %}<i class="fas fa-check-circle"></i>None
-                    {% endif %}
-                  </span>
-                </td>
-                <td class="text-center">
-                  <span class="fw-bold" style="color:{% if mod.score >= 70 %}#16a34a{% elif mod.score >= 40 %}#d97706{% else %}#dc2626{% endif %}">{{ mod.score }}</span>
-                </td>
-                <td class="text-end pe-3"><span class="text-muted small">{{ mod.insight }}</span></td>
-              </tr>
-              {% endfor %}
-            {% endfor %}
-          </tbody>
-        </table>
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="fas fa-exchange-alt me-2 text-purple"></i>Cross-Broker Intelligence</h6>
+          <div id="crossBrokerContent">
+            <div class="text-muted small text-center py-3"><i class="fas fa-spinner fa-spin me-2"></i>Analyzing broker behavior...</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Charts row -->
+  <!-- Row 5: Pattern Detection Table + Category Radar -->
   <div class="row g-3 mb-4">
-    <div class="col-lg-6">
+    <div class="col-lg-8">
       <div class="card border-0 shadow-sm">
+        <div class="card-body px-0 pb-0">
+          <h6 class="fw-bold px-4 mb-0"><i class="fas fa-table me-2 text-primary"></i>Pattern Detection (Last 90 Days)</h6>
+          <div class="table-responsive mt-2">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="ps-4">Pattern</th>
+                  <th class="text-center">Severity</th>
+                  <th class="text-center">Score</th>
+                  <th class="pe-4 text-end d-none d-md-table-cell">Insight</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for key, cat in analysis.categories.items() %}
+                  {% for mkey, mod in cat.modules.items() %}
+                  <tr>
+                    <td class="ps-4">
+                      <div class="d-flex align-items-center gap-2">
+                        <i class="{{ mod.icon }}" style="color:{{ mod.color }};width:18px;text-align:center"></i>
+                        <span class="fw-semibold small">{{ mod.label }}</span>
+                      </div>
+                    </td>
+                    <td class="text-center">
+                      <span class="module-badge {{ mod.severity }}">
+                        {% if mod.severity == 'high' %}<i class="fas fa-exclamation-circle"></i> High
+                        {% elif mod.severity == 'medium' %}<i class="fas fa-exclamation-triangle"></i> Med
+                        {% elif mod.severity == 'low' %}<i class="fas fa-info-circle"></i> Low
+                        {% else %}<i class="fas fa-check-circle"></i> None{% endif %}
+                      </span>
+                    </td>
+                    <td class="text-center fw-bold" style="color:{% if mod.score >= 70 %}#16a34a{% elif mod.score >= 40 %}#d97706{% else %}#dc2626{% endif %}">{{ mod.score }}</td>
+                    <td class="pe-4 text-end text-muted small d-none d-md-table-cell">{{ mod.insight }}</td>
+                  </tr>
+                  {% endfor %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm h-100">
         <div class="card-body">
           <h6 class="fw-bold mb-3"><i class="fas fa-spider me-2 text-primary"></i>Category Radar</h6>
-          <canvas id="radarChart" height="280"></canvas>
-        </div>
-      </div>
-    </div>
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-sm">
-        <div class="card-body">
-          <h6 class="fw-bold mb-3"><i class="fas fa-chart-bar me-2 text-primary"></i>Win Rate by Hour</h6>
-          <canvas id="hourChart" height="280"></canvas>
+          <canvas id="radarChart" height="230"></canvas>
+          <div class="mt-2">
+            <canvas id="hourChart" height="100"></canvas>
+          </div>
         </div>
       </div>
     </div>
@@ -384,76 +445,238 @@
 {% endif %}
 </div>
 
-<!-- Chart.js only for analysis view -->
-{% if analysis and analysis.has_data %}
+<!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 Chart.defaults.font.family = "'Poppins','Inter',sans-serif";
+Chart.defaults.font.size = 11;
 
+/* ─── Today Alerts (always load if logged in) ──────────────────────── */
+fetch('/api/behaviour/today-alerts')
+  .then(r => r.json())
+  .then(data => {
+    const strip = document.getElementById('todayAlertsStrip');
+    if (!strip || !data.alerts || !data.alerts.length) return;
+    data.alerts.forEach(a => {
+      strip.innerHTML += `
+        <div class="today-alert ${a.severity}">
+          <i class="${a.icon}"></i>
+          <div>
+            <div class="fw-semibold">${a.message}</div>
+            ${a.action ? `<div class="action-text">${a.action}</div>` : ''}
+          </div>
+        </div>`;
+    });
+  }).catch(() => {});
+
+{% if analysis and analysis.has_data %}
+
+/* ─── Progress Tracking ─────────────────────────────────────────────── */
+fetch('/api/behaviour/progress')
+  .then(r => r.json())
+  .then(d => {
+    const el = document.getElementById('progressBadge');
+    if (!el || !d.has_prev) return;
+    const delta = d.wr_delta;
+    const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+    const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+    el.innerHTML = `<span class="delta-badge ${cls}">${arrow} Win rate ${Math.abs(delta)}% vs last month</span>`;
+  }).catch(() => {});
+
+/* ─── Score Breakdown ───────────────────────────────────────────────── */
+fetch('/api/behaviour/score-breakdown')
+  .then(r => r.json())
+  .then(d => {
+    const bars = document.querySelectorAll('#scoreBreakdownBars .breakdown-bar .fill');
+    const labels = document.querySelectorAll('#scoreBreakdownBars .breakdown-label span:last-child');
+    const vals = [d.discipline, d.risk, d.timing, d.psychology];
+    const colors = ['#4f46e5','#22c55e','#f59e0b','#8b5cf6'];
+    vals.forEach((v, i) => {
+      if (bars[i]) bars[i].style.width = v + '%';
+      if (labels[i]) { labels[i].textContent = v; labels[i].style.color = colors[i]; labels[i].style.fontWeight = '700'; }
+    });
+  }).catch(() => {});
+
+/* ─── AI Narrative ──────────────────────────────────────────────────── */
+fetch('/api/behaviour/narrative')
+  .then(r => r.json())
+  .then(data => {
+    const el = document.getElementById('narrativeContent');
+    if (!el) return;
+    const n = data.narrative;
+    if (!n) { el.innerHTML = '<div class="text-white-50 small">AI narrative unavailable.</div>'; return; }
+    el.innerHTML = `
+      <div class="narrative-item">
+        <div class="ni-icon" style="background:rgba(99,102,241,.4)"><i class="fas fa-lightbulb"></i></div>
+        <div class="ni-text">${n.key_insight || ''}</div>
+      </div>
+      ${n.risk_warning ? `
+      <div class="narrative-item">
+        <div class="ni-icon" style="background:rgba(239,68,68,.4)"><i class="fas fa-exclamation-triangle"></i></div>
+        <div class="ni-text">${n.risk_warning}</div>
+      </div>` : ''}
+      ${n.action ? `
+      <div class="narrative-item">
+        <div class="ni-icon" style="background:rgba(34,197,94,.4)"><i class="fas fa-check"></i></div>
+        <div class="ni-text">${n.action}</div>
+      </div>` : ''}`;
+  }).catch(() => {
+    const el = document.getElementById('narrativeContent');
+    if (el) el.innerHTML = '<div class="text-white-50 small">AI analysis temporarily unavailable.</div>';
+  });
+
+/* ─── Behavior Timeline ─────────────────────────────────────────────── */
+fetch('/api/behaviour/timeline?days=30')
+  .then(r => r.json())
+  .then(data => {
+    const tl = data.timeline || [];
+    const el = document.getElementById('timelineChart');
+    if (!el || !tl.length) return;
+
+    const events = tl.filter(d => d.event);
+    const evStrip = document.getElementById('timelineEvents');
+    if (evStrip && events.length) evStrip.textContent = `${events.length} notable event${events.length > 1 ? 's' : ''} detected`;
+
+    const evList = document.getElementById('timelineEventList');
+    if (evList && events.length) {
+      evList.innerHTML = events.slice(0, 3).map(e =>
+        `<span class="badge me-1" style="background:#fef2f2;color:#dc2626;font-weight:600;font-size:.72rem">
+          <i class="fas fa-exclamation-circle me-1"></i>${e.label}: ${e.event}
+        </span>`
+      ).join('');
+    }
+
+    new Chart(el, {
+      type: 'bar',
+      data: {
+        labels: tl.map(d => d.label),
+        datasets: [
+          {
+            label: 'P&L ₹',
+            data: tl.map(d => d.pnl),
+            backgroundColor: tl.map(d => d.pnl >= 0 ? 'rgba(34,197,94,.75)' : 'rgba(239,68,68,.75)'),
+            borderRadius: 4,
+            yAxisID: 'y',
+            order: 2,
+          },
+          {
+            label: 'Trades',
+            data: tl.map(d => d.trades),
+            type: 'line',
+            borderColor: '#4f46e5',
+            backgroundColor: 'rgba(79,70,229,.08)',
+            fill: true,
+            tension: 0.35,
+            pointRadius: tl.map(d => d.event ? 6 : 2),
+            pointBackgroundColor: tl.map(d => d.event ? '#ef4444' : '#4f46e5'),
+            yAxisID: 'y1',
+            order: 1,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: {mode: 'index', intersect: false},
+        scales: {
+          y: {position: 'left', ticks: {callback: v => '₹'+v.toLocaleString()}, grid: {display: false}},
+          y1: {position: 'right', beginAtZero: true, ticks: {stepSize: 1}, grid: {drawOnChartArea: false}},
+          x: {grid: {display: false}}
+        },
+        plugins: {legend: {display: false}}
+      }
+    });
+  }).catch(() => {});
+
+/* ─── Cross-Broker Intelligence ─────────────────────────────────────── */
+fetch('/api/behaviour/cross-broker')
+  .then(r => r.json())
+  .then(data => {
+    const el = document.getElementById('crossBrokerContent');
+    if (!el) return;
+    if (!data.brokers || !data.brokers.length) {
+      el.innerHTML = `
+        <div class="text-center py-3">
+          <i class="fas fa-exchange-alt fa-2x text-muted mb-2 d-block"></i>
+          <div class="fw-semibold small text-muted">${data.insight || 'Connect multiple brokers to unlock cross-broker intelligence.'}</div>
+          <a href="/dashboard/broker-connect" class="btn btn-sm btn-outline-primary mt-3">Connect Another Broker</a>
+        </div>`;
+      return;
+    }
+
+    const maxSize = Math.max(...data.brokers.map(b => b.avg_size)) || 1;
+    const rows = data.brokers.map(b => `
+      <div class="broker-row">
+        <div class="broker-name">${b.broker}</div>
+        <div class="broker-bars">
+          <div class="mini-bar"><div class="fill" style="width:${Math.round(b.avg_size/maxSize*100)}%;background:${b.risk_color}"></div></div>
+        </div>
+        <div class="broker-stat"><div class="bval">${b.win_rate}%</div><div class="blbl">Win Rate</div></div>
+        <div><span class="risk-tag" style="background:${b.risk_color}22;color:${b.risk_color}">${b.risk_level}</span></div>
+      </div>`).join('');
+
+    const alertBanner = data.detected
+      ? `<div class="today-alert warning mb-3" style="border-radius:10px">
+           <i class="fas fa-exclamation-triangle"></i>
+           <div class="fw-semibold small">${data.insight}</div>
+         </div>`
+      : `<div class="today-alert info mb-3" style="border-radius:10px">
+           <i class="fas fa-check-circle"></i>
+           <div class="small">${data.insight}</div>
+         </div>`;
+    el.innerHTML = alertBanner + rows;
+  }).catch(() => {
+    const el = document.getElementById('crossBrokerContent');
+    if (el) el.innerHTML = '<div class="text-muted small text-center py-2">Cross-broker data unavailable.</div>';
+  });
+
+/* ─── Category Radar ────────────────────────────────────────────────── */
 new Chart(document.getElementById('radarChart'), {
   type: 'radar',
   data: {
     labels: [{% for key, cat in analysis.categories.items() %}'{{ cat.label }}'{% if not loop.last %},{% endif %}{% endfor %}],
     datasets: [{
-      label: 'Score',
       data: [{% for key, cat in analysis.categories.items() %}{{ cat.score }}{% if not loop.last %},{% endif %}{% endfor %}],
-      borderColor: '#4f46e5',
-      backgroundColor: 'rgba(79,70,229,.12)',
-      borderWidth: 2,
-      pointBackgroundColor: '#4f46e5',
-      pointRadius: 5
+      borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,.12)',
+      borderWidth: 2, pointBackgroundColor: '#4f46e5', pointRadius: 4
     }]
   },
-  options: {
-    scales: {r: {min: 0, max: 100, ticks: {stepSize: 20, display: false}, grid: {color: '#e5e7eb'}, angleLines: {color: '#e5e7eb'}}},
-    plugins: {legend: {display: false}}
-  }
+  options: {scales: {r: {min: 0, max: 100, ticks: {stepSize: 20, display: false}, grid: {color: '#e5e7eb'}, angleLines: {color: '#e5e7eb'}}}, plugins: {legend: {display: false}}}
 });
 
+/* ─── Win Rate by Hour ──────────────────────────────────────────────── */
 const hourData = {{ analysis.by_hour | tojson }};
 new Chart(document.getElementById('hourChart'), {
   type: 'bar',
   data: {
     labels: hourData.map(h => h.hour),
     datasets: [{
-      label: 'Win Rate %',
       data: hourData.map(h => h.win_rate),
       backgroundColor: hourData.map(h => h.win_rate >= 55 ? '#22c55e' : h.win_rate >= 40 ? '#f59e0b' : '#ef4444'),
-      borderRadius: 6
+      borderRadius: 4
     }]
   },
-  options: {
-    scales: {y: {max: 100, ticks: {callback: v => v + '%'}}, x: {grid: {display: false}}},
-    plugins: {legend: {display: false}}
-  }
+  options: {scales: {y: {max: 100, ticks: {callback: v => v+'%'}}, x: {grid: {display: false}}}, plugins: {legend: {display: false}}}
 });
-</script>
-{% endif %}
 
-<!-- Upload zone drag-drop + file name display -->
+{% endif %}
+</script>
+
 {% if not analysis or not analysis.has_data %}
 <script>
 function showFileName(input) {
-  const label = document.getElementById('uploadLabel');
-  const btn = document.getElementById('uploadBtn');
   if (input.files && input.files[0]) {
-    label.textContent = input.files[0].name;
-    btn.disabled = false;
+    document.getElementById('uploadLabel').textContent = input.files[0].name;
+    document.getElementById('uploadBtn').disabled = false;
   }
 }
-const zone = document.getElementById('uploadZone');
+const zone = document.querySelector('.upload-zone');
 if (zone) {
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
   zone.addEventListener('drop', e => {
-    e.preventDefault();
-    zone.classList.remove('drag-over');
-    const files = e.dataTransfer.files;
-    if (files.length) {
-      const fi = document.getElementById('tradeFile');
-      fi.files = files;
-      showFileName(fi);
-    }
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const fi = document.getElementById('tradeFile');
+    if (e.dataTransfer.files.length) { fi.files = e.dataTransfer.files; showFileName(fi); }
   });
 }
 </script>

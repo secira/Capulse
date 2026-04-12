@@ -969,6 +969,275 @@ class BehaviourEngine:
         }
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # NEW INTELLIGENCE MODULES
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def get_behavior_timeline(self, days=30):
+        """Group trades by day for the 30-day behavior timeline chart."""
+        from models import TradeHistory, ManualTradeImport
+        since = datetime.utcnow() - timedelta(days=days)
+        trades = sorted(
+            list(TradeHistory.query.filter_by(user_id=self.user_id, tenant_id=self.tenant_id)
+                 .filter(TradeHistory.entry_time >= since).all()) +
+            list(ManualTradeImport.query.filter_by(user_id=self.user_id, tenant_id=self.tenant_id)
+                 .filter(ManualTradeImport.entry_time >= since).all()),
+            key=lambda t: t.entry_time
+        )
+
+        by_day = defaultdict(lambda: {'trades': 0, 'wins': 0, 'pnl': 0.0, 'sizes': []})
+        for t in trades:
+            day = t.entry_time.strftime('%Y-%m-%d')
+            by_day[day]['trades'] += 1
+            by_day[day]['pnl'] += t.realized_pnl
+            if t.trade_result == 'WIN':
+                by_day[day]['wins'] += 1
+            size = (getattr(t, 'quantity', 0) or 0) * (getattr(t, 'entry_price', 0) or 0)
+            by_day[day]['sizes'].append(size)
+
+        if not by_day:
+            return []
+
+        avg_daily = sum(d['trades'] for d in by_day.values()) / len(by_day)
+        max_size = max(
+            (max(d['sizes']) if d['sizes'] else 0) for d in by_day.values()
+        ) or 1
+        overall_avg_size = max_size * 0.5
+
+        timeline = []
+        for day in sorted(by_day.keys()):
+            d = by_day[day]
+            avg_size = sum(d['sizes']) / len(d['sizes']) if d['sizes'] else 0
+            event = None
+            if d['trades'] > avg_daily * 1.5 and d['pnl'] < 0:
+                event = 'High activity after loss'
+            elif d['trades'] > avg_daily * 1.5:
+                event = 'High trading activity'
+            elif d['pnl'] < -5000:
+                event = 'Heavy loss day'
+            elif avg_size > overall_avg_size * 1.5:
+                event = 'Large position day'
+            timeline.append({
+                'date': day,
+                'label': datetime.strptime(day, '%Y-%m-%d').strftime('%d %b'),
+                'trades': d['trades'],
+                'wins': d['wins'],
+                'pnl': round(d['pnl'], 2),
+                'avg_size': round(avg_size),
+                'event': event,
+            })
+        return timeline
+
+    def get_cross_broker_intelligence(self):
+        """Per-broker win rate, avg size, frequency — the cross-broker USP."""
+        try:
+            from models_broker import BrokerAccount, BrokerOrder
+        except ImportError:
+            return {'brokers': [], 'insight': 'No broker data available.', 'detected': False}
+
+        trades = self._get_trades()
+        orders = self._get_orders()
+
+        by_broker = defaultdict(lambda: {
+            'trades': 0, 'wins': 0, 'losses': 0, 'pnl': 0.0, 'sizes': []
+        })
+
+        # From TradeHistory/ManualTradeImport — keyed by broker_name
+        for t in trades:
+            bn = getattr(t, 'broker_name', 'Unknown') or 'Unknown'
+            by_broker[bn]['trades'] += 1
+            by_broker[bn]['pnl'] += t.realized_pnl
+            if t.trade_result == 'WIN':
+                by_broker[bn]['wins'] += 1
+            elif t.trade_result == 'LOSS':
+                by_broker[bn]['losses'] += 1
+            size = (getattr(t, 'quantity', 0) or 0) * (getattr(t, 'entry_price', 0) or 0)
+            by_broker[bn]['sizes'].append(size)
+
+        # From BrokerOrder — map account_id → broker name
+        if orders:
+            try:
+                accounts = {
+                    a.id: a.broker_name
+                    for a in BrokerAccount.query.filter_by(user_id=self.user_id).all()
+                }
+                for o in orders:
+                    bn = accounts.get(getattr(o, 'broker_account_id', 0), 'Unknown')
+                    size = (getattr(o, 'quantity', 0) or 0) * (
+                        getattr(o, 'price', 0) or getattr(o, 'avg_execution_price', 0) or 0
+                    )
+                    by_broker[bn]['sizes'].append(size)
+                    by_broker[bn]['trades'] += 1
+            except Exception:
+                pass
+
+        if len(by_broker) < 2:
+            return {
+                'brokers': [],
+                'insight': 'Connect multiple brokers to unlock cross-broker intelligence.',
+                'detected': False,
+            }
+
+        avg_sizes = {bn: (sum(d['sizes']) / len(d['sizes']) if d['sizes'] else 0)
+                     for bn, d in by_broker.items()}
+        max_avg = max(avg_sizes.values()) if avg_sizes else 1
+        min_avg = min(avg_sizes.values()) if avg_sizes else 1
+
+        brokers = []
+        for bn, d in sorted(by_broker.items(), key=lambda x: x[1]['trades'], reverse=True):
+            total = d['trades'] or 1
+            wr = round(d['wins'] / total * 100)
+            avg_s = avg_sizes.get(bn, 0)
+            ratio = avg_s / min_avg if min_avg > 0 else 1
+            if ratio >= 1.8:
+                risk_level = 'High Risk'
+                risk_color = '#ef4444'
+            elif ratio >= 1.3:
+                risk_level = 'Moderate Risk'
+                risk_color = '#f59e0b'
+            else:
+                risk_level = 'Low Risk'
+                risk_color = '#22c55e'
+            brokers.append({
+                'broker': bn,
+                'trades': d['trades'],
+                'win_rate': wr,
+                'avg_size': round(avg_s),
+                'pnl': round(d['pnl'], 2),
+                'risk_level': risk_level,
+                'risk_color': risk_color,
+                'size_ratio': round(ratio, 1),
+            })
+
+        if max_avg > min_avg * 1.3:
+            high_risk_broker = max(avg_sizes, key=avg_sizes.get)
+            low_risk_broker = min(avg_sizes, key=avg_sizes.get)
+            ratio = round(max_avg / min_avg, 1) if min_avg > 0 else 1
+            insight = f'You take {ratio}x larger positions on {high_risk_broker} vs {low_risk_broker}. This suggests different risk tolerance across platforms.'
+            detected = True
+        else:
+            insight = 'Your risk behavior is consistent across all brokers. This is a positive sign of disciplined trading.'
+            detected = False
+
+        return {'brokers': brokers, 'insight': insight, 'detected': detected}
+
+    def get_today_alerts(self):
+        """Real-time alerts based on today's trading activity."""
+        from models import TradeHistory, ManualTradeImport
+        now = datetime.utcnow()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        all_trades = self._get_trades()
+        today_trades = [t for t in all_trades if t.entry_time >= today_start]
+        alerts = []
+
+        # Daily average from last 30 days
+        days_with_trades = set(t.entry_time.date() for t in all_trades)
+        avg_daily = len(all_trades) / max(len(days_with_trades), 1)
+
+        # Alert 1: Overtrading today
+        if len(today_trades) > avg_daily * 1.5 and len(today_trades) >= 3:
+            alerts.append({
+                'type': 'overtrading', 'severity': 'warning',
+                'icon': 'fas fa-bolt', 'color': '#f59e0b',
+                'message': f"You've placed {len(today_trades)} trades today — {round(len(today_trades)/avg_daily, 1)}x your daily average.",
+                'action': 'Consider pausing and reviewing before placing more orders.',
+            })
+
+        # Alert 2: Loss streak today
+        if len(today_trades) >= 3:
+            recent = today_trades[-3:]
+            if all(t.trade_result == 'LOSS' for t in recent):
+                alerts.append({
+                    'type': 'loss_streak', 'severity': 'danger',
+                    'icon': 'fas fa-exclamation-circle', 'color': '#ef4444',
+                    'message': 'You have 3 consecutive losses today. Revenge trading risk is high.',
+                    'action': 'Take a break. Emotional trading after losses often worsens performance.',
+                })
+
+        # Alert 3: Recent win streak — overconfidence risk
+        if len(today_trades) >= 3:
+            recent = today_trades[-3:]
+            if all(t.trade_result == 'WIN' for t in recent):
+                sizes = [(getattr(t, 'quantity', 0) or 0) * (getattr(t, 'entry_price', 0) or 0)
+                         for t in today_trades]
+                if len(sizes) >= 2 and sizes[-1] > sizes[-2] * 1.3:
+                    alerts.append({
+                        'type': 'overconfidence', 'severity': 'info',
+                        'icon': 'fas fa-trophy', 'color': '#3b82f6',
+                        'message': 'Win streak + growing position size detected. Overconfidence risk.',
+                        'action': 'Winning streaks end. Maintain consistent position sizing.',
+                    })
+
+        # Alert 4: No trades today (positive — check if normally active)
+        if len(today_trades) == 0 and avg_daily >= 3 and now.weekday() < 5:
+            pass  # Positive — don't alarm
+
+        return alerts
+
+    def get_score_breakdown(self):
+        """Break master score into Discipline, Risk, Timing, Psychology."""
+        cats = {
+            'trading': self.get_trading_behavior(),
+            'risk': self.get_risk_behavior(),
+            'portfolio': self.get_portfolio_behavior(),
+            'performance': self.get_performance_patterns(),
+            'psychology': self.get_psychology_patterns(),
+        }
+        discipline = round((cats['trading']['score'] + cats['performance']['score']) / 2)
+        risk_score = round((cats['risk']['score'] + cats['portfolio']['score']) / 2)
+        timing_score = cats['trading']['modules'].get('trade_timing', {}).get('score', 50)
+        psych_score = cats['psychology']['score']
+        total = round(discipline * 0.3 + risk_score * 0.25 + timing_score * 0.2 + psych_score * 0.25)
+        return {
+            'total': total,
+            'discipline': discipline,
+            'risk': risk_score,
+            'timing': timing_score,
+            'psychology': psych_score,
+        }
+
+    def get_progress_tracking(self):
+        """Compare this month vs last month for key metrics."""
+        from models import TradeHistory, ManualTradeImport
+        now = datetime.utcnow()
+        this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month_end = this_month_start - timedelta(seconds=1)
+        last_month_start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        def fetch(start, end):
+            th = TradeHistory.query.filter_by(user_id=self.user_id, tenant_id=self.tenant_id)\
+                 .filter(TradeHistory.exit_time.between(start, end)).all()
+            mi = ManualTradeImport.query.filter_by(user_id=self.user_id, tenant_id=self.tenant_id)\
+                 .filter(ManualTradeImport.exit_time.between(start, end)).all()
+            return th + mi
+
+        cur = fetch(this_month_start, now)
+        prev = fetch(last_month_start, last_month_end)
+
+        def metrics(trades):
+            total = len(trades)
+            wins = sum(1 for t in trades if t.trade_result == 'WIN')
+            pnl = sum(t.realized_pnl for t in trades)
+            wr = round(wins / total * 100, 1) if total else 0
+            return {'total': total, 'win_rate': wr, 'pnl': round(pnl, 2)}
+
+        cur_m = metrics(cur)
+        prev_m = metrics(prev)
+
+        wr_delta = round(cur_m['win_rate'] - prev_m['win_rate'], 1)
+        trades_delta = cur_m['total'] - prev_m['total']
+        pnl_delta = round(cur_m['pnl'] - prev_m['pnl'], 2)
+
+        return {
+            'current': cur_m,
+            'previous': prev_m,
+            'wr_delta': wr_delta,
+            'trades_delta': trades_delta,
+            'pnl_delta': pnl_delta,
+            'improving': wr_delta > 0,
+            'has_prev': len(prev) > 0,
+        }
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # STATISTICAL HELPERS (for existing compatibility)
     # ═══════════════════════════════════════════════════════════════════════════
 
