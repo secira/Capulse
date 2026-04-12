@@ -1999,15 +1999,191 @@ def dashboard_my_portfolio():
     except Exception as _opt_err:
         logging.warning(f"Could not load latest optimization: {_opt_err}")
 
+    # ── Portfolio Intelligence Layer ───────────────────────────────────────────
+    portfolio_intel = None
+    broker_breakdown_data = None
+    action_center = []
+    bottom_performers = []
+    try:
+        ps = portfolio_summary
+        total_value = ps.get('total_current_value', 0) if isinstance(ps, dict) else getattr(ps, 'total_current_value', 0) or 0
+        total_pnl = ps.get('total_pnl', 0) if isinstance(ps, dict) else getattr(ps, 'total_pnl', 0) or 0
+        total_invest = ps.get('total_investment', 0) if isinstance(ps, dict) else getattr(ps, 'total_investment', 0) or 0
+        pnl_pct = ps.get('pnl_percentage', 0) if isinstance(ps, dict) else getattr(ps, 'pnl_percentage', 0) or 0
+        rp = ps.get('risk_profile', {}) if isinstance(ps, dict) else getattr(ps, 'risk_profile', {}) or {}
+        risk_score = rp.get('score', 50) if isinstance(rp, dict) else getattr(rp, 'score', 50) or 50
+        risk_cat = rp.get('category', 'Moderate') if isinstance(rp, dict) else getattr(rp, 'category', 'Moderate') or 'Moderate'
+
+        # Concentration & diversification from heatmap
+        hm = risk_heatmap or []
+        def _w(item): return item.get('weight', 0) if isinstance(item, dict) else getattr(item, 'weight', 0) or 0
+        def _n(item): return item.get('name', '') if isinstance(item, dict) else getattr(item, 'name', '') or ''
+        active_classes = [h for h in hm if _w(h) > 0]
+        n_classes = len(active_classes)
+        heavy = [h for h in hm if _w(h) >= 70]
+        moderate_heavy = [h for h in hm if 45 <= _w(h) < 70]
+
+        risks = []
+        if heavy:
+            for h in heavy:
+                risks.append({'sev': 'critical', 'text': f"{_w(h):.0f}% allocated to {_n(h)} — extreme concentration risk"})
+        elif moderate_heavy:
+            for h in moderate_heavy:
+                risks.append({'sev': 'warning', 'text': f"{_w(h):.0f}% in {_n(h)} — high concentration"})
+        if n_classes <= 1:
+            risks.append({'sev': 'critical', 'text': f"Only 1 asset class — no diversification whatsoever"})
+        elif n_classes <= 2:
+            risks.append({'sev': 'warning', 'text': f"Only {n_classes} asset classes — limited diversification"})
+        if risk_score >= 70:
+            risks.append({'sev': 'warning', 'text': f"High risk score ({risk_score:.0f}/100) — portfolio is exposed to significant drawdown"})
+        if pnl_pct < -10:
+            risks.append({'sev': 'critical', 'text': f"Significant losses ({pnl_pct:.1f}%) — strategy review recommended"})
+        elif pnl_pct < 0:
+            risks.append({'sev': 'warning', 'text': f"Portfolio in negative territory ({pnl_pct:.1f}%)"})
+
+        strengths = []
+        if pnl_pct > 10:
+            strengths.append(f"Strong returns of +{pnl_pct:.1f}% — portfolio is outperforming")
+        elif pnl_pct > 0:
+            strengths.append(f"Positive returns (+{pnl_pct:.1f}%) — portfolio is growing")
+        if n_classes >= 4:
+            strengths.append(f"Diversified across {n_classes} asset classes — good spread")
+        if risk_score <= 35:
+            strengths.append(f"Conservative risk profile ({risk_score:.0f}/100) — capital preserved")
+
+        critical_risks = [r for r in risks if r['sev'] == 'critical']
+        biggest_issue = critical_risks[0]['text'] if critical_risks else (risks[0]['text'] if risks else 'No critical issues detected')
+
+        if n_classes <= 1 and pnl_pct < 0:
+            summary = 'Portfolio is highly concentrated in one asset class with negative returns — diversification is urgent.'
+        elif n_classes <= 2 and pnl_pct < 0:
+            summary = f"Limited to {n_classes} asset class(es) with {pnl_pct:.1f}% returns — broadening exposure is the next step."
+        elif pnl_pct > 8 and n_classes >= 4:
+            summary = f"Portfolio showing +{pnl_pct:.1f}% returns across {n_classes} asset classes — maintain discipline and rebalance."
+        elif pnl_pct > 0:
+            summary = f"Portfolio in positive territory (+{pnl_pct:.1f}%). Focus on improving diversification to reduce risk concentration."
+        else:
+            summary = f"Portfolio has a {risk_cat.lower()} risk profile. Review asset allocation to improve returns and reduce concentration."
+
+        risk_color = '#ef4444' if risk_score >= 70 else '#f59e0b' if risk_score >= 40 else '#22c55e'
+        portfolio_intel = {
+            'summary': summary, 'risks': risks[:3], 'strengths': strengths[:2],
+            'biggest_issue': biggest_issue, 'risk_color': risk_color,
+            'total_value': total_value, 'total_pnl': total_pnl, 'total_invest': total_invest,
+            'pnl_pct': round(pnl_pct, 2), 'risk_score': round(risk_score),
+            'risk_cat': risk_cat, 'n_classes': n_classes,
+        }
+
+        # ── Broker Breakdown ─────────────────────────────────────────────────
+        from models import Portfolio as PortfolioModel
+        holdings = PortfolioModel.query.filter_by(user_id=current_user.id).all()
+        brokers_agg = {}
+        for h in holdings:
+            bn = h.get_broker_name() if hasattr(h, 'get_broker_name') else 'Manual'
+            if bn not in brokers_agg:
+                brokers_agg[bn] = {'value': 0, 'invest': 0, 'count': 0, 'hi_risk': 0}
+            brokers_agg[bn]['value'] += h.current_value or 0
+            brokers_agg[bn]['invest'] += h.purchased_value or 0
+            brokers_agg[bn]['count'] += 1
+            rl = h.get_risk_level() if hasattr(h, 'get_risk_level') else 'Low'
+            if rl and 'high' in rl.lower():
+                brokers_agg[bn]['hi_risk'] += 1
+
+        bk_total = sum(b['value'] for b in brokers_agg.values()) or 1
+        broker_rows = []
+        for name, b in brokers_agg.items():
+            pnl_v = b['value'] - b['invest']
+            pnl_p = round(pnl_v / max(b['invest'], 1) * 100, 1)
+            alloc_p = round(b['value'] / bk_total * 100, 1)
+            rp_v = round(b['hi_risk'] / max(b['count'], 1) * 100)
+            risk_l = 'High' if rp_v >= 60 else 'Medium' if rp_v >= 30 else 'Low'
+            broker_rows.append({
+                'name': name, 'value': round(b['value']), 'pnl': round(pnl_v),
+                'pnl_pct': pnl_p, 'allocation': alloc_p, 'count': b['count'],
+                'risk': risk_l, 'risk_color': '#ef4444' if risk_l == 'High' else '#f59e0b' if risk_l == 'Medium' else '#22c55e',
+            })
+        broker_rows.sort(key=lambda x: x['value'], reverse=True)
+
+        bk_insight = None
+        if len(broker_rows) > 1:
+            hi_risk_bk = max(broker_rows, key=lambda x: {'High': 3, 'Medium': 2, 'Low': 1}[x['risk']])
+            lo_ret_bk = min(broker_rows, key=lambda x: x['pnl_pct'])
+            dominant = next((r for r in broker_rows if r['allocation'] > 60), None)
+            if dominant:
+                bk_insight = f"{dominant['allocation']}% of your capital sits in {dominant['name']} — high broker concentration."
+            elif hi_risk_bk['name'] == lo_ret_bk['name'] and hi_risk_bk['risk'] == 'High':
+                bk_insight = f"You take the most risk on {hi_risk_bk['name']} but returns there ({hi_risk_bk['pnl_pct']:+.1f}%) may not justify it."
+            else:
+                best_bk = max(broker_rows, key=lambda x: x['pnl_pct'])
+                bk_insight = f"Best performing broker: {best_bk['name']} at {best_bk['pnl_pct']:+.1f}% returns."
+        broker_breakdown_data = {'brokers': broker_rows, 'insight': bk_insight}
+
+        # ── Action Center ────────────────────────────────────────────────────
+        actions = []
+        if n_classes <= 1:
+            actions.append({'priority': 'critical', 'icon': 'fas fa-exclamation-circle', 'color': '#ef4444',
+                'title': 'Add Diversification Immediately',
+                'detail': 'Portfolio is 100% in one asset class. Add 2–3 more (e.g., Mutual Funds, Gold, Fixed Income) to reduce concentration risk.'})
+        elif n_classes <= 2:
+            actions.append({'priority': 'warning', 'icon': 'fas fa-exclamation-triangle', 'color': '#f59e0b',
+                'title': 'Broaden Asset Allocation',
+                'detail': f'Only {n_classes} asset classes detected. Target 4–5 classes for a balanced risk-return profile.'})
+        if heavy:
+            nm = _n(heavy[0]); wt = _w(heavy[0])
+            actions.append({'priority': 'critical', 'icon': 'fas fa-compress-arrows-alt', 'color': '#ef4444',
+                'title': f'Reduce {nm} Concentration ({wt:.0f}%)',
+                'detail': f'A single asset class at {wt:.0f}% means one bad sector move hits your entire portfolio. Ideal: ≤60% in any one class.'})
+        elif moderate_heavy:
+            nm = _n(moderate_heavy[0]); wt = _w(moderate_heavy[0])
+            actions.append({'priority': 'warning', 'icon': 'fas fa-balance-scale', 'color': '#f59e0b',
+                'title': f'Rebalance {nm} ({wt:.0f}%)',
+                'detail': f'Consider trimming {nm} to below 45% and reallocating to other asset classes.'})
+        if risk_score >= 70:
+            actions.append({'priority': 'warning', 'icon': 'fas fa-shield-alt', 'color': '#f59e0b',
+                'title': 'Review High-Risk Holdings',
+                'detail': 'Risk score is elevated. Shift 15–20% into lower-risk instruments like FDs, debt funds, or sovereign gold.'})
+        if pnl_pct < -5:
+            actions.append({'priority': 'critical', 'icon': 'fas fa-search', 'color': '#ef4444',
+                'title': 'Investigate Underperforming Holdings',
+                'detail': f'Portfolio is down {pnl_pct:.1f}%. Identify the worst position and assess if the investment thesis still holds.'})
+        pp_alerts = (portfolio_pulse or {}).get('alerts', [])
+        for alert in pp_alerts[:1]:
+            if alert.get('level') == 'danger':
+                actions.append({'priority': 'critical', 'icon': 'fas fa-fire', 'color': '#ef4444',
+                    'title': alert['text'], 'detail': 'Flagged as high priority by the Scentric Risk Engine.'})
+        if not actions:
+            if pnl_pct > 5:
+                actions.append({'priority': 'good', 'icon': 'fas fa-sync-alt', 'color': '#22c55e',
+                    'title': 'Rebalance Quarterly',
+                    'detail': 'Portfolio is performing well. Quarterly rebalancing locks in gains and keeps allocation on target.'})
+            actions.append({'priority': 'good', 'icon': 'fas fa-chart-line', 'color': '#22c55e',
+                'title': 'Set Up Systematic Investment Plan',
+                'detail': 'SIPs in your best-performing category build wealth consistently through market cycles.'})
+        action_center = actions[:5]
+
+        # ── Bottom Performers ────────────────────────────────────────────────
+        all_perf = list(top_performers or [])
+        bottom_performers = sorted(
+            [p for p in all_perf if (p.get('pnl_percentage') or p.get('pnl_pct', 0)) < 0],
+            key=lambda x: x.get('pnl_percentage', x.get('pnl_pct', 0))
+        )[:3]
+
+    except Exception as _pi_err:
+        logging.warning(f"Portfolio intelligence computation error: {_pi_err}")
+
     return render_template('dashboard/my_portfolio_comprehensive.html',
                            portfolio_summary=portfolio_summary,
                            ai_insights=ai_insights,
                            top_performers=top_performers,
+                           bottom_performers=bottom_performers,
                            risk_heatmap=risk_heatmap,
                            goal_progress=goal_progress,
                            portfolio_pulse=portfolio_pulse,
                            recent_events=recent_events,
                            latest_optimization=latest_optimization,
+                           portfolio_intel=portfolio_intel,
+                           broker_breakdown_data=broker_breakdown_data,
+                           action_center=action_center,
                            current_user=current_user)
 
 @app.route('/dashboard/my-portfolio-old')
