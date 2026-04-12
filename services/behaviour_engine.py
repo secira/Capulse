@@ -66,15 +66,24 @@ class BehaviourEngine:
     # ── Data loading ──────────────────────────────────────────────────────────
 
     def _load_trades(self, days=90):
-        from models import TradeHistory
+        from models import TradeHistory, ManualTradeImport
         since = datetime.utcnow() - timedelta(days=days)
-        return (
+        broker_trades = (
             TradeHistory.query
             .filter_by(user_id=self.user_id, tenant_id=self.tenant_id)
             .filter(TradeHistory.exit_time >= since)
             .order_by(TradeHistory.exit_time.asc())
             .all()
         )
+        manual_trades = (
+            ManualTradeImport.query
+            .filter_by(user_id=self.user_id, tenant_id=self.tenant_id)
+            .filter(ManualTradeImport.exit_time >= since)
+            .order_by(ManualTradeImport.exit_time.asc())
+            .all()
+        )
+        combined = sorted(broker_trades + manual_trades, key=lambda t: t.exit_time)
+        return combined
 
     def _get_trades(self):
         if self._trades is None:

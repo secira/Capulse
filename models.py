@@ -1943,6 +1943,35 @@ class TradeHistory(db.Model):
     user = db.relationship('User', backref='trade_history')
     active_trade = db.relationship('ActiveTrade', backref='history_record', uselist=False)
 
+class ManualTradeImport(db.Model):
+    """Trades imported manually via CSV upload for Behavioural AI analysis."""
+    __tablename__ = 'manual_trade_imports'
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.String(255), db.ForeignKey('tenants.id'), nullable=True, default='live', index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+
+    symbol = db.Column(db.String(50), nullable=False)
+    strategy_name = db.Column(db.String(100), default='Manual Import')
+    quantity = db.Column(db.Integer, nullable=False)
+    entry_price = db.Column(db.Float, nullable=False)
+    exit_price = db.Column(db.Float, nullable=False)
+    realized_pnl = db.Column(db.Float, nullable=False)
+    pnl_percentage = db.Column(db.Float, default=0.0)
+    holding_period_hours = db.Column(db.Float, default=0.0)
+    trade_result = db.Column(db.String(10), nullable=False)   # WIN, LOSS, BREAKEVEN
+    exit_reason = db.Column(db.String(20), default='MANUAL')  # MANUAL, TARGET, STOPLOSS
+    broker_name = db.Column(db.String(50), default='Manual')
+    total_charges = db.Column(db.Float, default=0.0)
+    net_pnl = db.Column(db.Float, default=0.0)
+    entry_time = db.Column(db.DateTime, nullable=False)
+    exit_time = db.Column(db.DateTime, nullable=False)
+    source = db.Column(db.String(20), default='csv_upload')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='manual_trade_imports')
+
+
 class MarketAnalysis(db.Model):
     __tablename__ = 'market_analysis'
     

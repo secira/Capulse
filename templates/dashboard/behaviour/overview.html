@@ -1,11 +1,45 @@
 {% extends "dashboard/dashboard_base.html" %}
 
-{% block title %}Behavioural Insights - Target Capital{% endblock %}
+{% block title %}Behavioural AI - Target Capital{% endblock %}
 {% block dashboard_title %}Behavioural AI Dashboard{% endblock %}
 {% block dashboard_subtitle %}Your trading psychology analyzed across 20 modules — powered by the Scentric AI Decision Engine{% endblock %}
 
 {% block dashboard_content %}
 <style>
+/* Flash messages */
+.alert-flash{padding:12px 18px;border-radius:10px;margin-bottom:16px;font-size:.9rem;display:flex;align-items:center;gap:10px}
+.alert-flash.success{background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d}
+.alert-flash.danger{background:#fef2f2;border:1px solid #fecaca;color:#dc2626}
+.alert-flash.warning{background:#fffbeb;border:1px solid #fed7aa;color:#b45309}
+
+/* Onboarding */
+.onboard-hero{background:linear-gradient(135deg,#f8faff 0%,#eef2ff 100%);border:1px solid #e0e7ff;border-radius:20px;padding:40px 32px;text-align:center}
+.onboard-hero h2{font-size:1.6rem;font-weight:800;color:#1e293b}
+.onboard-hero p{color:#475569;max-width:560px;margin:0 auto}
+.step-list{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;margin:32px 0 0}
+.step-item{background:#fff;border-radius:14px;padding:20px 22px;flex:1;min-width:200px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,.06);text-align:left;position:relative}
+.step-num{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:#fff;margin-bottom:12px}
+.step-title{font-weight:700;font-size:.95rem;color:#1e293b;margin-bottom:4px}
+.step-desc{font-size:.82rem;color:#64748b}
+.step-item.done .step-num{background:#22c55e}
+.step-item.active .step-num{background:#4f46e5}
+.step-item.pending .step-num{background:#94a3b8}
+
+/* Option cards */
+.option-card{border-radius:16px;border:2px solid #e5e7eb;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.option-card:hover{border-color:#4f46e5;box-shadow:0 6px 24px rgba(79,70,229,.1)}
+.option-header{padding:20px 24px;display:flex;align-items:center;gap:14px}
+.option-icon{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:#fff;flex-shrink:0}
+.option-body{padding:0 24px 24px}
+.broker-chip{display:inline-flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;font-size:.78rem;font-weight:600;color:#374151;margin:3px}
+
+/* Upload zone */
+.upload-zone{border:2px dashed #c7d2fe;border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:background .15s,border-color .15s}
+.upload-zone:hover,.upload-zone.drag-over{background:#eef2ff;border-color:#6366f1}
+.upload-zone input[type=file]{display:none}
+.upload-zone label{cursor:pointer;display:block}
+
+/* Score display */
 .score-ring{width:160px;height:160px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;position:relative}
 .score-ring .inner{width:130px;height:130px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1}
 .score-ring .value{font-size:2.5rem;font-weight:800;line-height:1}
@@ -31,15 +65,164 @@
 
 <div class="container-fluid px-0">
 
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="alert-flash {{ category }}">
+      <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'danger' %}exclamation-circle{% else %}exclamation-triangle{% endif %}"></i>
+      {{ message }}
+    </div>
+    {% endfor %}
+  {% endwith %}
+
 {% if not analysis or not analysis.has_data %}
-  <div class="card border-0 shadow-sm">
-    <div class="card-body text-center py-5">
-      <i class="fas fa-brain fa-3x text-muted mb-3"></i>
-      <h5>Not enough trade data yet</h5>
-      <p class="text-muted mb-0">Complete at least 5 trades to unlock your Behavioural AI analysis.<br>Connect a broker and start trading to see your psychological profile.</p>
+
+  <!-- ═══════════════════════════ EMPTY / ONBOARDING STATE ═══════════════════════════ -->
+
+  <div class="onboard-hero mb-4">
+    <div class="d-inline-flex align-items-center justify-content-center bg-primary-subtle rounded-circle mb-3" style="width:64px;height:64px">
+      <i class="fas fa-brain fa-2x text-primary"></i>
+    </div>
+    <h2>Unlock Your Trading Psychology</h2>
+    <p class="mt-2">The Scentric Behavioural AI Engine analyzes 20 psychological patterns — from panic selling to revenge trading — to help you trade smarter. You need at least <strong>5 completed trades</strong> to activate the full analysis.</p>
+
+    <!-- Progress steps -->
+    <div class="step-list">
+      <div class="step-item done">
+        <div class="step-num"><i class="fas fa-check"></i></div>
+        <div class="step-title">Create Your Account</div>
+        <div class="step-desc">You're already logged in and ready to go.</div>
+      </div>
+      <div class="step-item active">
+        <div class="step-num">2</div>
+        <div class="step-title">Add Your Trades</div>
+        <div class="step-desc">Connect a broker for live sync, or upload a CSV with your past trades.</div>
+      </div>
+      <div class="step-item pending">
+        <div class="step-num">3</div>
+        <div class="step-title">Get Your Analysis</div>
+        <div class="step-desc">20 psychological insights, a Master Behavioral Score, and personalised advice.</div>
+      </div>
     </div>
   </div>
+
+  <!-- Option cards: Connect Broker vs Upload CSV -->
+  <div class="row g-4 mb-4">
+
+    <!-- Option 1: Connect Broker -->
+    <div class="col-lg-6">
+      <div class="option-card h-100">
+        <div class="option-header">
+          <div class="option-icon" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)">
+            <i class="fas fa-link"></i>
+          </div>
+          <div>
+            <div class="fw-bold fs-6">Connect a Broker</div>
+            <div class="text-muted small">Auto-sync your live trade history — best for ongoing analysis</div>
+          </div>
+          <span class="badge bg-primary-subtle text-primary ms-auto">Recommended</span>
+        </div>
+        <div class="option-body">
+          <p class="small text-muted mb-3">Once connected, your broker's completed trades sync automatically every day. No manual work — your analysis stays current.</p>
+          <div class="mb-3">
+            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Zerodha</div>
+            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Dhan</div>
+            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Angel One</div>
+            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Upstox</div>
+            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>ICICI Direct</div>
+            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Groww</div>
+            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>Alice Blue</div>
+            <div class="broker-chip"><i class="fas fa-circle text-success" style="font-size:.5rem"></i>5 Paisa</div>
+          </div>
+          <ol class="small text-muted ps-3 mb-3">
+            <li class="mb-1">Click "Connect Broker" below</li>
+            <li class="mb-1">Choose your broker and enter credentials</li>
+            <li>Your trades sync automatically — come back here for analysis</li>
+          </ol>
+          <a href="{{ url_for('broker_oauth.broker_connect') }}" class="btn btn-primary w-100">
+            <i class="fas fa-plug me-2"></i>Connect My Broker
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Option 2: Upload CSV -->
+    <div class="col-lg-6">
+      <div class="option-card h-100">
+        <div class="option-header">
+          <div class="option-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)">
+            <i class="fas fa-file-csv"></i>
+          </div>
+          <div>
+            <div class="fw-bold fs-6">Upload Trade History</div>
+            <div class="text-muted small">Import from a CSV — works with any broker's export</div>
+          </div>
+        </div>
+        <div class="option-body">
+          <p class="small text-muted mb-3">Export your trade history from your broker's platform and upload it here. We'll process it and unlock your full Behavioural AI analysis immediately.</p>
+
+          <div class="bg-light rounded p-3 mb-3 small">
+            <div class="fw-semibold mb-2"><i class="fas fa-info-circle text-primary me-2"></i>Required CSV columns:</div>
+            <code class="d-block mb-1">symbol, entry_date, exit_date, quantity, entry_price, exit_price</code>
+            <div class="text-muted">Optional: broker_name, strategy_name, exit_reason, charges</div>
+            <div class="text-muted mt-1">Date format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS</div>
+          </div>
+
+          <form method="POST" action="{{ url_for('behaviour_upload_trades') }}" enctype="multipart/form-data" id="uploadForm">
+            <div class="upload-zone mb-3" id="uploadZone" onclick="document.getElementById('tradeFile').click()">
+              <label>
+                <input type="file" name="trade_file" id="tradeFile" accept=".csv" onchange="showFileName(this)">
+                <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2 d-block"></i>
+                <div id="uploadLabel" class="fw-semibold small">Click to choose your CSV file</div>
+                <div class="text-muted" style="font-size:.75rem">or drag and drop here</div>
+              </label>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-info text-white flex-grow-1" id="uploadBtn" disabled>
+                <i class="fas fa-upload me-2"></i>Import Trades
+              </button>
+              <a href="{{ url_for('behaviour_csv_template') }}" class="btn btn-outline-secondary" title="Download sample template">
+                <i class="fas fa-download me-1"></i>Template
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- What you'll unlock -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      <h6 class="fw-bold mb-3 section-label">What you'll unlock after adding your trades</h6>
+      <div class="row g-3">
+        {% set previews = [
+          ('fas fa-fire','#ef4444','Revenge Trading Detection','Find out if you overtrade after a loss'),
+          ('fas fa-brain','#8b5cf6','Panic Selling Analysis','See how often emotions override your strategy'),
+          ('fas fa-balance-scale-right','#3b82f6','Risk-Reward Audit','Understand your real win/loss ratio'),
+          ('fas fa-wind','#64748b','Behavioural Drift','Track if your strategy is silently changing'),
+          ('fas fa-tachometer-alt','#4f46e5','Master Behavioral Score','One number summarising your trading psychology'),
+          ('fas fa-route','#6366f1','Strategy Consistency','See how disciplined you are over time'),
+        ] %}
+        {% for icon, color, title, desc in previews %}
+        <div class="col-md-4">
+          <div class="d-flex align-items-start gap-3">
+            <div class="insight-icon flex-shrink-0" style="background:{{ color }}"><i class="{{ icon }}"></i></div>
+            <div>
+              <div class="fw-semibold small">{{ title }}</div>
+              <div class="text-muted" style="font-size:.78rem">{{ desc }}</div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
 {% else %}
+
+  <!-- ═══════════════════════════ FULL ANALYSIS VIEW ═══════════════════════════ -->
 
   <!-- Master Score + Personality Row -->
   <div class="row g-3 mb-4">
@@ -132,7 +315,7 @@
   </div>
   {% endif %}
 
-  <!-- Active Alerts / Pattern Grid -->
+  <!-- Pattern Detection Table -->
   <h6 class="section-label mb-3">Pattern Detection (Last 90 Days)</h6>
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-body p-0">
@@ -178,7 +361,7 @@
     </div>
   </div>
 
-  <!-- Category Score Radar Chart -->
+  <!-- Charts row -->
   <div class="row g-3 mb-4">
     <div class="col-lg-6">
       <div class="card border-0 shadow-sm">
@@ -201,11 +384,11 @@
 {% endif %}
 </div>
 
+<!-- Chart.js only for analysis view -->
 {% if analysis and analysis.has_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 Chart.defaults.font.family = "'Poppins','Inter',sans-serif";
-Chart.defaults.font.size = 12;
 
 new Chart(document.getElementById('radarChart'), {
   type: 'radar',
@@ -244,6 +427,35 @@ new Chart(document.getElementById('hourChart'), {
     plugins: {legend: {display: false}}
   }
 });
+</script>
+{% endif %}
+
+<!-- Upload zone drag-drop + file name display -->
+{% if not analysis or not analysis.has_data %}
+<script>
+function showFileName(input) {
+  const label = document.getElementById('uploadLabel');
+  const btn = document.getElementById('uploadBtn');
+  if (input.files && input.files[0]) {
+    label.textContent = input.files[0].name;
+    btn.disabled = false;
+  }
+}
+const zone = document.getElementById('uploadZone');
+if (zone) {
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (files.length) {
+      const fi = document.getElementById('tradeFile');
+      fi.files = files;
+      showFileName(fi);
+    }
+  });
+}
 </script>
 {% endif %}
 {% endblock %}
