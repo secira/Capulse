@@ -1463,6 +1463,602 @@ class ICICIBrokerClient(BaseBrokerClient):
             raise BrokerAPIError(f"ICICI Direct profile error: {e}")
 
 
+class GrowwBrokerClient(BaseBrokerClient):
+    """
+    Groww Partner API client.
+    Requires a Partner API access token obtained from Groww's developer portal.
+    Base URL: https://api.groww.in
+    """
+
+    BASE = "https://api.groww.in"
+
+    def __init__(self, broker_account: BrokerAccount):
+        super().__init__(broker_account)
+        self._headers: Dict[str, str] = {}
+
+    def connect(self) -> bool:
+        try:
+            access_token = self.credentials.get('access_token')
+            if not access_token:
+                raise BrokerAPIError("Missing Groww access token")
+            self._headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
+            profile = self._request("GET", "/v1/api/user/profile")
+            if profile:
+                self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
+                logger.info("Connected to Groww successfully")
+                return True
+            raise BrokerAPIError("Invalid Groww profile response")
+        except Exception as e:
+            self.broker_account.update_connection_status(ConnectionStatus.ERROR, str(e))
+            logger.error(f"Groww connect error: {e}")
+            return False
+
+    def _request(self, method: str, path: str, **kwargs) -> Dict:
+        url = f"{self.BASE}{path}"
+        resp = requests.request(method, url, headers=self._headers, timeout=10, **kwargs)
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_holdings(self) -> List[Dict]:
+        data = self._request("GET", "/v1/api/portfolio/holding/v1")
+        items = data.get("data", {}).get("holdingData", []) or []
+        return [self._normalize_holding(h) for h in items]
+
+    def _normalize_holding(self, h: Dict) -> Dict:
+        qty = float(h.get("holdingQuantity", 0))
+        avg = float(h.get("avgPrice", 0))
+        ltp = float(h.get("ltp", 0))
+        return {
+            "symbol": h.get("tradingSymbol", ""),
+            "trading_symbol": h.get("tradingSymbol", ""),
+            "exchange": h.get("exchange", "NSE"),
+            "isin": h.get("isin", ""),
+            "total_quantity": qty,
+            "available_quantity": float(h.get("availableQuantity", qty)),
+            "avg_cost_price": avg,
+            "current_price": ltp,
+            "current_value": qty * ltp,
+            "invested_value": qty * avg,
+            "pnl": (ltp - avg) * qty,
+            "pnl_percentage": ((ltp - avg) / avg * 100) if avg else 0,
+            "product_type": "CNC",
+        }
+
+    def get_positions(self) -> List[Dict]:
+        data = self._request("GET", "/v1/api/portfolio/position/v1")
+        items = data.get("data", {}).get("positionData", []) or []
+        return [self._normalize_position(p) for p in items]
+
+    def _normalize_position(self, p: Dict) -> Dict:
+        qty = float(p.get("netQty", 0))
+        avg = float(p.get("avgPrice", 0))
+        ltp = float(p.get("ltp", 0))
+        return {
+            "symbol": p.get("tradingSymbol", ""),
+            "trading_symbol": p.get("tradingSymbol", ""),
+            "exchange": p.get("exchange", "NSE"),
+            "net_quantity": qty,
+            "buy_quantity": float(p.get("buyQty", max(qty, 0))),
+            "sell_quantity": float(p.get("sellQty", abs(min(qty, 0)))),
+            "buy_average_price": avg,
+            "sell_average_price": avg,
+            "current_price": ltp,
+            "pnl": (ltp - avg) * qty,
+            "product_type": p.get("product", "MIS"),
+            "value": qty * ltp,
+        }
+
+    def get_orders(self) -> List[Dict]:
+        data = self._request("GET", "/v1/api/order/v1/order_list")
+        items = data.get("data", {}).get("orderList", []) or []
+        return [self._normalize_order(o) for o in items]
+
+    def _normalize_order(self, o: Dict) -> Dict:
+        return {
+            "order_id": o.get("orderId", ""),
+            "symbol": o.get("tradingSymbol", ""),
+            "trading_symbol": o.get("tradingSymbol", ""),
+            "exchange": o.get("exchange", "NSE"),
+            "transaction_type": o.get("transactionType", "BUY").upper(),
+            "order_type": o.get("orderType", "MARKET").upper(),
+            "product_type": o.get("product", "MIS"),
+            "quantity": float(o.get("quantity", 0)),
+            "price": float(o.get("price", 0)),
+            "trigger_price": float(o.get("triggerPrice", 0)),
+            "status": o.get("orderStatus", "").upper(),
+            "order_timestamp": o.get("orderDateTime"),
+        }
+
+    def get_trade_history(self, from_date=None, to_date=None) -> List[Dict]:
+        data = self._request("GET", "/v1/api/order/v1/trade_book")
+        items = data.get("data", {}).get("tradeList", []) or []
+        return [self._normalize_trade(t) for t in items]
+
+    def _normalize_trade(self, t: Dict) -> Dict:
+        qty = float(t.get("tradedQty", 0))
+        price = float(t.get("tradedPrice", 0))
+        return {
+            "symbol": t.get("tradingSymbol", ""),
+            "trading_symbol": t.get("tradingSymbol", ""),
+            "exchange": t.get("exchange", "NSE"),
+            "security_id": t.get("isin", ""),
+            "transaction_type": t.get("transactionType", "BUY").upper(),
+            "product_type": t.get("product", "MIS"),
+            "order_type": "MARKET",
+            "quantity": qty,
+            "price": price,
+            "trade_value": qty * price,
+            "trade_id": t.get("tradeId", ""),
+            "order_id": t.get("orderId", ""),
+            "trade_date": datetime.utcnow(),
+            "broker_name": "Groww",
+        }
+
+    def place_order(self, order_data: Dict) -> Dict:
+        payload = {
+            "tradingSymbol": order_data.get("symbol", ""),
+            "exchange": order_data.get("exchange", "NSE"),
+            "transactionType": order_data.get("transaction_type", "BUY").upper(),
+            "orderType": order_data.get("order_type", "MARKET").upper(),
+            "product": order_data.get("product_type", "MIS"),
+            "quantity": int(order_data.get("quantity", 1)),
+            "price": float(order_data.get("price", 0)),
+            "triggerPrice": float(order_data.get("trigger_price", 0)),
+        }
+        resp = self._request("POST", "/v1/api/order/v1/place_order", json=payload)
+        return {"status": "success", "order_id": resp.get("data", {}).get("orderId"), "message": "Order placed"}
+
+    def cancel_order(self, order_id: str) -> Dict:
+        resp = self._request("DELETE", f"/v1/api/order/v1/cancel_order/{order_id}")
+        return {"status": "success", "message": "Order cancelled"}
+
+    def get_profile(self) -> Dict:
+        data = self._request("GET", "/v1/api/user/profile")
+        d = data.get("data", {})
+        return {
+            "user_id": d.get("clientId", ""),
+            "user_name": d.get("name", ""),
+            "email": d.get("email", ""),
+            "broker": "Groww",
+        }
+
+
+class AliceBlueBrokerClient(BaseBrokerClient):
+    """
+    Alice Blue ANT API v2 client.
+    Uses SHA-256 checksum auth — no OAuth redirect needed.
+    Docs: https://ant.aliceblueonline.com/
+    """
+
+    BASE = "https://ant.aliceblueonline.com/rest/AliceBlueAPIService"
+
+    def __init__(self, broker_account: BrokerAccount):
+        super().__init__(broker_account)
+        self._session_id: str = ""
+        self._user_id: str = ""
+
+    def connect(self) -> bool:
+        try:
+            import hashlib, base64
+            user_id = self.credentials.get('client_id', '').upper()
+            api_key = self.credentials.get('api_secret', '')
+            if not user_id or not api_key:
+                raise BrokerAPIError("Missing Alice Blue user_id or api_key")
+
+            checksum = hashlib.sha256(f"{user_id}{api_key}".encode()).hexdigest()
+            encoded = base64.b64encode(checksum.encode()).decode()
+
+            resp = requests.post(
+                f"{self.BASE}/api/customer/getUserSID",
+                json={"userId": user_id, "userData": encoded},
+                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            session_id = result.get("sessionID") or result.get("SID") or result.get("result")
+            if not session_id:
+                raise BrokerAPIError(f"Alice Blue auth failed: {result}")
+
+            self._session_id = session_id
+            self._user_id = user_id
+            self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
+            logger.info(f"Alice Blue connected for {user_id}")
+            return True
+        except Exception as e:
+            self.broker_account.update_connection_status(ConnectionStatus.ERROR, str(e))
+            logger.error(f"Alice Blue connect error: {e}")
+            return False
+
+    def _auth_headers(self) -> Dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self._user_id} {self._session_id}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
+    def _ensure_connected(self):
+        if not self._session_id:
+            raise BrokerAPIError("Not connected to Alice Blue")
+
+    def _request(self, method: str, path: str, **kwargs) -> Dict:
+        self._ensure_connected()
+        url = f"{self.BASE}{path}"
+        resp = requests.request(method, url, headers=self._auth_headers(), timeout=10, **kwargs)
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_holdings(self) -> List[Dict]:
+        data = self._request("GET", "/api/V2/portfolio/holdings")
+        items = data if isinstance(data, list) else data.get("HoldingVal", [])
+        return [self._normalize_holding(h) for h in (items or [])]
+
+    def _normalize_holding(self, h: Dict) -> Dict:
+        qty = float(h.get("HUqty", 0))
+        avg = float(h.get("Price", 0))
+        ltp = float(h.get("LTP", 0))
+        return {
+            "symbol": h.get("Nsetsym", ""),
+            "trading_symbol": h.get("Nsetsym", ""),
+            "exchange": "NSE",
+            "isin": h.get("Isin", ""),
+            "total_quantity": qty,
+            "available_quantity": float(h.get("Holdqty", qty)),
+            "avg_cost_price": avg,
+            "current_price": ltp,
+            "current_value": qty * ltp,
+            "invested_value": qty * avg,
+            "pnl": (ltp - avg) * qty,
+            "pnl_percentage": ((ltp - avg) / avg * 100) if avg else 0,
+            "product_type": "CNC",
+        }
+
+    def get_positions(self) -> List[Dict]:
+        data = self._request("GET", "/api/V2/positionAndHoldings/positionBook")
+        items = data if isinstance(data, list) else data.get("NetPositionDetail", [])
+        return [self._normalize_position(p) for p in (items or [])]
+
+    def _normalize_position(self, p: Dict) -> Dict:
+        buy_qty = float(p.get("Buyqty", 0))
+        sell_qty = float(p.get("Sellqty", 0))
+        net_qty = buy_qty - sell_qty
+        buy_avg = float(p.get("Buyavgprc", 0))
+        sell_avg = float(p.get("Sellavgprc", 0))
+        ltp = float(p.get("LTP", 0))
+        return {
+            "symbol": p.get("Tsym", ""),
+            "trading_symbol": p.get("Tsym", ""),
+            "exchange": p.get("Exch", "NSE"),
+            "net_quantity": net_qty,
+            "buy_quantity": buy_qty,
+            "sell_quantity": sell_qty,
+            "buy_average_price": buy_avg,
+            "sell_average_price": sell_avg,
+            "current_price": ltp,
+            "pnl": float(p.get("MtoM", 0)),
+            "product_type": p.get("Pcode", "MIS"),
+            "value": net_qty * ltp,
+        }
+
+    def get_orders(self) -> List[Dict]:
+        data = self._request("GET", "/api/placeOrder/fetchOrderBook")
+        items = data if isinstance(data, list) else (data.get("OrderBookDetail") or [])
+        return [self._normalize_order(o) for o in items]
+
+    def _normalize_order(self, o: Dict) -> Dict:
+        return {
+            "order_id": o.get("Nstordno", ""),
+            "symbol": o.get("Tsym", ""),
+            "trading_symbol": o.get("Tsym", ""),
+            "exchange": o.get("Exch", "NSE"),
+            "transaction_type": o.get("Trantype", "B").replace("B", "BUY").replace("S", "SELL"),
+            "order_type": o.get("Prctype", "MKT").replace("MKT", "MARKET").replace("LMT", "LIMIT"),
+            "product_type": o.get("Pcode", "MIS"),
+            "quantity": float(o.get("Qty", 0)),
+            "price": float(o.get("Prc", 0)),
+            "trigger_price": float(o.get("Trgprc", 0)),
+            "status": o.get("Status", "").upper(),
+            "order_timestamp": o.get("OrderedTime"),
+        }
+
+    def get_trade_history(self, from_date=None, to_date=None) -> List[Dict]:
+        data = self._request("GET", "/api/placeOrder/fetchTradeBook")
+        items = data if isinstance(data, list) else (data.get("TradeBookDetail") or [])
+        return [self._normalize_trade(t) for t in items]
+
+    def _normalize_trade(self, t: Dict) -> Dict:
+        qty = float(t.get("Qty", 0))
+        price = float(t.get("Prc", 0))
+        return {
+            "symbol": t.get("Tsym", ""),
+            "trading_symbol": t.get("Tsym", ""),
+            "exchange": t.get("Exch", "NSE"),
+            "security_id": t.get("Token", ""),
+            "transaction_type": t.get("Trantype", "B").replace("B", "BUY").replace("S", "SELL"),
+            "product_type": t.get("Pcode", "MIS"),
+            "order_type": "MARKET",
+            "quantity": qty,
+            "price": price,
+            "trade_value": qty * price,
+            "trade_id": t.get("FillId", ""),
+            "order_id": t.get("Nstordno", ""),
+            "trade_date": datetime.utcnow(),
+            "broker_name": "Alice Blue",
+        }
+
+    def place_order(self, order_data: Dict) -> Dict:
+        payload = {
+            "complexty": "regular",
+            "discqty": "0",
+            "exch": order_data.get("exchange", "NSE"),
+            "pCode": order_data.get("product_type", "MIS"),
+            "prctyp": order_data.get("order_type", "MKT"),
+            "price": str(order_data.get("price", "0")),
+            "qty": str(int(order_data.get("quantity", 1))),
+            "ret": "DAY",
+            "symbol_id": order_data.get("symbol_id", ""),
+            "trading_symbol": order_data.get("symbol", ""),
+            "transtype": "B" if order_data.get("transaction_type", "BUY") == "BUY" else "S",
+            "trigPrice": str(order_data.get("trigger_price", "0")),
+        }
+        resp = self._request("POST", "/api/placeOrder/executePlaceOrder", json=[payload])
+        r = resp[0] if isinstance(resp, list) and resp else resp
+        return {"status": "success", "order_id": r.get("NOrdNo", ""), "message": "Order placed"}
+
+    def cancel_order(self, order_id: str) -> Dict:
+        payload = {"exch": "NSE", "nestOrderNumber": order_id, "trading_symbol": ""}
+        self._request("POST", "/api/placeOrder/cancelOrder", json=payload)
+        return {"status": "success", "message": "Order cancelled"}
+
+    def get_profile(self) -> Dict:
+        data = self._request("GET", "/api/customer/accountDetails")
+        d = data.get("accountDetails", data)
+        return {
+            "user_id": self._user_id,
+            "user_name": d.get("accountName", self._user_id),
+            "email": d.get("emailAddr", ""),
+            "broker": "Alice Blue",
+        }
+
+
+class FivePaisaBrokerClient(BaseBrokerClient):
+    """
+    5 Paisa OpenAPI client.
+    Docs: https://www.5paisa.com/developerapi/
+    Auth: Client Code + Password + App Key (TOTP-based direct connect)
+    """
+
+    BASE = "https://openapi.5paisa.com"
+
+    def __init__(self, broker_account: BrokerAccount):
+        super().__init__(broker_account)
+        self._jwt_token: str = ""
+        self._client_code: str = ""
+
+    def connect(self) -> bool:
+        try:
+            client_code = self.credentials.get('client_id', '')
+            password = self.credentials.get('access_token', '')   # stored in access_token slot
+            app_key = self.credentials.get('api_secret', '').split(':')[0]
+            totp = self.credentials.get('api_secret', '').split(':')[1] if ':' in self.credentials.get('api_secret', '') else ''
+
+            if not all([client_code, password, app_key]):
+                raise BrokerAPIError("Missing 5 Paisa credentials (client_code, password, app_key)")
+
+            payload = {
+                "head": {"AppKey": app_key},
+                "body": {
+                    "ClientCode": client_code,
+                    "Password": password,
+                    "TOTP": totp,
+                },
+            }
+            resp = requests.post(
+                f"{self.BASE}/VendorsAPI/Service1.svc/V4/LoginRequestMobileNewbyEmail",
+                json=payload,
+                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            body = result.get("body", {})
+            jwt = body.get("JWTToken") or body.get("AccessToken")
+            if not jwt:
+                raise BrokerAPIError(f"5 Paisa login failed: {body.get('Message', 'Unknown error')}")
+
+            self._jwt_token = jwt
+            self._client_code = client_code
+            self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
+            logger.info(f"5 Paisa connected for {client_code}")
+            return True
+        except Exception as e:
+            self.broker_account.update_connection_status(ConnectionStatus.ERROR, str(e))
+            logger.error(f"5 Paisa connect error: {e}")
+            return False
+
+    def _headers(self) -> Dict[str, str]:
+        return {
+            "Authorization": f"bearer {self._jwt_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
+    def _ensure_connected(self):
+        if not self._jwt_token:
+            raise BrokerAPIError("Not connected to 5 Paisa")
+
+    def _request(self, method: str, path: str, **kwargs) -> Dict:
+        self._ensure_connected()
+        url = f"{self.BASE}{path}"
+        resp = requests.request(method, url, headers=self._headers(), timeout=10, **kwargs)
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_holdings(self) -> List[Dict]:
+        payload = {"head": {}, "body": {"ClientCode": self._client_code}}
+        data = self._request("POST", "/VendorsAPI/Service1.svc/V2/Holding", json=payload)
+        items = data.get("body", {}).get("Data", []) or []
+        return [self._normalize_holding(h) for h in items]
+
+    def _normalize_holding(self, h: Dict) -> Dict:
+        qty = float(h.get("Quantity", 0))
+        avg = float(h.get("AvgRate", 0))
+        ltp = float(h.get("CurrentPrice", 0))
+        return {
+            "symbol": h.get("NSECode", ""),
+            "trading_symbol": h.get("NSECode", ""),
+            "exchange": "NSE",
+            "isin": h.get("ISIN", ""),
+            "total_quantity": qty,
+            "available_quantity": float(h.get("POASellableQty", qty)),
+            "avg_cost_price": avg,
+            "current_price": ltp,
+            "current_value": qty * ltp,
+            "invested_value": qty * avg,
+            "pnl": (ltp - avg) * qty,
+            "pnl_percentage": ((ltp - avg) / avg * 100) if avg else 0,
+            "product_type": "CNC",
+        }
+
+    def get_positions(self) -> List[Dict]:
+        payload = {"head": {}, "body": {"ClientCode": self._client_code}}
+        data = self._request("POST", "/VendorsAPI/Service1.svc/V1/NetPosition", json=payload)
+        items = data.get("body", {}).get("NetPositionDetail", []) or []
+        return [self._normalize_position(p) for p in items]
+
+    def _normalize_position(self, p: Dict) -> Dict:
+        buy_qty = float(p.get("BuyQty", 0))
+        sell_qty = float(p.get("SellQty", 0))
+        net_qty = float(p.get("NetQty", buy_qty - sell_qty))
+        buy_avg = float(p.get("BuyAvgRate", 0))
+        sell_avg = float(p.get("SellAvgRate", 0))
+        ltp = float(p.get("LTP", 0))
+        return {
+            "symbol": p.get("ScripName", ""),
+            "trading_symbol": p.get("ScripName", ""),
+            "exchange": p.get("Exch", "NSE"),
+            "net_quantity": net_qty,
+            "buy_quantity": buy_qty,
+            "sell_quantity": sell_qty,
+            "buy_average_price": buy_avg,
+            "sell_average_price": sell_avg,
+            "current_price": ltp,
+            "pnl": float(p.get("MTOM", 0)),
+            "product_type": p.get("OrderFor", "Intraday"),
+            "value": net_qty * ltp,
+        }
+
+    def get_orders(self) -> List[Dict]:
+        payload = {"head": {}, "body": {"ClientCode": self._client_code}}
+        data = self._request("POST", "/VendorsAPI/Service1.svc/V1/OrderBook", json=payload)
+        items = data.get("body", {}).get("OrderBookDetail", []) or []
+        return [self._normalize_order(o) for o in items]
+
+    def _normalize_order(self, o: Dict) -> Dict:
+        side = "BUY" if str(o.get("BuySell", "B")).upper() in ("B", "BUY") else "SELL"
+        return {
+            "order_id": str(o.get("ExchOrderID", o.get("SrNo", ""))),
+            "symbol": o.get("ScripName", ""),
+            "trading_symbol": o.get("ScripName", ""),
+            "exchange": o.get("Exch", "NSE"),
+            "transaction_type": side,
+            "order_type": o.get("OrderType", "MARKET").upper(),
+            "product_type": o.get("DPType", "intraday"),
+            "quantity": float(o.get("Qty", 0)),
+            "price": float(o.get("Rate", 0)),
+            "trigger_price": float(o.get("SLTriggerRate", 0)),
+            "status": o.get("Status", "").upper(),
+            "order_timestamp": o.get("OrderDate"),
+        }
+
+    def get_trade_history(self, from_date=None, to_date=None) -> List[Dict]:
+        payload = {"head": {}, "body": {"ClientCode": self._client_code}}
+        data = self._request("POST", "/VendorsAPI/Service1.svc/V1/TradeBook", json=payload)
+        items = data.get("body", {}).get("TradeBookDetail", []) or []
+        return [self._normalize_trade(t) for t in items]
+
+    def _normalize_trade(self, t: Dict) -> Dict:
+        qty = float(t.get("Qty", 0))
+        price = float(t.get("Rate", 0))
+        side = "BUY" if str(t.get("BuySell", "B")).upper() in ("B", "BUY") else "SELL"
+        return {
+            "symbol": t.get("ScripName", ""),
+            "trading_symbol": t.get("ScripName", ""),
+            "exchange": t.get("Exch", "NSE"),
+            "security_id": str(t.get("Token", "")),
+            "transaction_type": side,
+            "product_type": t.get("DPType", "intraday"),
+            "order_type": "MARKET",
+            "quantity": qty,
+            "price": price,
+            "trade_value": qty * price,
+            "trade_id": str(t.get("ExchOrderID", "")),
+            "order_id": str(t.get("SrNo", "")),
+            "trade_date": datetime.utcnow(),
+            "broker_name": "5 Paisa",
+        }
+
+    def place_order(self, order_data: Dict) -> Dict:
+        side = "B" if order_data.get("transaction_type", "BUY").upper() == "BUY" else "S"
+        payload = {
+            "head": {},
+            "body": {
+                "ClientCode": self._client_code,
+                "OrderFor": order_data.get("product_type", "I"),
+                "Exchange": order_data.get("exchange", "N"),
+                "ExchangeType": "C",
+                "Price": float(order_data.get("price", 0)),
+                "OrderID": 0,
+                "OrderType": order_data.get("order_type", "MARKET").upper(),
+                "Qty": int(order_data.get("quantity", 1)),
+                "OrderDateTime": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+                "ScripCode": int(order_data.get("symbol_id", 0)),
+                "AtMarket": str(order_data.get("order_type", "MARKET").upper() == "MARKET").lower(),
+                "RemoteOrderID": "TCap001",
+                "StopLossPrice": float(order_data.get("trigger_price", 0)),
+                "IsStopLossOrder": order_data.get("trigger_price", 0) > 0,
+                "IOCOrder": False,
+                "IsIntraday": order_data.get("product_type", "I") in ("I", "MIS", "Intraday"),
+                "PublicIP": "1.1.1.1",
+                "TradedQty": 0,
+                "iOrderValidity": 0,
+                "BuySell": side,
+                "UniqueOrderIDNSE": "",
+                "UniqueOrderIDBSE": "",
+                "DisQty": 0,
+            },
+        }
+        resp = self._request("POST", "/VendorsAPI/Service1.svc/V1/PlaceOrder", json=payload)
+        body = resp.get("body", {})
+        return {"status": "success", "order_id": str(body.get("BrokerOrderID", "")), "message": "Order placed"}
+
+    def cancel_order(self, order_id: str) -> Dict:
+        payload = {
+            "head": {},
+            "body": {
+                "ClientCode": self._client_code,
+                "ExchOrderID": order_id,
+            },
+        }
+        self._request("POST", "/VendorsAPI/Service1.svc/V1/CancelOrder", json=payload)
+        return {"status": "success", "message": "Order cancelled"}
+
+    def get_profile(self) -> Dict:
+        payload = {"head": {}, "body": {"ClientCode": self._client_code}}
+        data = self._request("POST", "/VendorsAPI/Service1.svc/V1/PersonalDetails", json=payload)
+        d = data.get("body", {}).get("PersonalDetails", {})
+        return {
+            "user_id": self._client_code,
+            "user_name": d.get("Name", self._client_code),
+            "email": d.get("EmailID", ""),
+            "broker": "5 Paisa",
+        }
+
+
 # ── Broker Registry ───────────────────────────────────────────────────────────
 # Add new brokers here: map BrokerType enum value → client class
 # The class must extend BaseBrokerClient and implement all abstract methods.
@@ -1472,6 +2068,9 @@ _BROKER_REGISTRY: Dict[str, Any] = {
     BrokerType.ANGEL_BROKING.value: AngelBrokerClient,
     BrokerType.UPSTOX.value: UpstoxBrokerClient,
     BrokerType.ICICIDIRECT.value: ICICIBrokerClient,
+    BrokerType.GROWW.value: GrowwBrokerClient,
+    BrokerType.ALICE_BLUE.value: AliceBlueBrokerClient,
+    BrokerType.FIVE_PAISA.value: FivePaisaBrokerClient,
     # Future brokers:
     # BrokerType.FYERS.value: FyersBrokerClient,
 }

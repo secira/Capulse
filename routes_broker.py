@@ -19,101 +19,93 @@ logger = logging.getLogger(__name__)
 # Broker Catalog - All supported brokers
 BROKER_CATALOG = [
     {
-        'type': BrokerType.DHAN,
-        'name': 'Dhan',
-        'logo': 'https://dhan.co/logo.png',
-        'status': 'active',
-        'description': 'Low brokerage with advanced trading tools',
-        'fields': ['client_id', 'access_token']
-    },
-    {
         'type': BrokerType.ZERODHA,
         'name': 'Zerodha',
         'logo': 'https://zerodha.com/static/images/logo.svg',
         'status': 'active',
-        'description': 'India\'s largest broker by active clients',
-        'fields': ['client_id', 'access_token', 'api_secret']
+        'description': "India's largest broker · KiteConnect OAuth",
+        'fields': ['client_id', 'access_token', 'api_secret'],
+        'auth': 'oauth',
+        'color': '#387ed1',
+        'letter': 'Z',
     },
     {
         'type': BrokerType.UPSTOX,
         'name': 'Upstox',
         'logo': 'https://upstox.com/logo.png',
         'status': 'active',
-        'description': 'Technology-driven discount broker',
-        'fields': ['client_id', 'access_token', 'api_secret']
+        'description': 'Tech-first discount broker · v2 OAuth',
+        'fields': ['client_id', 'access_token', 'api_secret'],
+        'auth': 'oauth',
+        'color': '#5a3fc0',
+        'letter': 'U',
     },
     {
         'type': BrokerType.ANGEL_BROKING,
         'name': 'Angel One',
         'logo': 'https://angelone.in/logo.png',
         'status': 'active',
-        'description': 'Full-service broker with research',
-        'fields': ['client_id', 'access_token', 'totp_secret']
-    },
-    {
-        'type': BrokerType.GROWW,
-        'name': 'Groww',
-        'logo': 'https://groww.in/logo.png',
-        'status': 'coming_soon',
-        'description': 'Simple and intuitive trading platform',
-        'fields': ['client_id', 'access_token']
-    },
-    {
-        'type': BrokerType.FYERS,
-        'name': 'Fyers',
-        'logo': 'https://fyers.in/logo.png',
-        'status': 'coming_soon',
-        'description': 'Advanced charting and trading tools',
-        'fields': ['client_id', 'access_token', 'api_secret']
+        'description': 'Full-service broker · TOTP direct connect',
+        'fields': ['client_id', 'access_token', 'totp_secret'],
+        'auth': 'totp',
+        'color': '#e03c31',
+        'letter': 'A',
     },
     {
         'type': BrokerType.ICICIDIRECT,
         'name': 'ICICI Direct',
         'logo': 'https://icicidirect.com/logo.png',
         'status': 'active',
-        'description': 'Full-service broker with Breeze Connect',
-        'fields': ['client_id', 'access_token', 'api_secret']
+        'description': 'Full-service broker · Breeze Connect OAuth',
+        'fields': ['client_id', 'access_token', 'api_secret'],
+        'auth': 'oauth',
+        'color': '#c41230',
+        'letter': 'I',
     },
     {
-        'type': BrokerType.HDFC_SECURITIES,
-        'name': 'HDFC Securities',
-        'logo': 'https://hdfcsec.com/logo.png',
-        'status': 'coming_soon',
-        'description': 'Trusted full-service broker',
-        'fields': ['client_id', 'access_token', 'api_secret']
+        'type': BrokerType.GROWW,
+        'name': 'Groww',
+        'logo': 'https://groww.in/logo.png',
+        'status': 'active',
+        'description': 'Simple & modern investing platform',
+        'fields': ['access_token'],
+        'auth': 'token',
+        'color': '#00d09c',
+        'letter': 'G',
     },
     {
-        'type': BrokerType.KOTAK_SECURITIES,
-        'name': 'Kotak Securities',
-        'logo': 'https://kotaksecurities.com/logo.png',
-        'status': 'coming_soon',
-        'description': 'Comprehensive trading platform',
-        'fields': ['client_id', 'access_token', 'api_secret']
+        'type': BrokerType.ALICE_BLUE,
+        'name': 'Alice Blue',
+        'logo': 'https://aliceblueonline.com/logo.png',
+        'status': 'active',
+        'description': 'Discount broker · ANT API v2',
+        'fields': ['client_id', 'api_secret'],
+        'auth': 'totp',
+        'color': '#1e3a8a',
+        'letter': 'AB',
     },
     {
         'type': BrokerType.FIVE_PAISA,
-        'name': '5paisa',
+        'name': '5 Paisa',
         'logo': 'https://5paisa.com/logo.png',
-        'status': 'coming_soon',
-        'description': 'Affordable brokerage plans',
-        'fields': ['client_id', 'access_token', 'api_secret']
+        'status': 'active',
+        'description': 'Affordable brokerage · Direct API',
+        'fields': ['client_id', 'access_token', 'api_secret'],
+        'auth': 'totp',
+        'color': '#e65100',
+        'letter': '5P',
     },
     {
-        'type': BrokerType.CHOICE_INDIA,
-        'name': 'Choice India',
-        'logo': 'https://choiceindia.com/logo.png',
-        'status': 'coming_soon',
-        'description': 'Full-service broking house',
-        'fields': ['client_id', 'access_token', 'api_secret']
+        'type': BrokerType.DHAN,
+        'name': 'Dhan',
+        'logo': 'https://dhan.co/logo.png',
+        'status': 'active',
+        'description': 'Low brokerage with advanced trading tools',
+        'fields': ['client_id', 'access_token'],
+        'auth': 'token',
+        'color': '#0f766e',
+        'letter': 'D',
     },
-    {
-        'type': BrokerType.GOODWILL,
-        'name': 'Goodwill',
-        'logo': 'https://goodwill.in/logo.png',
-        'status': 'coming_soon',
-        'description': 'South India based broker',
-        'fields': ['client_id', 'access_token', 'api_secret']
-    }
 ]
 
 # Main broker routes - integrated into existing dashboard pages

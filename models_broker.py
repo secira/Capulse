@@ -12,12 +12,14 @@ class BrokerType(Enum):
     ZERODHA = "zerodha"
     ANGEL_BROKING = "angel_broking"
     UPSTOX = "upstox"
-    FYERS = "fyers"
     GROWW = "groww"
     ICICIDIRECT = "icicidirect"
+    FIVE_PAISA = "5paisa"
+    ALICE_BLUE = "alice_blue"
+    # Legacy values kept so existing DB rows are not broken
+    FYERS = "fyers"
     HDFC_SECURITIES = "hdfc_securities"
     KOTAK_SECURITIES = "kotak_securities"
-    FIVE_PAISA = "5paisa"
     CHOICE_INDIA = "choice_india"
     GOODWILL = "goodwill"
 

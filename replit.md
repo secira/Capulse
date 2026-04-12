@@ -37,10 +37,10 @@ Target Capital employs a dual AI engine approach:
 **B2B/B2C Multi-Tenant Data Architecture**: Supports B2C user-connected brokers (Dhan, Zerodha, Angel) via `BrokerService` and B2B partner broker APIs with configurable `B2BConnector`. A database fallback reads from the local `Portfolio` model. Each B2B partner operates as a distinct tenant.
 
 **Broker Integration Architecture** (`services/broker_service.py`):
-- **5 fully implemented brokers**: Dhan (dhanhq SDK), Zerodha (kiteconnect SDK), Angel One (SmartAPI SDK), Upstox (REST API v2, no external SDK), ICICI Direct (breeze-connect SDK)
+- **8 fully implemented brokers**: Dhan (dhanhq SDK), Zerodha (kiteconnect SDK), Angel One (SmartAPI SDK), Upstox (REST API v2, no external SDK), ICICI Direct (breeze-connect SDK), Groww (Partner REST API, access token), Alice Blue (ANT API v2, SHA-256 checksum auth), 5 Paisa (OpenAPI REST, TOTP direct)
 - **BaseBrokerClient** abstract interface — all brokers implement: `connect()`, `get_holdings()`, `get_positions()`, `get_orders()`, `get_trade_history()`, `place_order()`, `cancel_order()`, `get_profile()`
 - **`get_trade_history()`**: Fetches executed trade book from broker (Dhan: `get_trade_book()`, Zerodha: `trades()`, Angel: `tradeBook()`). All normalized to unified schema: symbol, quantity, price, trade_date, trade_id, broker_name.
-- **Broker Registry** (`_BROKER_REGISTRY` dict): Adding a new broker = implement `BaseBrokerClient` + add one line. Future: Fyers, Groww.
+- **Broker Registry** (`_BROKER_REGISTRY` dict): Adding a new broker = implement `BaseBrokerClient` + add one line. Future: Fyers, HDFC Securities.
 - **OAuth + Auth flows** (`routes_broker_oauth.py`): Zerodha (KiteConnect OAuth redirect → request_token exchange), Upstox (v2 OAuth redirect → authorization code exchange), ICICI Direct (Breeze Connect OAuth redirect → apisession exchange), Angel One (TOTP direct connect, no redirect). Blueprint `broker_oauth` registered in `main.py`.
 - **Sensibull-style "Connect Broker" page** (`/dashboard/broker-connect`): Clean UI with primary Zerodha card + grid for Upstox/Angel One/ICICI Direct. Modals collect credentials, then redirect to broker OAuth. Sidebar nav updated with "Connect Broker" and "Manage Brokers" links under Portfolio Hub.
 - **`BrokerService.sync_broker_data()`**: Syncs all 5 data types (holdings, positions, orders, trade_history, profile). Trade history stored in `BrokerOrder` table with idempotency key (trade_id/order_id) — safe to re-sync.

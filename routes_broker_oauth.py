@@ -69,7 +69,7 @@ def _save_pending_account(broker_type_value: str, client_id: str,
 @broker_oauth.route('/dashboard/broker-connect')
 @login_required
 def broker_connect():
-    """Sensibull-style broker login page."""
+    """Broker login page — all active brokers."""
     from routes_broker import BROKER_CATALOG
     user_accounts = {
         acc.broker_type: acc
@@ -78,11 +78,10 @@ def broker_connect():
         ).all()
     }
 
-    primary_brokers = ['zerodha', 'upstox', 'angel_broking', 'icicidirect']
     catalog = [
         {**b, 'account': user_accounts.get(b['type'].value)}
         for b in BROKER_CATALOG
-        if b['type'].value in primary_brokers
+        if b.get('status') == 'active'
     ]
 
     return render_template(
@@ -383,6 +382,139 @@ def auth_angel():
     except Exception as e:
         logger.error(f"Angel One connect failed: {e}")
         flash(f'Angel One connection failed: {str(e)}', 'error')
+
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
+# ---------------------------------------------------------------------------
+# Groww  (token-based — user provides Partner API access token directly)
+# ---------------------------------------------------------------------------
+
+@broker_oauth.route('/broker/auth/groww', methods=['POST'])
+@login_required
+def auth_groww():
+    access_token = request.form.get('access_token', '').strip()
+    if not access_token:
+        flash('Access Token is required for Groww.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    try:
+        account = _save_pending_account('groww', 'groww_user', '', extra=access_token)
+        account.set_credentials(client_id='groww_user', access_token=access_token, api_secret='')
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+        flash('Groww connected successfully!', 'success')
+    except Exception as e:
+        logger.error(f"Groww connect failed: {e}")
+        flash(f'Groww connection failed: {str(e)}', 'error')
+
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
+# ---------------------------------------------------------------------------
+# Alice Blue  (ANT API v2 — SHA-256 checksum direct connect)
+# ---------------------------------------------------------------------------
+
+@broker_oauth.route('/broker/auth/alice', methods=['POST'])
+@login_required
+def auth_alice():
+    user_id = request.form.get('user_id', '').strip().upper()
+    api_key = request.form.get('api_key', '').strip()
+    if not user_id or not api_key:
+        flash('User ID and API Key are required for Alice Blue.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    try:
+        import hashlib, base64
+        checksum = hashlib.sha256(f"{user_id}{api_key}".encode()).hexdigest()
+        encoded = base64.b64encode(checksum.encode()).decode()
+
+        resp = requests.post(
+            'https://ant.aliceblueonline.com/rest/AliceBlueAPIService/api/customer/getUserSID',
+            json={"userId": user_id, "userData": encoded},
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        session_id = result.get("sessionID") or result.get("SID") or result.get("result")
+        if not session_id:
+            raise ValueError(f"Auth failed: {result}")
+
+        account = _save_pending_account('alice_blue', user_id, api_key, extra=session_id)
+        account.set_credentials(client_id=user_id, access_token=session_id, api_secret=api_key)
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+        flash('Alice Blue connected successfully!', 'success')
+        logger.info(f"Alice Blue connected for user {current_user.id}")
+    except Exception as e:
+        logger.error(f"Alice Blue connect failed: {e}")
+        flash(f'Alice Blue connection failed: {str(e)}', 'error')
+
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
+# ---------------------------------------------------------------------------
+# 5 Paisa  (direct REST API connect with App Key + credentials)
+# ---------------------------------------------------------------------------
+
+@broker_oauth.route('/broker/auth/fivepaisa', methods=['POST'])
+@login_required
+def auth_fivepaisa():
+    client_code = request.form.get('client_code', '').strip()
+    password = request.form.get('password', '').strip()
+    app_key = request.form.get('app_key', '').strip()
+    totp = request.form.get('totp', '').strip()
+
+    if not all([client_code, password, app_key]):
+        flash('Client Code, Password, and App Key are required for 5 Paisa.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    try:
+        payload = {
+            "head": {"AppKey": app_key},
+            "body": {
+                "ClientCode": client_code,
+                "Password": password,
+                "TOTP": totp,
+            },
+        }
+        resp = requests.post(
+            'https://openapi.5paisa.com/VendorsAPI/Service1.svc/V4/LoginRequestMobileNewbyEmail',
+            json=payload,
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        body = result.get("body", {})
+        jwt = body.get("JWTToken") or body.get("AccessToken")
+
+        if not jwt:
+            raise ValueError(body.get("Message", "5 Paisa login failed — check credentials"))
+
+        account = _save_pending_account('5paisa', client_code, f"{app_key}:{totp}", extra=jwt)
+        account.set_credentials(
+            client_id=client_code,
+            access_token=password,
+            api_secret=f"{app_key}:{totp}",
+        )
+        # Store JWT separately (access_token slot used for password so we re-encode)
+        account.set_credentials(
+            client_id=client_code,
+            access_token=jwt,
+            api_secret=f"{app_key}:{totp}",
+        )
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+        flash('5 Paisa connected successfully!', 'success')
+        logger.info(f"5 Paisa connected for user {current_user.id}")
+    except Exception as e:
+        logger.error(f"5 Paisa connect failed: {e}")
+        flash(f'5 Paisa connection failed: {str(e)}', 'error')
 
     return redirect(url_for('broker_oauth.broker_connect'))
 
