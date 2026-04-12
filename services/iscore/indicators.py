@@ -108,7 +108,7 @@ def compute_volume_profile(df: pd.DataFrame, lookback: int = 20) -> dict:
         'current_volume': int(latest_vol),
         'avg_volume_20d': int(avg_vol),
         'volume_ratio': round(float(vol_ratio), 2),
-        'is_spike': vol_ratio > 1.5,
+        'is_spike': bool(vol_ratio > 1.5),
         'signal': 'high_interest' if vol_ratio > 1.5 else ('low_interest' if vol_ratio < 0.5 else 'normal'),
     }
 
@@ -144,18 +144,37 @@ def compute_all_indicators(df: pd.DataFrame) -> dict:
 
     st_direction = 'buy' if (not st.empty and int(st['direction'].iloc[-1]) == 1) else 'sell'
 
+    def _safe_float(val, default=0.0):
+        if val is None:
+            return default
+        try:
+            f = float(val)
+            if np.isnan(f) or np.isinf(f):
+                return default
+            return round(f, 2)
+        except (TypeError, ValueError):
+            return default
+
+    def _safe_ema(series):
+        if series is None or series.empty or len(series) == 0:
+            return None
+        v = series.iloc[-1]
+        if pd.isna(v):
+            return None
+        return round(float(v), 2)
+
     return {
-        'rsi': round(latest_rsi, 2),
-        'ema9': round(float(ema9.iloc[-1]), 2) if not ema9.empty else None,
-        'ema20': round(float(ema20.iloc[-1]), 2) if not ema20.empty else None,
-        'ema50': round(float(ema50.iloc[-1]), 2) if (not ema50.empty and not pd.isna(ema50.iloc[-1])) else None,
-        'ema200': round(float(ema200.iloc[-1]), 2) if (not ema200.empty and not pd.isna(ema200.iloc[-1])) else None,
-        'momentum_5d': round(float(momentum_5.iloc[-1]), 2) if not pd.isna(momentum_5.iloc[-1]) else 0.0,
-        'momentum_20d': round(float(momentum_20.iloc[-1]), 2) if (not momentum_20.empty and not pd.isna(momentum_20.iloc[-1])) else 0.0,
-        'atr': round(latest_atr, 2),
-        'atr_pct': round(atr_pct, 2),
+        'rsi': _safe_float(latest_rsi, 50.0),
+        'ema9': _safe_ema(ema9),
+        'ema20': _safe_ema(ema20),
+        'ema50': _safe_ema(ema50),
+        'ema200': _safe_ema(ema200),
+        'momentum_5d': _safe_float(momentum_5.iloc[-1] if not momentum_5.empty else None),
+        'momentum_20d': _safe_float(momentum_20.iloc[-1] if not momentum_20.empty else None),
+        'atr': _safe_float(latest_atr),
+        'atr_pct': _safe_float(atr_pct),
         'supertrend_direction': st_direction,
-        'max_drawdown': round(max_dd, 2),
+        'max_drawdown': _safe_float(max_dd),
         'short_trend': short_trend,
         'medium_trend': medium_trend,
         'long_trend': long_trend,
@@ -166,6 +185,6 @@ def compute_all_indicators(df: pd.DataFrame) -> dict:
             'high': float(latest['high']),
             'low': float(latest['low']),
             'prev_close': float(df['close'].iloc[-2]) if len(df) >= 2 else float(latest['close']),
-            'change_pct': round(((latest['close'] - df['close'].iloc[-2]) / df['close'].iloc[-2] * 100) if len(df) >= 2 else 0.0, 2),
+            'change_pct': round(float((latest['close'] - df['close'].iloc[-2]) / df['close'].iloc[-2] * 100) if len(df) >= 2 else 0.0, 2),
         },
     }
