@@ -155,7 +155,7 @@ class BehaviourEngine:
         return {
             'detected': count > 0, 'count': count, 'severity': sev,
             'score': score, 'avg_daily_trades': avg_daily,
-            'daily_distribution': dict(sorted(daily_counts.items())[-14:]),
+            'daily_distribution': {k.isoformat() if hasattr(k, 'isoformat') else str(k): v for k, v in sorted(daily_counts.items())[-14:]},
             'label': 'Overtrading Detector', 'icon': 'fas fa-bolt', 'color': '#dd6b20',
             'description': (
                 f'Detected {count} day(s) with >{self.OVERTRADE_THRESHOLD} trades in {self.OVERTRADE_HOURS}h. '
