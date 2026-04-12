@@ -1966,6 +1966,8 @@ class ManualTradeImport(db.Model):
     net_pnl = db.Column(db.Float, default=0.0)
     entry_time = db.Column(db.DateTime, nullable=False)
     exit_time = db.Column(db.DateTime, nullable=False)
+    asset_type = db.Column(db.String(20), default='STOCK')   # STOCK, OPTION, FUTURES, MF
+    instrument_detail = db.Column(db.String(100), default='')  # e.g. "NIFTY CE 22700 07APR2026"
     source = db.Column(db.String(20), default='csv_upload')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
