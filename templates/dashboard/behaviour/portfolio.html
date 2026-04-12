@@ -236,11 +236,39 @@
         <div class="fw-semibold small mb-2" style="color:{{ mod.color }}"><i class="fas fa-lightbulb me-1"></i>{{ mod.insight }}</div>
 
         {% if key == 'diversification' %}
+        {% if mod.is_fo_heavy %}
+        <!-- F&O-heavy portfolio — show real picture -->
+        <div class="metric-grid">
+          <div class="metric-item">
+            <div class="val text-danger">{{ mod.num_underlying }}</div>
+            <div class="lbl">Underlyings</div>
+          </div>
+          <div class="metric-item">
+            <div class="val text-danger">{{ mod.num_stocks }}</div>
+            <div class="lbl">Contracts</div>
+          </div>
+          <div class="metric-item">
+            <div class="val text-danger" style="font-size:.7rem">1</div>
+            <div class="lbl">Asset Class</div>
+          </div>
+        </div>
+        <div class="mt-2 p-2 rounded-2" style="background:#fef2f2;border:1px solid #fecaca;">
+          <div class="d-flex align-items-start gap-2" style="font-size:.78rem;color:#991b1b;">
+            <i class="fas fa-exclamation-triangle mt-1 flex-shrink-0"></i>
+            <div>
+              <strong>{{ mod.fo_underlyings | join(', ') }}</strong> — {{ mod.fo_pct }}% of your positions are F&O.
+              Different expiry/strike combinations on the same underlying all move together.
+              This is <strong>not diversification</strong>.
+            </div>
+          </div>
+        </div>
+        {% else %}
         <div class="metric-grid">
           <div class="metric-item"><div class="val">{{ mod.num_stocks }}</div><div class="lbl">Assets</div></div>
           <div class="metric-item"><div class="val">{{ mod.num_sectors }}</div><div class="lbl">Sectors</div></div>
-          <div class="metric-item"><div class="val">{{ mod.label_text }}</div><div class="lbl">Rating</div></div>
+          <div class="metric-item"><div class="val" style="font-size:.75rem">{{ mod.label_text }}</div><div class="lbl">Rating</div></div>
         </div>
+        {% endif %}
         {% endif %}
 
         {% if key == 'churn' %}

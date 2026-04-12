@@ -532,22 +532,135 @@ class BehaviourEngine:
     # C. PORTFOLIO BEHAVIOR MODULES (3)
     # ═══════════════════════════════════════════════════════════════════════════
 
+    # ── F&O helpers ────────────────────────────────────────────────────────────
+    @staticmethod
+    def _extract_fo_underlying(symbol):
+        """Strip expiry/strike from an F&O symbol and return the underlying name.
+        E.g. 'NIFTY 24APR25 CE 22000' → 'NIFTY', 'BANKNIFTY01MAY25PE45000' → 'BANKNIFTY'
+        """
+        import re as _re
+        if not symbol:
+            return symbol or 'UNKNOWN'
+        s = str(symbol).upper().strip()
+        # Pattern: UNDERLYING <space or no space> 2-digit-day 3-letter-month 2-4-digit-year
+        m = _re.match(r'^([A-Z&]+)\s*\d{2}[A-Z]{3}\d{2,4}', s)
+        if m:
+            return m.group(1)
+        # Pattern: UNDERLYING <space> CE/PE/FUT/CALL/PUT <space> strike
+        m2 = _re.match(r'^([A-Z&]+)\s+(?:CE|PE|FUT|CALL|PUT)\s+\d', s)
+        if m2:
+            return m2.group(1)
+        # Pattern: UNDERLYING followed by digits (no space compact format)
+        m3 = _re.match(r'^([A-Z]{4,})\d', s)
+        if m3:
+            return m3.group(1)
+        return s.split()[0] if ' ' in s else s
+
+    @staticmethod
+    def _is_fo_symbol(symbol):
+        """Return True if the symbol looks like an F&O contract."""
+        import re as _re
+        if not symbol:
+            return False
+        s = str(symbol).upper()
+        return bool(
+            _re.search(r'\d{2}[A-Z]{3}\d{2,4}\s*(CE|PE|FUT)', s) or
+            _re.search(r'\s+(CE|PE|FUT|CALL|PUT)\s+\d', s) or
+            _re.search(r'(CE|PE|FUT)\d{4,}', s)
+        )
+
     def get_diversification_score(self):
         holdings = self._get_holdings()
         trades = self._get_trades()
 
-        symbols = set()
-        sectors = set()
+        equity_symbols = set()
+        equity_sectors = set()
+        fo_underlyings = set()
+        fo_count = 0
+        total_count = 0
+
         if holdings:
             for h in holdings:
-                symbols.add(getattr(h, 'symbol', '') or getattr(h, 'name', ''))
-                sectors.add(getattr(h, 'sector', None) or getattr(h, 'asset_class', 'Other') or 'Other')
+                total_count += 1
+                at = getattr(h, 'asset_type', '') or ''
+                sym = (getattr(h, 'ticker_symbol', '') or getattr(h, 'symbol', '')
+                       or getattr(h, 'name', '') or '')
+                # Detect F&O by asset_type or by is_futures_options() or by symbol pattern
+                is_fo = (
+                    at == 'futures_options'
+                    or (hasattr(h, 'is_futures_options') and h.is_futures_options())
+                    or self._is_fo_symbol(sym)
+                )
+                if is_fo:
+                    fo_count += 1
+                    fo_underlyings.add(self._extract_fo_underlying(sym))
+                else:
+                    equity_symbols.add(sym)
+                    sector = (getattr(h, 'sector', None)
+                              or getattr(h, 'asset_class', None)
+                              or at or 'Other')
+                    equity_sectors.add(sector)
         else:
+            total_count = len(trades)
             for t in trades:
-                symbols.add(t.symbol)
+                at = getattr(t, 'asset_type', 'STOCK') or 'STOCK'
+                sym = getattr(t, 'symbol', '') or ''
+                is_fo = (
+                    at.upper() in ('OPTION', 'FUTURES', 'FUT', 'OPT', 'CE', 'PE')
+                    or self._is_fo_symbol(sym)
+                )
+                if is_fo:
+                    fo_count += 1
+                    fo_underlyings.add(self._extract_fo_underlying(sym))
+                else:
+                    equity_symbols.add(sym)
 
-        num_stocks = len(symbols)
-        num_sectors = len(sectors) if sectors else max(1, num_stocks // 3)
+        fo_pct = round(fo_count / max(total_count, 1) * 100)
+        is_fo_heavy = fo_pct >= 60  # majority F&O
+
+        if is_fo_heavy:
+            n_underlying = len(fo_underlyings)
+            underlying_list = ', '.join(sorted(fo_underlyings)) if fo_underlyings else 'Unknown'
+            # Each F&O portfolio is concentrated — score by underlying count only
+            if n_underlying <= 1:
+                score, label = 15, 'High Risk — Single Underlying'
+            elif n_underlying <= 3:
+                score, label = 25, 'High Risk — F&O Concentrated'
+            else:
+                score, label = 35, 'High Risk — F&O Portfolio'
+
+            return {
+                'score': score, 'label_text': label,
+                'num_stocks': fo_count,       # total contracts (for display)
+                'num_underlying': n_underlying,
+                'num_sectors': 1,             # F&O = 1 asset class regardless of expiries/strikes
+                'fo_pct': fo_pct,
+                'fo_underlyings': sorted(fo_underlyings),
+                'is_fo_heavy': True,
+                'label': 'Diversification Score', 'icon': 'fas fa-exclamation-triangle',
+                'color': '#ef4444',
+                'description': (
+                    f'{fo_count} F&O contracts on {n_underlying} underlying(s) '
+                    f'({underlying_list}) — {label}.'
+                ),
+                'insight': (
+                    f'You have {fo_count} contracts but only {n_underlying} underlying(s). '
+                    f'Multiple expiry/strike combinations on the same index DO NOT diversify risk — '
+                    f'they all move together when {underlying_list} moves.'
+                ),
+                'advice': (
+                    f'F&O contracts on {underlying_list} are all correlated to the same underlying. '
+                    f'To genuinely diversify, add equity holdings, mutual funds, or bonds to your portfolio. '
+                    f'Current effective asset classes: 1 (Derivatives). Target: 3–5.'
+                ),
+            }
+
+        # Standard equity/mixed portfolio scoring
+        # Treat each unique F&O underlying as 1 additional "diversified" asset
+        num_stocks = len(equity_symbols) + len(fo_underlyings)
+        num_sectors = len(equity_sectors) if equity_sectors else max(1, num_stocks // 3)
+        if fo_underlyings:
+            num_sectors = len(equity_sectors | {'Derivatives/F&O'})
 
         if num_stocks >= 15 and num_sectors >= 5:
             score, label = 85, 'Well Diversified'
@@ -561,6 +674,9 @@ class BehaviourEngine:
         return {
             'score': score, 'label_text': label,
             'num_stocks': num_stocks, 'num_sectors': num_sectors,
+            'is_fo_heavy': False,
+            'fo_pct': fo_pct,
+            'fo_underlyings': sorted(fo_underlyings),
             'label': 'Diversification Score', 'icon': 'fas fa-th', 'color': '#10b981',
             'description': f'{num_stocks} assets across {num_sectors} sectors — {label}.',
             'insight': f'Portfolio contains {num_stocks} assets across {num_sectors} sectors.',
@@ -738,7 +854,23 @@ class BehaviourEngine:
                 'text': f"Strong {cap_eff['roi']}% ROI on capital deployed — excellent efficiency.",
                 'action': 'Scale up your best-performing instruments.',
             })
-        if div['num_stocks'] >= 10:
+        if div.get('is_fo_heavy'):
+            underlying_str = ', '.join(div.get('fo_underlyings', [])) or 'Unknown'
+            n_u = div.get('num_underlying', 1)
+            fo_pct = div.get('fo_pct', 100)
+            insights.append({
+                'type': 'danger',
+                'icon': 'fas fa-exclamation-circle',
+                'text': (
+                    f"{fo_pct}% of your portfolio is F&O contracts on {n_u} underlying(s) "
+                    f"({underlying_str}). Multiple expiries/strikes are NOT diversification — they all correlate."
+                ),
+                'action': (
+                    'Add equity, mutual funds, or bonds to genuinely diversify. '
+                    'F&O positions on the same index share 80–100% correlation.'
+                ),
+            })
+        elif div['num_stocks'] >= 10:
             insights.append({
                 'type': 'success',
                 'icon': 'fas fa-check-circle',
