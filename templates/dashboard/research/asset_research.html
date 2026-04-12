@@ -135,44 +135,66 @@
                                     <p class="text-muted small mb-0" id="resultSummary"></p>
                                 </div>
                                 
+                                <div id="confidencePenaltyStrip" class="mb-3" style="display:none;">
+                                    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-center">
+                                        <span id="confidenceBadge" class="badge px-3 py-2"></span>
+                                        <span id="penaltyBadge" class="badge bg-secondary px-3 py-2" style="display:none;"></span>
+                                    </div>
+                                    <div id="penaltyReasons" class="mt-2 text-center" style="display:none;"></div>
+                                </div>
+
                                 <div class="row g-2" id="componentScores">
-                                    <div class="col-6 col-md-3">
-                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('qualitative')" style="cursor: pointer;" title="Click to see qualitative analysis details">
-                                            <small class="text-muted d-block">Qualitative</small>
-                                            <span class="fw-bold" id="qualScore">--</span>
-                                            <small class="text-muted">/100</small>
-                                            <div class="weight-badge"><small class="text-info">15%</small></div>
-                                            <i class="fas fa-chevron-right component-arrow"></i>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-3">
-                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('quantitative')" style="cursor: pointer;" title="Click to see quantitative analysis details">
+                                    <div class="col-6 col-md-4">
+                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('quantitative')" style="cursor: pointer;">
                                             <small class="text-muted d-block">Quantitative</small>
-                                            <span class="fw-bold" id="quantScore">--</span>
-                                            <small class="text-muted">/100</small>
-                                            <div class="weight-badge"><small class="text-info">50%</small></div>
-                                            <i class="fas fa-chevron-right component-arrow"></i>
+                                            <span class="fw-bold" id="quantScore">--</span><small class="text-muted">/100</small>
+                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="quantBar" style="width:0;height:4px;border-radius:2px;"></div></div>
+                                            <div class="weight-badge"><small class="text-info" id="quantWeight">30%</small></div>
                                         </div>
                                     </div>
-                                    <div class="col-6 col-md-3">
-                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('search')" style="cursor: pointer;" title="Click to see search sentiment details">
-                                            <small class="text-muted d-block">Search</small>
-                                            <span class="fw-bold" id="searchScore">--</span>
-                                            <small class="text-muted">/100</small>
-                                            <div class="weight-badge"><small class="text-info">10%</small></div>
-                                            <i class="fas fa-chevron-right component-arrow"></i>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-3">
-                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('trend')" style="cursor: pointer;" title="Click to see trend analysis details">
+                                    <div class="col-6 col-md-4">
+                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('trend')" style="cursor: pointer;">
                                             <small class="text-muted d-block">Trend</small>
-                                            <span class="fw-bold" id="trendScore">--</span>
-                                            <small class="text-muted">/100</small>
-                                            <div class="weight-badge"><small class="text-info">25%</small></div>
-                                            <i class="fas fa-chevron-right component-arrow"></i>
+                                            <span class="fw-bold" id="trendScore">--</span><small class="text-muted">/100</small>
+                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="trendBar" style="width:0;height:4px;border-radius:2px;"></div></div>
+                                            <div class="weight-badge"><small class="text-info" id="trendWeight">20%</small></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4" id="riskCol">
+                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('risk')" style="cursor: pointer;">
+                                            <small class="text-muted d-block">Risk</small>
+                                            <span class="fw-bold" id="riskScore">--</span><small class="text-muted">/100</small>
+                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="riskBar" style="width:0;height:4px;border-radius:2px;"></div></div>
+                                            <div class="weight-badge"><small class="text-info">20%</small></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('qualitative')" style="cursor: pointer;">
+                                            <small class="text-muted d-block">Sentiment</small>
+                                            <span class="fw-bold" id="qualScore">--</span><small class="text-muted">/100</small>
+                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="qualBar" style="width:0;height:4px;border-radius:2px;"></div></div>
+                                            <div class="weight-badge"><small class="text-info" id="qualWeight">15%</small></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('search')" style="cursor: pointer;">
+                                            <small class="text-muted d-block">Search</small>
+                                            <span class="fw-bold" id="searchScore">--</span><small class="text-muted">/100</small>
+                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="searchBar" style="width:0;height:4px;border-radius:2px;"></div></div>
+                                            <div class="weight-badge"><small class="text-info" id="searchWeight">10%</small></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4" id="mktCtxCol">
+                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('market_context')" style="cursor: pointer;">
+                                            <small class="text-muted d-block">Market</small>
+                                            <span class="fw-bold" id="mktCtxScore">--</span><small class="text-muted">/100</small>
+                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="mktCtxBar" style="width:0;height:4px;border-radius:2px;"></div></div>
+                                            <div class="weight-badge"><small class="text-info">5%</small></div>
                                         </div>
                                     </div>
                                 </div>
+
+                                <div id="scoreFactors" class="mt-3" style="display:none;"></div>
                                 
                                 <!-- Inline Overall Details -->
                                 <div id="inlineOverallDetails" style="display: none; margin-top: 30px;" class="card border-0 shadow-sm">
@@ -386,6 +408,17 @@
 <style>
 .research-page {
     max-width: 1400px;
+}
+.score-bar {
+    background: #e9ecef;
+    border-radius: 4px;
+    height: 6px;
+    overflow: hidden;
+}
+.score-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.8s ease-out;
 }
 
 .feature-card {
@@ -720,10 +753,69 @@ function displayIScoreResult(data) {
     document.getElementById('resultSummary').textContent = data.summary || '';
     
     if (data.components) {
-        document.getElementById('qualScore').textContent = Math.round(data.components.qualitative?.score || 0);
-        document.getElementById('quantScore').textContent = Math.round(data.components.quantitative?.score || 0);
-        document.getElementById('searchScore').textContent = Math.round(data.components.search?.score || 0);
-        document.getElementById('trendScore').textContent = Math.round(data.components.trend?.score || 0);
+        const setComp = (id, barId, score) => {
+            document.getElementById(id).textContent = Math.round(score);
+            const bar = document.getElementById(barId);
+            if (bar) { bar.style.width = score + '%'; bar.style.backgroundColor = getScoreColor(score); }
+        };
+        setComp('quantScore', 'quantBar', data.components.quantitative?.score || 0);
+        setComp('trendScore', 'trendBar', data.components.trend?.score || 0);
+        setComp('qualScore', 'qualBar', data.components.qualitative?.score || 0);
+        setComp('searchScore', 'searchBar', data.components.search?.score || 0);
+
+        if (data.components.risk) {
+            setComp('riskScore', 'riskBar', data.components.risk.score || 0);
+            document.getElementById('riskCol').style.display = '';
+        } else {
+            document.getElementById('riskCol').style.display = 'none';
+        }
+        if (data.components.market_context) {
+            setComp('mktCtxScore', 'mktCtxBar', data.components.market_context.score || 0);
+            document.getElementById('mktCtxCol').style.display = '';
+        } else {
+            document.getElementById('mktCtxCol').style.display = 'none';
+        }
+
+        const weights = data.transparency?.weights || {};
+        if (weights.quantitative_pct) document.getElementById('quantWeight').textContent = weights.quantitative_pct + '%';
+        if (weights.trend_pct) document.getElementById('trendWeight').textContent = weights.trend_pct + '%';
+        if (weights.qualitative_pct) document.getElementById('qualWeight').textContent = weights.qualitative_pct + '%';
+        if (weights.search_pct) document.getElementById('searchWeight').textContent = weights.search_pct + '%';
+    }
+
+    const strip = document.getElementById('confidencePenaltyStrip');
+    if (data.confidence_level) {
+        strip.style.display = 'block';
+        const cBadge = document.getElementById('confidenceBadge');
+        const cl = data.confidence_level;
+        cBadge.className = 'badge px-3 py-2 ' + (cl === 'High' ? 'bg-success' : cl === 'Medium' ? 'bg-warning text-dark' : 'bg-danger');
+        cBadge.innerHTML = '<i class="fas fa-shield-alt me-1"></i>Confidence: ' + cl;
+    }
+    if (data.penalty && data.penalty.applied && data.penalty.applied < 1.0) {
+        const pBadge = document.getElementById('penaltyBadge');
+        pBadge.style.display = '';
+        pBadge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Penalty: ' + ((1 - data.penalty.applied) * 100).toFixed(0) + '% applied';
+        pBadge.className = 'badge bg-danger px-3 py-2';
+        if (data.penalty.reasons && data.penalty.reasons.length) {
+            const pReasons = document.getElementById('penaltyReasons');
+            pReasons.style.display = 'block';
+            pReasons.innerHTML = data.penalty.reasons.map(r => '<small class="text-danger"><i class="fas fa-minus-circle me-1"></i>' + r + '</small>').join('<br>');
+        }
+    } else if (data.penalty && data.penalty.applied > 1.0) {
+        const pBadge = document.getElementById('penaltyBadge');
+        pBadge.style.display = '';
+        pBadge.innerHTML = '<i class="fas fa-arrow-up me-1"></i>Bonus: +' + ((data.penalty.applied - 1) * 100).toFixed(0) + '%';
+        pBadge.className = 'badge bg-success px-3 py-2';
+    }
+
+    if (data.score_factors && data.score_factors.length) {
+        const sfDiv = document.getElementById('scoreFactors');
+        sfDiv.style.display = 'block';
+        sfDiv.innerHTML = '<h6 class="fw-semibold mb-2"><i class="fas fa-lightbulb me-1 text-warning"></i>Why this score?</h6>' +
+            data.score_factors.map(f => {
+                const icon = f.type === 'positive' ? 'fa-check-circle text-success' : f.type === 'negative' ? 'fa-times-circle text-danger' : 'fa-minus-circle text-muted';
+                return '<div class="d-flex align-items-start mb-1"><i class="fas ' + icon + ' me-2 mt-1"></i><small>' + f.text + '</small></div>';
+            }).join('');
     }
 }
 
@@ -760,11 +852,13 @@ function showOverallDetails() {
     
     let breakdownHTML = '';
     const components = [
-        { key: 'qualitative', name: 'Qualitative Sentiment', icon: 'fas fa-newspaper', weight: 15 },
-        { key: 'quantitative', name: 'Quantitative Sentiment', icon: 'fas fa-chart-line', weight: 50 },
-        { key: 'search', name: 'Search Sentiment', icon: 'fas fa-search', weight: 10 },
-        { key: 'trend', name: 'Trend Analysis', icon: 'fas fa-arrow-trend-up', weight: 25 }
-    ];
+        { key: 'quantitative', name: 'Quantitative (Technical)', icon: 'fas fa-chart-line', weight: data.components?.quantitative?.weight || 30 },
+        { key: 'trend', name: 'Trend Analysis', icon: 'fas fa-arrow-trend-up', weight: data.components?.trend?.weight || 20 },
+        { key: 'risk', name: 'Risk & Volatility', icon: 'fas fa-shield-alt', weight: data.components?.risk?.weight || 20, stockOnly: true },
+        { key: 'qualitative', name: 'AI Sentiment', icon: 'fas fa-newspaper', weight: data.components?.qualitative?.weight || 15 },
+        { key: 'search', name: 'Search Sentiment', icon: 'fas fa-search', weight: data.components?.search?.weight || 10 },
+        { key: 'market_context', name: 'Market Context', icon: 'fas fa-globe', weight: data.components?.market_context?.weight || 5, stockOnly: true },
+    ].filter(c => !c.stockOnly || data.components?.[c.key]);
     
     components.forEach(comp => {
         const score = Math.round(data.components?.[comp.key]?.score || 0);
@@ -828,18 +922,18 @@ function showComponentDetails(componentKey) {
     
     const stockComponentConfig = {
         qualitative: {
-            name: 'Qualitative Sentiment Analysis',
+            name: 'AI Sentiment Analysis',
             icon: 'fas fa-newspaper',
-            description: 'Analysis of news articles, social media sentiment, annual reports, and other qualitative data sources.',
+            description: 'AI-powered analysis of news, social media, annual reports, and qualitative data sources.',
             weight: 15,
             sources: ['News Articles', 'Social Media', 'Annual Reports', 'Analyst Reports']
         },
         quantitative: {
             name: 'Quantitative Technical Analysis',
             icon: 'fas fa-chart-line',
-            description: 'Technical indicators including RSI, SuperTrend, EMA crossovers, and volume analysis.',
-            weight: 50,
-            indicators: ['RSI (14)', 'SuperTrend', 'EMA Crossover', 'MACD', 'Volume Analysis']
+            description: 'Real technical indicators from 120-day OHLCV data: RSI (Wilder), EMA alignment, SuperTrend, momentum.',
+            weight: 30,
+            indicators: ['RSI (14) Wilder', 'SuperTrend (ATR)', 'EMA (9/20/50)', 'Momentum (5d/20d)']
         },
         search: {
             name: 'Search Sentiment Analysis',
@@ -849,11 +943,25 @@ function showComponentDetails(componentKey) {
             sources: ['Perplexity AI', 'Search Trends', 'Market Intelligence']
         },
         trend: {
-            name: 'Market Trend Analysis',
+            name: 'Stock-Specific Trend Analysis',
             icon: 'fas fa-arrow-trend-up',
-            description: 'Analysis of market trends including Open Interest, Put-Call Ratio, and VIX correlation.',
-            weight: 25,
-            indicators: ['Open Interest', 'Put-Call Ratio (PCR)', 'VIX Index', 'Delivery Volume']
+            description: 'Multi-timeframe EMA trend alignment and volume profile analysis specific to this stock.',
+            weight: 20,
+            indicators: ['Multi-Timeframe EMA', 'Volume Profile', 'Volume Spike Detection']
+        },
+        risk: {
+            name: 'Risk & Volatility Assessment',
+            icon: 'fas fa-shield-alt',
+            description: 'ATR-based volatility, maximum drawdown analysis, and beta vs Nifty 50.',
+            weight: 20,
+            indicators: ['ATR Volatility', 'Max Drawdown', 'Beta vs Nifty']
+        },
+        market_context: {
+            name: 'Market Context',
+            icon: 'fas fa-globe',
+            description: 'Broad market environment: India VIX regime, Put-Call Ratio, Nifty 50 direction.',
+            weight: 5,
+            indicators: ['India VIX', 'Nifty PCR', 'Nifty 50 Direction']
         }
     };
     
@@ -922,7 +1030,7 @@ function showComponentDetails(componentKey) {
     const isBond = ASSET_KEY === 'bonds' || ASSET_KEY === 'bond';
     const componentConfig = isBond ? bondComponentConfig : (isMutualFund ? mfComponentConfig : stockComponentConfig);
     
-    const config = componentConfig[componentKey];
+    const config = componentConfig[componentKey] || { name: componentKey, icon: 'fas fa-info-circle', description: 'Component analysis.', weight: component.weight || 0, sources: [], indicators: [] };
     
     let bodyHTML = `
         <div class="text-center mb-4">

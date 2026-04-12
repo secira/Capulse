@@ -36,7 +36,6 @@ class IScoreState(TypedDict):
     asset_name: str
     user_id: int
     
-    # Real-time market data
     current_price: float
     previous_close: float
     price_change_pct: float
@@ -46,7 +45,6 @@ class IScoreState(TypedDict):
     cache_hit: bool
     cached_result: Optional[Dict]
     
-    # Component analysis with sources
     qualitative_score: float
     qualitative_details: Dict
     qualitative_confidence: float
@@ -71,10 +69,25 @@ class IScoreState(TypedDict):
     trend_sources: List[Dict]
     trend_reasoning: str
     
+    risk_score: float
+    risk_details: Dict
+    risk_confidence: float
+    
+    market_context_score: float
+    market_context_details: Dict
+    market_context_confidence: float
+    
+    raw_indicators: Dict
+    
     overall_score: float
     overall_confidence: float
     recommendation: str
     recommendation_summary: str
+    
+    penalty_applied: float
+    penalty_reasons: List[str]
+    confidence_level: str
+    score_factors: List[Dict]
     
     config: Dict
     evidence: List[Dict]
@@ -154,6 +167,8 @@ class LangGraphIScoreEngine:
         workflow.add_node("quantitative_analysis_futures", self.quantitative_analysis_futures)
         workflow.add_node("search_sentiment_futures", self.search_sentiment_futures)
         workflow.add_node("trend_analysis_futures", self.trend_analysis_futures)
+        workflow.add_node("risk_volatility", self.risk_volatility)
+        workflow.add_node("market_context", self.market_context)
         workflow.add_node("aggregate_scores", self.aggregate_scores)
         workflow.add_node("store_results", self.store_results)
         
@@ -185,7 +200,9 @@ class LangGraphIScoreEngine:
         workflow.add_edge("qualitative_analysis", "quantitative_analysis")
         workflow.add_edge("quantitative_analysis", "search_sentiment")
         workflow.add_edge("search_sentiment", "trend_analysis")
-        workflow.add_edge("trend_analysis", "aggregate_scores")
+        workflow.add_edge("trend_analysis", "risk_volatility")
+        workflow.add_edge("risk_volatility", "market_context")
+        workflow.add_edge("market_context", "aggregate_scores")
         
         workflow.add_edge("qualitative_analysis_mf", "quantitative_analysis_mf")
         workflow.add_edge("quantitative_analysis_mf", "search_sentiment_mf")
@@ -287,77 +304,38 @@ class LangGraphIScoreEngine:
         
         return min(0.95, confidence)
     
+    # ── Scentric Proprietary Model Weights (IP) ──────────────────────────────
+    WEIGHTS = {
+        'quantitative_pct': 30,
+        'trend_pct': 20,
+        'risk_pct': 20,
+        'qualitative_pct': 15,
+        'search_pct': 10,
+        'market_context_pct': 5,
+    }
+    THRESHOLDS = {
+        'strong_buy': 78,
+        'buy': 63,
+        'hold_low': 42,
+        'hold_high': 62,
+        'sell': 28,
+        'min_confidence': 0.45,
+    }
+
     def _get_config(self) -> Dict:
-        """Get active configuration for weights and thresholds"""
-        from models import ResearchWeightConfig, ResearchThresholdConfig
-        
-        weight_config = ResearchWeightConfig.get_active_config()
-        threshold_config = ResearchThresholdConfig.get_active_config()
-        
-        if weight_config:
-            weights = {
-                'qualitative_pct': weight_config.qualitative_pct,
-                'quantitative_pct': weight_config.quantitative_pct,
-                'search_pct': weight_config.search_pct,
-                'trend_pct': weight_config.trend_pct,
-                'tech_params': weight_config.tech_params or {},
-                'trend_params': weight_config.trend_params or {},
-                'qualitative_sources': weight_config.qualitative_sources or {}
-            }
-        else:
-            weights = {
-                'qualitative_pct': 15,
-                'quantitative_pct': 50,
-                'search_pct': 10,
-                'trend_pct': 25,
-                'tech_params': {
-                    'rsi_period': 14,
-                    'rsi_overbought': 70,
-                    'rsi_oversold': 30,
-                    'supertrend_period': 10,
-                    'supertrend_multiplier': 3,
-                    'ema_short': 9,
-                    'ema_long': 20
-                },
-                'trend_params': {
-                    'oi_change_threshold': 5,
-                    'pcr_bullish_threshold': 0.7,
-                    'pcr_bearish_threshold': 1.3,
-                    'vix_low': 15,
-                    'vix_high': 25
-                },
+        """Return hardcoded proprietary model configuration (IP)."""
+        return {
+            'weights': {
+                **self.WEIGHTS,
                 'qualitative_sources': {
-                    'annual_reports': True,
-                    'twitter': True,
-                    'moneycontrol': True,
-                    'economic_times': True,
-                    'nse_india': True,
-                    'bse_india': True,
-                    'screener': True,
-                    'glassdoor': True
-                }
-            }
-        
-        if threshold_config:
-            thresholds = {
-                'strong_buy': threshold_config.strong_buy_threshold,
-                'buy': threshold_config.buy_threshold,
-                'hold_low': threshold_config.hold_low,
-                'hold_high': threshold_config.hold_high,
-                'sell': threshold_config.sell_threshold,
-                'min_confidence': float(threshold_config.min_confidence)
-            }
-        else:
-            thresholds = {
-                'strong_buy': 80,
-                'buy': 65,
-                'hold_low': 45,
-                'hold_high': 64,
-                'sell': 30,
-                'min_confidence': 0.6
-            }
-        
-        return {'weights': weights, 'thresholds': thresholds}
+                    'annual_reports': True, 'twitter': True,
+                    'moneycontrol': True, 'economic_times': True,
+                    'nse_india': True, 'bse_india': True,
+                    'screener': True, 'glassdoor': True,
+                },
+            },
+            'thresholds': dict(self.THRESHOLDS),
+        }
     
     def check_cache(self, state: IScoreState) -> Dict:
         """Node 1: Check if valid cached result exists"""
@@ -488,129 +466,74 @@ class LangGraphIScoreEngine:
         }
     
     def quantitative_analysis(self, state: IScoreState) -> Dict:
-        """Node 3: Quantitative Sentiment Analysis (50% weight)"""
-        logger.info(f"I-Score Node 3: Quantitative analysis for {state['symbol']}")
-        
+        """Node 3: Quantitative Analysis (30% weight) — Real Technical Indicators"""
+        logger.info(f"I-Score Node 3: Real quantitative analysis for {state['symbol']}")
         symbol = state['symbol']
-        config = state.get('config', {})
-        tech_params = config.get('weights', {}).get('tech_params', {})
-        
+
         try:
-            from services.nse_service import NSEService
-            nse = NSEService()
-            
-            quote = nse.get_stock_quote(symbol)
-            
-            # Store price data in state for frontend display
-            audit_trail = state.get('audit_trail', [])
-            
-            if quote:
-                price = quote.get('current_price', 0)
-                prev_close = quote.get('previous_close', 0)
-                day_high = quote.get('day_high', 0)
-                day_low = quote.get('day_low', 0)
-                
-                price_change_pct = quote.get('change_percent', 0)
-                
-                # Update state with real market data
-                state['current_price'] = price
-                state['previous_close'] = prev_close
-                state['price_change_pct'] = price_change_pct
-                
-                rsi_period = tech_params.get('rsi_period', 14)
-                rsi_overbought = tech_params.get('rsi_overbought', 70)
-                rsi_oversold = tech_params.get('rsi_oversold', 30)
-                
-                # Try to get real RSI from intraday (hourly) data
-                intraday_df = nse.get_intraday_data(symbol, interval="1h")
-                if intraday_df is not None and not intraday_df.empty and 'rsi' in intraday_df.columns:
-                    simulated_rsi = float(intraday_df['rsi'].iloc[-1])  # Latest RSI value
-                    if pd.isna(simulated_rsi):
-                        simulated_rsi = 50 + (price_change_pct * 5)
-                else:
-                    # Fallback to simulated RSI if intraday data unavailable
-                    simulated_rsi = 50 + (price_change_pct * 5)
-                
-                simulated_rsi = min(100, max(0, simulated_rsi))
-                
-                if simulated_rsi > rsi_overbought:
-                    rsi_signal = 'overbought'
-                    rsi_score = 30
-                elif simulated_rsi < rsi_oversold:
-                    rsi_signal = 'oversold'
-                    rsi_score = 70
-                else:
-                    rsi_signal = 'neutral'
-                    rsi_score = 50 + (simulated_rsi - 50) * 0.5
-                
-                if price_change_pct > 1:
-                    trend_score = 70 + min(20, price_change_pct * 5)
-                elif price_change_pct < -1:
-                    trend_score = 30 + max(-20, price_change_pct * 5)
-                else:
-                    trend_score = 50 + price_change_pct * 10
-                
-                ema_short = tech_params.get('ema_short', 9)
-                ema_long = tech_params.get('ema_long', 20)
-                
-                if price > prev_close:
-                    ema_signal = 'bullish_crossover'
-                    ema_score = 65
-                elif price < prev_close:
-                    ema_signal = 'bearish_crossover'
-                    ema_score = 35
-                else:
-                    ema_signal = 'neutral'
-                    ema_score = 50
-                
-                overall_quant_score = (rsi_score * 0.35) + (trend_score * 0.40) + (ema_score * 0.25)
-                
-                sources_list = [
-                    {'name': 'NSE Real-Time Data', 'type': 'market_data', 'coverage': f'Current Price: ₹{price}, Change: {price_change_pct}%'},
-                    {'name': 'RSI Indicator', 'type': 'technical', 'coverage': f'14-period RSI: {round(simulated_rsi, 2)}'},
-                    {'name': 'EMA Crossover', 'type': 'technical', 'coverage': f'EMA({ema_short}/{ema_long}): {ema_signal}'},
-                    {'name': 'SuperTrend', 'type': 'trend_following', 'coverage': f'Direction: {("Bullish" if price_change_pct > 0 else "Bearish")}'}
-                ]
-                
-                reasoning = f"Technical analysis shows {ema_signal} crossover signal with RSI at {round(simulated_rsi, 2)}. Price moved {price_change_pct}% from previous close. SuperTrend indicates {('bullish' if price_change_pct > 0 else 'bearish')} momentum."
-                
-                return {
-                    'current_price': price,
-                    'previous_close': prev_close,
-                    'price_change_pct': price_change_pct,
-                    'market_status': 'live',
-                    'quantitative_score': min(100, max(0, overall_quant_score)),
-                    'quantitative_details': {
-                        'rsi': {
-                            'value': round(simulated_rsi, 2),
-                            'signal': rsi_signal,
-                            'score': round(rsi_score, 2)
+            from services.iscore.data_fetcher import fetch_historical_ohlcv
+            from services.iscore.indicators import compute_all_indicators
+            from services.iscore.scoring import compute_quant_score
+
+            df = fetch_historical_ohlcv(symbol, days=120)
+            if df is not None and len(df) >= 15:
+                indicators = compute_all_indicators(df)
+                if indicators:
+                    quant = compute_quant_score(indicators)
+                    price = indicators['price']
+                    rsi_val = indicators['rsi']
+                    rsi_signal = 'overbought' if rsi_val > 70 else ('oversold' if rsi_val < 30 else 'neutral')
+                    ema_signal = 'bullish' if (indicators.get('ema9') and indicators.get('ema20') and indicators['ema9'] > indicators['ema20']) else 'bearish'
+
+                    reasoning = (
+                        f"Real technical analysis: RSI(14) = {rsi_val} ({rsi_signal}), "
+                        f"EMA alignment = {ema_signal}, SuperTrend = {indicators['supertrend_direction']}, "
+                        f"5d momentum = {indicators['momentum_5d']}%, "
+                        f"Short/Medium/Long trend = {indicators['short_trend']}/{indicators['medium_trend']}/{indicators['long_trend']}."
+                    )
+
+                    return {
+                        'current_price': price['current'],
+                        'previous_close': price['prev_close'],
+                        'price_change_pct': price['change_pct'],
+                        'market_status': 'live',
+                        'raw_indicators': indicators,
+                        'quantitative_score': min(100, max(0, quant['composite'])),
+                        'quantitative_details': {
+                            'rsi': {'value': rsi_val, 'signal': rsi_signal, 'score': quant['rsi_score']},
+                            'supertrend': {'direction': indicators['supertrend_direction'], 'score': quant['supertrend_score']},
+                            'ema': {
+                                'ema9': indicators.get('ema9'), 'ema20': indicators.get('ema20'),
+                                'ema50': indicators.get('ema50'), 'signal': ema_signal,
+                                'score': quant['ema_score'],
+                            },
+                            'momentum': {
+                                '5d': indicators['momentum_5d'], '20d': indicators.get('momentum_20d', 0),
+                                'score': quant['momentum_score'],
+                            },
+                            'multi_timeframe': {
+                                'short': indicators['short_trend'],
+                                'medium': indicators['medium_trend'],
+                                'long': indicators['long_trend'],
+                            },
+                            'price_data': {
+                                'current': price['current'], 'previous_close': price['prev_close'],
+                                'change_pct': price['change_pct'],
+                            },
                         },
-                        'supertrend': {
-                            'direction': 'bullish' if price_change_pct > 0 else 'bearish',
-                            'score': round(trend_score, 2)
-                        },
-                        'ema': {
-                            'short': ema_short,
-                            'long': ema_long,
-                            'signal': ema_signal,
-                            'score': round(ema_score, 2)
-                        },
-                        'price_data': {
-                            'current': price,
-                            'previous_close': prev_close,
-                            'change_pct': price_change_pct
-                        }
-                    },
-                    'quantitative_sources': sources_list,
-                    'quantitative_reasoning': reasoning,
-                    'quantitative_confidence': 0.85,
-                    'step': 'quantitative_complete'
-                }
+                        'quantitative_sources': [
+                            {'name': 'Historical OHLCV (yfinance)', 'type': 'market_data', 'coverage': f'{len(df)} days'},
+                            {'name': f'RSI(14) Wilder', 'type': 'technical', 'coverage': f'{rsi_val}'},
+                            {'name': f'EMA(9/20/50)', 'type': 'technical', 'coverage': ema_signal},
+                            {'name': 'SuperTrend (ATR)', 'type': 'trend_following', 'coverage': indicators['supertrend_direction']},
+                        ],
+                        'quantitative_reasoning': reasoning,
+                        'quantitative_confidence': 0.88,
+                        'step': 'quantitative_complete',
+                    }
         except Exception as e:
-            logger.error(f"Quantitative analysis error: {e}")
-        
-        # Try to get fallback data to at least show something
+            logger.error(f"Real quantitative analysis error: {e}")
+
         try:
             fallback = self._get_fallback_price_data(symbol)
             if fallback:
@@ -618,28 +541,24 @@ class LangGraphIScoreEngine:
                     'current_price': fallback.get('current_price', 0),
                     'previous_close': fallback.get('previous_close', 0),
                     'price_change_pct': fallback.get('change_percent', 0),
-                    'market_status': 'demo',
+                    'market_status': 'demo', 'raw_indicators': {},
                     'quantitative_score': 50,
-                    'quantitative_details': {'error': 'Technical data unavailable'},
-                    'quantitative_sources': [{'name': 'NSE Service', 'type': 'demo', 'coverage': 'Demo data for ' + symbol}],
-                    'quantitative_reasoning': 'Using demo data - technical analysis currently unavailable',
-                    'quantitative_confidence': 0.3,
-                    'step': 'quantitative_fallback'
+                    'quantitative_details': {'error': 'Indicator data unavailable — using fallback'},
+                    'quantitative_sources': [{'name': 'Fallback', 'type': 'demo', 'coverage': symbol}],
+                    'quantitative_reasoning': 'Fallback data — real indicators unavailable',
+                    'quantitative_confidence': 0.30, 'step': 'quantitative_fallback',
                 }
         except:
             pass
-        
+
         return {
-            'current_price': 0,
-            'previous_close': 0,
-            'price_change_pct': 0,
-            'market_status': 'unknown',
+            'current_price': 0, 'previous_close': 0, 'price_change_pct': 0,
+            'market_status': 'unknown', 'raw_indicators': {},
             'quantitative_score': 50,
             'quantitative_details': {'error': 'Technical data unavailable'},
-            'quantitative_sources': [{'name': 'NSE Service', 'type': 'error', 'coverage': 'Data temporarily unavailable'}],
-            'quantitative_reasoning': 'Using fallback data - technical analysis currently unavailable',
-            'quantitative_confidence': 0.3,
-            'step': 'quantitative_fallback'
+            'quantitative_sources': [{'name': 'None', 'type': 'error', 'coverage': 'N/A'}],
+            'quantitative_reasoning': 'Fallback — no data available',
+            'quantitative_confidence': 0.20, 'step': 'quantitative_fallback',
         }
     
     def search_sentiment(self, state: IScoreState) -> Dict:
@@ -717,139 +636,170 @@ class LangGraphIScoreEngine:
         }
     
     def trend_analysis(self, state: IScoreState) -> Dict:
-        """Node 5: Trend Analysis (25% weight) - OI, PCR, VIX - LIVE DATA"""
-        logger.info(f"I-Score Node 5: Trend analysis for {state['symbol']}")
-        
-        symbol = state['symbol']
-        config = state.get('config', {})
-        trend_params = config.get('weights', {}).get('trend_params', {})
-        
+        """Node 5: Stock-Specific Trend Analysis (20% weight)"""
+        logger.info(f"I-Score Node 5: Stock-specific trend analysis for {state['symbol']}")
+
+        indicators = state.get('raw_indicators', {})
+        if indicators:
+            from services.iscore.scoring import compute_trend_score_from_indicators
+            trend = compute_trend_score_from_indicators(indicators)
+            vol = indicators.get('volume', {})
+
+            reasoning = (
+                f"Stock-specific trend: Short={indicators.get('short_trend','?')}, "
+                f"Medium={indicators.get('medium_trend','?')}, Long={indicators.get('long_trend','?')}. "
+                f"Volume ratio {vol.get('volume_ratio', 1):.1f}x avg ({'spike' if vol.get('is_spike') else 'normal'})."
+            )
+
+            return {
+                'trend_score': min(100, max(0, trend['composite'])),
+                'trend_details': {
+                    'multi_timeframe': {
+                        'short': indicators.get('short_trend', 'neutral'),
+                        'medium': indicators.get('medium_trend', 'neutral'),
+                        'long': indicators.get('long_trend', 'neutral'),
+                        'score': trend['multi_timeframe_score'],
+                    },
+                    'volume': {
+                        'current': vol.get('current_volume', 0),
+                        'avg_20d': vol.get('avg_volume_20d', 0),
+                        'ratio': vol.get('volume_ratio', 1.0),
+                        'is_spike': vol.get('is_spike', False),
+                        'score': trend['volume_score'],
+                    },
+                },
+                'trend_sources': [
+                    {'name': 'Multi-Timeframe EMA', 'type': 'trend', 'coverage': f"S:{indicators.get('short_trend')} M:{indicators.get('medium_trend')} L:{indicators.get('long_trend')}"},
+                    {'name': 'Volume Analysis', 'type': 'volume', 'coverage': f"{vol.get('volume_ratio', 1):.1f}x avg"},
+                ],
+                'trend_reasoning': reasoning,
+                'trend_confidence': 0.80,
+                'step': 'trend_complete',
+            }
+
+        return {
+            'trend_score': 50,
+            'trend_details': {'error': 'No stock-level indicators available'},
+            'trend_sources': [],
+            'trend_reasoning': 'Trend data unavailable — using neutral default',
+            'trend_confidence': 0.30,
+            'step': 'trend_fallback',
+        }
+
+    def risk_volatility(self, state: IScoreState) -> Dict:
+        """Node: Risk & Volatility Assessment (20% weight)"""
+        logger.info(f"I-Score Risk Node: Assessing risk for {state['symbol']}")
+
+        indicators = state.get('raw_indicators', {})
+        if not indicators:
+            return {
+                'risk_score': 50, 'risk_details': {'error': 'No indicator data'},
+                'risk_confidence': 0.30, 'step': 'risk_fallback',
+            }
+
+        try:
+            from services.iscore.scoring import compute_risk_score
+            from services.iscore.data_fetcher import fetch_historical_ohlcv, fetch_market_index_history
+            from services.iscore.indicators import compute_beta
+
+            stock_df = fetch_historical_ohlcv(state['symbol'], days=60)
+            market_df = fetch_market_index_history('^NSEI', days=60)
+            beta = 1.0
+            if stock_df is not None and market_df is not None and len(stock_df) >= 10 and len(market_df) >= 10:
+                stock_ret = stock_df['close'].pct_change().dropna()
+                mkt_ret = market_df['close'].pct_change().dropna()
+                beta = compute_beta(stock_ret, mkt_ret)
+
+            risk = compute_risk_score(indicators, beta)
+
+            vol_label = 'high' if indicators.get('atr_pct', 0) > 4 else ('low' if indicators.get('atr_pct', 0) < 1.5 else 'medium')
+            reasoning = (
+                f"ATR volatility = {indicators.get('atr_pct', 0):.1f}% ({vol_label}), "
+                f"Max drawdown = {indicators.get('max_drawdown', 0):.1f}%, Beta = {beta:.2f}."
+            )
+
+            return {
+                'risk_score': min(100, max(0, risk['composite'])),
+                'risk_details': {
+                    'atr_pct': indicators.get('atr_pct', 0),
+                    'volatility_label': vol_label,
+                    'volatility_score': risk['volatility_score'],
+                    'max_drawdown': indicators.get('max_drawdown', 0),
+                    'drawdown_score': risk['drawdown_score'],
+                    'beta': round(beta, 2),
+                    'beta_score': risk['beta_score'],
+                },
+                'risk_confidence': 0.82,
+                'step': 'risk_complete',
+            }
+        except Exception as e:
+            logger.error(f"Risk analysis error: {e}")
+            return {
+                'risk_score': 50, 'risk_details': {'error': str(e)},
+                'risk_confidence': 0.30, 'step': 'risk_fallback',
+            }
+
+    def market_context(self, state: IScoreState) -> Dict:
+        """Node: Market Context (5% weight) — VIX, PCR, Nifty direction"""
+        logger.info(f"I-Score Market Context Node for {state['symbol']}")
+
         try:
             from services.nse_service import NSEService
             nse = NSEService()
-            
-            indices = nse.get_market_indices()
-            
+
             vix_data = nse.get_india_vix()
-            vix_value = vix_data.get('vix_value', 15.0)
-            vix_source = vix_data.get('source', 'fallback')
-            vix_low = trend_params.get('vix_low', 15)
-            vix_high = trend_params.get('vix_high', 25)
-            
-            logger.info(f"Live VIX data: {vix_value} (source: {vix_source})")
-            
-            if vix_value < vix_low:
-                vix_signal = 'low_volatility'
-                vix_score = 70
-            elif vix_value > vix_high:
-                vix_signal = 'high_volatility'
-                vix_score = 30
+            vix = vix_data.get('vix_value', 15.0)
+            if vix < 15:
+                vix_score = 75
+                vix_regime = 'calm'
+            elif vix > 25:
+                vix_score = 25
+                vix_regime = 'fearful'
             else:
-                vix_signal = 'moderate'
-                vix_score = 50 - ((vix_value - vix_low) / (vix_high - vix_low)) * 20
-            
+                vix_score = 50 - (vix - 15) * 2.5
+                vix_regime = 'cautious'
+
             pcr_data = nse.get_pcr('NIFTY')
-            pcr_value = pcr_data.get('pcr_value', 0.85)
-            pcr_source = pcr_data.get('source', 'fallback')
-            pcr_bullish = trend_params.get('pcr_bullish_threshold', 0.7)
-            pcr_bearish = trend_params.get('pcr_bearish_threshold', 1.3)
-            
-            logger.info(f"Live PCR data: {pcr_value} (source: {pcr_source})")
-            
-            if pcr_value < pcr_bullish:
-                pcr_signal = 'bearish'
-                pcr_score = 35
-            elif pcr_value > pcr_bearish:
-                pcr_signal = 'bullish'
+            pcr = pcr_data.get('pcr_value', 0.85)
+            if pcr > 1.3:
                 pcr_score = 70
+            elif pcr < 0.7:
+                pcr_score = 35
             else:
-                pcr_signal = 'neutral'
-                pcr_score = 50 + (pcr_value - 1.0) * 20
-            
-            oi_data = nse.get_option_chain_oi('NIFTY')
-            total_ce_oi = oi_data.get('total_ce_oi', 0)
-            total_pe_oi = oi_data.get('total_pe_oi', 0)
-            oi_pcr = oi_data.get('oi_pcr', 1.0)
-            oi_source = oi_data.get('source', 'fallback')
-            
-            logger.info(f"Live OI data: CE={total_ce_oi}, PE={total_pe_oi}, PCR={oi_pcr} (source: {oi_source})")
-            
-            if oi_pcr > 1.2:
-                oi_signal = 'put_buildup'
-                oi_score = 65
-            elif oi_pcr < 0.8:
-                oi_signal = 'call_buildup'
-                oi_score = 40
+                pcr_score = 50 + (pcr - 1.0) * 20
+
+            indices = nse.get_market_indices()
+            nifty = indices.get('nifty_50', {})
+            mkt_chg = nifty.get('change_percent', 0)
+            if mkt_chg > 0.5:
+                mkt_score = 70
+            elif mkt_chg < -0.5:
+                mkt_score = 30
             else:
-                oi_signal = 'balanced'
-                oi_score = 50 + (oi_pcr - 1.0) * 25
-            
-            nifty_data = indices.get('nifty_50', {})
-            market_trend = nifty_data.get('change_percent', 0)
-            
-            if market_trend > 0.5:
-                market_score = 65 + min(20, market_trend * 10)
-            elif market_trend < -0.5:
-                market_score = 35 + max(-20, market_trend * 10)
-            else:
-                market_score = 50 + market_trend * 10
-            
-            overall_trend_score = (vix_score * 0.25) + (pcr_score * 0.30) + (oi_score * 0.25) + (market_score * 0.20)
-            
-            sources_list = [
-                {'name': 'India VIX', 'type': 'volatility', 'coverage': f'VIX Level: {round(vix_value, 2)} ({vix_signal})', 'source': vix_source},
-                {'name': 'Put-Call Ratio', 'type': 'options_sentiment', 'coverage': f'PCR: {round(pcr_value, 2)} ({pcr_signal})', 'source': pcr_source},
-                {'name': 'Open Interest', 'type': 'futures_sentiment', 'coverage': f'OI PCR: {oi_pcr} ({oi_signal})', 'source': oi_source},
-                {'name': 'NIFTY 50', 'type': 'market_index', 'coverage': f'Index Change: {market_trend}%'}
-            ]
-            
-            reasoning = f"Market trend analysis shows VIX at {round(vix_value, 2)} indicating {vix_signal} volatility. Put-Call Ratio of {round(pcr_value, 2)} suggests {pcr_signal} sentiment. Open Interest {oi_signal} with PCR {oi_pcr}. NIFTY 50 showing {market_trend}% movement."
-            
+                mkt_score = 50 + mkt_chg * 15
+
+            composite = 0.40 * vix_score + 0.30 * pcr_score + 0.30 * mkt_score
+            reasoning = f"VIX={vix:.1f} ({vix_regime}), PCR={pcr:.2f}, Nifty {mkt_chg:+.1f}%."
+
             return {
-                'trend_score': min(100, max(0, overall_trend_score)),
-                'trend_details': {
-                    'vix': {
-                        'value': round(vix_value, 2),
-                        'signal': vix_signal,
-                        'score': round(vix_score, 2),
-                        'source': vix_source
-                    },
-                    'pcr': {
-                        'value': round(pcr_value, 2),
-                        'signal': pcr_signal,
-                        'score': round(pcr_score, 2),
-                        'source': pcr_source
-                    },
-                    'open_interest': {
-                        'total_ce_oi': total_ce_oi,
-                        'total_pe_oi': total_pe_oi,
-                        'oi_pcr': oi_pcr,
-                        'signal': oi_signal,
-                        'score': round(oi_score, 2),
-                        'source': oi_source
-                    },
-                    'market_trend': {
-                        'nifty_change': market_trend,
-                        'score': round(market_score, 2)
-                    }
+                'market_context_score': min(100, max(0, composite)),
+                'market_context_details': {
+                    'vix': {'value': round(vix, 2), 'regime': vix_regime, 'score': round(vix_score, 2)},
+                    'pcr': {'value': round(pcr, 2), 'score': round(pcr_score, 2)},
+                    'nifty': {'change_pct': round(mkt_chg, 2), 'score': round(mkt_score, 2)},
                 },
-                'trend_sources': sources_list,
-                'trend_reasoning': reasoning,
-                'trend_confidence': self._calculate_trend_confidence(vix_source, pcr_source, oi_source),
-                'step': 'trend_complete'
+                'market_context_confidence': 0.70,
+                'step': 'market_context_complete',
             }
         except Exception as e:
-            logger.error(f"Trend analysis error: {e}")
-        
-        return {
-            'trend_score': 50,
-            'trend_details': {'error': 'Trend data unavailable'},
-            'trend_sources': [{'name': 'NSE Data', 'type': 'error', 'coverage': 'Market data temporarily unavailable'}],
-            'trend_reasoning': 'Trend analysis currently unavailable',
-            'trend_confidence': 0.3,
-            'step': 'trend_fallback'
-        }
-    
+            logger.error(f"Market context error: {e}")
+            return {
+                'market_context_score': 50,
+                'market_context_details': {'error': str(e)},
+                'market_context_confidence': 0.30,
+                'step': 'market_context_fallback',
+            }
+
     # ==================== MUTUAL FUND ANALYSIS METHODS ====================
     
     def qualitative_analysis_mf(self, state: IScoreState) -> Dict:
@@ -2682,73 +2632,106 @@ class LangGraphIScoreEngine:
     # ==================== END FUTURES ANALYSIS METHODS ====================
     
     def aggregate_scores(self, state: IScoreState) -> Dict:
-        """Node 6: Aggregate all component scores into I-Score"""
+        """Node 6: Aggregate all component scores with nonlinear penalties + confidence."""
         logger.info(f"I-Score Node 6: Aggregating scores for {state['symbol']}")
-        
-        config = state.get('config', {})
-        weights = config.get('weights', {})
-        thresholds = config.get('thresholds', {})
-        
-        qual_weight = weights.get('qualitative_pct', 15) / 100
-        quant_weight = weights.get('quantitative_pct', 50) / 100
-        search_weight = weights.get('search_pct', 10) / 100
-        trend_weight = weights.get('trend_pct', 25) / 100
-        
+
+        asset_type = state.get('asset_type', 'stocks')
+        is_stock = asset_type in ('stocks', 'stock')
+
+        thresholds = self.THRESHOLDS
         qual_score = state.get('qualitative_score', 50)
         quant_score = state.get('quantitative_score', 50)
         search_score = state.get('search_score', 50)
         trend_score = state.get('trend_score', 50)
-        
-        overall_score = (
-            qual_score * qual_weight +
-            quant_score * quant_weight +
-            search_score * search_weight +
-            trend_score * trend_weight
-        )
-        
-        qual_conf = state.get('qualitative_confidence', 0.5)
-        quant_conf = state.get('quantitative_confidence', 0.5)
-        search_conf = state.get('search_confidence', 0.5)
-        trend_conf = state.get('trend_confidence', 0.5)
-        
-        overall_confidence = (
-            qual_conf * qual_weight +
-            quant_conf * quant_weight +
-            search_conf * search_weight +
-            trend_conf * trend_weight
-        )
-        
-        strong_buy = thresholds.get('strong_buy', 80)
-        buy = thresholds.get('buy', 65)
-        hold_low = thresholds.get('hold_low', 45)
-        sell = thresholds.get('sell', 30)
-        min_confidence = thresholds.get('min_confidence', 0.6)
-        
-        if overall_confidence < min_confidence:
+        risk_score_val = state.get('risk_score', 50)
+        mkt_ctx_score = state.get('market_context_score', 50)
+
+        if is_stock:
+            raw_score = (
+                quant_score * 0.30 +
+                trend_score * 0.20 +
+                risk_score_val * 0.20 +
+                qual_score * 0.15 +
+                search_score * 0.10 +
+                mkt_ctx_score * 0.05
+            )
+        else:
+            raw_score = (
+                qual_score * 0.15 +
+                quant_score * 0.50 +
+                search_score * 0.10 +
+                trend_score * 0.25
+            )
+            risk_score_val = 50
+            mkt_ctx_score = 50
+
+        indicators = state.get('raw_indicators', {})
+        if is_stock and indicators:
+            from services.iscore.penalties import apply_penalties
+            final_score, penalty, penalty_reasons = apply_penalties(
+                raw_score, risk_score_val, trend_score, quant_score, indicators
+            )
+        else:
+            final_score = round(raw_score, 2)
+            penalty = 1.0
+            penalty_reasons = []
+
+        component_scores = [quant_score, trend_score, risk_score_val, qual_score, search_score, mkt_ctx_score]
+        data_quality = {
+            'has_real_indicators': bool(indicators),
+            'has_volume': bool(indicators.get('volume')),
+            'days_of_data': 120 if indicators else 0,
+            'is_fallback': state.get('market_status') in ('demo', 'unknown'),
+        }
+        from services.iscore.confidence import compute_confidence, generate_score_factors
+        conf = compute_confidence(component_scores, data_quality)
+
+        score_factors = []
+        if is_stock and indicators:
+            comp_scores = {
+                'qualitative': qual_score, 'quantitative': quant_score,
+                'search': search_score, 'trend': trend_score,
+                'risk': risk_score_val, 'market_context': mkt_ctx_score,
+            }
+            score_factors = generate_score_factors(indicators, comp_scores)
+
+        strong_buy = thresholds['strong_buy']
+        buy = thresholds['buy']
+        hold_low = thresholds['hold_low']
+        sell = thresholds['sell']
+
+        if conf['value'] < thresholds['min_confidence']:
             recommendation = 'INCONCLUSIVE'
-            summary = f"Insufficient confidence ({overall_confidence:.0%}) for a definitive recommendation."
-        elif overall_score >= strong_buy:
+            summary = f"Confidence too low ({conf['level']}) for a definitive recommendation. I-Score: {final_score:.1f}."
+        elif final_score >= strong_buy:
             recommendation = 'STRONG_BUY'
-            summary = f"I-Score of {overall_score:.1f}/100 indicates strong bullish sentiment across all indicators."
-        elif overall_score >= buy:
+            summary = f"I-Score {final_score:.1f}/100 — Strong bullish alignment across quant, trend, and sentiment."
+        elif final_score >= buy:
             recommendation = 'BUY'
-            summary = f"I-Score of {overall_score:.1f}/100 shows positive momentum with favorable technical and sentiment signals."
-        elif overall_score >= hold_low:
+            summary = f"I-Score {final_score:.1f}/100 — Favorable momentum with positive technical signals."
+        elif final_score >= hold_low:
             recommendation = 'HOLD'
-            summary = f"I-Score of {overall_score:.1f}/100 suggests maintaining current positions; mixed signals present."
-        elif overall_score >= sell:
+            summary = f"I-Score {final_score:.1f}/100 — Mixed signals; maintain current positions."
+        elif final_score >= sell:
             recommendation = 'CAUTIONARY_SELL'
-            summary = f"I-Score of {overall_score:.1f}/100 indicates caution; consider reducing exposure."
+            summary = f"I-Score {final_score:.1f}/100 — Caution advised; consider reducing exposure."
         else:
             recommendation = 'STRONG_SELL'
-            summary = f"I-Score of {overall_score:.1f}/100 shows significant bearish pressure across indicators."
-        
+            summary = f"I-Score {final_score:.1f}/100 — Significant bearish pressure across indicators."
+
+        if penalty_reasons:
+            summary += ' ' + '; '.join(penalty_reasons[:2]) + '.'
+
         return {
-            'overall_score': round(overall_score, 2),
-            'overall_confidence': round(overall_confidence, 2),
+            'overall_score': final_score,
+            'overall_confidence': conf['value'],
             'recommendation': recommendation,
             'recommendation_summary': summary,
-            'step': 'aggregation_complete'
+            'penalty_applied': penalty,
+            'penalty_reasons': penalty_reasons,
+            'confidence_level': conf['level'],
+            'score_factors': score_factors,
+            'step': 'aggregation_complete',
         }
     
     def store_results(self, state: IScoreState) -> Dict:
@@ -2785,36 +2768,54 @@ class LangGraphIScoreEngine:
             config = state.get('config', {})
             weights = config.get('weights', {})
             
+            is_stock = state.get('asset_type', 'stocks') in ('stocks', 'stock')
+            w = self.WEIGHTS if is_stock else {'qualitative_pct': 15, 'quantitative_pct': 50, 'search_pct': 10, 'trend_pct': 25}
+
             components = [
                 {
                     'type': 'qualitative',
-                    'weight': weights.get('qualitative_pct', 15),
+                    'weight': w.get('qualitative_pct', 15),
                     'score': state.get('qualitative_score', 50),
                     'confidence': state.get('qualitative_confidence', 0.5),
                     'details': state.get('qualitative_details', {})
                 },
                 {
                     'type': 'quantitative',
-                    'weight': weights.get('quantitative_pct', 50),
+                    'weight': w.get('quantitative_pct', 30),
                     'score': state.get('quantitative_score', 50),
                     'confidence': state.get('quantitative_confidence', 0.5),
                     'details': state.get('quantitative_details', {})
                 },
                 {
                     'type': 'search',
-                    'weight': weights.get('search_pct', 10),
+                    'weight': w.get('search_pct', 10),
                     'score': state.get('search_score', 50),
                     'confidence': state.get('search_confidence', 0.5),
                     'details': state.get('search_details', {})
                 },
                 {
                     'type': 'trend',
-                    'weight': weights.get('trend_pct', 25),
+                    'weight': w.get('trend_pct', 20),
                     'score': state.get('trend_score', 50),
                     'confidence': state.get('trend_confidence', 0.5),
                     'details': state.get('trend_details', {})
-                }
+                },
             ]
+            if is_stock:
+                components.append({
+                    'type': 'risk',
+                    'weight': w.get('risk_pct', 20),
+                    'score': state.get('risk_score', 50),
+                    'confidence': state.get('risk_confidence', 0.5),
+                    'details': state.get('risk_details', {}),
+                })
+                components.append({
+                    'type': 'market_context',
+                    'weight': w.get('market_context_pct', 5),
+                    'score': state.get('market_context_score', 50),
+                    'confidence': state.get('market_context_confidence', 0.5),
+                    'details': state.get('market_context_details', {}),
+                })
             
             for comp in components:
                 signal = 'bullish' if comp['score'] > 60 else 'bearish' if comp['score'] < 40 else 'neutral'
@@ -2836,34 +2837,31 @@ class LangGraphIScoreEngine:
                 date.today()
             )
             
+            payload = {
+                'overall_score': state.get('overall_score'),
+                'overall_confidence': state.get('overall_confidence'),
+                'recommendation': state.get('recommendation'),
+                'recommendation_summary': state.get('recommendation_summary'),
+                'penalty_applied': state.get('penalty_applied', 1.0),
+                'penalty_reasons': state.get('penalty_reasons', []),
+                'confidence_level': state.get('confidence_level', 'Medium'),
+                'score_factors': state.get('score_factors', []),
+                'qualitative': {'score': state.get('qualitative_score'), 'details': state.get('qualitative_details')},
+                'quantitative': {'score': state.get('quantitative_score'), 'details': state.get('quantitative_details')},
+                'search': {'score': state.get('search_score'), 'details': state.get('search_details')},
+                'trend': {'score': state.get('trend_score'), 'details': state.get('trend_details')},
+            }
+            if is_stock:
+                payload['risk'] = {'score': state.get('risk_score'), 'details': state.get('risk_details')}
+                payload['market_context'] = {'score': state.get('market_context_score'), 'details': state.get('market_context_details')}
+
             cache_entry = ResearchCache(
                 tenant_id='live',
                 cache_key=cache_key,
                 asset_type=state['asset_type'],
                 symbol=state['symbol'],
                 analysis_date=date.today(),
-                result_payload={
-                    'overall_score': state.get('overall_score'),
-                    'overall_confidence': state.get('overall_confidence'),
-                    'recommendation': state.get('recommendation'),
-                    'recommendation_summary': state.get('recommendation_summary'),
-                    'qualitative': {
-                        'score': state.get('qualitative_score'),
-                        'details': state.get('qualitative_details')
-                    },
-                    'quantitative': {
-                        'score': state.get('quantitative_score'),
-                        'details': state.get('quantitative_details')
-                    },
-                    'search': {
-                        'score': state.get('search_score'),
-                        'details': state.get('search_details')
-                    },
-                    'trend': {
-                        'score': state.get('trend_score'),
-                        'details': state.get('trend_details')
-                    }
-                },
+                result_payload=payload,
                 overall_score=Decimal(str(state.get('overall_score', 0))),
                 recommendation=state.get('recommendation'),
                 expires_at=datetime.utcnow() + timedelta(hours=4)
@@ -2920,70 +2918,42 @@ class LangGraphIScoreEngine:
         }
     
     def analyze(self, asset_type: str, symbol: str, user_id: int, asset_name: str = None) -> Dict:
-        """
-        Run I-Score analysis for an asset
-        
-        Args:
-            asset_type: Type of asset (stocks, futures, options, etc.)
-            symbol: Asset symbol
-            user_id: User requesting the analysis
-            asset_name: Display name for the asset
-        
-        Returns:
-            Dictionary with I-Score results
-        """
+        """Run I-Score analysis for an asset."""
+        is_stock = asset_type in ('stocks', 'stock')
         initial_state: IScoreState = {
             'asset_type': asset_type,
             'symbol': symbol,
             'asset_name': asset_name or symbol,
             'user_id': user_id,
-            'current_price': 0,
-            'previous_close': 0,
-            'price_change_pct': 0,
+            'current_price': 0, 'previous_close': 0, 'price_change_pct': 0,
             'market_status': 'unknown',
             'data_timestamp': datetime.utcnow().isoformat(),
-            'cache_hit': False,
-            'cached_result': None,
-            'qualitative_score': 0,
-            'qualitative_details': {},
-            'qualitative_confidence': 0,
-            'qualitative_sources': [],
-            'qualitative_reasoning': '',
-            'quantitative_score': 0,
-            'quantitative_details': {},
-            'quantitative_confidence': 0,
-            'quantitative_sources': [],
-            'quantitative_reasoning': '',
-            'search_score': 0,
-            'search_details': {},
-            'search_confidence': 0,
-            'search_sources': [],
-            'search_reasoning': '',
-            'trend_score': 0,
-            'trend_details': {},
-            'trend_confidence': 0,
-            'trend_sources': [],
-            'trend_reasoning': '',
-            'overall_score': 0,
-            'overall_confidence': 0,
-            'recommendation': '',
-            'recommendation_summary': '',
-            'config': {},
-            'evidence': [],
-            'audit_trail': [],
-            'error': None,
-            'step': 'start'
+            'cache_hit': False, 'cached_result': None,
+            'qualitative_score': 0, 'qualitative_details': {}, 'qualitative_confidence': 0,
+            'qualitative_sources': [], 'qualitative_reasoning': '',
+            'quantitative_score': 0, 'quantitative_details': {}, 'quantitative_confidence': 0,
+            'quantitative_sources': [], 'quantitative_reasoning': '',
+            'search_score': 0, 'search_details': {}, 'search_confidence': 0,
+            'search_sources': [], 'search_reasoning': '',
+            'trend_score': 0, 'trend_details': {}, 'trend_confidence': 0,
+            'trend_sources': [], 'trend_reasoning': '',
+            'risk_score': 50, 'risk_details': {}, 'risk_confidence': 0.5,
+            'market_context_score': 50, 'market_context_details': {}, 'market_context_confidence': 0.5,
+            'raw_indicators': {},
+            'overall_score': 0, 'overall_confidence': 0,
+            'recommendation': '', 'recommendation_summary': '',
+            'penalty_applied': 1.0, 'penalty_reasons': [],
+            'confidence_level': 'Medium', 'score_factors': [],
+            'config': {}, 'evidence': [], 'audit_trail': [],
+            'error': None, 'step': 'start',
         }
-        
+
         try:
             result = self.graph.invoke(initial_state)
-            
-            # Extract price from quantitative_details if not in top-level state
+
             current_price = result.get('current_price', 0)
             previous_close = result.get('previous_close', 0)
             price_change_pct = result.get('price_change_pct', 0)
-            
-            # Fallback: get price from quantitative_details if top-level is 0
             quant_details = result.get('quantitative_details', {})
             if current_price == 0 and quant_details:
                 price_data = quant_details.get('price_data', {})
@@ -2992,7 +2962,58 @@ class LangGraphIScoreEngine:
                     previous_close = price_data.get('previous_close', previous_close)
                     price_change_pct = price_data.get('change_pct', price_change_pct)
                     logger.info(f"Using price from quantitative_details: ₹{current_price}")
-            
+
+            weights = self.WEIGHTS if is_stock else {'qualitative_pct': 15, 'quantitative_pct': 50, 'search_pct': 10, 'trend_pct': 25}
+
+            components = {
+                'qualitative': {
+                    'score': result.get('qualitative_score', 0),
+                    'weight': weights.get('qualitative_pct', 15),
+                    'confidence': result.get('qualitative_confidence', 0),
+                    'details': result.get('qualitative_details', {}),
+                    'sources': result.get('qualitative_sources', []),
+                    'reasoning': result.get('qualitative_reasoning', ''),
+                },
+                'quantitative': {
+                    'score': result.get('quantitative_score', 0),
+                    'weight': weights.get('quantitative_pct', 30),
+                    'confidence': result.get('quantitative_confidence', 0),
+                    'details': result.get('quantitative_details', {}),
+                    'sources': result.get('quantitative_sources', []),
+                    'reasoning': result.get('quantitative_reasoning', ''),
+                },
+                'search': {
+                    'score': result.get('search_score', 0),
+                    'weight': weights.get('search_pct', 10),
+                    'confidence': result.get('search_confidence', 0),
+                    'details': result.get('search_details', {}),
+                    'sources': result.get('search_sources', []),
+                    'reasoning': result.get('search_reasoning', ''),
+                },
+                'trend': {
+                    'score': result.get('trend_score', 0),
+                    'weight': weights.get('trend_pct', 20),
+                    'confidence': result.get('trend_confidence', 0),
+                    'details': result.get('trend_details', {}),
+                    'sources': result.get('trend_sources', []),
+                    'reasoning': result.get('trend_reasoning', ''),
+                },
+            }
+
+            if is_stock:
+                components['risk'] = {
+                    'score': result.get('risk_score', 50),
+                    'weight': weights.get('risk_pct', 20),
+                    'confidence': result.get('risk_confidence', 0.5),
+                    'details': result.get('risk_details', {}),
+                }
+                components['market_context'] = {
+                    'score': result.get('market_context_score', 50),
+                    'weight': weights.get('market_context_pct', 5),
+                    'confidence': result.get('market_context_confidence', 0.5),
+                    'details': result.get('market_context_details', {}),
+                }
+
             return {
                 'success': True,
                 'symbol': symbol,
@@ -3000,65 +3021,35 @@ class LangGraphIScoreEngine:
                 'asset_name': result.get('asset_name', symbol),
                 'iscore': result.get('overall_score', 0),
                 'confidence': result.get('overall_confidence', 0),
+                'confidence_level': result.get('confidence_level', 'Medium'),
                 'recommendation': result.get('recommendation', 'INCONCLUSIVE'),
                 'summary': result.get('recommendation_summary', ''),
                 'market_data': {
                     'current_price': current_price,
                     'previous_close': previous_close,
                     'change_pct': price_change_pct,
-                    'timestamp': result.get('data_timestamp', '')
+                    'timestamp': result.get('data_timestamp', ''),
                 },
-                'components': {
-                    'qualitative': {
-                        'score': result.get('qualitative_score', 0),
-                        'weight': 15,
-                        'confidence': result.get('qualitative_confidence', 0),
-                        'details': result.get('qualitative_details', {}),
-                        'sources': result.get('qualitative_sources', []),
-                        'reasoning': result.get('qualitative_reasoning', '')
-                    },
-                    'quantitative': {
-                        'score': result.get('quantitative_score', 0),
-                        'weight': 50,
-                        'confidence': result.get('quantitative_confidence', 0),
-                        'details': result.get('quantitative_details', {}),
-                        'sources': result.get('quantitative_sources', []),
-                        'reasoning': result.get('quantitative_reasoning', '')
-                    },
-                    'search': {
-                        'score': result.get('search_score', 0),
-                        'weight': 10,
-                        'confidence': result.get('search_confidence', 0),
-                        'details': result.get('search_details', {}),
-                        'sources': result.get('search_sources', []),
-                        'reasoning': result.get('search_reasoning', '')
-                    },
-                    'trend': {
-                        'score': result.get('trend_score', 0),
-                        'weight': 25,
-                        'confidence': result.get('trend_confidence', 0),
-                        'details': result.get('trend_details', {}),
-                        'sources': result.get('trend_sources', []),
-                        'reasoning': result.get('trend_reasoning', '')
-                    }
+                'components': components,
+                'penalty': {
+                    'applied': result.get('penalty_applied', 1.0),
+                    'reasons': result.get('penalty_reasons', []),
                 },
+                'score_factors': result.get('score_factors', []),
                 'transparency': {
-                    'description': 'Every recommendation comes with clear reasoning and audit trails for complete transparency',
-                    'audit_trail': result.get('audit_trail', [])
+                    'description': 'Scentric AI Decision Engine — every recommendation comes with explainable reasoning.',
+                    'model_version': 'v2.0',
+                    'weights': weights,
                 },
                 'cached': result.get('cache_hit', False),
-                'timestamp': datetime.utcnow().isoformat()
+                'timestamp': datetime.utcnow().isoformat(),
             }
-            
+
         except Exception as e:
             logger.error(f"I-Score analysis failed for {symbol}: {e}")
             return {
-                'success': False,
-                'symbol': symbol,
-                'asset_type': asset_type,
-                'iscore': 0,
-                'recommendation': 'ERROR',
-                'error': str(e)
+                'success': False, 'symbol': symbol, 'asset_type': asset_type,
+                'iscore': 0, 'recommendation': 'ERROR', 'error': str(e),
             }
 
 

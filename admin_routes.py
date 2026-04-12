@@ -733,46 +733,8 @@ def save_research_flags():
 @admin_bp.route('/save-research-weights', methods=['POST'])
 @admin_required
 def admin_save_research_weights():
-    """Save I-Score weight configuration"""
-    from models import ResearchWeightConfig
-    
-    try:
-        qualitative_pct = int(request.form.get('qualitative_pct', 15))
-        quantitative_pct = int(request.form.get('quantitative_pct', 50))
-        search_pct = int(request.form.get('search_pct', 10))
-        trend_pct = int(request.form.get('trend_pct', 25))
-        
-        total = qualitative_pct + quantitative_pct + search_pct + trend_pct
-        if total != 100:
-            flash(f'Weights must sum to 100%. Current total: {total}%', 'error')
-            return redirect(url_for('admin.research_config'))
-        
-        existing = ResearchWeightConfig.get_active_config()
-        if existing:
-            existing.is_active = False
-        
-        new_config = ResearchWeightConfig(
-            qualitative_pct=qualitative_pct,
-            quantitative_pct=quantitative_pct,
-            search_pct=search_pct,
-            trend_pct=trend_pct,
-            tech_params=existing.tech_params if existing else None,
-            trend_params=existing.trend_params if existing else None,
-            qualitative_sources=existing.qualitative_sources if existing else None,
-            version=(existing.version + 1) if existing else 1,
-            is_active=True,
-            created_by=session.get('admin_id')
-        )
-        
-        db.session.add(new_config)
-        db.session.commit()
-        
-        flash('I-Score weight configuration saved successfully!', 'success')
-        
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error saving configuration: {str(e)}', 'error')
-    
+    """Weights are now hardcoded as proprietary IP — admin editing disabled."""
+    flash('I-Score weights are now proprietary and hardcoded (Quant 30%, Trend 20%, Risk 20%, Qual 15%, Search 10%, Market 5%). Admin editing has been disabled.', 'info')
     return redirect(url_for('admin.research_config'))
 
 
