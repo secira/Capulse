@@ -80,13 +80,16 @@ def behavioural_portfolio():
     try:
         engine = _get_engine()
         data = engine.get_portfolio_behavior()
+        intel = engine.get_portfolio_intelligence()
     except Exception as e:
         logger.error(f"Portfolio behavior error: {e}")
         data = None
+        intel = None
 
     return render_template(
         'dashboard/behaviour/portfolio.html',
         data=data,
+        intel=intel,
         page_title='Portfolio Behavior',
     )
 
@@ -578,6 +581,65 @@ def behaviour_today_alerts():
     except Exception as e:
         logger.error(f"Today alerts error: {e}")
         return jsonify({'alerts': []})
+
+
+@app.route('/api/behaviour/portfolio-narrative')
+@login_required
+def behaviour_portfolio_narrative():
+    """AI narrative for portfolio health using Claude."""
+    try:
+        engine = _get_engine()
+        data = engine.get_portfolio_behavior()
+        intel = engine.get_portfolio_intelligence()
+
+        if not data:
+            return jsonify({'narrative': None})
+
+        div = data['modules'].get('diversification', {})
+        churn = data['modules'].get('churn', {})
+        cap = data['modules'].get('capital_efficiency', {})
+        cost = intel.get('cost_impact', {})
+
+        prompt = f"""Analyze this Indian retail trader's portfolio behavior and generate a health summary.
+
+Portfolio Stats (Last 30 days):
+- Diversification: {div.get('num_stocks', 0)} assets, {div.get('num_sectors', 0)} sectors ({div.get('label_text', '')})
+- Weekly Churn Rate: {churn.get('churn_rate', 0)}% ({churn.get('weekly_changes', 0)} symbol changes/week)
+- Capital ROI: {cap.get('roi', 0)}% on ₹{cap.get('capital_deployed', 0):,.0f} deployed
+- Capital to Winners: {cap.get('winning_capital_pct', 0)}%
+- Monthly Transaction Costs: ₹{cost.get('total', 0):,} ({cost.get('n_trades', 0)} trades)
+- Monthly P&L: ₹{cost.get('cur_pnl', 0):,.0f}
+- Portfolio Score: {data.get('score', 0)}/100
+
+Generate a portfolio health summary in JSON:
+1. summary: One sentence (max 20 words) capturing the portfolio's health. Reference actual numbers.
+2. top_risks: List of exactly 2 specific risks (short phrases, max 8 words each)
+3. strength: One specific strength (max 12 words)
+
+Rules:
+- Be specific — use actual numbers from the data
+- Direct tone, like a mentor
+- Non-advisory (don't say "you should consider")
+- No generic statements
+
+Respond only with valid JSON: {{"summary": "...", "top_risks": ["...", "..."], "strength": "..."}}"""
+
+        from services.anthropic_service import AnthropicService
+        svc = AnthropicService()
+        resp = svc._call_with_retry(
+            model=AnthropicService.FALLBACK_MODEL,
+            messages=[{'role': 'user', 'content': prompt}],
+            max_tokens=250,
+            temperature=0.35,
+        )
+        raw = resp.content[0].text.strip()
+        import re as _re, json as _json
+        m = _re.search(r'\{.*\}', raw, _re.DOTALL)
+        narrative = _json.loads(m.group()) if m else {'summary': raw[:150], 'top_risks': [], 'strength': ''}
+        return jsonify({'narrative': narrative})
+    except Exception as e:
+        logger.error(f"Portfolio narrative error: {e}")
+        return jsonify({'narrative': None, 'error': str(e)})
 
 
 @app.route('/api/behaviour/progress')

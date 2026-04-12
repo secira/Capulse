@@ -631,6 +631,188 @@ class BehaviourEngine:
             'advice': 'Allocate more capital to high-conviction setups where your win rate is highest.' if roi < 0 else 'Good capital deployment efficiency.',
         }
 
+    def get_portfolio_intelligence(self):
+        """Churn cost, top insights, trend, behavioral link — all in one call."""
+        from models import TradeHistory, ManualTradeImport
+        now = datetime.utcnow()
+        period_start = now - timedelta(days=30)
+        prev_start = now - timedelta(days=60)
+        prev_end = now - timedelta(days=30)
+
+        def period_trades(start, end):
+            th = TradeHistory.query.filter_by(user_id=self.user_id, tenant_id=self.tenant_id)\
+                 .filter(TradeHistory.entry_time.between(start, end)).all()
+            mi = ManualTradeImport.query.filter_by(user_id=self.user_id, tenant_id=self.tenant_id)\
+                 .filter(ManualTradeImport.entry_time.between(start, end)).all()
+            return th + mi
+
+        cur_trades = period_trades(period_start, now)
+        prev_trades = period_trades(prev_start, prev_end)
+
+        # ── Churn Cost Impact ────────────────────────────────────────────────
+        n_trades = len(cur_trades)
+        avg_brokerage_per_side = 20
+        brokerage_cost = n_trades * avg_brokerage_per_side * 2   # buy + sell
+        sell_value = sum(abs(t.quantity * (t.exit_price or 0)) for t in cur_trades if t.quantity and t.exit_price)
+        stt = round(sell_value * 0.00025)   # ~0.025% STT on sell side
+        other_charges = round(n_trades * 8)  # SEBI fees, stamp, etc.
+        total_monthly_cost = brokerage_cost + stt + other_charges
+        cur_pnl = sum(t.realized_pnl for t in cur_trades)
+        cost_as_pct_pnl = round(total_monthly_cost / max(abs(cur_pnl), 1) * 100) if cur_pnl else 100
+
+        # ── Portfolio Metrics (current vs previous) ──────────────────────────
+        def metrics(trades):
+            total = len(trades)
+            wins = sum(1 for t in trades if t.trade_result == 'WIN')
+            pnl = sum(t.realized_pnl for t in trades)
+            capital = sum(abs(t.quantity * (t.entry_price or 0)) for t in trades if t.quantity and t.entry_price)
+            symbols = set(t.symbol for t in trades)
+            weeks = defaultdict(set)
+            for t in trades:
+                weeks[t.entry_time.strftime('%Y-W%U')].add(t.symbol)
+            avg_weekly = sum(len(s) for s in weeks.values()) / max(len(weeks), 1)
+            churn = round(avg_weekly / max(len(symbols), 1) * 100, 1)
+            win_cap = sum(abs(t.quantity * (t.entry_price or 0)) for t in trades if t.trade_result == 'WIN' and t.quantity and t.entry_price)
+            win_cap_pct = round(win_cap / max(capital, 1) * 100, 1)
+            roi = round(pnl / max(capital, 1) * 100, 2)
+            return {
+                'trades': total, 'wins': wins,
+                'win_rate': round(wins / max(total, 1) * 100, 1),
+                'pnl': round(pnl, 2), 'capital': round(capital),
+                'roi': roi, 'churn': churn,
+                'win_cap_pct': win_cap_pct,
+                'symbols': len(symbols),
+            }
+
+        cur_m = metrics(cur_trades)
+        prev_m = metrics(prev_trades) if prev_trades else None
+
+        trends = {}
+        if prev_m:
+            trends = {
+                'churn': round(cur_m['churn'] - prev_m['churn'], 1),
+                'roi': round(cur_m['roi'] - prev_m['roi'], 2),
+                'win_rate': round(cur_m['win_rate'] - prev_m['win_rate'], 1),
+                'trades': cur_m['trades'] - prev_m['trades'],
+                'win_cap_pct': round(cur_m['win_cap_pct'] - prev_m['win_cap_pct'], 1),
+            }
+
+        # ── Top 3 Insights ───────────────────────────────────────────────────
+        div = self.get_diversification_score()
+        churn = self.get_portfolio_churn()
+        cap_eff = self.get_capital_efficiency()
+
+        insights = []
+        if churn['churn_rate'] > 60:
+            insights.append({
+                'type': 'danger',
+                'icon': 'fas fa-exclamation-circle',
+                'text': f"High churn ({churn['churn_rate']}%) is eroding returns through transaction costs.",
+                'action': 'Reduce trade frequency. Hold for longer when your thesis is intact.',
+            })
+        elif churn['churn_rate'] > 30:
+            insights.append({
+                'type': 'warning',
+                'icon': 'fas fa-exclamation-triangle',
+                'text': f"Moderate churn ({churn['churn_rate']}%) — watch transaction cost buildup.",
+                'action': 'Each round trip costs ~₹48+ in brokerage and taxes.',
+            })
+        if cap_eff['winning_capital_pct'] < 50:
+            insights.append({
+                'type': 'warning',
+                'icon': 'fas fa-exclamation-triangle',
+                'text': f"Only {cap_eff['winning_capital_pct']}% of your capital went to winning trades.",
+                'action': 'Shift capital toward your highest win-rate instruments.',
+            })
+        if cap_eff['roi'] < 0:
+            insights.append({
+                'type': 'danger',
+                'icon': 'fas fa-arrow-down',
+                'text': f"Negative ROI ({cap_eff['roi']}%) — trading is currently destroying capital.",
+                'action': 'Reduce position sizing until your strategy improves.',
+            })
+        elif cap_eff['roi'] > 5:
+            insights.append({
+                'type': 'success',
+                'icon': 'fas fa-check-circle',
+                'text': f"Strong {cap_eff['roi']}% ROI on capital deployed — excellent efficiency.",
+                'action': 'Scale up your best-performing instruments.',
+            })
+        if div['num_stocks'] >= 10:
+            insights.append({
+                'type': 'success',
+                'icon': 'fas fa-check-circle',
+                'text': f"Good diversification — {div['num_stocks']} assets across {div['num_sectors']} sectors.",
+                'action': 'Maintain this diversification as you scale.',
+            })
+        elif div['num_stocks'] < 5:
+            insights.append({
+                'type': 'danger',
+                'icon': 'fas fa-exclamation-circle',
+                'text': f"Concentrated portfolio with only {div['num_stocks']} assets — high single-asset risk.",
+                'action': 'Aim for at least 10 uncorrelated instruments.',
+            })
+        if trends.get('churn', 0) > 15:
+            insights.append({
+                'type': 'warning',
+                'icon': 'fas fa-arrow-up',
+                'text': f"Churn increased +{trends['churn']}% vs last month while ROI changed {trends['roi']:+.1f}%.",
+                'action': 'More trading is not correlating with better results.',
+            })
+
+        # Keep top 3, prioritize danger > warning > success
+        priority = {'danger': 0, 'warning': 1, 'success': 2}
+        insights = sorted(insights, key=lambda x: priority.get(x['type'], 3))[:3]
+
+        # ── Behavioral-Portfolio Link ─────────────────────────────────────────
+        try:
+            overtrade = self.detect_overtrading()
+            revenge = self.detect_revenge_trading()
+        except Exception:
+            overtrade = {'detected': False, 'severity': 'none'}
+            revenge = {'detected': False, 'severity': 'none'}
+
+        beh_link = []
+        if overtrade.get('detected') and cap_eff['roi'] < 3:
+            beh_link.append({
+                'behavior': 'Overtrading',
+                'impact': f"High trade frequency ({n_trades} trades/month) is directly reducing your ROI to {cap_eff['roi']}%.",
+                'color': '#ef4444',
+                'icon': 'fas fa-fire',
+            })
+        if revenge.get('detected') and churn['churn_rate'] > 50:
+            beh_link.append({
+                'behavior': 'Revenge Trading',
+                'impact': 'Loss-triggered trades are increasing churn and compounding losses.',
+                'color': '#f59e0b',
+                'icon': 'fas fa-bolt',
+            })
+        if not beh_link and cap_eff['roi'] > 3:
+            beh_link.append({
+                'behavior': 'Disciplined Trading',
+                'impact': f"Your controlled trading frequency ({n_trades} trades/month) is supporting a {cap_eff['roi']}% ROI.",
+                'color': '#22c55e',
+                'icon': 'fas fa-medal',
+            })
+
+        return {
+            'cost_impact': {
+                'n_trades': n_trades,
+                'brokerage': brokerage_cost,
+                'stt': stt,
+                'other': other_charges,
+                'total': total_monthly_cost,
+                'cost_pct_pnl': cost_as_pct_pnl,
+                'cur_pnl': round(cur_pnl, 2),
+            },
+            'insights': insights,
+            'trends': trends,
+            'cur_metrics': cur_m,
+            'prev_metrics': prev_m,
+            'has_trend': bool(prev_m and prev_m['trades'] > 0),
+            'beh_link': beh_link,
+        }
+
     # ═══════════════════════════════════════════════════════════════════════════
     # D. PERFORMANCE PATTERNS (3)
     # ═══════════════════════════════════════════════════════════════════════════

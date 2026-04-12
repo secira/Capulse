@@ -2,107 +2,398 @@
 
 {% block title %}Portfolio Behavior - Target Capital{% endblock %}
 {% block dashboard_title %}Portfolio Behavior Analysis{% endblock %}
-{% block dashboard_subtitle %}How you construct and maintain your portfolio — diversification, churn, and efficiency{% endblock %}
+{% block dashboard_subtitle %}How you construct and manage your portfolio — churn, capital efficiency, and cost impact{% endblock %}
 
 {% block dashboard_content %}
 <style>
-.mod-card{border:none;border-radius:14px;border-left:4px solid #e5e7eb;overflow:hidden}
+/* Layout */
+.back-link{color:#64748b;text-decoration:none;font-size:.85rem;display:inline-flex;align-items:center;gap:6px}
+.back-link:hover{color:#1e293b}
+.section-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-bottom:12px}
+
+/* Score bar */
+.score-bar{height:10px;border-radius:5px;background:#e5e7eb;overflow:hidden}
+.score-bar .fill{height:100%;border-radius:5px;transition:width .6s ease}
+
+/* Insight strip */
+.insight-strip{border-radius:12px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;font-size:.875rem;border:1px solid transparent}
+.insight-strip.danger{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.insight-strip.warning{background:#fffbeb;border-color:#fed7aa;color:#92400e}
+.insight-strip.success{background:#f0fdf4;border-color:#bbf7d0;color:#15803d}
+.insight-strip .action-text{font-size:.75rem;opacity:.8;margin-top:2px}
+
+/* AI narrative */
+.narrative-card{background:linear-gradient(135deg,#0f172a,#1e1b4b);border-radius:16px;color:#fff;padding:22px 24px;position:relative;overflow:hidden;margin-bottom:24px}
+.narrative-card::before{content:'';position:absolute;top:-50px;right:-50px;width:180px;height:180px;background:rgba(99,102,241,.12);border-radius:50%}
+.narrative-tag{background:rgba(99,102,241,.3);color:#a5b4fc;font-size:.7rem;font-weight:700;padding:4px 10px;border-radius:6px;display:inline-block;margin-bottom:14px;text-transform:uppercase;letter-spacing:.05em}
+.narrative-summary{font-size:1rem;font-weight:500;line-height:1.5;margin-bottom:14px;position:relative;z-index:1}
+.risk-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:5px 12px;font-size:.78rem;font-weight:600;margin:3px}
+.strength-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,.15);color:#86efac;border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:5px 12px;font-size:.78rem;font-weight:600;margin-top:8px}
+.narr-skeleton{height:16px;background:rgba(255,255,255,.1);border-radius:6px;animation:shimmer 1.5s infinite}
+@keyframes shimmer{0%{opacity:.4}50%{opacity:.8}100%{opacity:.4}}
+
+/* Score ring */
+.score-ring{width:140px;height:140px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.score-ring .inner{width:112px;height:112px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.score-ring .val{font-size:2.2rem;font-weight:800;line-height:1}
+.score-ring .lbl{font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+
+/* Cost impact */
+.cost-card{border:2px solid #fecaca;border-radius:16px;background:#fff;overflow:hidden}
+.cost-header{background:#fef2f2;padding:16px 20px;display:flex;align-items:center;gap:12px}
+.cost-number{font-size:2rem;font-weight:800;color:#dc2626;line-height:1}
+.cost-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:.85rem}
+.cost-row:last-child{border-bottom:none}
+.cost-pct-bar{height:6px;border-radius:3px;background:#fecaca;overflow:hidden;margin-top:4px}
+.cost-pct-bar .fill{height:100%;background:#dc2626;border-radius:3px}
+
+/* Module cards */
+.mod-card{border:none;border-radius:14px;border-left:4px solid #e5e7eb;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.06)}
 .mod-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
 .mod-score{font-size:2rem;font-weight:800;line-height:1}
 .mod-body{padding:0 20px 20px}
-.sev-badge{padding:4px 12px;border-radius:6px;font-size:.75rem;font-weight:600}
+.metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.metric-item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;text-align:center}
+.metric-item .val{font-size:1rem;font-weight:700}
+.metric-item .lbl{font-size:.62rem;color:#64748b;text-transform:uppercase}
+.advice-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;font-size:.82rem;margin-top:12px}
+.sev-badge{padding:3px 10px;border-radius:6px;font-size:.72rem;font-weight:700}
 .sev-badge.high{background:#fef2f2;color:#dc2626}.sev-badge.medium{background:#fffbeb;color:#d97706}
 .sev-badge.low{background:#eff6ff;color:#2563eb}.sev-badge.none{background:#f0fdf4;color:#16a34a}
-.cat-score-bar{height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden}
-.cat-score-bar .fill{height:100%;border-radius:4px}
-.advice-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;font-size:.85rem}
-.back-link{color:#64748b;text-decoration:none;font-size:.85rem;display:inline-flex;align-items:center;gap:6px}
-.back-link:hover{color:#1e293b}
-.metric-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
-.metric-item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;text-align:center;flex:1;min-width:90px}
-.metric-item .val{font-size:1.1rem;font-weight:700}
-.metric-item .lbl{font-size:.65rem;color:#64748b;text-transform:uppercase}
-.big-stat{text-align:center;padding:30px;background:linear-gradient(135deg,#f8fafc,#f1f5f9);border-radius:14px}
-.big-stat .number{font-size:3rem;font-weight:800}
-.big-stat .subtitle{font-size:.8rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+
+/* Trend arrows */
+.trend-up{color:#ef4444}.trend-down{color:#22c55e}.trend-flat{color:#94a3b8}
+.trend-up-good{color:#22c55e}.trend-down-bad{color:#ef4444}
+
+/* Capital allocation */
+.cap-bar{height:28px;border-radius:8px;background:#e5e7eb;overflow:hidden;display:flex;margin:8px 0}
+.cap-bar .win{background:#22c55e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.7rem;font-weight:700;transition:width .6s ease}
+.cap-bar .lose{background:#ef4444;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.7rem;font-weight:700;flex:1;transition:width .6s ease}
+
+/* Behavioral link */
+.beh-link-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid #f1f5f9}
+.beh-link-row:last-child{border-bottom:none}
+.beh-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:.9rem;color:#fff;flex-shrink:0}
+
+/* Monthly impact */
+.impact-card{border-radius:16px;padding:20px 24px;background:linear-gradient(135deg,#fef2f2,#fff1f2);border:2px solid #fecaca}
+.impact-number{font-size:2.2rem;font-weight:800;color:#dc2626;line-height:1}
+
+/* Trend comparison */
+.trend-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px}
+.trend-metric{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:.85rem}
+.trend-metric:last-child{border-bottom:none}
+.trend-chip{padding:2px 8px;border-radius:6px;font-size:.72rem;font-weight:700}
 </style>
 
 <div class="container-fluid px-0">
-  <a href="{{ url_for('behavioural_insights') }}" class="back-link mb-3 d-inline-flex"><i class="fas fa-arrow-left"></i>Back to Overview</a>
+<a href="{{ url_for('behavioural_insights') }}" class="back-link mb-3 d-inline-flex"><i class="fas fa-arrow-left me-1"></i>Back to Overview</a>
 
-  {% if not data %}
-  <div class="card border-0 shadow-sm"><div class="card-body text-center py-5"><i class="fas fa-th-large fa-3x text-muted mb-3"></i><h5>No portfolio data available</h5></div></div>
-  {% else %}
+{% if not data %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body text-center py-5">
+    <i class="fas fa-th-large fa-3x text-muted mb-3 d-block"></i>
+    <h5>No portfolio data yet</h5>
+    <p class="text-muted small">Upload a trade CSV or connect a broker to unlock portfolio behavior analysis.</p>
+    <a href="{{ url_for('behavioural_insights') }}" class="btn btn-primary">Add Your Trades</a>
+  </div>
+</div>
+{% else %}
 
-  <div class="d-flex align-items-center gap-3 mb-4">
-    <div class="mod-score" style="color:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ data.score }}<span style="font-size:1rem;color:#94a3b8">/100</span></div>
+<!-- ── Top 3 Insights ──────────────────────────────────────────────── -->
+{% if intel and intel.insights %}
+<div class="section-label">Portfolio Intelligence · Top Alerts</div>
+<div class="mb-4">
+  {% for ins in intel.insights %}
+  <div class="insight-strip {{ ins.type }}">
+    <i class="{{ ins.icon }} mt-1 flex-shrink-0"></i>
     <div>
-      <div class="fw-bold">Portfolio Behavior Score</div>
-      <div class="cat-score-bar" style="width:200px"><div class="fill" style="width:{{ data.score }}%;background:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}"></div></div>
+      <div class="fw-semibold">{{ ins.text }}</div>
+      {% if ins.action %}<div class="action-text">{{ ins.action }}</div>{% endif %}
     </div>
   </div>
+  {% endfor %}
+</div>
+{% endif %}
 
-  <div class="row g-4">
-    {% for key, mod in data.modules.items() %}
-    <div class="col-lg-6 {% if loop.last and loop.index is odd %}col-lg-12{% endif %}">
-      <div class="card mod-card shadow-sm" style="border-left-color:{{ mod.color }}">
-        <div class="mod-header">
-          <div class="d-flex align-items-center gap-2">
-            <i class="{{ mod.icon }} fa-lg" style="color:{{ mod.color }}"></i>
-            <div>
-              <div class="fw-bold">{{ mod.label }}</div>
-            </div>
+<!-- ── Row 1: Score + Monthly Impact ──────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body d-flex align-items-center gap-4 p-4">
+        <div class="score-ring flex-shrink-0" style="background:conic-gradient({% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %} {{ data.score * 3.6 }}deg, #e5e7eb {{ data.score * 3.6 }}deg)">
+          <div class="inner">
+            <div class="val" style="color:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ data.score }}</div>
+            <div class="lbl" style="color:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">Portfolio</div>
           </div>
-          <div class="mod-score" style="color:{% if mod.score >= 70 %}#22c55e{% elif mod.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ mod.score }}</div>
         </div>
-        <div class="mod-body">
-          <p class="small text-muted mb-2">{{ mod.description }}</p>
-          <div class="fw-semibold small mb-2" style="color:{{ mod.color }}"><i class="fas fa-lightbulb me-1"></i>{{ mod.insight }}</div>
-
-          {% if key == 'diversification' %}
-          <div class="metric-row">
-            <div class="metric-item"><div class="val">{{ mod.num_stocks }}</div><div class="lbl">Assets</div></div>
-            <div class="metric-item"><div class="val">{{ mod.num_sectors }}</div><div class="lbl">Sectors</div></div>
-            <div class="metric-item"><div class="val">{{ mod.label_text }}</div><div class="lbl">Rating</div></div>
+        <div class="flex-grow-1">
+          <h6 class="fw-bold mb-1">Portfolio Behavior Score</h6>
+          {% for key, mod in data.modules.items() %}
+          <div class="d-flex justify-content-between align-items-center mt-2">
+            <span class="small text-muted">{{ mod.label }}</span>
+            <span class="fw-bold small" style="color:{% if mod.score >= 70 %}#22c55e{% elif mod.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ mod.score }}</span>
           </div>
-          {% endif %}
-
-          {% if key == 'churn' %}
-          <div class="metric-row">
-            <div class="metric-item"><div class="val">{{ mod.churn_rate }}%</div><div class="lbl">Weekly Churn</div></div>
-            <div class="metric-item"><div class="val">{{ mod.weekly_changes }}</div><div class="lbl">Avg Changes/Wk</div></div>
-            <div class="metric-item"><div class="val">{{ mod.total_unique_symbols|default(0) }}</div><div class="lbl">Unique Symbols</div></div>
+          <div class="score-bar">
+            <div class="fill" style="width:{{ mod.score }}%;background:{% if mod.score >= 70 %}#22c55e{% elif mod.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}"></div>
           </div>
-          {% endif %}
-
-          {% if key == 'capital_efficiency' %}
-          <div class="metric-row">
-            <div class="metric-item"><div class="val {% if mod.roi >= 0 %}text-success{% else %}text-danger{% endif %}">{{ mod.roi }}%</div><div class="lbl">ROI</div></div>
-            <div class="metric-item"><div class="val">₹{{ '{:,.0f}'.format(mod.capital_deployed) }}</div><div class="lbl">Deployed</div></div>
-            <div class="metric-item"><div class="val">{{ mod.winning_capital_pct }}%</div><div class="lbl">To Winners</div></div>
+          {% endfor %}
+          {% if intel and intel.has_trend and intel.trends %}
+          <div class="mt-2 pt-2 border-top">
+            <span class="small text-muted">vs. last 30 days</span>
+            <span class="fw-semibold small ms-2 {% if intel.trends.roi > 0 %}text-success{% elif intel.trends.roi < 0 %}text-danger{% else %}text-muted{% endif %}">
+              ROI {{ '%+.1f'|format(intel.trends.roi) }}%
+            </span>
           </div>
-          <div class="mt-3"><canvas id="chart-efficiency" height="100"></canvas></div>
-          {% endif %}
-
-          {% if mod.advice %}
-          <div class="advice-box mt-3"><i class="fas fa-check-circle text-primary me-2"></i>{{ mod.advice }}</div>
           {% endif %}
         </div>
       </div>
     </div>
-    {% endfor %}
   </div>
 
-  {% endif %}
+  <div class="col-lg-7">
+    {% if intel and intel.cost_impact %}
+    {% set ci = intel.cost_impact %}
+    <div class="cost-card h-100">
+      <div class="cost-header">
+        <div class="cost-icon" style="width:44px;height:44px;background:#ef4444;border-radius:12px;display:flex;align-items:center;justify-content:center">
+          <i class="fas fa-receipt text-white"></i>
+        </div>
+        <div>
+          <div class="text-muted small fw-semibold text-uppercase" style="letter-spacing:.04em">Monthly Transaction Cost</div>
+          <div class="cost-number">₹{{ '{:,}'.format(ci.total) }}</div>
+          <div class="text-muted small">from {{ ci.n_trades }} trades this month</div>
+        </div>
+        {% if ci.cost_pct_pnl %}
+        <div class="ms-auto text-end">
+          <div class="fw-bold text-danger" style="font-size:1.3rem">{{ ci.cost_pct_pnl }}%</div>
+          <div class="text-muted" style="font-size:.7rem">of gross P&L</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="p-3">
+        <div class="cost-row">
+          <span class="text-muted"><i class="fas fa-handshake me-2 text-muted"></i>Brokerage (₹20/side)</span>
+          <span class="fw-semibold">₹{{ '{:,}'.format(ci.brokerage) }}</span>
+        </div>
+        <div class="cost-row">
+          <span class="text-muted"><i class="fas fa-government me-2 text-muted"></i>STT &amp; Taxes (est.)</span>
+          <span class="fw-semibold">₹{{ '{:,}'.format(ci.stt) }}</span>
+        </div>
+        <div class="cost-row">
+          <span class="text-muted"><i class="fas fa-file-invoice me-2 text-muted"></i>SEBI fees &amp; Stamp</span>
+          <span class="fw-semibold">₹{{ '{:,}'.format(ci.other) }}</span>
+        </div>
+        <div class="mt-3 pt-2 border-top">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold">Transaction costs as % of P&L</span>
+            <span class="fw-bold {% if ci.cost_pct_pnl > 30 %}text-danger{% elif ci.cost_pct_pnl > 15 %}text-warning{% else %}text-success{% endif %}">{{ ci.cost_pct_pnl }}%</span>
+          </div>
+          <div class="cost-pct-bar"><div class="fill" style="width:{{ [ci.cost_pct_pnl, 100]|min }}%"></div></div>
+          <div class="text-muted mt-1" style="font-size:.72rem">
+            {% if ci.cost_pct_pnl > 30 %}High cost drag — each trade must earn more to stay profitable.
+            {% elif ci.cost_pct_pnl > 15 %}Moderate cost drag — fewer, higher-conviction trades will help.
+            {% else %}Good cost efficiency — transaction drag is under control.{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
 </div>
 
-{% if data and data.modules.capital_efficiency %}
+<!-- ── AI Narrative ────────────────────────────────────────────────── -->
+<div class="narrative-card" id="portfolioNarrativeCard">
+  <div class="narrative-tag"><i class="fas fa-robot me-1"></i>Scentric AI · Portfolio Health</div>
+  <div id="portfolioNarrativeContent">
+    <div class="narr-skeleton mb-2" style="width:80%"></div>
+    <div class="narr-skeleton mb-3" style="width:55%"></div>
+    <div class="d-flex flex-wrap gap-1">
+      <div class="narr-skeleton" style="width:120px;height:28px;border-radius:8px"></div>
+      <div class="narr-skeleton" style="width:110px;height:28px;border-radius:8px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 2: 3 Module Cards ──────────────────────────────────────── -->
+<div class="section-label">Module Breakdown</div>
+<div class="row g-3 mb-4">
+  {% for key, mod in data.modules.items() %}
+  <div class="col-lg-4">
+    <div class="card mod-card" style="border-left-color:{{ mod.color }}">
+      <div class="mod-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="{{ mod.icon }} fa-lg" style="color:{{ mod.color }}"></i>
+          <div class="fw-bold small">{{ mod.label }}</div>
+        </div>
+        <span class="sev-badge {% if mod.severity %}{{ mod.severity }}{% else %}{{ 'none' if mod.score >= 70 else ('low' if mod.score >= 50 else ('medium' if mod.score >= 35 else 'high')) }}{% endif %}">{{ mod.score }}/100</span>
+      </div>
+      <div class="mod-body">
+        <div class="score-bar mb-2">
+          <div class="fill" style="width:{{ mod.score }}%;background:{{ mod.color }}"></div>
+        </div>
+        <p class="small text-muted mb-2">{{ mod.description }}</p>
+        <div class="fw-semibold small mb-2" style="color:{{ mod.color }}"><i class="fas fa-lightbulb me-1"></i>{{ mod.insight }}</div>
+
+        {% if key == 'diversification' %}
+        <div class="metric-grid">
+          <div class="metric-item"><div class="val">{{ mod.num_stocks }}</div><div class="lbl">Assets</div></div>
+          <div class="metric-item"><div class="val">{{ mod.num_sectors }}</div><div class="lbl">Sectors</div></div>
+          <div class="metric-item"><div class="val">{{ mod.label_text }}</div><div class="lbl">Rating</div></div>
+        </div>
+        {% endif %}
+
+        {% if key == 'churn' %}
+        <div class="metric-grid">
+          <div class="metric-item"><div class="val">{{ mod.churn_rate }}%</div><div class="lbl">Churn</div></div>
+          <div class="metric-item"><div class="val">{{ mod.weekly_changes }}</div><div class="lbl">Chng/Wk</div></div>
+          <div class="metric-item"><div class="val">{{ mod.total_unique_symbols|default(0) }}</div><div class="lbl">Symbols</div></div>
+        </div>
+        {% if intel and intel.trends and intel.has_trend %}
+        <div class="d-flex align-items-center gap-2 mt-2">
+          <span class="small text-muted">vs last month:</span>
+          {% set cd = intel.trends.churn %}
+          <span class="trend-chip {% if cd > 5 %}bg-danger-subtle text-danger{% elif cd < -5 %}bg-success-subtle text-success{% else %}bg-secondary-subtle text-secondary{% endif %}">
+            {% if cd > 0 %}↑ +{% else %}↓ {% endif %}{{ cd }}% churn
+          </span>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if key == 'capital_efficiency' %}
+        <div class="metric-grid">
+          <div class="metric-item"><div class="val {% if mod.roi >= 0 %}text-success{% else %}text-danger{% endif %}">{{ mod.roi }}%</div><div class="lbl">ROI</div></div>
+          <div class="metric-item"><div class="val">₹{{ '{:,.0f}'.format(mod.capital_deployed / 100000) }}L</div><div class="lbl">Capital</div></div>
+          <div class="metric-item"><div class="val">{{ mod.winning_capital_pct }}%</div><div class="lbl">To Winners</div></div>
+        </div>
+        <div class="mt-2">
+          <div class="small text-muted mb-1">Capital allocation</div>
+          <div class="cap-bar">
+            <div class="win" style="width:{{ mod.winning_capital_pct }}%">
+              {% if mod.winning_capital_pct > 15 %}{{ mod.winning_capital_pct }}%{% endif %}
+            </div>
+            <div class="lose">
+              {% if mod.losing_capital_pct > 15 %}{{ mod.losing_capital_pct }}%{% endif %}
+            </div>
+          </div>
+          <div class="d-flex justify-content-between" style="font-size:.68rem;color:#64748b;margin-top:2px">
+            <span><span class="text-success fw-bold">▮</span> Winners</span>
+            <span><span class="text-danger fw-bold">▮</span> Losers</span>
+          </div>
+        </div>
+        {% if intel and intel.trends and intel.has_trend %}
+        <div class="d-flex align-items-center gap-2 mt-2">
+          <span class="small text-muted">ROI vs last month:</span>
+          {% set rd = intel.trends.roi %}
+          <span class="trend-chip {% if rd > 0 %}bg-success-subtle text-success{% elif rd < 0 %}bg-danger-subtle text-danger{% else %}bg-secondary-subtle text-secondary{% endif %}">
+            {{ '%+.1f'|format(rd) }}%
+          </span>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if mod.advice %}
+        <div class="advice-box"><i class="fas fa-check-circle text-primary me-2"></i>{{ mod.advice }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── Row 3: Behavioral-Portfolio Link + Trend Comparison ─────────── -->
+{% if intel %}
+<div class="row g-3 mb-4">
+  {% if intel.beh_link %}
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="fw-bold mb-1"><i class="fas fa-link me-2 text-primary"></i>Behavior → Portfolio Link</h6>
+        <p class="text-muted small mb-3">How your trading psychology is directly affecting portfolio returns</p>
+        {% for link in intel.beh_link %}
+        <div class="beh-link-row">
+          <div class="beh-icon" style="background:{{ link.color }}"><i class="{{ link.icon }}"></i></div>
+          <div>
+            <div class="fw-bold small">{{ link.behavior }}</div>
+            <div class="text-muted small">{{ link.impact }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if intel.has_trend and intel.trends %}
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="fw-bold mb-1"><i class="fas fa-chart-line me-2 text-primary"></i>30-Day Trend</h6>
+        <p class="text-muted small mb-3">This month vs last month</p>
+        <div class="trend-box">
+          {% set metrics_map = [
+            ('Churn Rate', intel.trends.churn, '%', True),
+            ('ROI', intel.trends.roi, '%', False),
+            ('Win Rate', intel.trends.win_rate, '%', False),
+            ('Trades', intel.trends.trades, '', True),
+            ('Capital to Winners', intel.trends.win_cap_pct, '%', False),
+          ] %}
+          {% for label, delta, unit, lower_better in metrics_map %}
+          <div class="trend-metric">
+            <span>{{ label }}</span>
+            <span class="trend-chip
+              {% if delta == 0 %}bg-secondary-subtle text-secondary
+              {% elif (delta > 0 and not lower_better) or (delta < 0 and lower_better) %}bg-success-subtle text-success
+              {% else %}bg-danger-subtle text-danger{% endif %}">
+              {% if delta > 0 %}↑ +{% elif delta < 0 %}↓ {% else %}→ {% endif %}{{ delta }}{{ unit }}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        {% if intel.cur_metrics %}
+        <div class="mt-2 small text-muted">This month: {{ intel.cur_metrics.trades }} trades · ₹{{ '{:,.0f}'.format(intel.cur_metrics.pnl) }} P&L · {{ intel.cur_metrics.win_rate }}% win rate</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endif %}
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 Chart.defaults.font.family = "'Poppins','Inter',sans-serif";
-const ce = {{ data.modules.capital_efficiency | tojson }};
-const el = document.getElementById('chart-efficiency');
-if(el) new Chart(el, {type:'bar',data:{labels:['Winning Trades','Losing Trades'],datasets:[{data:[ce.winning_capital_pct,ce.losing_capital_pct],backgroundColor:['#22c55e','#ef4444'],borderRadius:6}]},options:{indexAxis:'y',scales:{x:{max:100,ticks:{callback:v=>v+'%'}},y:{grid:{display:false}}},plugins:{legend:{display:false}}}});
-</script>
+
+/* ── Portfolio AI Narrative ───────────────────────────────────────── */
+{% if data %}
+fetch('/api/behaviour/portfolio-narrative')
+  .then(r => r.json())
+  .then(d => {
+    const el = document.getElementById('portfolioNarrativeContent');
+    if (!el) return;
+    const n = d.narrative;
+    if (!n) {
+      el.innerHTML = '<div class="text-white-50 small">Portfolio AI narrative unavailable.</div>';
+      return;
+    }
+    const risks = (n.top_risks || []).map(r =>
+      `<span class="risk-pill"><i class="fas fa-exclamation-triangle"></i>${r}</span>`
+    ).join('');
+    const strength = n.strength
+      ? `<div class="mt-2"><span class="strength-pill"><i class="fas fa-check-circle"></i>${n.strength}</span></div>`
+      : '';
+    el.innerHTML = `
+      <div class="narrative-summary">${n.summary || ''}</div>
+      <div><span class="text-white-50 small fw-semibold me-2">RISKS</span>${risks}</div>
+      ${strength}`;
+  })
+  .catch(() => {
+    const el = document.getElementById('portfolioNarrativeContent');
+    if (el) el.innerHTML = '<div class="text-white-50 small">AI analysis temporarily unavailable.</div>';
+  });
 {% endif %}
+</script>
 {% endblock %}
