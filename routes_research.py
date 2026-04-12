@@ -8,6 +8,9 @@ from app import app, db
 from models import TradingSignal, ResearchCache, ResearchRun, ResearchList
 from datetime import datetime, timezone, date
 import logging
+import threading
+import time
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -501,3 +504,151 @@ def api_research_thresholds():
                 'min_confidence': 0.6
             }
         })
+
+
+# ── User Watchlist I-Score Refresh ───────────────────────────────────────────
+_user_refresh_jobs = {}   # job_id -> progress dict
+
+
+@app.route('/api/research/refresh-watchlist-iscores', methods=['POST'])
+@login_required
+def refresh_watchlist_iscores():
+    """
+    Start a background I-Score refresh for the current user's watchlist symbols
+    that exist in the shared ResearchList table.
+    Returns a job_id for progress polling.
+    """
+    from models import WatchlistItem
+    try:
+        watchlist_symbols = [
+            w.symbol.upper() for w in
+            WatchlistItem.query.filter_by(user_id=current_user.id).all()
+        ]
+    except Exception:
+        watchlist_symbols = []
+
+    if not watchlist_symbols:
+        return jsonify({'success': False, 'message': 'Your watchlist is empty. Add stocks first.'})
+
+    # Find ResearchList entries for these symbols
+    stocks = ResearchList.query.filter(
+        ResearchList.symbol.in_(watchlist_symbols),
+        ResearchList.is_active == True
+    ).all()
+
+    if not stocks:
+        return jsonify({
+            'success': False,
+            'message': 'None of your watchlist symbols are in the Research List yet.'
+        })
+
+    job_id = str(uuid.uuid4())[:8]
+    _user_refresh_jobs[job_id] = {
+        'status': 'running',
+        'total': len(stocks),
+        'done': 0,
+        'success': 0,
+        'errors': 0,
+        'current_symbol': '',
+        'log': [],
+        'finished_at': None,
+    }
+
+    from app import app as flask_app
+    stock_ids = [s.id for s in stocks]
+
+    def _run_refresh(flask_app, jid, ids):
+        with flask_app.app_context():
+            try:
+                from services.langgraph_iscore_engine import LangGraphIScoreEngine
+                engine = LangGraphIScoreEngine()
+            except Exception as e:
+                _user_refresh_jobs[jid]['status'] = 'failed'
+                _user_refresh_jobs[jid]['log'].append(f'Engine error: {e}')
+                return
+
+            for idx, sid in enumerate(ids):
+                try:
+                    stock = ResearchList.query.get(sid)
+                    if not stock:
+                        continue
+                    _user_refresh_jobs[jid]['current_symbol'] = stock.symbol
+                    result = engine.analyze(
+                        asset_type=stock.asset_type,
+                        symbol=stock.symbol,
+                        user_id=current_user.id,
+                        asset_name=stock.company_name or stock.symbol
+                    )
+                    if result and result.get('success'):
+                        components = result.get('components', {})
+                        market = result.get('market_data', {})
+                        mapped = {
+                            'overall_score': result.get('iscore', 0),
+                            'overall_confidence': result.get('confidence', 0),
+                            'recommendation': result.get('recommendation', 'HOLD'),
+                            'recommendation_summary': result.get('summary', ''),
+                            'qualitative_score': components.get('qualitative', {}).get('score', 0),
+                            'quantitative_score': components.get('quantitative', {}).get('score', 0),
+                            'search_score': components.get('search', {}).get('score', 0),
+                            'trend_score': components.get('trend', {}).get('score', 0),
+                            'qualitative_details': components.get('qualitative', {}).get('details', {}),
+                            'quantitative_details': components.get('quantitative', {}).get('details', {}),
+                            'search_details': components.get('search', {}).get('details', {}),
+                            'trend_details': components.get('trend', {}).get('details', {}),
+                            'current_price': market.get('current_price'),
+                            'previous_close': market.get('previous_close'),
+                            'price_change_pct': market.get('change_pct'),
+                        }
+                        stock.update_from_iscore_result(mapped)
+                        stock.computation_source = 'user_refresh'
+                        db.session.commit()
+                        _user_refresh_jobs[jid]['success'] += 1
+                        _user_refresh_jobs[jid]['log'].append(f'✓ {stock.symbol}: {result.get("iscore", 0):.1f}')
+                    else:
+                        err = (result or {}).get('error', 'No result')
+                        _user_refresh_jobs[jid]['errors'] += 1
+                        _user_refresh_jobs[jid]['log'].append(f'✗ {stock.symbol}: {err}')
+                except Exception as ex:
+                    db.session.rollback()
+                    _user_refresh_jobs[jid]['errors'] += 1
+                    _user_refresh_jobs[jid]['log'].append(f'✗ error: {ex}')
+                finally:
+                    _user_refresh_jobs[jid]['done'] = idx + 1
+                    time.sleep(1.5)
+
+            _user_refresh_jobs[jid]['status'] = 'completed'
+            _user_refresh_jobs[jid]['finished_at'] = datetime.utcnow().isoformat()
+            _user_refresh_jobs[jid]['current_symbol'] = ''
+
+    t = threading.Thread(target=_run_refresh, args=(flask_app, job_id, stock_ids), daemon=True)
+    t.start()
+
+    return jsonify({
+        'success': True,
+        'job_id': job_id,
+        'total': len(stock_ids),
+        'message': f'Refreshing I-Scores for {len(stock_ids)} stock(s) in your watchlist.',
+    })
+
+
+@app.route('/api/research/refresh-watchlist-iscores/status', methods=['GET'])
+@login_required
+def refresh_watchlist_iscores_status():
+    """Poll progress of a user watchlist I-Score refresh job."""
+    job_id = request.args.get('job_id', '')
+    if not job_id or job_id not in _user_refresh_jobs:
+        return jsonify({'found': False})
+    job = _user_refresh_jobs[job_id]
+    pct = round(job['done'] / max(job['total'], 1) * 100)
+    return jsonify({
+        'found': True,
+        'status': job['status'],
+        'total': job['total'],
+        'done': job['done'],
+        'success': job['success'],
+        'errors': job['errors'],
+        'pct': pct,
+        'current_symbol': job.get('current_symbol', ''),
+        'recent_log': job['log'][-5:],
+        'finished_at': job.get('finished_at'),
+    })

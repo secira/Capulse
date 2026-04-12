@@ -11,13 +11,30 @@
         <div class="col-12">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white border-bottom py-3">
-                    <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                         <h5 class="mb-0 fw-bold">
                             <i class="fas fa-robot me-2 text-primary"></i>
                             Research Co-Pilot
                         </h5>
-                        <span class="badge bg-info">AI-Powered Research</span>
+                        <div class="d-flex align-items-center gap-2">
+                            {% if asset_key == 'stocks' %}
+                            <button class="btn btn-sm btn-outline-primary" id="refreshWatchlistBtn" onclick="startWatchlistRefresh()" title="Refresh I-Scores for all stocks in your watchlist">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh My Watchlist I-Scores
+                            </button>
+                            {% endif %}
+                            <span class="badge bg-info">AI-Powered Research</span>
+                        </div>
                     </div>
+                    {% if asset_key == 'stocks' %}
+                    <div id="watchlistRefreshPanel" style="display:none;" class="mt-3">
+                        <div class="progress mb-1" style="height: 18px;">
+                            <div id="watchlistProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                                 role="progressbar" style="width: 0%; transition: width 0.5s ease;">0%</div>
+                        </div>
+                        <small id="watchlistStatusText" class="text-muted">Starting...</small>
+                        <div id="watchlistLogLines" class="text-muted mt-1"></div>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="card-body p-4">
                     {% set plan_value = current_user.pricing_plan.value if current_user.pricing_plan.value is defined else current_user.pricing_plan %}
@@ -1693,5 +1710,72 @@ function tradeFromResearch() {
 
     window.location.href = `/dashboard/trade-now?${params.toString()}`;
 }
+
+// ── Watchlist I-Score Refresh ─────────────────────────────────────────────────
+{% if asset_key == 'stocks' %}
+let _watchlistJobId = null;
+let _watchlistPollTimer = null;
+
+function startWatchlistRefresh() {
+    if (_watchlistJobId) {
+        alert('A refresh is already running. Please wait.');
+        return;
+    }
+    document.getElementById('refreshWatchlistBtn').disabled = true;
+    document.getElementById('watchlistRefreshPanel').style.display = 'block';
+    document.getElementById('watchlistProgressBar').style.width = '0%';
+    document.getElementById('watchlistProgressBar').textContent = '0%';
+    document.getElementById('watchlistStatusText').textContent = 'Starting...';
+    document.getElementById('watchlistLogLines').innerHTML = '';
+
+    fetch('/api/research/refresh-watchlist-iscores', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                document.getElementById('watchlistStatusText').textContent = data.message || 'Could not start refresh.';
+                document.getElementById('refreshWatchlistBtn').disabled = false;
+                return;
+            }
+            _watchlistJobId = data.job_id;
+            document.getElementById('watchlistStatusText').textContent = data.message;
+            _watchlistPollTimer = setInterval(_pollWatchlist, 3000);
+        })
+        .catch(e => {
+            document.getElementById('watchlistStatusText').textContent = 'Network error.';
+            document.getElementById('refreshWatchlistBtn').disabled = false;
+        });
+}
+
+function _pollWatchlist() {
+    if (!_watchlistJobId) return;
+    fetch('/api/research/refresh-watchlist-iscores/status?job_id=' + _watchlistJobId)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.found) { clearInterval(_watchlistPollTimer); document.getElementById('refreshWatchlistBtn').disabled = false; return; }
+
+            document.getElementById('watchlistProgressBar').style.width = data.pct + '%';
+            document.getElementById('watchlistProgressBar').textContent = data.pct + '%';
+
+            const sym = data.current_symbol ? ` — ${data.current_symbol}` : '';
+            document.getElementById('watchlistStatusText').textContent =
+                `${data.done} / ${data.total} done  ✓ ${data.success}  ✗ ${data.errors}${sym}`;
+
+            if (data.recent_log && data.recent_log.length) {
+                document.getElementById('watchlistLogLines').innerHTML =
+                    data.recent_log.map(l => `<div class="small font-monospace">${l}</div>`).join('');
+            }
+
+            if (data.status === 'completed' || data.status === 'failed') {
+                clearInterval(_watchlistPollTimer);
+                _watchlistJobId = null;
+                document.getElementById('refreshWatchlistBtn').disabled = false;
+                document.getElementById('watchlistProgressBar').classList.remove('progress-bar-animated');
+                document.getElementById('watchlistStatusText').textContent =
+                    `Done — ✓ ${data.success} refreshed, ✗ ${data.errors} errors.`;
+            }
+        })
+        .catch(() => {});
+}
+{% endif %}
 </script>
 {% endblock %}

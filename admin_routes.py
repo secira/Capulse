@@ -4,6 +4,9 @@ Separate admin module with authentication and management features
 """
 
 import os
+import threading
+import time
+import uuid
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
@@ -12,6 +15,10 @@ from sqlalchemy import func, desc
 from app import db
 from models import Admin, User, PricingPlan, DailyTradingSignal, ResearchList, BlogPost, ContactMessage
 from models_broker import BrokerAccount
+
+# ── Batch I-Score Job State ──────────────────────────────────────────────────
+# Simple in-memory tracker (survives single server restart scenarios)
+_batch_jobs = {}   # job_id -> {status, total, done, errors, started_at, finished_at}
 # Import with safe fallback for optional models
 try:
     from models import TradingSignal, UserPayment, ExecutedTrade
@@ -297,6 +304,134 @@ def refresh_research_stock(stock_id):
         flash(f'Error computing I-Score: {str(e)}', 'error')
     
     return redirect(url_for('admin.research_list'))
+
+@admin_bp.route('/research-list/batch-iscore', methods=['POST'])
+@admin_required
+def batch_iscore():
+    """Start a background job to compute I-Score for all Research List stocks."""
+    mode = request.form.get('mode', 'pending')   # 'pending' = unanalyzed only, 'all' = force refresh
+
+    from app import app as flask_app
+    stocks_to_run = ResearchList.query.filter_by(is_active=True).all()
+    if mode == 'pending':
+        stocks_to_run = [s for s in stocks_to_run if s.i_score is None]
+
+    if not stocks_to_run:
+        return jsonify({'success': False, 'message': 'No stocks to process.'})
+
+    job_id = str(uuid.uuid4())[:8]
+    _batch_jobs[job_id] = {
+        'status': 'running',
+        'mode': mode,
+        'total': len(stocks_to_run),
+        'done': 0,
+        'success': 0,
+        'errors': 0,
+        'current_symbol': '',
+        'started_at': datetime.utcnow().isoformat(),
+        'finished_at': None,
+        'log': [],
+    }
+
+    stock_ids = [s.id for s in stocks_to_run]
+
+    def _run_batch(app, jid, ids):
+        with app.app_context():
+            try:
+                from services.langgraph_iscore_engine import LangGraphIScoreEngine
+                engine = LangGraphIScoreEngine()
+            except Exception as e:
+                _batch_jobs[jid]['status'] = 'failed'
+                _batch_jobs[jid]['log'].append(f'Engine init error: {e}')
+                return
+
+            for idx, sid in enumerate(ids):
+                try:
+                    stock = ResearchList.query.get(sid)
+                    if not stock:
+                        continue
+                    _batch_jobs[jid]['current_symbol'] = stock.symbol
+                    result = engine.analyze(
+                        asset_type=stock.asset_type,
+                        symbol=stock.symbol,
+                        user_id=1,
+                        asset_name=stock.company_name or stock.symbol
+                    )
+                    if result and result.get('success'):
+                        components = result.get('components', {})
+                        market = result.get('market_data', {})
+                        mapped = {
+                            'overall_score': result.get('iscore', 0),
+                            'overall_confidence': result.get('confidence', 0),
+                            'recommendation': result.get('recommendation', 'HOLD'),
+                            'recommendation_summary': result.get('summary', ''),
+                            'qualitative_score': components.get('qualitative', {}).get('score', 0),
+                            'quantitative_score': components.get('quantitative', {}).get('score', 0),
+                            'search_score': components.get('search', {}).get('score', 0),
+                            'trend_score': components.get('trend', {}).get('score', 0),
+                            'qualitative_details': components.get('qualitative', {}).get('details', {}),
+                            'quantitative_details': components.get('quantitative', {}).get('details', {}),
+                            'search_details': components.get('search', {}).get('details', {}),
+                            'trend_details': components.get('trend', {}).get('details', {}),
+                            'current_price': market.get('current_price'),
+                            'previous_close': market.get('previous_close'),
+                            'price_change_pct': market.get('change_pct'),
+                        }
+                        stock.update_from_iscore_result(mapped)
+                        stock.computation_source = 'batch'
+                        db.session.commit()
+                        _batch_jobs[jid]['success'] += 1
+                        _batch_jobs[jid]['log'].append(f'✓ {stock.symbol}: {result.get("iscore", 0):.1f}')
+                    else:
+                        err = (result or {}).get('error', 'No result')
+                        _batch_jobs[jid]['errors'] += 1
+                        _batch_jobs[jid]['log'].append(f'✗ {stock.symbol}: {err}')
+                except Exception as ex:
+                    db.session.rollback()
+                    _batch_jobs[jid]['errors'] += 1
+                    _batch_jobs[jid]['log'].append(f'✗ {stock.symbol}: {ex}')
+                finally:
+                    _batch_jobs[jid]['done'] = idx + 1
+                    time.sleep(1.5)   # polite delay between API calls
+
+            _batch_jobs[jid]['status'] = 'completed'
+            _batch_jobs[jid]['finished_at'] = datetime.utcnow().isoformat()
+            _batch_jobs[jid]['current_symbol'] = ''
+
+    t = threading.Thread(target=_run_batch, args=(flask_app, job_id, stock_ids), daemon=True)
+    t.start()
+
+    return jsonify({
+        'success': True,
+        'job_id': job_id,
+        'total': len(stock_ids),
+        'message': f'Batch job started — processing {len(stock_ids)} stock(s).',
+    })
+
+
+@admin_bp.route('/research-list/batch-iscore/status', methods=['GET'])
+@admin_required
+def batch_iscore_status():
+    """Poll status of a running batch I-Score job."""
+    job_id = request.args.get('job_id', '')
+    if not job_id or job_id not in _batch_jobs:
+        return jsonify({'found': False})
+    job = _batch_jobs[job_id]
+    pct = round(job['done'] / max(job['total'], 1) * 100)
+    recent_log = job['log'][-5:]  # last 5 entries
+    return jsonify({
+        'found': True,
+        'status': job['status'],
+        'total': job['total'],
+        'done': job['done'],
+        'success': job['success'],
+        'errors': job['errors'],
+        'pct': pct,
+        'current_symbol': job.get('current_symbol', ''),
+        'recent_log': recent_log,
+        'finished_at': job.get('finished_at'),
+    })
+
 
 @admin_bp.route('/research-list/<int:stock_id>/details')
 @admin_required

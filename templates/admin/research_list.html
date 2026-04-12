@@ -8,7 +8,13 @@
     <div>
         <p class="text-muted mb-0">Pre-computed I-Score analysis for top 500 stocks. Updated nightly.</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-info admin-btn" id="batchIscoreBtn" onclick="startBatchIscore('pending')" title="Run I-Score only for stocks that haven't been analyzed yet">
+            <i class="fas fa-play-circle me-2"></i>Run Pending I-Scores
+        </button>
+        <button class="btn btn-outline-danger admin-btn" id="batchIscoreAllBtn" onclick="startBatchIscore('all')" title="Force re-run I-Score for every stock">
+            <i class="fas fa-redo me-2"></i>Refresh All I-Scores
+        </button>
         <a href="{{ url_for('admin.seed_research_list') }}" class="btn btn-outline-warning admin-btn">
             <i class="fas fa-file-import me-2"></i>Seed Database
         </a>
@@ -16,6 +22,20 @@
             <i class="fas fa-plus me-2"></i>Add Stock
         </a>
     </div>
+</div>
+
+<!-- Batch I-Score Progress Panel -->
+<div id="batchProgressPanel" style="display:none;" class="alert alert-info border mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <strong><i class="fas fa-cogs me-2"></i>Batch I-Score Job Running</strong>
+        <button type="button" class="btn-close" onclick="document.getElementById('batchProgressPanel').style.display='none'"></button>
+    </div>
+    <div class="progress mb-2" style="height: 22px;">
+        <div id="batchProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info"
+             role="progressbar" style="width: 0%; transition: width 0.5s ease;">0%</div>
+    </div>
+    <small id="batchStatusText" class="text-muted d-block mb-1">Initialising...</small>
+    <div id="batchLogLines" class="text-muted"></div>
 </div>
 
 <!-- Statistics Cards -->
@@ -364,6 +384,83 @@ function showDetails(stockId) {
         .catch(error => {
             content.innerHTML = '<div class="text-center text-danger py-4"><i class="fas fa-exclamation-triangle fa-3x mb-3"></i><p>Error loading details</p></div>';
         });
+}
+
+// ── Batch I-Score ─────────────────────────────────────────────────────────────
+let _batchJobId = null;
+let _batchPollTimer = null;
+
+function startBatchIscore(mode) {
+    if (_batchJobId) {
+        alert('A batch job is already running. Please wait for it to complete.');
+        return;
+    }
+    const label = mode === 'all' ? 'ALL stocks (force refresh)' : 'pending (unanalyzed) stocks';
+    if (!confirm(`Start batch I-Score computation for ${label}?\n\nThis may take several minutes and will use API credits.`)) return;
+
+    document.getElementById('batchIscoreBtn').disabled = true;
+    document.getElementById('batchIscoreAllBtn').disabled = true;
+    document.getElementById('batchProgressPanel').style.display = 'block';
+    document.getElementById('batchProgressBar').style.width = '0%';
+    document.getElementById('batchProgressBar').textContent = '0%';
+    document.getElementById('batchStatusText').textContent = 'Starting job...';
+    document.getElementById('batchLogLines').innerHTML = '';
+
+    const fd = new FormData();
+    fd.append('mode', mode);
+
+    fetch('/admin/research-list/batch-iscore', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                document.getElementById('batchStatusText').textContent = data.message || 'Failed to start.';
+                _resetBatchBtns();
+                return;
+            }
+            _batchJobId = data.job_id;
+            document.getElementById('batchStatusText').textContent = data.message;
+            _batchPollTimer = setInterval(_pollBatch, 3000);
+        })
+        .catch(e => {
+            document.getElementById('batchStatusText').textContent = 'Network error: ' + e;
+            _resetBatchBtns();
+        });
+}
+
+function _pollBatch() {
+    if (!_batchJobId) return;
+    fetch('/admin/research-list/batch-iscore/status?job_id=' + _batchJobId)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.found) { clearInterval(_batchPollTimer); _resetBatchBtns(); return; }
+
+            document.getElementById('batchProgressBar').style.width = data.pct + '%';
+            document.getElementById('batchProgressBar').textContent = data.pct + '%';
+
+            const symbol = data.current_symbol ? ` — analyzing ${data.current_symbol}` : '';
+            document.getElementById('batchStatusText').textContent =
+                `${data.done} / ${data.total} done  ✓ ${data.success}  ✗ ${data.errors}${symbol}`;
+
+            if (data.recent_log && data.recent_log.length) {
+                document.getElementById('batchLogLines').innerHTML =
+                    data.recent_log.map(l => `<div class="small font-monospace">${l}</div>`).join('');
+            }
+
+            if (data.status === 'completed' || data.status === 'failed') {
+                clearInterval(_batchPollTimer);
+                _batchJobId = null;
+                _resetBatchBtns();
+                document.getElementById('batchStatusText').textContent =
+                    `Job ${data.status}. ${data.done} processed — ✓ ${data.success} success, ✗ ${data.errors} errors. Refresh page to see updated scores.`;
+                document.getElementById('batchProgressBar').classList.remove('progress-bar-animated');
+            }
+        })
+        .catch(() => {});
+}
+
+function _resetBatchBtns() {
+    document.getElementById('batchIscoreBtn').disabled = false;
+    document.getElementById('batchIscoreAllBtn').disabled = false;
 }
 </script>
 {% endblock %}
