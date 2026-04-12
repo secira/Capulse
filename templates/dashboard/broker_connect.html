@@ -124,6 +124,71 @@
 
   </div>
 
+  <!-- Connected Accounts Management -->
+  {% set connected_list = broker_catalog | selectattr('account') | selectattr('account.connection_status', 'equalto', 'connected') | list %}
+  {% if connected_list %}
+  <h6 class="section-label mb-3">Connected Accounts</h6>
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Broker</th>
+              <th class="text-center">Status</th>
+              <th class="text-center">Primary</th>
+              <th class="text-end pe-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in connected_list %}
+            <tr>
+              <td class="ps-3">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="broker-avatar-sm" style="background:{{ b.color or '#6c757d' }};">{{ b.letter or b.name[0] }}</div>
+                  <div>
+                    <div class="fw-semibold small">{{ b.name }}</div>
+                    {% if b.account.last_connected %}
+                    <div class="text-muted" style="font-size:.75rem;">Last synced: {{ b.account.last_connected.strftime('%d %b, %I:%M %p') if b.account.last_connected else 'Never' }}</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td class="text-center">
+                <span class="badge bg-success"><i class="fas fa-circle me-1" style="font-size:7px;vertical-align:middle;"></i>Connected</span>
+              </td>
+              <td class="text-center">
+                {% if b.account.is_primary %}
+                  <span class="badge bg-primary"><i class="fas fa-star me-1"></i>Primary</span>
+                {% else %}
+                  <form method="POST" action="/api/broker/set-primary/{{ b.account.id }}" class="d-inline">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.75rem;" title="Set as primary">
+                      <i class="fas fa-star me-1"></i>Set Primary
+                    </button>
+                  </form>
+                {% endif %}
+              </td>
+              <td class="text-end pe-3">
+                <div class="d-flex gap-2 justify-content-end">
+                  <button class="btn btn-outline-success btn-sm" onclick="syncAccount({{ b.account.id }}, this)" title="Sync portfolio data">
+                    <i class="fas fa-sync me-1"></i>Sync
+                  </button>
+                  <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug=b.type.value) }}" class="d-inline">
+                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Disconnect">
+                      <i class="fas fa-unlink me-1"></i>Disconnect
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- How it works -->
   <div class="card bg-light border-0">
     <div class="card-body p-3">
@@ -427,18 +492,26 @@
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
-        <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-          Get your Client ID and Access Token from <a href="https://web.dhan.co" target="_blank">web.dhan.co</a> under API Settings.
+      <form method="POST" action="{{ url_for('broker_oauth.auth_dhan') }}">
+        <div class="modal-body">
+          <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
+            Get your Client ID and Access Token from <a href="https://web.dhan.co" target="_blank">web.dhan.co</a> → Profile → DhanHQ Trading APIs.
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Client ID <span class="text-danger">*</span></label>
+            <input type="text" name="client_id" class="form-control" placeholder="Your Dhan Client ID" required autocomplete="off">
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Access Token <span class="text-danger">*</span></label>
+            <input type="password" name="access_token" class="form-control" placeholder="Your Dhan Access Token" required autocomplete="off">
+          </div>
+          <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>Credentials are encrypted and stored securely.</p>
         </div>
-        <p class="text-muted small">Use the <strong>Manage Brokers</strong> page to add Dhan with your credentials, then connect from there.</p>
-      </div>
-      <div class="modal-footer border-0">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-        <a href="{{ url_for('dashboard_broker_accounts') }}" class="btn btn-primary px-4">
-          <i class="fas fa-cog me-2"></i>Go to Manage Brokers
-        </a>
-      </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect Dhan</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -507,4 +580,34 @@
 }
 .bg-primary-subtle { background: #eff6ff; }
 </style>
+
+<script>
+function syncAccount(accountId, btn) {
+  if (!confirm('Sync portfolio data from this broker? This fetches your latest holdings, positions and orders.')) return;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Syncing…';
+  fetch(`/api/broker/sync-account/${accountId}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sync_types: ['holdings', 'positions', 'orders']})
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      alert('Sync complete!');
+      location.reload();
+    } else {
+      alert('Sync failed: ' + (data.message || 'Unknown error'));
+      btn.disabled = false;
+      btn.innerHTML = orig;
+    }
+  })
+  .catch(() => {
+    alert('Sync request failed. Please try again.');
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  });
+}
+</script>
 {% endblock %}

@@ -520,6 +520,44 @@ def auth_fivepaisa():
 
 
 # ---------------------------------------------------------------------------
+# Dhan  (token-based direct connect)
+# ---------------------------------------------------------------------------
+
+@broker_oauth.route('/broker/auth/dhan', methods=['POST'])
+@login_required
+def auth_dhan():
+    client_id = request.form.get('client_id', '').strip()
+    access_token = request.form.get('access_token', '').strip()
+    if not client_id or not access_token:
+        flash('Client ID and Access Token are required for Dhan.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    try:
+        account = BrokerAccount.query.filter_by(
+            user_id=current_user.id, broker_type='dhan', is_active=True,
+        ).first()
+        if not account:
+            account = BrokerAccount(
+                user_id=current_user.id,
+                broker_type='dhan',
+                broker_name='Dhan',
+                is_active=True,
+            )
+            db.session.add(account)
+        account.set_credentials(client_id=client_id, access_token=access_token, api_secret='')
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+        flash('Dhan connected successfully!', 'success')
+        logger.info(f"Dhan connected for user {current_user.id}")
+    except Exception as e:
+        logger.error(f"Dhan connect failed: {e}")
+        flash(f'Dhan connection failed: {str(e)}', 'error')
+
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
+# ---------------------------------------------------------------------------
 # Disconnect
 # ---------------------------------------------------------------------------
 
