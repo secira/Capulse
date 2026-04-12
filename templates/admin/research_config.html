@@ -6,139 +6,162 @@
 <div class="admin-header d-flex justify-content-between align-items-center">
     <div>
         <h4 class="mb-0"><i class="fas fa-brain me-2"></i>AI Research Configuration</h4>
-        <small class="text-muted">Configure sentiment analysis weights and recommendation thresholds</small>
+        <small class="text-muted">Scentric I-Score Engine v2 — Proprietary Quant + AI Hybrid Model</small>
     </div>
     <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
     </a>
 </div>
 
-<div class="row">
+<div class="row g-4">
     <div class="col-lg-6">
+
+        <!-- Proprietary Model Weights (Read-Only) -->
         <div class="admin-card">
-            <div class="admin-card-header">
-                <h6 class="mb-0"><i class="fas fa-balance-scale me-2"></i>Sentiment Weight Configuration</h6>
+            <div class="admin-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-lock me-2 text-warning"></i>I-Score Model Weights — Stocks</h6>
+                <span class="badge bg-warning text-dark">Proprietary IP</span>
             </div>
             <div class="admin-card-body">
-                <form method="POST" action="{{ url_for('admin.admin_save_research_weights') }}" id="weightsForm">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    
-                    <div class="alert alert-info mb-4">
-                        <i class="fas fa-info-circle me-2"></i>
-                        Weights must sum to 100%. Current total: <span id="totalWeight">100</span>%
+                <div class="alert alert-warning mb-4 d-flex align-items-start gap-2">
+                    <i class="fas fa-shield-alt mt-1"></i>
+                    <div>
+                        <strong>Hardcoded as company IP.</strong> These weights are locked in the engine and cannot be changed from the admin panel. Contact engineering to update.
                     </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="fas fa-newspaper me-2 text-info"></i>Qualitative Sentiment
-                        </label>
-                        <small class="text-muted d-block mb-2">News, social media, annual reports, analyst opinions</small>
-                        <div class="input-group">
-                            <input type="number" class="form-control weight-input" name="qualitative_pct" 
-                                   value="{{ weight_config.qualitative_pct or 15 }}" min="0" max="100">
-                            <span class="input-group-text">%</span>
+                </div>
+
+                {% set components = [
+                    ('fas fa-chart-line', 'primary', 'Quantitative (Technical)', 'Real RSI(14), EMA(9/20/50), SuperTrend, Momentum from 120-day OHLCV', 30),
+                    ('fas fa-arrow-trend-up', 'success', 'Trend Analysis', 'Multi-timeframe EMA alignment, volume profile, spike detection', 20),
+                    ('fas fa-shield-alt', 'danger', 'Risk & Volatility', 'ATR volatility, max drawdown, beta vs Nifty 50', 20),
+                    ('fas fa-newspaper', 'info', 'AI Sentiment (Qualitative)', 'News, social media, annual reports, analyst opinions', 15),
+                    ('fas fa-search', 'warning', 'Search Sentiment', 'Perplexity AI market intelligence, search trends', 10),
+                    ('fas fa-globe', 'secondary', 'Market Context', 'India VIX regime, Nifty PCR, Nifty 50 direction', 5),
+                ] %}
+
+                {% for icon, color, name, desc, weight in components %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="{{ icon }} text-{{ color }}"></i>
+                            <span class="fw-semibold">{{ name }}</span>
+                        </div>
+                        <span class="badge bg-{{ color }} bg-opacity-10 text-{{ color }} border border-{{ color }} fw-bold">{{ weight }}%</span>
+                    </div>
+                    <div class="progress mb-1" style="height: 8px;">
+                        <div class="progress-bar bg-{{ color }}" style="width: {{ weight * 3.3 }}%;"></div>
+                    </div>
+                    <small class="text-muted">{{ desc }}</small>
+                </div>
+                {% endfor %}
+
+                <hr class="my-3">
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <small class="text-muted d-block">Total Weight</small>
+                            <strong class="text-success fs-5">100%</strong>
                         </div>
                     </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="fas fa-chart-bar me-2 text-primary"></i>Quantitative Sentiment
-                        </label>
-                        <small class="text-muted d-block mb-2">Technical indicators: RSI, SuperTrend, EMA 9/20</small>
-                        <div class="input-group">
-                            <input type="number" class="form-control weight-input" name="quantitative_pct" 
-                                   value="{{ weight_config.quantitative_pct or 50 }}" min="0" max="100">
-                            <span class="input-group-text">%</span>
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded text-center">
+                            <small class="text-muted d-block">Model Version</small>
+                            <strong class="text-primary fs-5">v2.0</strong>
                         </div>
                     </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="fas fa-search me-2 text-warning"></i>Search Sentiment
-                        </label>
-                        <small class="text-muted d-block mb-2">Google Trends, Perplexity search, retail interest</small>
-                        <div class="input-group">
-                            <input type="number" class="form-control weight-input" name="search_pct" 
-                                   value="{{ weight_config.search_pct or 10 }}" min="0" max="100">
-                            <span class="input-group-text">%</span>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">
-                            <i class="fas fa-chart-line me-2 text-success"></i>Trend Analysis
-                        </label>
-                        <small class="text-muted d-block mb-2">Open Interest, Put-Call Ratio, VIX, FII/DII data</small>
-                        <div class="input-group">
-                            <input type="number" class="form-control weight-input" name="trend_pct" 
-                                   value="{{ weight_config.trend_pct or 25 }}" min="0" max="100">
-                            <span class="input-group-text">%</span>
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-admin w-100" id="saveWeightsBtn">
-                        <i class="fas fa-save me-2"></i>Save Weight Configuration
-                    </button>
-                </form>
+                </div>
             </div>
         </div>
-        
+
+        <!-- Score Thresholds (Read-Only display of current hardcoded values) -->
         <div class="admin-card">
-            <div class="admin-card-header">
-                <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Technical Indicator Parameters</h6>
+            <div class="admin-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-lock me-2 text-warning"></i>Recommendation Thresholds — Stocks</h6>
+                <span class="badge bg-warning text-dark">Proprietary IP</span>
             </div>
             <div class="admin-card-body">
-                <form method="POST" action="{{ url_for('admin.admin_save_tech_params') }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">RSI Period</label>
-                            <input type="number" class="form-control" name="rsi_period" 
-                                   value="{{ tech_params.rsi_period or 14 }}" min="5" max="50">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">RSI Overbought</label>
-                            <input type="number" class="form-control" name="rsi_overbought" 
-                                   value="{{ tech_params.rsi_overbought or 70 }}" min="60" max="90">
+                <div class="alert alert-warning mb-4 d-flex align-items-start gap-2">
+                    <i class="fas fa-shield-alt mt-1"></i>
+                    <div>
+                        <strong>Hardcoded as company IP.</strong> Thresholds are locked in the engine.
+                    </div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="p-3 rounded text-center" style="background:#d4edda; border:1px solid #c3e6cb;">
+                            <small class="text-muted d-block">Strong Buy</small>
+                            <strong class="text-success fs-5">78+</strong>
                         </div>
                     </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">RSI Oversold</label>
-                            <input type="number" class="form-control" name="rsi_oversold" 
-                                   value="{{ tech_params.rsi_oversold or 30 }}" min="10" max="40">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">SuperTrend Period</label>
-                            <input type="number" class="form-control" name="supertrend_period" 
-                                   value="{{ tech_params.supertrend_period or 10 }}" min="5" max="20">
+                    <div class="col-6">
+                        <div class="p-3 rounded text-center" style="background:#cce5ff; border:1px solid #b8daff;">
+                            <small class="text-muted d-block">Buy</small>
+                            <strong class="text-primary fs-5">63+</strong>
                         </div>
                     </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">EMA Short Period</label>
-                            <input type="number" class="form-control" name="ema_short" 
-                                   value="{{ tech_params.ema_short or 9 }}" min="5" max="20">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">EMA Long Period</label>
-                            <input type="number" class="form-control" name="ema_long" 
-                                   value="{{ tech_params.ema_long or 20 }}" min="15" max="50">
+                    <div class="col-6">
+                        <div class="p-3 rounded text-center" style="background:#fff3cd; border:1px solid #ffeeba;">
+                            <small class="text-muted d-block">Hold</small>
+                            <strong class="text-warning fs-5">42 – 62</strong>
                         </div>
                     </div>
-                    
-                    <button type="submit" class="btn btn-outline-primary w-100">
-                        <i class="fas fa-save me-2"></i>Save Technical Parameters
-                    </button>
-                </form>
+                    <div class="col-6">
+                        <div class="p-3 rounded text-center" style="background:#f8d7da; border:1px solid #f5c6cb;">
+                            <small class="text-muted d-block">Sell / Strong Sell</small>
+                            <strong class="text-danger fs-5">&lt; 28</strong>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="p-3 bg-light rounded text-center">
+                            <small class="text-muted d-block">Min Confidence (Inconclusive below)</small>
+                            <strong class="text-secondary fs-5">45%</strong>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <!-- Technical Indicator Parameters (Read-Only) -->
+        <div class="admin-card">
+            <div class="admin-card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-lock me-2 text-warning"></i>Technical Indicator Parameters</h6>
+                <span class="badge bg-warning text-dark">Proprietary IP</span>
+            </div>
+            <div class="admin-card-body">
+                <div class="alert alert-warning mb-3 d-flex align-items-start gap-2">
+                    <i class="fas fa-shield-alt mt-1"></i>
+                    <div>Indicator parameters are locked in the engine codebase.</div>
+                </div>
+                <div class="row g-2">
+                    {% set params = [
+                        ('RSI Period', '14 (Wilder method)'),
+                        ('RSI Overbought', '70'),
+                        ('RSI Oversold', '30'),
+                        ('SuperTrend Period', '10'),
+                        ('SuperTrend Multiplier', '3.0'),
+                        ('EMA Periods', '9 / 20 / 50 / 200'),
+                        ('ATR Period', '14'),
+                        ('Momentum', '5-day & 20-day'),
+                        ('Historical Data', '120 days (yfinance .NS/.BO)'),
+                        ('Min Rows Required', '15'),
+                    ] %}
+                    {% for label, value in params %}
+                    <div class="col-6">
+                        <div class="p-2 bg-light rounded">
+                            <small class="text-muted d-block">{{ label }}</small>
+                            <strong class="small">{{ value }}</strong>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
     </div>
-    
+
     <div class="col-lg-6">
+
+        <!-- Research Asset Visibility -->
         <div class="admin-card">
             <div class="admin-card-header">
                 <h6 class="mb-0"><i class="fas fa-eye me-2"></i>Research Asset Visibility</h6>
@@ -146,21 +169,18 @@
             <div class="admin-card-body">
                 <form method="POST" action="{{ url_for('admin.save_research_flags') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    
                     <p class="text-muted mb-3">Enable/disable asset classes in Research Co-Pilot:</p>
-                    
                     <div class="row">
                         {% for key in all_asset_keys %}
                         <div class="col-6 mb-3">
                             <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="show_{{ key }}" 
+                                <input class="form-check-input" type="checkbox" name="show_{{ key }}"
                                        id="show_{{ key }}" {{ 'checked' if research_flags.get('show_' ~ key, key in ['stocks', 'mutual_funds', 'commodities']) else '' }}>
                                 <label class="form-check-label fw-semibold" for="show_{{ key }}">{{ key|replace('_', ' ')|title }}</label>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
-                    
                     <button type="submit" class="btn btn-admin w-100 mt-2">
                         <i class="fas fa-save me-2"></i>Save Visibility Settings
                     </button>
@@ -168,6 +188,7 @@
             </div>
         </div>
 
+        <!-- Portfolio Hub Visibility -->
         <div class="admin-card">
             <div class="admin-card-header">
                 <h6 class="mb-0"><i class="fas fa-layer-group me-2"></i>Portfolio Hub Visibility</h6>
@@ -175,21 +196,18 @@
             <div class="admin-card-body">
                 <form method="POST" action="{{ url_for('admin.save_portfolio_flags') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    
                     <p class="text-muted mb-3">Enable/disable sections in Portfolio Hub:</p>
-                    
                     <div class="row">
                         {% for key in portfolio_sections %}
                         <div class="col-6 mb-3">
                             <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="show_{{ key }}" 
+                                <input class="form-check-input" type="checkbox" name="show_{{ key }}"
                                        id="portfolio_show_{{ key }}" {{ 'checked' if portfolio_flags.get('show_' ~ key, key in ['equities', 'mutual_funds', 'commodities']) else '' }}>
                                 <label class="form-check-label fw-semibold" for="portfolio_show_{{ key }}">{{ key|replace('_', ' ')|title|replace('Fixed Deposits', 'Fixed Income')|replace('Futures Options', 'F&O') }}</label>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
-                    
                     <button type="submit" class="btn btn-admin w-100 mt-2">
                         <i class="fas fa-save me-2"></i>Save Portfolio Settings
                     </button>
@@ -197,215 +215,67 @@
             </div>
         </div>
 
+        <!-- Data Sources Configuration -->
         <div class="admin-card">
             <div class="admin-card-header">
-                <h6 class="mb-0"><i class="fas fa-bullseye me-2"></i>Recommendation Thresholds</h6>
-            </div>
-            <div class="admin-card-body">
-                <form method="POST" action="{{ url_for('admin.admin_save_threshold_config') }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    
-                    <div class="alert alert-warning mb-4">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        Score ranges determine the recommendation level shown to users
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold text-success">
-                            <i class="fas fa-rocket me-2"></i>Strong Buy Threshold
-                        </label>
-                        <small class="text-muted d-block mb-2">Scores at or above this level trigger Strong Buy</small>
-                        <div class="input-group">
-                            <input type="number" class="form-control" name="strong_buy_threshold" 
-                                   value="{{ threshold_config.strong_buy_threshold or 80 }}" min="70" max="100">
-                            <span class="input-group-text">/100</span>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold text-primary">
-                            <i class="fas fa-thumbs-up me-2"></i>Buy Threshold
-                        </label>
-                        <small class="text-muted d-block mb-2">Scores at or above this level trigger Buy</small>
-                        <div class="input-group">
-                            <input type="number" class="form-control" name="buy_threshold" 
-                                   value="{{ threshold_config.buy_threshold or 65 }}" min="50" max="80">
-                            <span class="input-group-text">/100</span>
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-4">
-                        <div class="col-6">
-                            <label class="form-label fw-bold text-secondary">
-                                <i class="fas fa-hand-paper me-2"></i>Hold Range Low
-                            </label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" name="hold_low" 
-                                       value="{{ threshold_config.hold_low or 45 }}" min="30" max="60">
-                                <span class="input-group-text">/100</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-bold text-secondary">
-                                <i class="fas fa-hand-paper me-2"></i>Hold Range High
-                            </label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" name="hold_high" 
-                                       value="{{ threshold_config.hold_high or 64 }}" min="40" max="70">
-                                <span class="input-group-text">/100</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold text-danger">
-                            <i class="fas fa-exclamation-circle me-2"></i>Sell Threshold
-                        </label>
-                        <small class="text-muted d-block mb-2">Scores below this level trigger Strong Sell</small>
-                        <div class="input-group">
-                            <input type="number" class="form-control" name="sell_threshold" 
-                                   value="{{ threshold_config.sell_threshold or 30 }}" min="10" max="40">
-                            <span class="input-group-text">/100</span>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold text-warning">
-                            <i class="fas fa-question-circle me-2"></i>Minimum Confidence
-                        </label>
-                        <small class="text-muted d-block mb-2">Below this confidence, show "Inconclusive"</small>
-                        <div class="input-group">
-                            <input type="number" class="form-control" name="min_confidence" 
-                                   value="{{ (threshold_config.min_confidence or 0.6) * 100 }}" min="40" max="80" step="5">
-                            <span class="input-group-text">%</span>
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-admin w-100">
-                        <i class="fas fa-save me-2"></i>Save Threshold Configuration
-                    </button>
-                </form>
-            </div>
-        </div>
-        
-        <div class="admin-card">
-            <div class="admin-card-header">
-                <h6 class="mb-0"><i class="fas fa-database me-2"></i>Data Sources Configuration</h6>
+                <h6 class="mb-0"><i class="fas fa-database me-2"></i>Qualitative Data Sources</h6>
             </div>
             <div class="admin-card-body">
                 <form method="POST" action="{{ url_for('admin.admin_save_qualitative_sources') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    
-                    <p class="text-muted mb-3">Enable/disable qualitative data sources:</p>
-                    
+                    <p class="text-muted mb-3">Enable/disable qualitative data sources for AI sentiment analysis:</p>
                     <div class="row">
+                        {% set sources = [
+                            ('annual_reports', 'Annual Reports'),
+                            ('twitter', 'Twitter / X'),
+                            ('moneycontrol', 'Moneycontrol'),
+                            ('economic_times', 'Economic Times'),
+                            ('nse_india', 'NSE India'),
+                            ('bse_india', 'BSE India'),
+                            ('screener', 'Screener.in'),
+                            ('glassdoor', 'Glassdoor'),
+                            ('zerodha_varsity', 'Zerodha Varsity'),
+                            ('investing_com', 'Investing.com'),
+                            ('stockedge', 'StockEdge'),
+                            ('groww', 'Groww'),
+                        ] %}
+                        {% for key, label in sources %}
                         <div class="col-6 mb-2">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="annual_reports" 
-                                       id="annual_reports" {{ 'checked' if qualitative_sources.annual_reports else '' }}>
-                                <label class="form-check-label" for="annual_reports">Annual Reports</label>
+                                <input class="form-check-input" type="checkbox" name="{{ key }}"
+                                       id="{{ key }}" {{ 'checked' if qualitative_sources.get(key, True) else '' }}>
+                                <label class="form-check-label" for="{{ key }}">{{ label }}</label>
                             </div>
                         </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="twitter" 
-                                       id="twitter" {{ 'checked' if qualitative_sources.twitter else '' }}>
-                                <label class="form-check-label" for="twitter">Twitter/X</label>
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="moneycontrol" 
-                                       id="moneycontrol" {{ 'checked' if qualitative_sources.moneycontrol else '' }}>
-                                <label class="form-check-label" for="moneycontrol">Moneycontrol</label>
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="economic_times" 
-                                       id="economic_times" {{ 'checked' if qualitative_sources.economic_times else '' }}>
-                                <label class="form-check-label" for="economic_times">Economic Times</label>
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="nse_india" 
-                                       id="nse_india" {{ 'checked' if qualitative_sources.nse_india else '' }}>
-                                <label class="form-check-label" for="nse_india">NSE India</label>
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="bse_india" 
-                                       id="bse_india" {{ 'checked' if qualitative_sources.bse_india else '' }}>
-                                <label class="form-check-label" for="bse_india">BSE India</label>
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="screener" 
-                                       id="screener" {{ 'checked' if qualitative_sources.screener else '' }}>
-                                <label class="form-check-label" for="screener">Screener.in</label>
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="glassdoor" 
-                                       id="glassdoor" {{ 'checked' if qualitative_sources.glassdoor else '' }}>
-                                <label class="form-check-label" for="glassdoor">Glassdoor</label>
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="zerodha_varsity" 
-                                       id="zerodha_varsity" {{ 'checked' if qualitative_sources.zerodha_varsity else '' }}>
-                                <label class="form-check-label" for="zerodha_varsity">Zerodha Varsity</label>
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="investing_com" 
-                                       id="investing_com" {{ 'checked' if qualitative_sources.investing_com else '' }}>
-                                <label class="form-check-label" for="investing_com">Investing.com</label>
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="stockedge" 
-                                       id="stockedge" {{ 'checked' if qualitative_sources.stockedge else '' }}>
-                                <label class="form-check-label" for="stockedge">StockEdge</label>
-                            </div>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="groww" 
-                                       id="groww" {{ 'checked' if qualitative_sources.groww else '' }}>
-                                <label class="form-check-label" for="groww">Groww</label>
-                            </div>
-                        </div>
+                        {% endfor %}
                     </div>
-                    
                     <button type="submit" class="btn btn-outline-primary w-100 mt-3">
                         <i class="fas fa-save me-2"></i>Save Data Sources
                     </button>
                 </form>
             </div>
         </div>
+
     </div>
 </div>
 
+<!-- Configuration History -->
 <div class="admin-card mt-4">
     <div class="admin-card-header">
-        <h6 class="mb-0"><i class="fas fa-history me-2"></i>Configuration History</h6>
+        <h6 class="mb-0"><i class="fas fa-history me-2"></i>Legacy Weight Config History</h6>
     </div>
     <div class="admin-card-body">
+        <div class="alert alert-info mb-3">
+            <i class="fas fa-info-circle me-2"></i>
+            Weight configurations below are legacy records only. The engine now uses hardcoded v2 proprietary weights.
+        </div>
+        {% if config_history %}
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover table-sm">
                 <thead>
                     <tr>
                         <th>Version</th>
-                        <th>Weights (Q/QT/S/T)</th>
-                        <th>Thresholds (SB/B/S)</th>
+                        <th>Legacy Weights (Qual / Quant / Search / Trend)</th>
                         <th>Effective From</th>
                         <th>Created By</th>
                         <th>Status</th>
@@ -413,70 +283,23 @@
                 </thead>
                 <tbody>
                     {% for config in config_history %}
-                    <tr>
+                    <tr class="text-muted">
                         <td><strong>v{{ config.version }}</strong></td>
                         <td>{{ config.qualitative_pct }}% / {{ config.quantitative_pct }}% / {{ config.search_pct }}% / {{ config.trend_pct }}%</td>
-                        <td>{{ config.strong_buy or '-' }} / {{ config.buy or '-' }} / {{ config.sell or '-' }}</td>
-                        <td>{{ config.effective_from.strftime('%Y-%m-%d %H:%M') if config.effective_from else '-' }}</td>
+                        <td>{{ config.effective_from.strftime('%Y-%m-%d') if config.effective_from else '-' }}</td>
                         <td>{{ config.created_by_name or 'System' }}</td>
                         <td>
-                            {% if config.is_active %}
-                            <span class="badge bg-success">Active</span>
-                            {% else %}
-                            <span class="badge bg-secondary">Inactive</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
-                            <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                            No configuration history yet
+                            <span class="badge bg-secondary">Legacy</span>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% else %}
+        <p class="text-muted mb-0">No legacy configuration history found.</p>
+        {% endif %}
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const weightInputs = document.querySelectorAll('.weight-input');
-    const totalDisplay = document.getElementById('totalWeight');
-    const saveBtn = document.getElementById('saveWeightsBtn');
-    
-    function updateTotal() {
-        let total = 0;
-        weightInputs.forEach(input => {
-            total += parseInt(input.value) || 0;
-        });
-        
-        totalDisplay.textContent = total;
-        
-        if (total !== 100) {
-            totalDisplay.classList.add('text-danger', 'fw-bold');
-            totalDisplay.classList.remove('text-success');
-            saveBtn.disabled = true;
-            saveBtn.classList.add('btn-secondary');
-            saveBtn.classList.remove('btn-admin');
-        } else {
-            totalDisplay.classList.remove('text-danger', 'fw-bold');
-            totalDisplay.classList.add('text-success');
-            saveBtn.disabled = false;
-            saveBtn.classList.remove('btn-secondary');
-            saveBtn.classList.add('btn-admin');
-        }
-    }
-    
-    weightInputs.forEach(input => {
-        input.addEventListener('input', updateTotal);
-    });
-    
-    updateTotal();
-});
-</script>
 {% endblock %}
