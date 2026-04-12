@@ -71,12 +71,57 @@
 
                 {% if current_user.is_authenticated %}
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if request.endpoint == 'behavioural_insights' else '' }}"
-                       href="{{ url_for('behavioural_insights') }}">
+                    <div class="nav-link collapsible-header" onclick="toggleBehaviourMenu()">
                         <i class="nav-icon fas fa-brain"></i>
-                        <span class="nav-text">Behavioural Insights</span>
+                        <span class="nav-text">Behavioural AI</span>
                         <span class="nav-badge-new">USP</span>
-                    </a>
+                        <i class="fas fa-chevron-down toggle-icon" id="behaviourToggle"></i>
+                    </div>
+
+                    <ul class="nav-list submenu-list" id="behaviourMenu" style="display: none;">
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_insights' else '' }}"
+                               href="{{ url_for('behavioural_insights') }}">
+                                <i class="nav-icon fas fa-tachometer-alt"></i>
+                                <span class="nav-text">Overview</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_trading' else '' }}"
+                               href="{{ url_for('behavioural_trading') }}">
+                                <i class="nav-icon fas fa-exchange-alt"></i>
+                                <span class="nav-text">Trading Behavior</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_risk' else '' }}"
+                               href="{{ url_for('behavioural_risk') }}">
+                                <i class="nav-icon fas fa-shield-alt"></i>
+                                <span class="nav-text">Risk Analysis</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_portfolio' else '' }}"
+                               href="{{ url_for('behavioural_portfolio') }}">
+                                <i class="nav-icon fas fa-th-large"></i>
+                                <span class="nav-text">Portfolio Behavior</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_performance' else '' }}"
+                               href="{{ url_for('behavioural_performance') }}">
+                                <i class="nav-icon fas fa-chart-line"></i>
+                                <span class="nav-text">Performance</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_psychology' else '' }}"
+                               href="{{ url_for('behavioural_psychology') }}">
+                                <i class="nav-icon fas fa-brain"></i>
+                                <span class="nav-text">Psychology</span>
+                            </a>
+                        </li>
+                    </ul>
                 </li>
                 {% endif %}
 
@@ -325,6 +370,20 @@
 </nav>
 
 <script>
+function toggleBehaviourMenu() {
+    const menu = document.getElementById('behaviourMenu');
+    const toggleIcon = document.getElementById('behaviourToggle');
+    if (menu.style.display === 'none' || menu.style.display === '') {
+        menu.style.display = 'block';
+        toggleIcon.classList.add('expanded');
+        localStorage.setItem('behaviourExpanded', 'true');
+    } else {
+        menu.style.display = 'none';
+        toggleIcon.classList.remove('expanded');
+        localStorage.setItem('behaviourExpanded', 'false');
+    }
+}
+
 function togglePortfolioHub() {
     const menu = document.getElementById('portfolioHubMenu');
     const toggleIcon = document.getElementById('portfolioHubToggle');
@@ -365,6 +424,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (expanded === 'true' || portfolioHubPages.includes(currentEndpoint)) {
             portfolioMenu.style.display = 'block';
             portfolioToggle.classList.add('expanded');
+        }
+    }
+
+    const behaviourPages = ['behavioural_insights', 'behavioural_trading', 'behavioural_risk',
+                            'behavioural_portfolio', 'behavioural_performance', 'behavioural_psychology'];
+    const behaviourMenu = document.getElementById('behaviourMenu');
+    const behaviourToggle = document.getElementById('behaviourToggle');
+    if (behaviourMenu && behaviourToggle) {
+        const bExpanded = localStorage.getItem('behaviourExpanded');
+        if (bExpanded === 'true' || behaviourPages.includes(currentEndpoint)) {
+            behaviourMenu.style.display = 'block';
+            behaviourToggle.classList.add('expanded');
         }
     }
 

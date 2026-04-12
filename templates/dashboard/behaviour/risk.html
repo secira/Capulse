@@ -1,0 +1,114 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block title %}Risk Analysis - Target Capital{% endblock %}
+{% block dashboard_title %}Risk Behavior Analysis{% endblock %}
+{% block dashboard_subtitle %}How you manage risk — position sizing, exposure, leverage, and drawdown response{% endblock %}
+
+{% block dashboard_content %}
+<style>
+.mod-card{border:none;border-radius:14px;border-left:4px solid #e5e7eb;overflow:hidden}
+.mod-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
+.mod-score{font-size:2rem;font-weight:800;line-height:1}
+.mod-body{padding:0 20px 20px}
+.sev-badge{padding:4px 12px;border-radius:6px;font-size:.75rem;font-weight:600}
+.sev-badge.high{background:#fef2f2;color:#dc2626}.sev-badge.medium{background:#fffbeb;color:#d97706}
+.sev-badge.low{background:#eff6ff;color:#2563eb}.sev-badge.none{background:#f0fdf4;color:#16a34a}
+.cat-score-bar{height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden}
+.cat-score-bar .fill{height:100%;border-radius:4px;transition:width .5s}
+.advice-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;font-size:.85rem}
+.back-link{color:#64748b;text-decoration:none;font-size:.85rem;display:inline-flex;align-items:center;gap:6px}
+.back-link:hover{color:#1e293b}
+.metric-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.metric-item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;text-align:center;flex:1;min-width:80px}
+.metric-item .val{font-size:1.1rem;font-weight:700}
+.metric-item .lbl{font-size:.65rem;color:#64748b;text-transform:uppercase}
+</style>
+
+<div class="container-fluid px-0">
+  <a href="{{ url_for('behavioural_insights') }}" class="back-link mb-3 d-inline-flex"><i class="fas fa-arrow-left"></i>Back to Overview</a>
+
+  {% if not data %}
+  <div class="card border-0 shadow-sm"><div class="card-body text-center py-5"><i class="fas fa-shield-alt fa-3x text-muted mb-3"></i><h5>No data available</h5></div></div>
+  {% else %}
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <div class="mod-score" style="color:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ data.score }}<span style="font-size:1rem;color:#94a3b8">/100</span></div>
+    <div>
+      <div class="fw-bold">Risk Behavior Score</div>
+      <div class="cat-score-bar" style="width:200px"><div class="fill" style="width:{{ data.score }}%;background:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}"></div></div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    {% for key, mod in data.modules.items() %}
+    <div class="col-lg-6">
+      <div class="card mod-card shadow-sm" style="border-left-color:{{ mod.color }}">
+        <div class="mod-header">
+          <div class="d-flex align-items-center gap-2">
+            <i class="{{ mod.icon }} fa-lg" style="color:{{ mod.color }}"></i>
+            <div>
+              <div class="fw-bold">{{ mod.label }}</div>
+              <span class="sev-badge {{ mod.severity }}">{{ mod.severity | upper }}</span>
+            </div>
+          </div>
+          <div class="mod-score" style="color:{% if mod.score >= 70 %}#22c55e{% elif mod.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ mod.score }}</div>
+        </div>
+        <div class="mod-body">
+          <p class="small text-muted mb-2">{{ mod.description }}</p>
+          <div class="fw-semibold small mb-2" style="color:{{ mod.color }}"><i class="fas fa-lightbulb me-1"></i>{{ mod.insight }}</div>
+
+          {% if key == 'position_sizing' and mod.cv %}
+          <div class="metric-row">
+            <div class="metric-item"><div class="val">₹{{ '{:,.0f}'.format(mod.avg_size) }}</div><div class="lbl">Avg Size</div></div>
+            <div class="metric-item"><div class="val">₹{{ '{:,.0f}'.format(mod.min_size) }}</div><div class="lbl">Min</div></div>
+            <div class="metric-item"><div class="val">₹{{ '{:,.0f}'.format(mod.max_size) }}</div><div class="lbl">Max</div></div>
+            <div class="metric-item"><div class="val">{{ mod.cv }}%</div><div class="lbl">Variation</div></div>
+          </div>
+          {% endif %}
+
+          {% if key == 'overexposure' and mod.sector_exposure %}
+          <div class="mt-3"><canvas id="chart-exposure" height="160"></canvas></div>
+          {% endif %}
+
+          {% if key == 'leverage_risk' and mod.fno_ratio %}
+          <div class="mt-3"><canvas id="chart-leverage" height="140"></canvas></div>
+          {% endif %}
+
+          {% if mod.advice %}
+          <div class="advice-box mt-3"><i class="fas fa-check-circle text-primary me-2"></i>{{ mod.advice }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% endif %}
+</div>
+
+{% if data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "'Poppins','Inter',sans-serif";
+
+{% if data.modules.overexposure and data.modules.overexposure.sector_exposure %}
+(function(){
+  const se = {{ data.modules.overexposure.sector_exposure | tojson }};
+  const labels = Object.keys(se);
+  const values = Object.values(se);
+  const colors = ['#4f46e5','#06b6d4','#22c55e','#f59e0b','#ef4444','#8b5cf6','#ec4899','#f97316','#14b8a6','#6366f1'];
+  const el = document.getElementById('chart-exposure');
+  if(el) new Chart(el, {type:'doughnut',data:{labels,datasets:[{data:values,backgroundColor:colors.slice(0,labels.length),borderWidth:0}]},options:{plugins:{legend:{position:'right',labels:{font:{size:11}}}}}});
+})();
+{% endif %}
+
+{% if data.modules.leverage_risk and data.modules.leverage_risk.fno_ratio %}
+(function(){
+  const fno = {{ data.modules.leverage_risk.fno_ratio }};
+  const el = document.getElementById('chart-leverage');
+  if(el) new Chart(el, {type:'doughnut',data:{labels:['F&O/Derivatives','Equity'],datasets:[{data:[fno,100-fno],backgroundColor:['#ef4444','#22c55e'],borderWidth:0}]},options:{cutout:'65%',plugins:{legend:{position:'right'}}}});
+})();
+{% endif %}
+</script>
+{% endif %}
+{% endblock %}

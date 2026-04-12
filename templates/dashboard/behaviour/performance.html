@@ -1,0 +1,140 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block title %}Performance Patterns - Target Capital{% endblock %}
+{% block dashboard_title %}Performance Pattern Analysis{% endblock %}
+{% block dashboard_subtitle %}Your trading results dissected — win rates, risk-reward, and strategy consistency{% endblock %}
+
+{% block dashboard_content %}
+<style>
+.mod-card{border:none;border-radius:14px;border-left:4px solid #e5e7eb;overflow:hidden}
+.mod-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
+.mod-score{font-size:2rem;font-weight:800;line-height:1}
+.mod-body{padding:0 20px 20px}
+.sev-badge{padding:4px 12px;border-radius:6px;font-size:.75rem;font-weight:600}
+.sev-badge.high{background:#fef2f2;color:#dc2626}.sev-badge.medium{background:#fffbeb;color:#d97706}
+.sev-badge.low{background:#eff6ff;color:#2563eb}.sev-badge.none{background:#f0fdf4;color:#16a34a}
+.cat-score-bar{height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden}
+.cat-score-bar .fill{height:100%;border-radius:4px}
+.advice-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;font-size:.85rem}
+.back-link{color:#64748b;text-decoration:none;font-size:.85rem;display:inline-flex;align-items:center;gap:6px}
+.back-link:hover{color:#1e293b}
+.metric-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.metric-item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;text-align:center;flex:1;min-width:90px}
+.metric-item .val{font-size:1.1rem;font-weight:700}
+.metric-item .lbl{font-size:.65rem;color:#64748b;text-transform:uppercase}
+.streak-bar{display:flex;gap:2px;margin-top:8px}
+.streak-bar .block{width:20px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#fff;font-weight:700}
+.streak-bar .block.win{background:#22c55e}
+.streak-bar .block.loss{background:#ef4444}
+</style>
+
+<div class="container-fluid px-0">
+  <a href="{{ url_for('behavioural_insights') }}" class="back-link mb-3 d-inline-flex"><i class="fas fa-arrow-left"></i>Back to Overview</a>
+
+  {% if not data %}
+  <div class="card border-0 shadow-sm"><div class="card-body text-center py-5"><i class="fas fa-chart-line fa-3x text-muted mb-3"></i><h5>No performance data available</h5></div></div>
+  {% else %}
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <div class="mod-score" style="color:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ data.score }}<span style="font-size:1rem;color:#94a3b8">/100</span></div>
+    <div>
+      <div class="fw-bold">Performance Score</div>
+      <div class="cat-score-bar" style="width:200px"><div class="fill" style="width:{{ data.score }}%;background:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}"></div></div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    {% for key, mod in data.modules.items() %}
+    <div class="col-lg-6">
+      <div class="card mod-card shadow-sm" style="border-left-color:{{ mod.color }}">
+        <div class="mod-header">
+          <div class="d-flex align-items-center gap-2">
+            <i class="{{ mod.icon }} fa-lg" style="color:{{ mod.color }}"></i>
+            <div>
+              <div class="fw-bold">{{ mod.label }}</div>
+              <span class="sev-badge {{ mod.severity }}">{{ mod.severity | upper }}</span>
+            </div>
+          </div>
+          <div class="mod-score" style="color:{% if mod.score >= 70 %}#22c55e{% elif mod.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ mod.score }}</div>
+        </div>
+        <div class="mod-body">
+          <p class="small text-muted mb-2">{{ mod.description }}</p>
+          <div class="fw-semibold small mb-2" style="color:{{ mod.color }}"><i class="fas fa-lightbulb me-1"></i>{{ mod.insight }}</div>
+
+          {% if key == 'win_rate' %}
+          <div class="metric-row">
+            <div class="metric-item"><div class="val {% if mod.overall_wr >= 50 %}text-success{% else %}text-danger{% endif %}">{{ mod.overall_wr }}%</div><div class="lbl">Overall</div></div>
+            {% if mod.equity_wr is defined %}<div class="metric-item"><div class="val">{{ mod.equity_wr }}%</div><div class="lbl">Equity</div></div>{% endif %}
+            {% if mod.fno_wr is defined %}<div class="metric-item"><div class="val">{{ mod.fno_wr }}%</div><div class="lbl">F&O</div></div>{% endif %}
+            {% if mod.intraday_wr is defined %}<div class="metric-item"><div class="val">{{ mod.intraday_wr }}%</div><div class="lbl">Intraday</div></div>{% endif %}
+          </div>
+          {% if mod.weekly_wr %}
+          <div class="mt-3"><canvas id="chart-winrate" height="120"></canvas></div>
+          {% endif %}
+          {% endif %}
+
+          {% if key == 'risk_reward' %}
+          <div class="metric-row">
+            <div class="metric-item"><div class="val">{{ mod.ratio }}:1</div><div class="lbl">R:R Ratio</div></div>
+            <div class="metric-item"><div class="val text-success">₹{{ '{:,.0f}'.format(mod.avg_win) }}</div><div class="lbl">Avg Win</div></div>
+            <div class="metric-item"><div class="val text-danger">₹{{ '{:,.0f}'.format(mod.avg_loss) }}</div><div class="lbl">Avg Loss</div></div>
+          </div>
+          {% if mod.by_symbol %}
+          <div class="mt-3"><canvas id="chart-rr" height="140"></canvas></div>
+          {% endif %}
+          {% endif %}
+
+          {% if key == 'strategy_consistency' %}
+          <div class="metric-row">
+            <div class="metric-item"><div class="val">{{ mod.consistency_pct }}%</div><div class="lbl">Consistency</div></div>
+            <div class="metric-item"><div class="val">{{ mod.total_strategies }}</div><div class="lbl">Strategies</div></div>
+            <div class="metric-item"><div class="val">{{ mod.most_used }}</div><div class="lbl">Primary</div></div>
+          </div>
+          {% if mod.recent_sequence %}
+          <div class="mt-3">
+            <div class="fw-semibold small mb-1">Recent Streak</div>
+            <div class="streak-bar">
+              {% for r in mod.recent_sequence %}
+              <div class="block {{ 'win' if r == 'W' else 'loss' }}">{{ r }}</div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+          {% endif %}
+
+          {% if mod.advice %}
+          <div class="advice-box mt-3"><i class="fas fa-check-circle text-primary me-2"></i>{{ mod.advice }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% endif %}
+</div>
+
+{% if data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "'Poppins','Inter',sans-serif";
+
+{% if data.modules.win_rate and data.modules.win_rate.weekly_wr %}
+(function(){
+  const wr = {{ data.modules.win_rate.weekly_wr | tojson }};
+  const el = document.getElementById('chart-winrate');
+  if(el) new Chart(el, {type:'line',data:{labels:Object.keys(wr).map(w=>w.slice(5)),datasets:[{label:'Win Rate %',data:Object.values(wr),borderColor:'#4f46e5',backgroundColor:'rgba(79,70,229,.08)',fill:true,tension:.3,pointRadius:4,pointBackgroundColor:'#4f46e5'}]},options:{scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}});
+})();
+{% endif %}
+
+{% if data.modules.risk_reward and data.modules.risk_reward.by_symbol %}
+(function(){
+  const bs = {{ data.modules.risk_reward.by_symbol | tojson }};
+  const labels = Object.keys(bs);
+  const el = document.getElementById('chart-rr');
+  if(el) new Chart(el, {type:'bar',data:{labels,datasets:[{label:'Avg Win',data:labels.map(l=>bs[l].avg_win||0),backgroundColor:'#22c55e',borderRadius:4},{label:'Avg Loss',data:labels.map(l=>Math.abs(bs[l].avg_loss||0)),backgroundColor:'#ef4444',borderRadius:4}]},options:{scales:{y:{ticks:{callback:v=>'₹'+v.toLocaleString()}},x:{grid:{display:false}}},plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}}});
+})();
+{% endif %}
+</script>
+{% endif %}
+{% endblock %}

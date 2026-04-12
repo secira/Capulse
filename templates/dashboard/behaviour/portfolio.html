@@ -1,0 +1,108 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block title %}Portfolio Behavior - Target Capital{% endblock %}
+{% block dashboard_title %}Portfolio Behavior Analysis{% endblock %}
+{% block dashboard_subtitle %}How you construct and maintain your portfolio — diversification, churn, and efficiency{% endblock %}
+
+{% block dashboard_content %}
+<style>
+.mod-card{border:none;border-radius:14px;border-left:4px solid #e5e7eb;overflow:hidden}
+.mod-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
+.mod-score{font-size:2rem;font-weight:800;line-height:1}
+.mod-body{padding:0 20px 20px}
+.sev-badge{padding:4px 12px;border-radius:6px;font-size:.75rem;font-weight:600}
+.sev-badge.high{background:#fef2f2;color:#dc2626}.sev-badge.medium{background:#fffbeb;color:#d97706}
+.sev-badge.low{background:#eff6ff;color:#2563eb}.sev-badge.none{background:#f0fdf4;color:#16a34a}
+.cat-score-bar{height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden}
+.cat-score-bar .fill{height:100%;border-radius:4px}
+.advice-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;font-size:.85rem}
+.back-link{color:#64748b;text-decoration:none;font-size:.85rem;display:inline-flex;align-items:center;gap:6px}
+.back-link:hover{color:#1e293b}
+.metric-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.metric-item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;text-align:center;flex:1;min-width:90px}
+.metric-item .val{font-size:1.1rem;font-weight:700}
+.metric-item .lbl{font-size:.65rem;color:#64748b;text-transform:uppercase}
+.big-stat{text-align:center;padding:30px;background:linear-gradient(135deg,#f8fafc,#f1f5f9);border-radius:14px}
+.big-stat .number{font-size:3rem;font-weight:800}
+.big-stat .subtitle{font-size:.8rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+</style>
+
+<div class="container-fluid px-0">
+  <a href="{{ url_for('behavioural_insights') }}" class="back-link mb-3 d-inline-flex"><i class="fas fa-arrow-left"></i>Back to Overview</a>
+
+  {% if not data %}
+  <div class="card border-0 shadow-sm"><div class="card-body text-center py-5"><i class="fas fa-th-large fa-3x text-muted mb-3"></i><h5>No portfolio data available</h5></div></div>
+  {% else %}
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <div class="mod-score" style="color:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ data.score }}<span style="font-size:1rem;color:#94a3b8">/100</span></div>
+    <div>
+      <div class="fw-bold">Portfolio Behavior Score</div>
+      <div class="cat-score-bar" style="width:200px"><div class="fill" style="width:{{ data.score }}%;background:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}"></div></div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    {% for key, mod in data.modules.items() %}
+    <div class="col-lg-6 {% if loop.last and loop.index is odd %}col-lg-12{% endif %}">
+      <div class="card mod-card shadow-sm" style="border-left-color:{{ mod.color }}">
+        <div class="mod-header">
+          <div class="d-flex align-items-center gap-2">
+            <i class="{{ mod.icon }} fa-lg" style="color:{{ mod.color }}"></i>
+            <div>
+              <div class="fw-bold">{{ mod.label }}</div>
+            </div>
+          </div>
+          <div class="mod-score" style="color:{% if mod.score >= 70 %}#22c55e{% elif mod.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ mod.score }}</div>
+        </div>
+        <div class="mod-body">
+          <p class="small text-muted mb-2">{{ mod.description }}</p>
+          <div class="fw-semibold small mb-2" style="color:{{ mod.color }}"><i class="fas fa-lightbulb me-1"></i>{{ mod.insight }}</div>
+
+          {% if key == 'diversification' %}
+          <div class="metric-row">
+            <div class="metric-item"><div class="val">{{ mod.num_stocks }}</div><div class="lbl">Assets</div></div>
+            <div class="metric-item"><div class="val">{{ mod.num_sectors }}</div><div class="lbl">Sectors</div></div>
+            <div class="metric-item"><div class="val">{{ mod.label_text }}</div><div class="lbl">Rating</div></div>
+          </div>
+          {% endif %}
+
+          {% if key == 'churn' %}
+          <div class="metric-row">
+            <div class="metric-item"><div class="val">{{ mod.churn_rate }}%</div><div class="lbl">Weekly Churn</div></div>
+            <div class="metric-item"><div class="val">{{ mod.weekly_changes }}</div><div class="lbl">Avg Changes/Wk</div></div>
+            <div class="metric-item"><div class="val">{{ mod.total_unique_symbols|default(0) }}</div><div class="lbl">Unique Symbols</div></div>
+          </div>
+          {% endif %}
+
+          {% if key == 'capital_efficiency' %}
+          <div class="metric-row">
+            <div class="metric-item"><div class="val {% if mod.roi >= 0 %}text-success{% else %}text-danger{% endif %}">{{ mod.roi }}%</div><div class="lbl">ROI</div></div>
+            <div class="metric-item"><div class="val">₹{{ '{:,.0f}'.format(mod.capital_deployed) }}</div><div class="lbl">Deployed</div></div>
+            <div class="metric-item"><div class="val">{{ mod.winning_capital_pct }}%</div><div class="lbl">To Winners</div></div>
+          </div>
+          <div class="mt-3"><canvas id="chart-efficiency" height="100"></canvas></div>
+          {% endif %}
+
+          {% if mod.advice %}
+          <div class="advice-box mt-3"><i class="fas fa-check-circle text-primary me-2"></i>{{ mod.advice }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% endif %}
+</div>
+
+{% if data and data.modules.capital_efficiency %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "'Poppins','Inter',sans-serif";
+const ce = {{ data.modules.capital_efficiency | tojson }};
+const el = document.getElementById('chart-efficiency');
+if(el) new Chart(el, {type:'bar',data:{labels:['Winning Trades','Losing Trades'],datasets:[{data:[ce.winning_capital_pct,ce.losing_capital_pct],backgroundColor:['#22c55e','#ef4444'],borderRadius:6}]},options:{indexAxis:'y',scales:{x:{max:100,ticks:{callback:v=>v+'%'}},y:{grid:{display:false}}},plugins:{legend:{display:false}}}});
+</script>
+{% endif %}
+{% endblock %}

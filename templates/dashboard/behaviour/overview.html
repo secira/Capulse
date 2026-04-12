@@ -1,0 +1,249 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block title %}Behavioural Insights - Target Capital{% endblock %}
+{% block dashboard_title %}Behavioural AI Dashboard{% endblock %}
+{% block dashboard_subtitle %}Your trading psychology analyzed across 20 modules — powered by the Scentric AI Decision Engine{% endblock %}
+
+{% block dashboard_content %}
+<style>
+.score-ring{width:160px;height:160px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;position:relative}
+.score-ring .inner{width:130px;height:130px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1}
+.score-ring .value{font-size:2.5rem;font-weight:800;line-height:1}
+.score-ring .label{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+.cat-card{border:none;border-radius:14px;transition:transform .15s,box-shadow .15s;cursor:pointer;text-decoration:none;color:inherit}
+.cat-card:hover{transform:translateY(-3px);box-shadow:0 8px 25px rgba(0,0,0,.08)}
+.cat-score{font-size:2rem;font-weight:800;line-height:1}
+.cat-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;font-weight:600;color:#64748b}
+.module-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:.8rem;font-weight:600}
+.module-badge.high{background:#fef2f2;color:#dc2626}
+.module-badge.medium{background:#fffbeb;color:#d97706}
+.module-badge.low{background:#eff6ff;color:#2563eb}
+.module-badge.none{background:#f0fdf4;color:#16a34a}
+.insight-card{background:linear-gradient(135deg,#fafafa 0%,#f5f5f5 100%);border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px}
+.insight-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.9rem;color:#fff;flex-shrink:0}
+.personality-card{border-radius:14px;border:2px solid #e5e7eb;overflow:hidden}
+.personality-header{padding:20px 24px;color:#fff}
+.stat-pill{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;text-align:center}
+.stat-pill .val{font-size:1.3rem;font-weight:700}
+.stat-pill .lbl{font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em}
+.section-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8}
+</style>
+
+<div class="container-fluid px-0">
+
+{% if not analysis or not analysis.has_data %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body text-center py-5">
+      <i class="fas fa-brain fa-3x text-muted mb-3"></i>
+      <h5>Not enough trade data yet</h5>
+      <p class="text-muted mb-0">Complete at least 5 trades to unlock your Behavioural AI analysis.<br>Connect a broker and start trading to see your psychological profile.</p>
+    </div>
+  </div>
+{% else %}
+
+  <!-- Master Score + Personality Row -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center py-4">
+          <div class="score-ring mx-auto mb-3" style="background:conic-gradient({{ analysis.score_color }} {{ analysis.score * 3.6 }}deg, #e5e7eb {{ analysis.score * 3.6 }}deg)">
+            <div class="inner">
+              <div class="value" style="color:{{ analysis.score_color }}">{{ analysis.score }}</div>
+              <div class="label">{{ analysis.score_label }}</div>
+            </div>
+          </div>
+          <h5 class="fw-bold mb-1">Behavioral Score</h5>
+          <p class="text-muted small mb-0">Weighted across 20 modules in 5 categories</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="personality-card h-100">
+        <div class="personality-header" style="background:{{ analysis.personality.color }}">
+          <div class="d-flex align-items-center gap-3">
+            <i class="{{ analysis.personality.icon }} fa-2x"></i>
+            <div>
+              <h5 class="mb-0 fw-bold">{{ analysis.personality.type }}</h5>
+              <small style="opacity:.85">Trading Personality</small>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-3">
+          <p class="small mb-2">{{ analysis.personality.description }}</p>
+          <div class="row g-2">
+            <div class="col-6"><span class="badge bg-success-subtle text-success w-100 py-2"><i class="fas fa-plus me-1"></i>{{ analysis.personality.strength }}</span></div>
+            <div class="col-6"><span class="badge bg-danger-subtle text-danger w-100 py-2"><i class="fas fa-minus me-1"></i>{{ analysis.personality.weakness }}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="fas fa-chart-pie me-2 text-primary"></i>Key Stats (90 Days)</h6>
+          <div class="row g-2">
+            <div class="col-6"><div class="stat-pill"><div class="val">{{ analysis.stats.total_trades }}</div><div class="lbl">Total Trades</div></div></div>
+            <div class="col-6"><div class="stat-pill"><div class="val">{{ analysis.stats.win_rate }}%</div><div class="lbl">Win Rate</div></div></div>
+            <div class="col-6"><div class="stat-pill"><div class="val {% if analysis.stats.total_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">₹{{ '{:,.0f}'.format(analysis.stats.total_pnl) }}</div><div class="lbl">Total P&L</div></div></div>
+            <div class="col-6"><div class="stat-pill"><div class="val">{{ analysis.stats.risk_reward }}:1</div><div class="lbl">Risk-Reward</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Cards -->
+  <h6 class="section-label mb-3">Analysis Categories</h6>
+  <div class="row g-3 mb-4">
+    {% set cat_routes = {'trading': 'behavioural_trading', 'risk': 'behavioural_risk', 'portfolio': 'behavioural_portfolio', 'performance': 'behavioural_performance', 'psychology': 'behavioural_psychology'} %}
+    {% for key, cat in analysis.categories.items() %}
+    <div class="col-sm-6 col-xl">
+      <a href="{{ url_for(cat_routes[key]) }}" class="card cat-card h-100 shadow-sm">
+        <div class="card-body p-3 text-center">
+          <div class="cat-score" style="color:{{ cat.color }}">{{ cat.score }}</div>
+          <div class="cat-label mt-1 mb-2">{{ cat.label }}</div>
+          <i class="{{ cat.icon }} fa-lg" style="color:{{ cat.color }};opacity:.5"></i>
+          <div class="text-muted mt-2" style="font-size:.75rem;">{{ cat.modules|length }} modules</div>
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Top Insights -->
+  {% if analysis.top_insights %}
+  <h6 class="section-label mb-3">Top Insights</h6>
+  <div class="row g-3 mb-4">
+    {% for insight in analysis.top_insights %}
+    <div class="col-md-6">
+      <div class="insight-card d-flex align-items-start gap-3">
+        <div class="insight-icon" style="background:{{ analysis.active_alerts[loop.index0].color if loop.index0 < analysis.active_alerts|length else '#64748b' }}">
+          <i class="{{ analysis.active_alerts[loop.index0].icon if loop.index0 < analysis.active_alerts|length else 'fas fa-info' }}"></i>
+        </div>
+        <div>
+          <div class="fw-semibold small">{{ analysis.active_alerts[loop.index0].label if loop.index0 < analysis.active_alerts|length else 'Insight' }}</div>
+          <div class="text-muted small">{{ insight }}</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Active Alerts / Pattern Grid -->
+  <h6 class="section-label mb-3">Pattern Detection (Last 90 Days)</h6>
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Pattern</th>
+              <th class="text-center">Severity</th>
+              <th class="text-center">Score</th>
+              <th class="text-end pe-3">Insight</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for key, cat in analysis.categories.items() %}
+              {% for mkey, mod in cat.modules.items() %}
+              <tr>
+                <td class="ps-3">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="{{ mod.icon }}" style="color:{{ mod.color }};width:20px;text-align:center"></i>
+                    <span class="fw-semibold small">{{ mod.label }}</span>
+                  </div>
+                </td>
+                <td class="text-center">
+                  <span class="module-badge {{ mod.severity }}">
+                    {% if mod.severity == 'high' %}<i class="fas fa-exclamation-circle"></i>High
+                    {% elif mod.severity == 'medium' %}<i class="fas fa-exclamation-triangle"></i>Medium
+                    {% elif mod.severity == 'low' %}<i class="fas fa-info-circle"></i>Low
+                    {% else %}<i class="fas fa-check-circle"></i>None
+                    {% endif %}
+                  </span>
+                </td>
+                <td class="text-center">
+                  <span class="fw-bold" style="color:{% if mod.score >= 70 %}#16a34a{% elif mod.score >= 40 %}#d97706{% else %}#dc2626{% endif %}">{{ mod.score }}</span>
+                </td>
+                <td class="text-end pe-3"><span class="text-muted small">{{ mod.insight }}</span></td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Score Radar Chart -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="fas fa-spider me-2 text-primary"></i>Category Radar</h6>
+          <canvas id="radarChart" height="280"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3"><i class="fas fa-chart-bar me-2 text-primary"></i>Win Rate by Hour</h6>
+          <canvas id="hourChart" height="280"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% endif %}
+</div>
+
+{% if analysis and analysis.has_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "'Poppins','Inter',sans-serif";
+Chart.defaults.font.size = 12;
+
+new Chart(document.getElementById('radarChart'), {
+  type: 'radar',
+  data: {
+    labels: [{% for key, cat in analysis.categories.items() %}'{{ cat.label }}'{% if not loop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      label: 'Score',
+      data: [{% for key, cat in analysis.categories.items() %}{{ cat.score }}{% if not loop.last %},{% endif %}{% endfor %}],
+      borderColor: '#4f46e5',
+      backgroundColor: 'rgba(79,70,229,.12)',
+      borderWidth: 2,
+      pointBackgroundColor: '#4f46e5',
+      pointRadius: 5
+    }]
+  },
+  options: {
+    scales: {r: {min: 0, max: 100, ticks: {stepSize: 20, display: false}, grid: {color: '#e5e7eb'}, angleLines: {color: '#e5e7eb'}}},
+    plugins: {legend: {display: false}}
+  }
+});
+
+const hourData = {{ analysis.by_hour | tojson }};
+new Chart(document.getElementById('hourChart'), {
+  type: 'bar',
+  data: {
+    labels: hourData.map(h => h.hour),
+    datasets: [{
+      label: 'Win Rate %',
+      data: hourData.map(h => h.win_rate),
+      backgroundColor: hourData.map(h => h.win_rate >= 55 ? '#22c55e' : h.win_rate >= 40 ? '#f59e0b' : '#ef4444'),
+      borderRadius: 6
+    }]
+  },
+  options: {
+    scales: {y: {max: 100, ticks: {callback: v => v + '%'}}, x: {grid: {display: false}}},
+    plugins: {legend: {display: false}}
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

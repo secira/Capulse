@@ -1,0 +1,159 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block title %}Psychology Analysis - Target Capital{% endblock %}
+{% block dashboard_title %}Psychological Pattern Analysis{% endblock %}
+{% block dashboard_subtitle %}Deep psychology insights — panic, FOMO, behavioral drift, and hidden biases{% endblock %}
+
+{% block dashboard_content %}
+<style>
+.mod-card{border:none;border-radius:14px;border-left:4px solid #e5e7eb;overflow:hidden}
+.mod-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
+.mod-score{font-size:2rem;font-weight:800;line-height:1}
+.mod-body{padding:0 20px 20px}
+.sev-badge{padding:4px 12px;border-radius:6px;font-size:.75rem;font-weight:600}
+.sev-badge.high{background:#fef2f2;color:#dc2626}.sev-badge.medium{background:#fffbeb;color:#d97706}
+.sev-badge.low{background:#eff6ff;color:#2563eb}.sev-badge.none{background:#f0fdf4;color:#16a34a}
+.cat-score-bar{height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden}
+.cat-score-bar .fill{height:100%;border-radius:4px}
+.advice-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;font-size:.85rem}
+.back-link{color:#64748b;text-decoration:none;font-size:.85rem;display:inline-flex;align-items:center;gap:6px}
+.back-link:hover{color:#1e293b}
+.metric-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.metric-item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;text-align:center;flex:1;min-width:90px}
+.metric-item .val{font-size:1.1rem;font-weight:700}
+.metric-item .lbl{font-size:.65rem;color:#64748b;text-transform:uppercase}
+.pattern-timeline{border-left:3px solid #e5e7eb;padding-left:16px;margin-top:12px}
+.pattern-event{position:relative;padding-bottom:12px}
+.pattern-event:before{content:'';position:absolute;left:-22px;top:4px;width:10px;height:10px;border-radius:50%;background:#94a3b8}
+.pattern-event.alert:before{background:#ef4444}
+.pattern-event .event-date{font-size:.7rem;color:#94a3b8;font-weight:600}
+.pattern-event .event-text{font-size:.8rem}
+.bias-meter{height:20px;border-radius:10px;background:#e5e7eb;overflow:hidden;position:relative}
+.bias-meter .fill{height:100%;border-radius:10px;transition:width .5s}
+.bias-meter .marker{position:absolute;top:0;width:3px;height:100%;background:#1e293b;border-radius:2px}
+</style>
+
+<div class="container-fluid px-0">
+  <a href="{{ url_for('behavioural_insights') }}" class="back-link mb-3 d-inline-flex"><i class="fas fa-arrow-left"></i>Back to Overview</a>
+
+  {% if not data %}
+  <div class="card border-0 shadow-sm"><div class="card-body text-center py-5"><i class="fas fa-brain fa-3x text-muted mb-3"></i><h5>No psychology data available</h5></div></div>
+  {% else %}
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <div class="mod-score" style="color:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ data.score }}<span style="font-size:1rem;color:#94a3b8">/100</span></div>
+    <div>
+      <div class="fw-bold">Psychology Score</div>
+      <div class="cat-score-bar" style="width:200px"><div class="fill" style="width:{{ data.score }}%;background:{% if data.score >= 70 %}#22c55e{% elif data.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}"></div></div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    {% for key, mod in data.modules.items() %}
+    <div class="col-lg-6">
+      <div class="card mod-card shadow-sm" style="border-left-color:{{ mod.color }}">
+        <div class="mod-header">
+          <div class="d-flex align-items-center gap-2">
+            <i class="{{ mod.icon }} fa-lg" style="color:{{ mod.color }}"></i>
+            <div>
+              <div class="fw-bold">{{ mod.label }}</div>
+              <span class="sev-badge {{ mod.severity }}">{{ mod.severity | upper }}</span>
+            </div>
+          </div>
+          <div class="mod-score" style="color:{% if mod.score >= 70 %}#22c55e{% elif mod.score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">{{ mod.score }}</div>
+        </div>
+        <div class="mod-body">
+          <p class="small text-muted mb-2">{{ mod.description }}</p>
+          <div class="fw-semibold small mb-2" style="color:{{ mod.color }}"><i class="fas fa-lightbulb me-1"></i>{{ mod.insight }}</div>
+
+          {% if key == 'panic_selling' and mod.incidents %}
+          <div class="pattern-timeline">
+            {% for inc in mod.incidents[:5] %}
+            <div class="pattern-event alert">
+              <div class="event-date">{{ inc.date }}</div>
+              <div class="event-text">{{ inc.symbol }} — Exited at <span class="text-danger">₹{{ inc.exit_price }}</span> ({{ inc.loss_pct }}% loss in {{ inc.hold_mins }}m)</div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {% if key == 'fomo_overconfidence' %}
+          <div class="metric-row">
+            <div class="metric-item"><div class="val">{{ mod.fomo_count }}</div><div class="lbl">FOMO Entries</div></div>
+            <div class="metric-item"><div class="val">{{ mod.overconf_count }}</div><div class="lbl">Overconfident</div></div>
+            <div class="metric-item"><div class="val {% if mod.fomo_win_rate >= 40 %}text-success{% else %}text-danger{% endif %}">{{ mod.fomo_win_rate }}%</div><div class="lbl">FOMO Win Rate</div></div>
+          </div>
+          {% if mod.confidence_trend %}
+          <div class="mt-3"><canvas id="chart-fomo" height="120"></canvas></div>
+          {% endif %}
+          {% endif %}
+
+          {% if key == 'behavioral_drift' %}
+          <div class="metric-row">
+            <div class="metric-item"><div class="val">{{ mod.drift_score }}%</div><div class="lbl">Drift Index</div></div>
+            <div class="metric-item"><div class="val">{{ mod.baseline_period }}</div><div class="lbl">Baseline</div></div>
+            <div class="metric-item"><div class="val">{{ mod.current_period }}</div><div class="lbl">Current</div></div>
+          </div>
+          {% if mod.drift_dimensions %}
+          <div class="mt-3"><canvas id="chart-drift" height="140"></canvas></div>
+          {% endif %}
+          {% endif %}
+
+          {% if key == 'time_of_day' %}
+          <div class="mt-3"><canvas id="chart-tod" height="140"></canvas></div>
+          {% endif %}
+
+          {% if key == 'broker_bias' %}
+          <div class="metric-row">
+            {% for bname, bdata in mod.broker_stats.items() %}
+            <div class="metric-item">
+              <div class="val {% if bdata.win_rate >= 50 %}text-success{% else %}text-danger{% endif %}">{{ bdata.win_rate }}%</div>
+              <div class="lbl">{{ bname }}</div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {% if mod.advice %}
+          <div class="advice-box mt-3"><i class="fas fa-check-circle text-primary me-2"></i>{{ mod.advice }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% endif %}
+</div>
+
+{% if data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "'Poppins','Inter',sans-serif";
+
+{% if data.modules.fomo_overconfidence and data.modules.fomo_overconfidence.confidence_trend %}
+(function(){
+  const ct = {{ data.modules.fomo_overconfidence.confidence_trend | tojson }};
+  const el = document.getElementById('chart-fomo');
+  if(el) new Chart(el, {type:'line',data:{labels:Object.keys(ct).map(w=>w.slice(5)),datasets:[{label:'FOMO Entries',data:Object.values(ct),borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.08)',fill:true,tension:.3,pointRadius:4,pointBackgroundColor:'#f59e0b'}]},options:{scales:{y:{beginAtZero:true},x:{grid:{display:false}}},plugins:{legend:{display:false}}}});
+})();
+{% endif %}
+
+{% if data.modules.behavioral_drift and data.modules.behavioral_drift.drift_dimensions %}
+(function(){
+  const dd = {{ data.modules.behavioral_drift.drift_dimensions | tojson }};
+  const el = document.getElementById('chart-drift');
+  if(el) new Chart(el, {type:'radar',data:{labels:Object.keys(dd),datasets:[{label:'Drift %',data:Object.values(dd),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.1)',borderWidth:2,pointBackgroundColor:'#ef4444',pointRadius:4}]},options:{scales:{r:{min:0,max:100,ticks:{display:false}}},plugins:{legend:{display:false}}}});
+})();
+{% endif %}
+
+{% if data.modules.time_of_day and data.modules.time_of_day.hourly_performance %}
+(function(){
+  const hp = {{ data.modules.time_of_day.hourly_performance | tojson }};
+  const el = document.getElementById('chart-tod');
+  if(el) new Chart(el, {type:'bar',data:{labels:Object.keys(hp),datasets:[{label:'P&L ₹',data:Object.values(hp),backgroundColor:Object.values(hp).map(v=>v>=0?'#22c55e':'#ef4444'),borderRadius:4}]},options:{scales:{y:{ticks:{callback:v=>'₹'+v.toLocaleString()}},x:{grid:{display:false}}},plugins:{legend:{display:false}}}});
+})();
+{% endif %}
+</script>
+{% endif %}
+{% endblock %}
