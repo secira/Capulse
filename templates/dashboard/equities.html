@@ -252,6 +252,86 @@
     </div>
 </div>
 
+{% if broker_positions %}
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background:#fefce8; border-bottom:1px solid #fde68a;">
+        <div>
+            <h5 class="mb-0" style="color:#92400e;">
+                <i class="fas fa-chart-line me-2" style="color:#d97706;"></i>
+                Broker Open Positions
+                <span class="badge ms-2" style="background:#d97706; font-size:11px;">{{ broker_positions|length }}</span>
+            </h5>
+            <small class="text-muted">Intraday & delivery positions synced from your broker today</small>
+        </div>
+        <a href="{{ url_for('broker_management') }}" class="btn btn-sm btn-outline-warning">
+            <i class="fas fa-sync-alt me-1"></i>Sync Broker
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" style="font-size:13px;">
+                <thead style="background:#fffbeb;">
+                    <tr>
+                        <th style="padding-left:16px;">Symbol</th>
+                        <th>Exchange</th>
+                        <th>Product</th>
+                        <th>Broker</th>
+                        <th>Qty</th>
+                        <th>Avg Buy</th>
+                        <th>Curr Price</th>
+                        <th>Unrealized P&L</th>
+                        <th>Realized P&L</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pos in broker_positions %}
+                    <tr>
+                        <td style="padding-left:16px; font-weight:600;">{{ pos.symbol }}</td>
+                        <td><span class="badge bg-secondary" style="font-size:10px;">{{ pos.exchange }}</span></td>
+                        <td><span class="badge bg-info text-dark" style="font-size:10px;">{{ pos.product }}</span></td>
+                        <td style="font-size:12px; color:#64748b;">{{ pos.broker_name }}</td>
+                        <td>{{ pos.quantity }}</td>
+                        <td>₹{{ "%.2f"|format(pos.avg_buy_price) }}</td>
+                        <td>
+                            {% if pos.current_price > 0 %}
+                            ₹{{ "%.2f"|format(pos.current_price) }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-weight:600; color:{% if pos.unrealized_pnl >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                            ₹{{ "%.2f"|format(pos.unrealized_pnl) }}
+                        </td>
+                        <td style="font-weight:600; color:{% if pos.realized_pnl >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                            ₹{{ "%.2f"|format(pos.realized_pnl) }}
+                        </td>
+                        <td style="font-size:11px; color:#64748b;">{{ pos.position_date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot style="background:#fffbeb;">
+                    <tr>
+                        <td colspan="7" class="fw-bold" style="padding-left:16px;">Total</td>
+                        <td style="font-weight:700; color:{% if broker_positions|sum(attribute='unrealized_pnl') >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                            ₹{{ "%.2f"|format(broker_positions|sum(attribute='unrealized_pnl')) }}
+                        </td>
+                        <td style="font-weight:700; color:{% if broker_positions|sum(attribute='realized_pnl') >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                            ₹{{ "%.2f"|format(broker_positions|sum(attribute='realized_pnl')) }}
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <div class="px-3 py-2" style="font-size:12px; color:#78716c; background:#fffbeb; border-top:1px solid #fde68a;">
+            <i class="fas fa-info-circle me-1"></i>
+            Positions update each time you sync your broker. Current prices refresh from live market data.
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const purchaseDateInput = document.getElementById('purchase_date');

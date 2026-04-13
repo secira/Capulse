@@ -203,6 +203,40 @@ class ComprehensivePortfolioService:
         except Exception as e:
             logger.warning(f"Could not load broker holdings for portfolio summary: {e}")
 
+        # 10. Broker-synced open positions (intraday / delivery positions)
+        try:
+            from models_broker import BrokerPosition, BrokerAccount as _BA2
+            _pos_accounts = _BA2.query.filter_by(user_id=self.user_id, is_active=True).all()
+            _broker_account_ids = [a.id for a in _pos_accounts]
+
+            if _broker_account_ids:
+                broker_positions = BrokerPosition.query.filter(
+                    BrokerPosition.broker_account_id.in_(_broker_account_ids)
+                ).all()
+                if broker_positions:
+                    bp_investment = sum(
+                        (p.avg_buy_price or 0) * (p.quantity or 0)
+                        for p in broker_positions
+                    )
+                    bp_value = sum(
+                        (p.current_price or p.avg_buy_price or 0) * (p.quantity or 0)
+                        for p in broker_positions
+                    )
+                    if bp_investment > 0 or bp_value > 0:
+                        summary['asset_classes'].append({
+                            'name': 'Broker Open Positions',
+                            'count': len(broker_positions),
+                            'investment': bp_investment,
+                            'current_value': bp_value if bp_value > 0 else bp_investment,
+                            'pnl': bp_value - bp_investment,
+                            'pnl_percentage': ((bp_value - bp_investment) / bp_investment * 100) if bp_investment > 0 else 0,
+                            'risk_level': 'High',
+                            'color': '#F59E0B',
+                            'broker_synced': True
+                        })
+        except Exception as e:
+            logger.warning(f"Could not load broker positions for portfolio summary: {e}")
+
         # Calculate totals
         summary['total_investment'] = sum(ac['investment'] for ac in summary['asset_classes'])
         summary['total_current_value'] = sum(ac['current_value'] for ac in summary['asset_classes'])

@@ -2620,11 +2620,12 @@ def dashboard_equities():
         is_active=True
     ).all()
     
-    # Get broker holdings if user has broker access
+    # Get broker holdings AND open positions if user has broker access
     broker_holdings_list = []
+    broker_positions_list = []
     if current_user.can_access_menu('dashboard_broker_accounts'):
         try:
-            from models_broker import BrokerAccount
+            from models_broker import BrokerAccount, BrokerPosition
             broker_accounts = BrokerAccount.query.filter_by(
                 user_id=current_user.id,
                 connection_status='connected'
@@ -2633,11 +2634,29 @@ def dashboard_equities():
             for account in broker_accounts:
                 broker_holdings = BrokerHolding.query.filter_by(
                     broker_account_id=account.id,
-                    asset_type='equity'
                 ).all()
                 broker_holdings_list.extend(broker_holdings)
-        except:
-            pass
+
+                positions = BrokerPosition.query.filter_by(
+                    broker_account_id=account.id,
+                ).all()
+                for p in positions:
+                    broker_positions_list.append({
+                        'id': p.id,
+                        'symbol': p.trading_symbol or p.symbol,
+                        'exchange': p.exchange or '',
+                        'product': p.product_type.value if p.product_type else '',
+                        'quantity': p.quantity or 0,
+                        'avg_buy_price': p.avg_buy_price or 0,
+                        'current_price': p.current_price or 0,
+                        'unrealized_pnl': p.unrealized_pnl or 0,
+                        'realized_pnl': p.realized_pnl or 0,
+                        'total_pnl': p.total_pnl or 0,
+                        'position_date': p.position_date.strftime('%d %b %Y') if p.position_date else '',
+                        'broker_name': account.broker_name,
+                    })
+        except Exception as e:
+            logger.warning(f"Broker data fetch error: {e}")
     
     # Combine holdings for display
     combined_holdings = []
@@ -2682,6 +2701,7 @@ def dashboard_equities():
     
     return render_template('dashboard/equities.html',
                          holdings=combined_holdings,
+                         broker_positions=broker_positions_list,
                          total_investment=total_investment,
                          current_value=current_value,
                          total_pnl=total_pnl,
