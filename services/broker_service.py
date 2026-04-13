@@ -171,34 +171,59 @@ class DhanBrokerClient(BaseBrokerClient):
         """Get Dhan holdings"""
         if not self._client:
             raise BrokerAPIError("Not connected to Dhan")
-        
+
         try:
-            holdings = self._client.get_holdings()
+            response = self._client.get_holdings()
+            # dhanhq returns {"status": "success", "data": [...]}
+            if isinstance(response, dict):
+                if response.get('status') not in ('success', None) and not response.get('data'):
+                    raise BrokerAPIError(f"Dhan API error: {response.get('remarks', response)}")
+                holdings = response.get('data', []) or []
+            else:
+                holdings = response or []
             return self._normalize_holdings(holdings)
+        except BrokerAPIError:
+            raise
         except Exception as e:
             logger.error(f"Error fetching Dhan holdings: {e}")
             raise BrokerAPIError(f"Failed to fetch holdings: {e}")
-    
+
     def get_positions(self) -> List[Dict]:
         """Get Dhan positions"""
         if not self._client:
             raise BrokerAPIError("Not connected to Dhan")
-        
+
         try:
-            positions = self._client.get_positions()
+            response = self._client.get_positions()
+            if isinstance(response, dict):
+                if response.get('status') not in ('success', None) and not response.get('data'):
+                    raise BrokerAPIError(f"Dhan API error: {response.get('remarks', response)}")
+                positions = response.get('data', []) or []
+            else:
+                positions = response or []
             return self._normalize_positions(positions)
+        except BrokerAPIError:
+            raise
         except Exception as e:
             logger.error(f"Error fetching Dhan positions: {e}")
             raise BrokerAPIError(f"Failed to fetch positions: {e}")
-    
+
     def get_orders(self) -> List[Dict]:
         """Get Dhan orders"""
         if not self._client:
             raise BrokerAPIError("Not connected to Dhan")
-        
+
         try:
-            orders = self._client.get_order_list()
+            response = self._client.get_order_list()
+            if isinstance(response, dict):
+                if response.get('status') not in ('success', None) and not response.get('data'):
+                    raise BrokerAPIError(f"Dhan API error: {response.get('remarks', response)}")
+                orders = response.get('data', []) or []
+            else:
+                orders = response or []
             return self._normalize_orders(orders)
+        except BrokerAPIError:
+            raise
         except Exception as e:
             logger.error(f"Error fetching Dhan orders: {e}")
             raise BrokerAPIError(f"Failed to fetch orders: {e}")
