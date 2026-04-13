@@ -347,42 +347,159 @@ class DhanBrokerClient(BaseBrokerClient):
         }
     
     def _convert_to_dhan_order(self, order_data: Dict) -> Dict:
-        """Convert our order format to Dhan API format"""
-        # Map our enums to Dhan constants
-        transaction_type_map = {
-            TransactionType.BUY: 'BUY',
-            TransactionType.SELL: 'SELL'
-        }
-        
+        """Convert our order format to Dhan API v2 format.
+
+        Accepts both string values (from execute-signal route) and
+        internal enum objects (from place-order route).
+
+        Dhan API v2 constants
+        ---------------------
+        transactionType : BUY | SELL
+        exchangeSegment : NSE_EQ | BSE_EQ | NSE_FNO | BSE_FNO | NSE_CURRENCY |
+                          BSE_CURRENCY | NSE_COMM | BSE_COMM | IDX_I
+        orderType       : LIMIT | MARKET | STOP_LOSS | STOP_LOSS_MARKET
+        productType     : CNC | INTRA | MARGIN | MTF | CO | BO
+        validity        : DAY | IOC
+        """
+        # ── Transaction type ─────────────────────────────────────────────────
+        tx_raw = order_data.get('transaction_type', 'BUY')
+        if isinstance(tx_raw, TransactionType):
+            tx_str = tx_raw.value if hasattr(tx_raw, 'value') else str(tx_raw)
+        else:
+            tx_str = str(tx_raw).upper()
+        # Normalise: BUY → BUY, SELL → SELL
+        transaction_type = 'BUY' if 'BUY' in tx_str else 'SELL'
+
+        # ── Order type ───────────────────────────────────────────────────────
+        ot_raw = order_data.get('order_type', 'MARKET')
+        if isinstance(ot_raw, OrderType):
+            ot_str = ot_raw.value if hasattr(ot_raw, 'value') else str(ot_raw)
+        else:
+            ot_str = str(ot_raw).upper()
         order_type_map = {
-            OrderType.MARKET: 'MARKET',
-            OrderType.LIMIT: 'LIMIT',
-            OrderType.SL: 'SL',
-            OrderType.SL_M: 'SL-M'
+            'MARKET':          'MARKET',
+            'LIMIT':           'LIMIT',
+            'SL':              'STOP_LOSS',            # Dhan v2 name
+            'STOP_LOSS':       'STOP_LOSS',
+            'SL-M':            'STOP_LOSS_MARKET',
+            'STOP_LOSS_MARKET': 'STOP_LOSS_MARKET',
+            'SLM':             'STOP_LOSS_MARKET',
         }
-        
+        order_type = order_type_map.get(ot_str, 'MARKET')
+
+        # ── Product type ─────────────────────────────────────────────────────
+        pt_raw = order_data.get('product_type', 'INTRA')
+        if isinstance(pt_raw, ProductType):
+            pt_str = pt_raw.value if hasattr(pt_raw, 'value') else str(pt_raw)
+        else:
+            pt_str = str(pt_raw).upper()
         product_type_map = {
-            ProductType.INTRADAY: 'INTRA',
-            ProductType.DELIVERY: 'CNC',
-            ProductType.CNC: 'CNC',
-            ProductType.MIS: 'MIS'
+            'INTRADAY': 'INTRA',
+            'INTRA':    'INTRA',
+            'MIS':      'INTRA',   # MIS (Zerodha/Angel term) → INTRA in Dhan
+            'DELIVERY': 'CNC',
+            'CNC':      'CNC',
+            'MARGIN':   'MARGIN',
+            'MTF':      'MTF',
+            'CO':       'CO',
+            'BO':       'BO',
+            'NRML':     'MARGIN',  # NRML (NSE F&O term) → MARGIN in Dhan
         }
-        
+        product_type = product_type_map.get(pt_str, 'INTRA')
+
+        # ── Exchange segment ──────────────────────────────────────────────────
+        ex_raw = str(order_data.get('exchange', 'NSE')).upper()
+        exchange_map = {
+            'NSE':         'NSE_EQ',
+            'NSE_EQ':      'NSE_EQ',
+            'BSE':         'BSE_EQ',
+            'BSE_EQ':      'BSE_EQ',
+            'NFO':         'NSE_FNO',
+            'NSE_FNO':     'NSE_FNO',
+            'BFO':         'BSE_FNO',
+            'BSE_FNO':     'BSE_FNO',
+            'CDS':         'NSE_CURRENCY',
+            'NSE_CURRENCY':'NSE_CURRENCY',
+            'BSE_CURRENCY':'BSE_CURRENCY',
+            'MCX':         'NSE_COMM',
+            'NSE_COMM':    'NSE_COMM',
+            'BSE_COMM':    'BSE_COMM',
+            'IDX_I':       'IDX_I',
+        }
+        exchange_segment = exchange_map.get(ex_raw, 'NSE_EQ')
+
+        # ── Price / trigger_price (None → 0 for Dhan) ────────────────────────
+        price         = float(order_data.get('price') or 0)
+        trigger_price = float(order_data.get('trigger_price') or 0)
+
+        # ── Security ID ───────────────────────────────────────────────────────
+        # Dhan requires its own numeric securityId.  Try order_data first,
+        # then fall back to a lookup in BrokerHolding / BrokerPosition tables.
+        security_id = order_data.get('security_id')
+        if not security_id:
+            security_id = self._lookup_dhan_security_id(
+                order_data.get('symbol') or order_data.get('trading_symbol', ''),
+                exchange_segment
+            )
+        if not security_id:
+            raise BrokerAPIError(
+                "Dhan requires a securityId for every order. "
+                "This security was not found in your synced holdings/positions. "
+                "Please sync your broker account first, or provide the Dhan securityId."
+            )
+
         return {
-            'security_id': order_data.get('security_id'),
-            'exchange_segment': order_data.get('exchange', 'NSE_EQ'),
-            'transaction_type': transaction_type_map.get(order_data.get('transaction_type')),
-            'quantity': order_data.get('quantity'),
-            'order_type': order_type_map.get(order_data.get('order_type')),
-            'product_type': product_type_map.get(order_data.get('product_type')),
-            'price': order_data.get('price', 0),
-            'trigger_price': order_data.get('trigger_price', 0),
-            'disclosed_quantity': order_data.get('disclosed_quantity', 0),
-            'after_market_order': order_data.get('after_market_order', False),
-            'validity': order_data.get('validity', 'DAY'),
-            'bo_profit_value': order_data.get('bo_profit_value', 0),
-            'bo_stop_loss_value': order_data.get('bo_stop_loss_value', 0)
+            'security_id':        str(security_id),
+            'exchange_segment':   exchange_segment,
+            'transaction_type':   transaction_type,
+            'quantity':           int(order_data.get('quantity', 1)),
+            'order_type':         order_type,
+            'product_type':       product_type,
+            'price':              price,
+            'trigger_price':      trigger_price,
+            'disclosed_quantity': int(order_data.get('disclosed_quantity', 0)),
+            'after_market_order': bool(order_data.get('after_market_order', False)),
+            'validity':           order_data.get('validity', 'DAY'),
+            'bo_profit_value':    float(order_data.get('bo_profit_value') or 0),
+            'bo_stop_loss_value': float(order_data.get('bo_stop_loss_value') or 0),
         }
+
+    def _lookup_dhan_security_id(self, symbol: str, exchange_segment: str) -> Optional[str]:
+        """Look up Dhan securityId from already-synced BrokerHolding or BrokerPosition rows.
+        Returns the securityId string, or None if not found."""
+        if not symbol:
+            return None
+        try:
+            from models_broker import BrokerHolding, BrokerPosition
+            symbol_upper = symbol.upper().strip()
+            account_id = self.broker_account.id
+            # Check holdings first
+            holding = (
+                BrokerHolding.query
+                .filter_by(broker_account_id=account_id)
+                .filter(
+                    BrokerHolding.trading_symbol.ilike(symbol_upper) |
+                    BrokerHolding.symbol.ilike(symbol_upper)
+                )
+                .first()
+            )
+            if holding and holding.security_id:
+                return str(holding.security_id)
+            # Then positions
+            position = (
+                BrokerPosition.query
+                .filter_by(broker_account_id=account_id)
+                .filter(
+                    BrokerPosition.trading_symbol.ilike(symbol_upper) |
+                    BrokerPosition.symbol.ilike(symbol_upper)
+                )
+                .first()
+            )
+            if position and position.security_id:
+                return str(position.security_id)
+        except Exception as e:
+            logger.debug(f"Security ID lookup failed: {e}")
+        return None
     
     def _normalize_order_response(self, response: Dict) -> Dict:
         """Normalize Dhan order response"""
