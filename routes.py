@@ -1660,15 +1660,20 @@ def dashboard_trade_now():
     
     trading_service = TradingService()
     
-    # Get user's broker connection status
+    connected_brokers = []
     primary_broker = None
     if broker_model_available:
         try:
-            primary_broker = BrokerAccount.query.filter_by(
+            connected_brokers = BrokerAccount.query.filter_by(
                 user_id=current_user.id,
-                is_primary=True
-            ).first()
-        except:
+                is_active=True,
+                connection_status='connected'
+            ).all()
+            primary_broker = next((b for b in connected_brokers if b.is_primary), None)
+            if not primary_broker and connected_brokers:
+                primary_broker = connected_brokers[0]
+        except Exception:
+            connected_brokers = []
             primary_broker = None
     
     # Fetch supported assets
@@ -1704,6 +1709,7 @@ def dashboard_trade_now():
     return render_template('dashboard/trade_now.html',
                            current_user=current_user,
                            primary_broker=primary_broker,
+                           connected_brokers=connected_brokers,
                            assets=assets,
                            strategies=strategies,
                            risk_profile=risk_profile,
@@ -4996,20 +5002,28 @@ def api_trade_execute_signal():
             }), 403
         
         data = request.get_json()
-        
-        # Get primary broker account
-        primary_broker = BrokerAccount.query.filter_by(
-            user_id=current_user.id,
-            is_primary=True
-        ).first()
-        
-        if not primary_broker:
+
+        selected_broker_id = data.get('broker_id')
+        if selected_broker_id:
+            selected_broker = BrokerAccount.query.filter_by(
+                id=int(selected_broker_id),
+                user_id=current_user.id,
+                is_active=True,
+                connection_status='connected'
+            ).first()
+        else:
+            selected_broker = BrokerAccount.query.filter_by(
+                user_id=current_user.id,
+                is_active=True,
+                connection_status='connected'
+            ).first()
+
+        if not selected_broker:
             return jsonify({
-                'success': False, 
-                'error': 'No primary broker connected. Please connect a broker first.'
+                'success': False,
+                'error': 'No broker selected or connected. Please connect a broker first.'
             }), 400
-        
-        # Prepare order data
+
         order_data = {
             'symbol': data.get('symbol'),
             'trading_symbol': data.get('symbol'),
@@ -5021,20 +5035,18 @@ def api_trade_execute_signal():
             'exchange': 'NSE',
             'trigger_price': float(data.get('stop_loss')) if data.get('stop_loss') else None
         }
-        
-        # Log the trade attempt
-        logger.info(f"Executing trade for user {current_user.id}: {order_data}")
-        
-        # Execute order through broker
+
+        logger.info(f"Executing trade for user {current_user.id} via {selected_broker.broker_name}: {order_data}")
+
         try:
-            order_result = BrokerService.place_order_via_broker(primary_broker, order_data)
-            
+            order_result = BrokerService.place_order_via_broker(selected_broker, order_data)
+
             return jsonify({
                 'success': True,
                 'order_id': order_result.id if hasattr(order_result, 'id') else None,
                 'broker_order_id': order_result.broker_order_id if hasattr(order_result, 'broker_order_id') else 'PENDING',
                 'status': order_result.order_status if hasattr(order_result, 'order_status') else 'SUBMITTED',
-                'message': f'Order placed successfully with {primary_broker.broker_name}'
+                'message': f'Order placed successfully with {selected_broker.broker_name}'
             })
         except Exception as broker_error:
             logger.error(f"Broker execution error: {str(broker_error)}")

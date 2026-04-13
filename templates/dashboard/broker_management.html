@@ -14,15 +14,18 @@
         <div class="col-md-9 col-lg-10">
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                 <h1 class="dashboard-heading"><i class="fas fa-building me-2"></i>Broker Management</h1>
-                <div class="btn-toolbar mb-2 mb-md-0">
+                <div class="btn-toolbar mb-2 mb-md-0 gap-2">
+                    <button type="button" class="btn btn-primary btn-sm" id="syncAllBtn" onclick="syncAllBrokers()">
+                        <i class="fas fa-sync-alt me-1"></i>Sync All
+                    </button>
                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="location.reload()">
-                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                        <i class="fas fa-redo me-1"></i>Refresh
                     </button>
                 </div>
             </div>
 
             <div class="container-fluid py-2">
-                <p class="text-muted mb-4">Configure your broker API connections for automated trading</p>
+                <p class="text-muted mb-4">All connected brokers sync independently. Portfolio and Behavioural AI aggregate data across all brokers.</p>
 
                 <!-- Add New Broker Section -->
                 <div class="card mb-4 shadow-sm">
@@ -122,25 +125,60 @@
 {% if brokers %}
 <div class="row">
     {% for broker in brokers %}
+    {% set sync_st = broker.sync_status or 'pending' %}
     <div class="col-lg-6 col-xl-4 mb-4">
-        <div class="card h-100 {% if broker.connection_status == 'connected' %}border-success{% else %}border-secondary{% endif %}">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center">
-                    <i class="fas fa-building text-primary me-2"></i>
-                    <strong>{{ broker.broker_name }}</strong>
+        <div class="card h-100 shadow-sm" style="border-radius:12px; border:1px solid {% if broker.connection_status == 'connected' %}#bbf7d0{% else %}#e2e8f0{% endif %}; overflow:hidden;">
+
+            <div class="card-header d-flex justify-content-between align-items-center py-3 px-3" style="background:#fafbfc; border-bottom:1px solid #f1f5f9;">
+                <div class="d-flex align-items-center gap-2">
+                    <div style="width:36px;height:36px;border-radius:10px;background:{% if broker.connection_status == 'connected' %}#dcfce7{% else %}#f1f5f9{% endif %};display:flex;align-items:center;justify-content:center;">
+                        <i class="fas fa-building" style="color:{% if broker.connection_status == 'connected' %}#16a34a{% else %}#94a3b8{% endif %};font-size:14px;"></i>
+                    </div>
+                    <div>
+                        <strong style="font-size:14px;">{{ broker.broker_name }}</strong>
+                        {% if broker.is_primary %}<span class="badge bg-dark ms-1" style="font-size:9px;">PRIMARY</span>{% endif %}
+                    </div>
                 </div>
-                <span class="badge {% if broker.connection_status == 'connected' %}bg-success{% else %}bg-secondary{% endif %}">
-                    {% if broker.connection_status == 'connected' %}
-                        <i class="fas fa-link me-1"></i>Connected
-                    {% else %}
-                        <i class="fas fa-unlink me-1"></i>Disconnected
-                    {% endif %}
+                <span class="badge rounded-pill" style="font-size:10px; {% if broker.connection_status == 'connected' %}background:#dcfce7; color:#15803d;{% else %}background:#f1f5f9; color:#64748b;{% endif %}">
+                    {% if broker.connection_status == 'connected' %}Connected{% else %}Disconnected{% endif %}
                 </span>
             </div>
-            <div class="card-body">
+
+            <div class="card-body px-3 py-3">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <small class="text-muted d-block" style="font-size:11px; text-transform:uppercase; letter-spacing:0.04em;">Sync Status</small>
+                        <div class="d-flex align-items-center gap-1 mt-1">
+                            {% if sync_st == 'success' %}
+                            <i class="fas fa-check-circle text-success" style="font-size:12px;"></i>
+                            <span style="font-size:13px; font-weight:600; color:#16a34a;">Synced</span>
+                            {% elif sync_st == 'syncing' %}
+                            <i class="fas fa-spinner fa-spin text-primary" style="font-size:12px;"></i>
+                            <span style="font-size:13px; font-weight:600; color:#3b82f6;">Syncing...</span>
+                            {% elif sync_st == 'failed' %}
+                            <i class="fas fa-exclamation-circle text-danger" style="font-size:12px;"></i>
+                            <span style="font-size:13px; font-weight:600; color:#dc2626;">Failed</span>
+                            {% else %}
+                            <i class="fas fa-clock text-warning" style="font-size:12px;"></i>
+                            <span style="font-size:13px; font-weight:600; color:#f59e0b;">Pending</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted d-block" style="font-size:11px; text-transform:uppercase; letter-spacing:0.04em;">Last Synced</small>
+                        <span style="font-size:12px; color:#475569; font-weight:500;" id="lastSync-{{ broker.id }}">
+                            {% if broker.last_sync %}
+                                {{ broker.last_sync.strftime('%b %d, %I:%M %p') }}
+                            {% else %}
+                                Never
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
                 <div class="mb-3">
-                    <small class="text-muted">API Key</small>
-                    <div class="font-monospace small">
+                    <small class="text-muted d-block" style="font-size:11px; text-transform:uppercase; letter-spacing:0.04em;">API Key</small>
+                    <div class="font-monospace" style="font-size:12px; color:#475569;">
                         {% set credentials = broker.get_credentials() %}
                         {% set api_key = credentials.get('client_id', '') %}
                         {% if api_key and api_key|length > 8 %}
@@ -152,43 +190,36 @@
                         {% endif %}
                     </div>
                 </div>
-                
-                <div class="mb-3">
-                    <small class="text-muted">Connection Status</small>
-                    <div class="small">
-                        {% if broker.connection_status == 'connected' %}
-                        <i class="fas fa-check-circle text-success me-1"></i>Active for Trading
-                        {% else %}
-                        <i class="fas fa-circle text-secondary me-1"></i>Ready to Connect
-                        {% endif %}
-                    </div>
+
+                <div class="d-flex gap-2 flex-wrap">
+                    <small class="text-muted" style="font-size:11px;">
+                        <i class="fas fa-database me-1"></i>Holdings, Positions, Orders
+                    </small>
+                    <small class="text-muted" style="font-size:11px;">
+                        <i class="fas fa-shield-alt me-1"></i>AES-256 Encrypted
+                    </small>
                 </div>
-                
-                {% if broker.last_token_refresh %}
-                <div class="mb-3">
-                    <small class="text-muted">Last Updated</small>
-                    <div class="small">{{ broker.last_token_refresh.strftime('%b %d, %Y %I:%M %p') }}</div>
-                </div>
-                {% endif %}
             </div>
-            <div class="card-footer bg-transparent">
-                <div class="btn-group w-100" role="group">
-                    {% if broker.connection_status == 'connected' %}
-                    <button class="btn btn-outline-warning btn-sm" onclick="disconnectBroker({{ broker.id }})">
-                        <i class="fas fa-unlink me-1"></i>Disconnect
-                    </button>
-                    {% else %}
-                    <button class="btn btn-outline-success btn-sm" onclick="connectBroker({{ broker.id }})">
-                        <i class="fas fa-link me-1"></i>Connect
-                    </button>
-                    {% endif %}
-                    <button class="btn btn-outline-primary btn-sm" onclick="editBroker({{ broker.id }})">
-                        <i class="fas fa-edit me-1"></i>Edit
-                    </button>
-                    <button class="btn btn-outline-danger btn-sm" onclick="deleteBroker({{ broker.id }})">
-                        <i class="fas fa-trash me-1"></i>Remove
-                    </button>
-                </div>
+
+            <div class="card-footer bg-transparent px-3 py-2 d-flex gap-2" style="border-top:1px solid #f1f5f9;">
+                {% if broker.connection_status == 'connected' %}
+                <button class="btn btn-sm flex-fill" id="syncBtn-{{ broker.id }}" onclick="syncBroker({{ broker.id }})" style="background:#00091a; color:#fff; border-radius:8px; font-size:12px; font-weight:600;">
+                    <i class="fas fa-sync-alt me-1"></i>Sync
+                </button>
+                <button class="btn btn-outline-warning btn-sm" onclick="disconnectBroker({{ broker.id }})" style="border-radius:8px; font-size:12px;">
+                    <i class="fas fa-unlink me-1"></i>Disconnect
+                </button>
+                {% else %}
+                <button class="btn btn-outline-success btn-sm flex-fill" onclick="connectBroker({{ broker.id }})" style="border-radius:8px; font-size:12px;">
+                    <i class="fas fa-link me-1"></i>Connect
+                </button>
+                {% endif %}
+                <button class="btn btn-outline-secondary btn-sm" onclick="editBroker({{ broker.id }})" style="border-radius:8px; font-size:12px;">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="deleteBroker({{ broker.id }})" style="border-radius:8px; font-size:12px;">
+                    <i class="fas fa-trash"></i>
+                </button>
             </div>
         </div>
     </div>
@@ -196,9 +227,11 @@
 </div>
 {% else %}
 <div class="text-center py-5">
-    <i class="fas fa-building text-muted mb-3" style="font-size: 3rem;"></i>
-    <h5>No Brokers Connected Yet</h5>
-    <p class="text-muted mb-0">Use the form above to connect your first broker account</p>
+    <div style="width:64px;height:64px;border-radius:16px;background:#f1f5f9;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;">
+        <i class="fas fa-building" style="font-size:28px;color:#94a3b8;"></i>
+    </div>
+    <h5 style="color:#1e293b;">No Brokers Connected Yet</h5>
+    <p class="text-muted mb-0" style="font-size:13px;">Use the form above to connect your first broker account</p>
 </div>
 {% endif %}
                     </div>
@@ -302,7 +335,7 @@ function deleteBroker(brokerId) {
 }
 
 function connectBroker(brokerId) {
-    if (!confirm('Connect this broker for trading? You can only have one active broker at a time.')) return;
+    if (!confirm('Connect this broker? Once connected, it will sync data and be available for trading.')) return;
     
     fetch(`/api/broker/${brokerId}/connect`, {
         method: 'POST',
@@ -322,6 +355,57 @@ function connectBroker(brokerId) {
     .catch(error => {
         console.error('Error:', error);
         alert('Error connecting broker');
+    });
+}
+
+function syncBroker(brokerId) {
+    const btn = document.getElementById('syncBtn-' + brokerId);
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Syncing...'; }
+
+    fetch('/api/broker/sync-account/' + brokerId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sync_types: ['holdings', 'positions', 'orders', 'trade_history'] })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (btn) { btn.innerHTML = '<i class="fas fa-check me-1"></i>Done'; btn.classList.add('btn-success'); btn.classList.remove('btn-primary'); }
+            const ls = document.getElementById('lastSync-' + brokerId);
+            if (ls && data.last_sync) { ls.textContent = data.last_sync; }
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            alert('Sync failed: ' + (data.message || 'Unknown error'));
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Sync'; }
+        }
+    })
+    .catch(err => {
+        alert('Sync error: ' + err.message);
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Sync'; }
+    });
+}
+
+function syncAllBrokers() {
+    const btn = document.getElementById('syncAllBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Syncing All...'; }
+
+    fetch('/api/broker/sync-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (btn) { btn.innerHTML = '<i class="fas fa-check me-1"></i>Done'; }
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            alert('Sync All failed: ' + (data.message || 'Unknown error'));
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Sync All'; }
+        }
+    })
+    .catch(err => {
+        alert('Error: ' + err.message);
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Sync All'; }
     });
 }
 

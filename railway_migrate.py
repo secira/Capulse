@@ -112,6 +112,7 @@ def ensure_missing_columns(session):
         ("ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS last_token_refresh TIMESTAMP",                                            "user_brokers.last_token_refresh"),
         ("ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS last_sync TIMESTAMP",                                                     "user_brokers.last_sync"),
         ("ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()",                                      "user_brokers.updated_at"),
+        ("ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS sync_status VARCHAR(20) DEFAULT 'pending'",                                  "user_brokers.sync_status"),
     ]
     for ddl, label in cols:
         _col(session, ddl, label)

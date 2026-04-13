@@ -324,23 +324,40 @@ def api_sync_broker_account(account_id):
         sync_types = data.get('sync_types', ['holdings', 'positions', 'orders'])
         
         logger.info(f"Starting sync for broker {broker_account.broker_name} (ID: {account_id})")
-        
-        # Perform sync
+
+        broker_account.sync_status = 'syncing'
+        db.session.commit()
+
         sync_results = BrokerService.sync_broker_data(broker_account, sync_types)
-        
+
+        broker_account.sync_status = 'success'
+        broker_account.last_sync = datetime.utcnow()
+        db.session.commit()
+
         logger.info(f"Sync completed for broker {broker_account.broker_name}: {sync_results}")
-        
+
         return jsonify({
             'success': True,
             'message': 'Account synced successfully',
-            'sync_results': sync_results
+            'sync_results': sync_results,
+            'last_sync': broker_account.last_sync.strftime('%b %d, %I:%M %p') if broker_account.last_sync else None
         })
-        
+
     except BrokerAPIError as e:
         logger.error(f"BrokerAPIError during sync: {str(e)}")
+        try:
+            broker_account.sync_status = 'failed'
+            db.session.commit()
+        except Exception:
+            pass
         return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
         logger.error(f"Error syncing broker account: {str(e)}", exc_info=True)
+        try:
+            broker_account.sync_status = 'failed'
+            db.session.commit()
+        except Exception:
+            pass
         return jsonify({'success': False, 'message': f'Sync failed: {str(e)}'}), 500
 
 @app.route('/api/broker/remove-account/<int:account_id>', methods=['DELETE'])
@@ -640,13 +657,23 @@ def api_sync_all_brokers():
         
         results = {}
         for account in broker_accounts:
+            if account.connection_status != 'connected':
+                results[account.broker_name] = {'skipped': 'not connected'}
+                continue
             try:
+                account.sync_status = 'syncing'
+                db.session.commit()
                 from services.broker_service_helpers import sync_broker_data
                 sync_result = sync_broker_data(account)
+                account.sync_status = 'success'
+                account.last_sync = datetime.utcnow()
+                db.session.commit()
                 results[account.broker_name] = sync_result
             except Exception as e:
+                account.sync_status = 'failed'
+                db.session.commit()
                 results[account.broker_name] = {'error': str(e)}
-        
+
         return jsonify({
             'success': True,
             'message': f'Synced {len(broker_accounts)} broker accounts',

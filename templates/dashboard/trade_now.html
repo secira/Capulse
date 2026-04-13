@@ -10,25 +10,41 @@
 {% block dashboard_content %}
 <div class="trade-now-page">
 
-<!-- Broker Connection Status -->
+<!-- Broker Selection Bar -->
 <div class="grid-responsive mb-4">
     <div class="grid-item full-width">
-        {% if primary_broker %}
-        <div class="alert alert-success d-flex align-items-center" role="alert">
-            <i class="fas fa-check-circle me-3"></i>
-            <div>
-                <strong>Primary Broker Connected:</strong> {{ primary_broker.broker_name }}
-                <small class="d-block text-muted">Ready for direct trade execution</small>
+        {% if connected_brokers|length > 0 %}
+        <div class="d-flex align-items-center gap-3 p-3" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px;">
+            <i class="fas fa-check-circle text-success fs-5"></i>
+            <div class="flex-grow-1">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <strong style="font-size:13px; color:#1e293b;">Trade with:</strong>
+                    <select id="brokerSelect" class="form-select form-select-sm" style="width:auto; min-width:180px; border-radius:8px; font-weight:600; border-color:#86efac;">
+                        {% for b in connected_brokers %}
+                        <option value="{{ b.id }}" {% if b.id == primary_broker.id %}selected{% endif %}>
+                            {{ b.broker_name }}{% if b.is_primary %} (Primary){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted" style="font-size:11px;">
+                        {{ connected_brokers|length }} broker{{ 's' if connected_brokers|length > 1 }} connected
+                    </small>
+                </div>
             </div>
+            <a href="{{ url_for('dashboard_broker_accounts') }}" class="btn btn-sm btn-outline-secondary" style="border-radius:8px; font-size:11px;">
+                <i class="fas fa-cog me-1"></i>Manage
+            </a>
         </div>
         {% else %}
-        <div class="alert d-flex align-items-center" role="alert" style="background: rgba(113, 128, 150, 0.1); border: 1px solid #a0aec0;">
-            <i class="fas fa-exclamation-triangle me-3" style="color: #718096;"></i>
-            <div>
-                <strong style="color: #4a5568;">No Broker Connected</strong>
-                <small class="d-block" style="color: #718096;">Connect a broker account to enable direct trade execution</small>
+        <div class="d-flex align-items-center gap-3 p-3" style="background:rgba(113,128,150,0.08); border:1px solid #cbd5e1; border-radius:10px;">
+            <i class="fas fa-exclamation-triangle" style="color:#94a3b8; font-size:18px;"></i>
+            <div class="flex-grow-1">
+                <strong style="color:#475569; font-size:13px;">No Broker Connected</strong>
+                <small class="d-block" style="color:#94a3b8; font-size:12px;">Connect a broker account to enable direct trade execution</small>
             </div>
-            <a href="{{ url_for('dashboard_broker_accounts') }}" class="btn btn-sm ms-auto" style="background: #3182ce; color: white;">Connect Broker</a>
+            <a href="{{ url_for('dashboard_broker_accounts') }}" class="btn btn-sm" style="background:#3182ce; color:white; border-radius:8px; font-size:12px;">
+                <i class="fas fa-link me-1"></i>Connect Broker
+            </a>
         </div>
         {% endif %}
     </div>
@@ -197,13 +213,13 @@
                         <!-- Action Buttons -->
                         <div class="col-12">
                             <div class="d-flex gap-2 flex-wrap">
-                                {% if primary_broker and current_user.pricing_plan in [PricingPlan.TARGET_PRO, PricingPlan.HNI] %}
+                                {% if connected_brokers|length > 0 and current_user.pricing_plan in [PricingPlan.TARGET_PRO, PricingPlan.HNI] %}
                                 <button type="button" class="btn btn-success btn-lg" id="tradeNowBtn" onclick="showTradeConfirmation()" style="background: #00091a; border-color: #00091a;">
                                     <i class="fas fa-rocket me-2"></i>Trade Now
                                 </button>
                                 {% else %}
                                 <button type="button" class="btn btn-secondary btn-lg" disabled>
-                                    <i class="fas fa-lock me-2"></i>Trade Now (Upgrade Required)
+                                    <i class="fas fa-lock me-2"></i>Trade Now ({{ 'Connect Broker' if connected_brokers|length == 0 else 'Upgrade Required' }})
                                 </button>
                                 {% endif %}
                             </div>
@@ -552,11 +568,9 @@ function showTradeConfirmation() {
         return;
     }
     
-    {% if primary_broker %}
-    const brokerName = "{{ primary_broker.broker_name }}";
-    {% else %}
-    const brokerName = "Not Connected";
-    {% endif %}
+    const brokerSelect = document.getElementById('brokerSelect');
+    const brokerName = brokerSelect ? brokerSelect.options[brokerSelect.selectedIndex].text : "Not Connected";
+    const brokerId = brokerSelect ? brokerSelect.value : null;
     
     const confirmModal = document.createElement('div');
     confirmModal.className = 'modal fade';
@@ -676,7 +690,8 @@ function executeTrade() {
             target_price: parseFloat(target) || null,
             order_type: orderType,
             product_type: productType,
-            signal_id: signalId ? parseInt(signalId) : null
+            signal_id: signalId ? parseInt(signalId) : null,
+            broker_id: document.getElementById('brokerSelect') ? document.getElementById('brokerSelect').value : null
         })
     })
     .then(response => response.json())

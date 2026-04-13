@@ -25,11 +25,14 @@ Target Capital employs a dual AI engine approach:
 
 **B2B/B2C Multi-Tenant Data Architecture**: Supports B2C user-connected brokers (Dhan, Zerodha, Angel) via `BrokerService` and B2B partner broker APIs with `B2BConnector`. A database fallback reads from the local `Portfolio` model, with each B2B partner as a distinct tenant.
 
-**Broker Integration Architecture**:
+**Broker Integration Architecture (Multi-Broker Intelligence Model)**:
+-   **No "active/primary broker" for trading**: All connected brokers sync independently. User selects broker per-trade via dropdown.
 -   **8 fully implemented brokers**: Dhan, Zerodha, Angel One, Upstox, ICICI Direct, Groww, Alice Blue, 5 Paisa, all integrating via SDKs or REST APIs.
 -   **`BaseBrokerClient`**: An abstract interface ensuring consistent functionality across all brokers for operations like `connect()`, `get_holdings()`, and `place_order()`.
 -   **OAuth + Auth flows**: Implemented for various brokers, handling connection and authentication securely.
--   **Broker Data Sync & Order Placement**: `BrokerService.sync_broker_data()` synchronizes all relevant data types, and `BrokerService.place_order_via_broker()` facilitates order execution via broker platforms.
+-   **Broker Data Sync**: `BrokerService.sync_broker_data()` synchronizes holdings, positions, orders, and trade history per broker. Each `BrokerAccount` tracks `sync_status` (success/failed/pending/syncing) and `last_sync` timestamp. "Sync All" button triggers all connected brokers.
+-   **Trade Router**: `api_trade_execute_signal` accepts `broker_id` from the UI dropdown and routes the order to the selected broker's API. Fallback: if no broker selected, uses first connected broker.
+-   **Portfolio & Behaviour Engines**: Aggregate data across ALL connected brokers for unified portfolio view and cross-broker behavioural intelligence.
 
 **Key Features & Design Patterns**:
 -   **Agentic AI Tools**: Leverages OpenAI, Perplexity, and LangGraph.

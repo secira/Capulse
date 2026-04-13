@@ -88,6 +88,7 @@ class BrokerAccount(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_sync = db.Column(db.DateTime, nullable=True, index=True)
+    sync_status = db.Column(db.String(20), default='pending')  # success, failed, pending, syncing
     
     # Relationships - only basic user relationship for now
     user = db.relationship('User', backref='broker_accounts')
