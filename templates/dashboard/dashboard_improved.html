@@ -287,6 +287,33 @@
     .bai-cta-btn:hover { opacity: 0.9; color: #fff; }
 </style>
 
+{% if data_freshness and data_freshness.warning %}
+<div class="alert {% if data_freshness.overall == 'stale' %}alert-danger{% else %}alert-warning{% endif %} d-flex align-items-center mb-3" style="border-radius:10px; font-size:0.9rem;">
+    <i class="fas {% if data_freshness.overall == 'stale' %}fa-exclamation-circle{% else %}fa-clock{% endif %} me-2"></i>
+    <div class="flex-grow-1">
+        <strong>{{ data_freshness.warning }}</strong>
+        {% if data_freshness.brokers %}
+        <span class="ms-2 text-muted" style="font-size:0.8rem;">
+            {% for b in data_freshness.brokers %}
+            <span class="badge {% if b.freshness == 'high' %}bg-success{% elif b.freshness == 'medium' %}bg-info{% elif b.freshness == 'low' %}bg-warning text-dark{% else %}bg-danger{% endif %} me-1">{{ b.name }}: {{ b.age_display }}</span>
+            {% endfor %}
+        </span>
+        {% endif %}
+    </div>
+    <a href="{{ url_for('dashboard_broker_management') }}" class="btn btn-sm btn-outline-dark ms-2">Sync Now</a>
+</div>
+{% endif %}
+
+{% if data_quality and data_quality.score < 65 and data_quality.issues %}
+<div class="alert alert-info d-flex align-items-center mb-3" style="border-radius:10px; font-size:0.85rem;">
+    <i class="fas fa-shield-alt me-2"></i>
+    <div class="flex-grow-1">
+        <strong>Data Quality: {{ data_quality.grade }} ({{ data_quality.score }}/100)</strong>
+        <span class="ms-2 text-muted">{{ data_quality.issues|first }}</span>
+    </div>
+</div>
+{% endif %}
+
 <!-- Portfolio Overview Cards -->
 <div class="dashboard-grid cols-4">
     <!-- Total Portfolio Value -->

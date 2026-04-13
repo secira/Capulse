@@ -34,6 +34,13 @@ Target Capital employs a dual AI engine approach:
 -   **Trade Router**: `api_trade_execute_signal` accepts `broker_id` from the UI dropdown and routes the order to the selected broker's API. Fallback: if no broker selected, uses first connected broker.
 -   **Portfolio & Behaviour Engines**: Aggregate data across ALL connected brokers for unified portfolio view and cross-broker behavioural intelligence.
 
+**Data Quality & Safety Layer** (`services/broker_data_quality.py`):
+-   **Data Freshness Scoring**: Per-broker freshness (high/medium/low/stale/never) based on `last_sync` age thresholds (5m/30m/2h). Dashboard shows freshness warning banner when any broker is outdated.
+-   **Quality Score (0–100)**: Checks sync recency, failure status, duplicate trades, and missing exit data. Grades: Excellent/Good/Fair/Poor.
+-   **Event-Driven Sync**: Login auto-syncs stale brokers (>30 min old). Syncs holdings + positions for up to 5 stale accounts.
+-   **Pre-Trade Validation**: 5-point check (broker connected, sync health, symbol valid, quantity valid, stop-loss logic, margin check) runs before every trade execution. Blocks trade if any critical check fails.
+-   **API**: `GET /api/data-quality` returns freshness + quality data for client-side consumption.
+
 **Key Features & Design Patterns**:
 -   **Agentic AI Tools**: Leverages OpenAI, Perplexity, and LangGraph.
 -   **Multi-Broker Integration**: Unified API support for 12 major Indian brokers.

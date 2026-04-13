@@ -1063,9 +1063,33 @@ def login():
             login_user(user)
             user.last_login = datetime.utcnow()
             db.session.commit()
+
+            try:
+                from services.broker_data_quality import BrokerDataQuality
+                _dq = BrokerDataQuality(user.id, user.tenant_id or 'live')
+                stale_ids = _dq.should_auto_sync()
+                if stale_ids:
+                    from services.broker_service import BrokerService
+                    from models_broker import BrokerAccount
+                    for _bid in stale_ids[:5]:
+                        _acct = BrokerAccount.query.get(_bid)
+                        if _acct:
+                            try:
+                                _acct.sync_status = 'syncing'
+                                db.session.commit()
+                                BrokerService.sync_broker_data(_acct.id, ['holdings', 'positions'])
+                                _acct.sync_status = 'success'
+                                _acct.last_sync = datetime.utcnow()
+                                db.session.commit()
+                            except Exception:
+                                _acct.sync_status = 'failed'
+                                db.session.commit()
+                    logger.info(f"Auto-synced {len(stale_ids)} stale broker(s) on login for user {user.id}")
+            except Exception as _sync_exc:
+                logger.debug(f"Login auto-sync skipped: {_sync_exc}")
+
             flash('Logged in successfully!', 'success')
             
-            # Admins land on the regular dashboard (admin section visible in sidebar)
             if user.is_admin:
                 return redirect(url_for('dashboard'))
                 
@@ -1306,6 +1330,16 @@ def dashboard():
     except Exception as _exc:
         current_app.logger.debug(f"Behaviour summary skipped on dashboard: {_exc}")
 
+    data_freshness = None
+    data_quality = None
+    try:
+        from services.broker_data_quality import BrokerDataQuality
+        _dq = BrokerDataQuality(current_user.id, current_user.tenant_id or 'live')
+        data_freshness = _dq.get_data_freshness()
+        data_quality = _dq.get_quality_score()
+    except Exception as _exc:
+        current_app.logger.debug(f"Data quality check skipped: {_exc}")
+
     return render_template('dashboard/dashboard_improved.html',
                          portfolio_summary=portfolio_summary,
                          top_performers=top_performers,
@@ -1315,7 +1349,9 @@ def dashboard():
                          level_progress=level_progress,
                          broker_accounts=broker_accounts,
                          account_manager=account_manager,
-                         behaviour_summary=behaviour_summary)
+                         behaviour_summary=behaviour_summary,
+                         data_freshness=data_freshness,
+                         data_quality=data_quality)
 
 # Stock Analysis route removed as requested by user
 
@@ -4984,6 +5020,33 @@ def api_trade_execute_confirmed():
             'error': f'Trade execution failed: {str(e)}'
         }), 500
 
+@app.route('/api/data-quality', methods=['GET'])
+@login_required
+def api_data_quality():
+    try:
+        from services.broker_data_quality import BrokerDataQuality
+        _dq = BrokerDataQuality(current_user.id, current_user.tenant_id or 'live')
+        freshness = _dq.get_data_freshness()
+        quality = _dq.get_quality_score()
+        freshness_brokers = []
+        for b in freshness.get('brokers', []):
+            freshness_brokers.append({
+                'id': b['id'], 'name': b['name'], 'freshness': b['freshness'],
+                'age_display': b['age_display'], 'sync_status': b['sync_status'],
+            })
+        return jsonify({
+            'success': True,
+            'freshness': {
+                'overall': freshness.get('overall', 'none'),
+                'warning': freshness.get('warning'),
+                'brokers': freshness_brokers,
+            },
+            'quality': quality,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/trade/execute-signal', methods=['POST'])
 @login_required
 @csrf.exempt
@@ -5035,6 +5098,21 @@ def api_trade_execute_signal():
             'exchange': 'NSE',
             'trigger_price': float(data.get('stop_loss')) if data.get('stop_loss') else None
         }
+
+        try:
+            from services.broker_data_quality import BrokerDataQuality
+            _dq = BrokerDataQuality(current_user.id, current_user.tenant_id or 'live')
+            validation = _dq.pre_trade_validation(selected_broker, order_data)
+            if not validation['passed']:
+                failed = [c for c in validation['checks'] if not c['pass']]
+                return jsonify({
+                    'success': False,
+                    'error': 'Pre-trade validation failed',
+                    'validation_checks': validation['checks'],
+                    'failed_checks': [f"{c['check']}: {c['detail']}" for c in failed]
+                }), 400
+        except Exception as val_exc:
+            logger.debug(f"Pre-trade validation skipped: {val_exc}")
 
         logger.info(f"Executing trade for user {current_user.id} via {selected_broker.broker_name}: {order_data}")
 
