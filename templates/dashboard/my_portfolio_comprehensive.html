@@ -4,6 +4,93 @@
 {% block dashboard_title %}My Portfolio{% endblock %}
 {% block dashboard_subtitle %}Comprehensive analysis across all asset classes{% endblock %}
 
+{% block dashboard_toolbar %}
+<div class="header-actions d-flex align-items-center gap-2">
+    {% set connected_brokers = broker_accounts | selectattr('connection_status', 'equalto', 'connected') | list if broker_accounts else [] %}
+    {% if connected_brokers %}
+    <div class="dropdown">
+        <button class="btn btn-outline-primary btn-sm dropdown-toggle" id="portfolioSyncBtn" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-sync-alt me-1" id="portfolioSyncIcon"></i>
+            Sync Brokers
+            <span class="badge bg-primary ms-1" style="font-size:0.7rem;">{{ connected_brokers|length }}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:220px;">
+            <li><h6 class="dropdown-header">Sync Data</h6></li>
+            <li>
+                <button class="dropdown-item" onclick="portfolioSyncAll()">
+                    <i class="fas fa-sync-alt me-2 text-primary"></i>Sync All Brokers
+                </button>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            {% for acct in connected_brokers %}
+            <li>
+                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick="portfolioSyncOne({{ acct.id }}, '{{ acct.broker_name }}')">
+                    <span><i class="fas fa-building me-2 text-muted"></i>{{ acct.broker_name }}</span>
+                    {% if acct.sync_status == 'success' %}<span class="badge bg-success-subtle text-success" style="font-size:.65rem;">Synced</span>
+                    {% elif acct.sync_status == 'failed' %}<span class="badge bg-danger-subtle text-danger" style="font-size:.65rem;">Failed</span>
+                    {% else %}<span class="badge bg-secondary-subtle text-secondary" style="font-size:.65rem;">Pending</span>{% endif %}
+                </button>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+        <i class="fas fa-rotate-right me-1"></i>Refresh
+    </button>
+</div>
+<div id="portfolioSyncToast" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9999;min-width:280px;" class="alert shadow-sm"></div>
+<script>
+function portfolioSyncAll() {
+    _portfolioRunSync('/api/broker/sync-all', 'POST', null, 'Syncing all brokers…');
+}
+function portfolioSyncOne(id, name) {
+    _portfolioRunSync(`/api/broker/sync-account/${id}`, 'POST', {sync_types:['holdings','positions','orders']}, `Syncing ${name}…`);
+}
+function _portfolioRunSync(url, method, body, msg) {
+    const btn = document.getElementById('portfolioSyncBtn');
+    const icon = document.getElementById('portfolioSyncIcon');
+    if (btn) { btn.disabled = true; }
+    if (icon) { icon.className = 'fas fa-spinner fa-spin me-1'; }
+    _portfolioToast(msg, 'info');
+    fetch(url, {
+        method,
+        headers: {'Content-Type':'application/json','X-CSRFToken': document.cookie.match(/csrf_token=([^;]+)/)?.[1] || ''},
+        body: body ? JSON.stringify(body) : null
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            _portfolioToast('✅ Sync complete — reloading…', 'success');
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            _portfolioToast('⚠️ ' + (data.message || 'Sync failed'), 'warning');
+            if (btn) { btn.disabled = false; }
+            if (icon) { icon.className = 'fas fa-sync-alt me-1'; }
+        }
+    })
+    .catch(() => {
+        _portfolioToast('❌ Network error during sync', 'danger');
+        if (btn) { btn.disabled = false; }
+        if (icon) { icon.className = 'fas fa-sync-alt me-1'; }
+    });
+}
+function _portfolioToast(msg, type) {
+    const t = document.getElementById('portfolioSyncToast');
+    if (!t) return;
+    const colors = {info:'#eff6ff',success:'#f0fdf4',warning:'#fffbeb',danger:'#fef2f2'};
+    const borders = {info:'#bfdbfe',success:'#bbf7d0',warning:'#fed7aa',danger:'#fecaca'};
+    t.style.display = 'block';
+    t.style.background = colors[type] || '#fff';
+    t.style.borderColor = borders[type] || '#e2e8f0';
+    t.style.border = `1px solid ${borders[type] || '#e2e8f0'}`;
+    t.style.borderRadius = '10px';
+    t.innerHTML = msg;
+    if (type === 'success') { setTimeout(() => { t.style.display = 'none'; }, 4000); }
+}
+</script>
+{% endblock %}
+
 {% block dashboard_content %}
 <style>
     /* Markdown report rendering */

@@ -2244,6 +2244,11 @@ def dashboard_my_portfolio():
     except Exception as _pi_err:
         logging.warning(f"Portfolio intelligence computation error: {_pi_err}")
 
+    from models_broker import BrokerAccount as _BA
+    portfolio_broker_accounts = _BA.query.filter_by(
+        user_id=current_user.id, is_active=True
+    ).all()
+
     return render_template('dashboard/my_portfolio_comprehensive.html',
                            portfolio_summary=portfolio_summary,
                            ai_insights=ai_insights,
@@ -2257,6 +2262,7 @@ def dashboard_my_portfolio():
                            portfolio_intel=portfolio_intel,
                            broker_breakdown_data=broker_breakdown_data,
                            action_center=action_center,
+                           broker_accounts=portfolio_broker_accounts,
                            current_user=current_user)
 
 @app.route('/dashboard/my-portfolio-old')

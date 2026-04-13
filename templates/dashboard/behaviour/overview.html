@@ -4,6 +4,96 @@
 {% block dashboard_title %}Behavioural AI Dashboard{% endblock %}
 {% block dashboard_subtitle %}Your trading psychology analyzed across 20 modules — powered by the Scentric AI Decision Engine{% endblock %}
 
+{% block dashboard_toolbar %}
+<div class="header-actions d-flex align-items-center gap-2">
+    {% set connected_brokers = broker_accounts | selectattr('connection_status', 'equalto', 'connected') | list if broker_accounts else [] %}
+    {% if connected_brokers %}
+    <div class="dropdown">
+        <button class="btn btn-outline-primary btn-sm dropdown-toggle" id="baiSyncBtn" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-sync-alt me-1" id="baiSyncIcon"></i>
+            Sync Data
+            <span class="badge bg-primary ms-1" style="font-size:0.7rem;">{{ connected_brokers|length }}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:230px;">
+            <li><h6 class="dropdown-header">Sync Broker Data</h6></li>
+            <li>
+                <button class="dropdown-item" onclick="baiSyncAll()">
+                    <i class="fas fa-sync-alt me-2 text-primary"></i>Sync All Brokers
+                </button>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            {% for acct in connected_brokers %}
+            <li>
+                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick="baiSyncOne({{ acct.id }}, '{{ acct.broker_name }}')">
+                    <span><i class="fas fa-building me-2 text-muted"></i>{{ acct.broker_name }}</span>
+                    {% if acct.sync_status == 'success' %}<span class="badge bg-success-subtle text-success" style="font-size:.65rem;">Synced</span>
+                    {% elif acct.sync_status == 'failed' %}<span class="badge bg-danger-subtle text-danger" style="font-size:.65rem;">Failed</span>
+                    {% else %}<span class="badge bg-secondary-subtle text-secondary" style="font-size:.65rem;">Pending</span>{% endif %}
+                </button>
+            </li>
+            {% endfor %}
+            <li><hr class="dropdown-divider"></li>
+            <li><small class="dropdown-item text-muted" style="font-size:.75rem;white-space:normal;">
+                Syncing pulls your latest trades from connected brokers. Behavioural AI re-analyzes after reload.
+            </small></li>
+        </ul>
+    </div>
+    {% endif %}
+    <a href="{{ url_for('dashboard_broker_management') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-plug me-1"></i>Manage Brokers
+    </a>
+</div>
+<div id="baiSyncToast" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9999;min-width:290px;" class="alert shadow-sm"></div>
+<script>
+function baiSyncAll() {
+    _baiRunSync('/api/broker/sync-all', 'POST', null, 'Syncing all brokers — fetching latest trades…');
+}
+function baiSyncOne(id, name) {
+    _baiRunSync(`/api/broker/sync-account/${id}`, 'POST', {sync_types:['holdings','positions','orders','trade_history']}, `Syncing ${name}…`);
+}
+function _baiRunSync(url, method, body, msg) {
+    const btn = document.getElementById('baiSyncBtn');
+    const icon = document.getElementById('baiSyncIcon');
+    if (btn) btn.disabled = true;
+    if (icon) icon.className = 'fas fa-spinner fa-spin me-1';
+    _baiToast(msg, 'info');
+    fetch(url, {
+        method,
+        headers: {'Content-Type':'application/json','X-CSRFToken': document.cookie.match(/csrf_token=([^;]+)/)?.[1] || ''},
+        body: body ? JSON.stringify(body) : null
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            _baiToast('✅ Sync complete — reloading to re-analyse…', 'success');
+            setTimeout(() => location.reload(), 1400);
+        } else {
+            _baiToast('⚠️ ' + (data.message || 'Sync failed'), 'warning');
+            if (btn) btn.disabled = false;
+            if (icon) icon.className = 'fas fa-sync-alt me-1';
+        }
+    })
+    .catch(() => {
+        _baiToast('❌ Network error during sync', 'danger');
+        if (btn) btn.disabled = false;
+        if (icon) icon.className = 'fas fa-sync-alt me-1';
+    });
+}
+function _baiToast(msg, type) {
+    const t = document.getElementById('baiSyncToast');
+    if (!t) return;
+    const colors = {info:'#eff6ff',success:'#f0fdf4',warning:'#fffbeb',danger:'#fef2f2'};
+    const borders = {info:'#bfdbfe',success:'#bbf7d0',warning:'#fed7aa',danger:'#fecaca'};
+    t.style.display = 'block';
+    t.style.background = colors[type] || '#fff';
+    t.style.border = `1px solid ${borders[type] || '#e2e8f0'}`;
+    t.style.borderRadius = '10px';
+    t.innerHTML = msg;
+    if (type === 'success') setTimeout(() => { t.style.display = 'none'; }, 4500);
+}
+</script>
+{% endblock %}
+
 {% block dashboard_content %}
 <style>
 /* Flash */

@@ -28,10 +28,16 @@ def behavioural_insights():
         logger.error(f"Behavioural analysis error: {e}")
         analysis = None
 
+    from models_broker import BrokerAccount
+    broker_accounts = BrokerAccount.query.filter_by(
+        user_id=current_user.id, is_active=True
+    ).all()
+
     return render_template(
         'dashboard/behaviour/overview.html',
         analysis=analysis,
         page_title='Behavioural Insights',
+        broker_accounts=broker_accounts,
     )
 
 
