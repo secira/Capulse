@@ -507,6 +507,31 @@ def ensure_missing_columns(session):
          "ALTER TABLE portfolio_events ADD COLUMN IF NOT EXISTS amount FLOAT",
          "portfolio_events.amount")
 
+    # Fix FK constraints pointing to old 'broker_accounts' table — should be 'user_brokers'
+    fk_fixes = [
+        ("broker_holdings",  "broker_holdings_broker_account_id_fkey"),
+        ("broker_positions", "broker_positions_broker_account_id_fkey"),
+        ("broker_orders",    "broker_orders_broker_account_id_fkey"),
+    ]
+    from sqlalchemy import text
+    for table, constraint in fk_fixes:
+        try:
+            exists = session.execute(text(
+                "SELECT 1 FROM information_schema.table_constraints "
+                "WHERE constraint_name=:cn AND constraint_type='FOREIGN KEY'"
+            ), {"cn": constraint}).fetchone()
+            if exists:
+                session.execute(text(f"ALTER TABLE {table} DROP CONSTRAINT {constraint}"))
+                session.execute(text(
+                    f"ALTER TABLE {table} ADD CONSTRAINT {constraint} "
+                    f"FOREIGN KEY (broker_account_id) REFERENCES user_brokers(id) ON DELETE CASCADE"
+                ))
+                session.commit()
+                logger.info(f"Fixed FK constraint {constraint} → user_brokers")
+        except Exception as e:
+            session.rollback()
+            logger.warning(f"Could not fix FK constraint {constraint}: {e}")
+
     logger.info("Column checks complete.")
 
 
