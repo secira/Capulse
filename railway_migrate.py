@@ -638,6 +638,39 @@ def seed_defaults():
         logger.warning("seed_defaults() skipped: %s", exc)
 
 
+def seed_research_list():
+    """Merge all RESEARCH_LIST_STOCKS into research_list — safe to re-run (ON CONFLICT DO NOTHING)."""
+    try:
+        from seed_data import RESEARCH_LIST_STOCKS
+        from app import db, app
+        with app.app_context():
+            from sqlalchemy import text
+            inserted = 0
+            skipped = 0
+            with db.engine.begin() as conn:
+                for stock in RESEARCH_LIST_STOCKS:
+                    result = conn.execute(
+                        text("""
+                            INSERT INTO research_list (symbol, company_name, asset_type, sector, is_active, tenant_id)
+                            VALUES (:symbol, :company_name, :asset_type, :sector, TRUE, 'live')
+                            ON CONFLICT (symbol) DO NOTHING
+                        """),
+                        {
+                            'symbol':       stock['symbol'],
+                            'company_name': stock['company_name'],
+                            'asset_type':   stock.get('asset_type', 'stocks'),
+                            'sector':       stock.get('sector', ''),
+                        }
+                    )
+                    if result.rowcount:
+                        inserted += 1
+                    else:
+                        skipped += 1
+            logger.info("Research list seed complete — %d inserted, %d already existed.", inserted, skipped)
+    except Exception as exc:
+        logger.warning("seed_research_list() skipped: %s", exc)
+
+
 # ─────────────────────────────────────────────
 # Alembic runner
 # ─────────────────────────────────────────────
@@ -677,6 +710,7 @@ def run_migrations():
         logger.warning("Post-Alembic column patch skipped: %s", exc)
 
     seed_defaults()
+    seed_research_list()
 
 
 # ─────────────────────────────────────────────
