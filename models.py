@@ -773,7 +773,10 @@ class ManualMutualFundHolding(db.Model):
     # Portfolio Classification
     portfolio_name = db.Column(db.String(100), default='Default')
     asset_class = db.Column(db.String(50), default='Mutual Fund')
-    
+
+    # Platform / Broker where fund was purchased (free text, e.g. "Zerodha", "Groww", "MFCentral")
+    platform_name = db.Column(db.String(100), nullable=True)
+
     # Additional Information
     notes = db.Column(db.Text, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
@@ -1068,7 +1071,10 @@ class ManualCommodityHolding(db.Model):
     # Portfolio Classification
     portfolio_name = db.Column(db.String(100), default='Default')
     asset_class = db.Column(db.String(50), default='Commodity')
-    
+
+    # Platform / Broker where commodity was purchased (free text, e.g. "Zerodha", "Tanishq", "Augmont")
+    platform_name = db.Column(db.String(100), nullable=True)
+
     # Additional Information
     notes = db.Column(db.Text, nullable=True)
     is_active = db.Column(db.Boolean, default=True)

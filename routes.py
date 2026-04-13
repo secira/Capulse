@@ -2872,6 +2872,7 @@ def dashboard_mutual_funds():
                 stamp_duty=float(request.form.get('stamp_duty') or 0),
                 stt=float(request.form.get('stt') or 0),
                 other_charges=float(request.form.get('other_charges') or 0),
+                platform_name=request.form.get('platform_name'),
                 portfolio_name=request.form.get('portfolio_name', 'Default'),
                 notes=request.form.get('notes')
             )
@@ -2914,6 +2915,7 @@ def dashboard_mutual_funds():
             'current_value': holding.current_value,
             'unrealized_pnl': holding.unrealized_pnl,
             'unrealized_pnl_percentage': holding.unrealized_pnl_percentage,
+            'platform_name': holding.platform_name,
             'source': 'manual'
         })
     
@@ -3186,6 +3188,7 @@ def dashboard_commodities():
                 locker_number=request.form.get('locker_number'),
                 locker_rent_annual=float(request.form.get('locker_rent_annual') or 0),
                 insurance_annual=float(request.form.get('insurance_annual') or 0),
+                platform_name=request.form.get('platform_name'),
                 digital_platform=request.form.get('digital_platform'),
                 digital_account_id=request.form.get('digital_account_id'),
                 bond_issue_number=request.form.get('bond_issue_number'),

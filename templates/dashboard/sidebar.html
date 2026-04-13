@@ -196,16 +196,6 @@
                         </li>
                         {% endif %}
 
-                        {% if portfolio_flags.get('show_fixed_deposits', false) %}
-                        <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'dashboard_fixed_deposits' else '' }}"
-                               href="{{ url_for('dashboard_fixed_deposits') }}">
-                                <i class="nav-icon fas fa-landmark"></i>
-                                <span class="nav-text">Fixed Income</span>
-                            </a>
-                        </li>
-                        {% endif %}
-
                         <li class="nav-item submenu-item">
                             <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'dashboard_futures_options' else '' }}"
                                href="{{ url_for('dashboard_futures_options') }}">
@@ -213,16 +203,6 @@
                                 <span class="nav-text">F&O</span>
                             </a>
                         </li>
-
-                        {% if portfolio_flags.get('show_real_estate', false) %}
-                        <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'dashboard_real_estate' else '' }}"
-                               href="{{ url_for('dashboard_real_estate') }}">
-                                <i class="nav-icon fas fa-building"></i>
-                                <span class="nav-text">Real Estate</span>
-                            </a>
-                        </li>
-                        {% endif %}
 
                         {% if portfolio_flags.get('show_commodities', true) %}
                         <li class="nav-item submenu-item">

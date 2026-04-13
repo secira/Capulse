@@ -405,6 +405,20 @@ def ensure_missing_columns(session):
     for ddl, label in cols:
         _col(session, ddl, label)
 
+    # ── manual_mutual_fund_holdings ────────────────────────────
+    cols = [
+        ("ALTER TABLE manual_mutual_fund_holdings ADD COLUMN IF NOT EXISTS platform_name VARCHAR(100)",                               "manual_mutual_fund_holdings.platform_name"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
+    # ── manual_commodity_holdings ──────────────────────────────
+    cols = [
+        ("ALTER TABLE manual_commodity_holdings ADD COLUMN IF NOT EXISTS platform_name VARCHAR(100)",                                 "manual_commodity_holdings.platform_name"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
     # ── market_analysis ────────────────────────────────────────
     cols = [
         ("ALTER TABLE market_analysis ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                               "market_analysis.tenant_id"),

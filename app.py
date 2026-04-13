@@ -339,6 +339,8 @@ with app.app_context():
             created_at TIMESTAMP DEFAULT NOW(),
             acknowledged_at TIMESTAMP
         )''',
+        'ALTER TABLE manual_mutual_fund_holdings ADD COLUMN IF NOT EXISTS platform_name VARCHAR(100)',
+        'ALTER TABLE manual_commodity_holdings ADD COLUMN IF NOT EXISTS platform_name VARCHAR(100)',
     ]
     try:
         with db.engine.connect() as _conn:

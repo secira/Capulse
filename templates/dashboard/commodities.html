@@ -128,6 +128,13 @@
                     <input type="number" class="form-control" id="other_charges" name="other_charges" step="0.01" placeholder="0.00">
                 </div>
                 
+                <!-- Bought From / Platform -->
+                <div class="col-md-6 mb-3">
+                    <label for="platform_name" class="form-label">Bought From / Platform</label>
+                    <input type="text" class="form-control" id="platform_name" name="platform_name" placeholder="e.g., Zerodha, Tanishq, Augmont, PhonePe">
+                    <small class="text-muted">Enter broker, jeweler or platform name (any)</small>
+                </div>
+
                 <!-- Vendor Details -->
                 <div class="col-md-6 mb-3">
                     <label for="vendor_name" class="form-label">Vendor/Jeweler Name</label>
@@ -313,6 +320,7 @@
                         <th>Current Value</th>
                         <th>Gain/Loss</th>
                         <th>Gain %</th>
+                        <th>Bought From</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -336,6 +344,13 @@
                             {% if holding.unrealized_gain_percentage %}
                             {{ "{:,.1f}".format(holding.unrealized_gain_percentage) }}%
                             {% else %}-{% endif %}
+                        </td>
+                        <td>
+                            {% if holding.platform_name %}
+                            <span class="badge bg-primary"><i class="fas fa-store me-1"></i>{{ holding.platform_name }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary text-white"><i class="fas fa-pencil-alt me-1"></i>Manual</span>
+                            {% endif %}
                         </td>
                         <td>
                             <button class="btn btn-sm btn-outline-primary" onclick="editHolding({{ holding.id }})">

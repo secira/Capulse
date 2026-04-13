@@ -118,6 +118,11 @@
                 
                 <!-- Additional Info -->
                 <div class="col-md-6 mb-3">
+                    <label for="platform_name" class="form-label">Bought From / Platform</label>
+                    <input type="text" class="form-control" id="platform_name" name="platform_name" placeholder="e.g., Zerodha, Groww, MFCentral, HDFC Bank">
+                    <small class="text-muted">Enter broker or platform name (any)</small>
+                </div>
+                <div class="col-md-6 mb-3">
                     <label for="portfolio_name" class="form-label">Portfolio Name</label>
                     <input type="text" class="form-control" id="portfolio_name" name="portfolio_name" value="Default" placeholder="Default">
                 </div>
@@ -205,7 +210,7 @@
                         <th>Current Value</th>
                         <th>P&L</th>
                         <th>P&L %</th>
-                        <th>Source</th>
+                        <th>Bought From</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -231,10 +236,10 @@
                             {% else %}-{% endif %}
                         </td>
                         <td>
-                            {% if holding.source == 'manual' %}
-                            <span class="badge bg-info">Manual</span>
+                            {% if holding.platform_name %}
+                            <span class="badge bg-primary"><i class="fas fa-store me-1"></i>{{ holding.platform_name }}</span>
                             {% else %}
-                            <span class="badge bg-primary">Broker</span>
+                            <span class="badge bg-secondary text-white"><i class="fas fa-pencil-alt me-1"></i>Manual</span>
                             {% endif %}
                         </td>
                         <td>
