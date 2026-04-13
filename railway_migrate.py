@@ -387,6 +387,125 @@ def ensure_missing_columns(session):
     for ddl, label in cols:
         _col(session, ddl, label)
 
+    # ── manual_trade_imports ──────────────────────────────────
+    cols = [
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                          "manual_trade_imports.tenant_id"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS asset_type VARCHAR(20) DEFAULT 'STOCK'",                         "manual_trade_imports.asset_type"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS instrument_detail VARCHAR(100) DEFAULT ''",                      "manual_trade_imports.instrument_detail"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS pnl_percentage FLOAT DEFAULT 0.0",                               "manual_trade_imports.pnl_percentage"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS holding_period_hours FLOAT DEFAULT 0.0",                         "manual_trade_imports.holding_period_hours"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS total_charges FLOAT DEFAULT 0.0",                                "manual_trade_imports.total_charges"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS net_pnl FLOAT DEFAULT 0.0",                                      "manual_trade_imports.net_pnl"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'csv_upload'",                        "manual_trade_imports.source"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS strategy_name VARCHAR(100) DEFAULT 'Manual Import'",             "manual_trade_imports.strategy_name"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS exit_reason VARCHAR(20) DEFAULT 'MANUAL'",                       "manual_trade_imports.exit_reason"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS broker_name VARCHAR(50) DEFAULT 'Manual'",                       "manual_trade_imports.broker_name"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
+    # ── market_analysis ────────────────────────────────────────
+    cols = [
+        ("ALTER TABLE market_analysis ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                               "market_analysis.tenant_id"),
+        ("ALTER TABLE market_analysis ADD COLUMN IF NOT EXISTS ema_signal VARCHAR(10)",                                               "market_analysis.ema_signal"),
+        ("ALTER TABLE market_analysis ADD COLUMN IF NOT EXISTS rsi_value FLOAT",                                                     "market_analysis.rsi_value"),
+        ("ALTER TABLE market_analysis ADD COLUMN IF NOT EXISTS macd_signal VARCHAR(10)",                                              "market_analysis.macd_signal"),
+        ("ALTER TABLE market_analysis ADD COLUMN IF NOT EXISTS supertrend_signal VARCHAR(10)",                                        "market_analysis.supertrend_signal"),
+        ("ALTER TABLE market_analysis ADD COLUMN IF NOT EXISTS support_level FLOAT",                                                  "market_analysis.support_level"),
+        ("ALTER TABLE market_analysis ADD COLUMN IF NOT EXISTS resistance_level FLOAT",                                               "market_analysis.resistance_level"),
+        ("ALTER TABLE market_analysis ADD COLUMN IF NOT EXISTS pivot_point FLOAT",                                                    "market_analysis.pivot_point"),
+        ("ALTER TABLE market_analysis ADD COLUMN IF NOT EXISTS recommended_strategies TEXT",                                          "market_analysis.recommended_strategies"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
+    # ── chat_conversations / chat_messages ────────────────────
+    cols = [
+        ("ALTER TABLE chat_conversations ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                            "chat_conversations.tenant_id"),
+        ("ALTER TABLE chat_conversations ADD COLUMN IF NOT EXISTS title VARCHAR(200)",                                                "chat_conversations.title"),
+        ("ALTER TABLE chat_conversations ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE",                                   "chat_conversations.is_active"),
+        ("ALTER TABLE chat_conversations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()",                                "chat_conversations.updated_at"),
+        ("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                                 "chat_messages.tenant_id"),
+        ("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) DEFAULT 'text'",                               "chat_messages.message_type"),
+        ("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS metadata_json JSONB",                                                    "chat_messages.metadata_json"),
+        ("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE",                                         "chat_messages.is_read"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
+    # ── research_conversations / research_messages ────────────
+    cols = [
+        ("ALTER TABLE research_conversations ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                        "research_conversations.tenant_id"),
+        ("ALTER TABLE research_conversations ADD COLUMN IF NOT EXISTS asset_type VARCHAR(50)",                                        "research_conversations.asset_type"),
+        ("ALTER TABLE research_conversations ADD COLUMN IF NOT EXISTS symbol VARCHAR(50)",                                            "research_conversations.symbol"),
+        ("ALTER TABLE research_conversations ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE",                               "research_conversations.is_active"),
+        ("ALTER TABLE research_messages ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                             "research_messages.tenant_id"),
+        ("ALTER TABLE research_messages ADD COLUMN IF NOT EXISTS metadata_json JSONB",                                                "research_messages.metadata_json"),
+        ("ALTER TABLE research_messages ADD COLUMN IF NOT EXISTS sources JSONB",                                                      "research_messages.sources"),
+        ("ALTER TABLE research_messages ADD COLUMN IF NOT EXISTS tokens_used INTEGER DEFAULT 0",                                     "research_messages.tokens_used"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
+    # ── vector_documents / source_citations ──────────────────
+    cols = [
+        ("ALTER TABLE vector_documents ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                              "vector_documents.tenant_id"),
+        ("ALTER TABLE vector_documents ADD COLUMN IF NOT EXISTS document_type VARCHAR(50)",                                          "vector_documents.document_type"),
+        ("ALTER TABLE vector_documents ADD COLUMN IF NOT EXISTS embedding_model VARCHAR(50)",                                        "vector_documents.embedding_model"),
+        ("ALTER TABLE vector_documents ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE",                                     "vector_documents.is_active"),
+        ("ALTER TABLE source_citations ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                              "source_citations.tenant_id"),
+        ("ALTER TABLE source_citations ADD COLUMN IF NOT EXISTS relevance_score FLOAT",                                               "source_citations.relevance_score"),
+        ("ALTER TABLE source_citations ADD COLUMN IF NOT EXISTS cited_at TIMESTAMP DEFAULT now()",                                   "source_citations.cited_at"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
+    # ── trade_recommendations / active_trades / trade_history ─
+    cols = [
+        ("ALTER TABLE trade_recommendations ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                         "trade_recommendations.tenant_id"),
+        ("ALTER TABLE trade_recommendations ADD COLUMN IF NOT EXISTS signal_source VARCHAR(50)",                                     "trade_recommendations.signal_source"),
+        ("ALTER TABLE trade_recommendations ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE",                                "trade_recommendations.is_active"),
+        ("ALTER TABLE active_trades ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                                 "active_trades.tenant_id"),
+        ("ALTER TABLE active_trades ADD COLUMN IF NOT EXISTS broker_account_id INTEGER",                                             "active_trades.broker_account_id"),
+        ("ALTER TABLE active_trades ADD COLUMN IF NOT EXISTS exit_reason VARCHAR(50)",                                               "active_trades.exit_reason"),
+        ("ALTER TABLE trade_history ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                                 "trade_history.tenant_id"),
+        ("ALTER TABLE trade_history ADD COLUMN IF NOT EXISTS broker_account_id INTEGER",                                             "trade_history.broker_account_id"),
+        ("ALTER TABLE trade_history ADD COLUMN IF NOT EXISTS exit_reason VARCHAR(50)",                                               "trade_history.exit_reason"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
+    # ── payment / user_payments ───────────────────────────────
+    cols = [
+        ("ALTER TABLE payment ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                                       "payment.tenant_id"),
+        ("ALTER TABLE payment ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100)",                                             "payment.razorpay_payment_id"),
+        ("ALTER TABLE payment ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100)",                                               "payment.razorpay_order_id"),
+        ("ALTER TABLE payment ADD COLUMN IF NOT EXISTS razorpay_signature VARCHAR(200)",                                              "payment.razorpay_signature"),
+        ("ALTER TABLE payment ADD COLUMN IF NOT EXISTS failure_reason TEXT",                                                          "payment.failure_reason"),
+        ("ALTER TABLE payment ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()",                                           "payment.updated_at"),
+        ("ALTER TABLE user_payments ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                                  "user_payments.tenant_id"),
+        ("ALTER TABLE user_payments ADD COLUMN IF NOT EXISTS gateway_response JSONB",                                                 "user_payments.gateway_response"),
+        ("ALTER TABLE user_payments ADD COLUMN IF NOT EXISTS failure_reason TEXT",                                                    "user_payments.failure_reason"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
+    # ── site_config ───────────────────────────────────────────
+    _col(session,
+         "ALTER TABLE site_config ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()",
+         "site_config.updated_at")
+
+    # ── portfolio_events ──────────────────────────────────────
+    _col(session,
+         "ALTER TABLE portfolio_events ADD COLUMN IF NOT EXISTS event_type VARCHAR(50)",
+         "portfolio_events.event_type")
+    _col(session,
+         "ALTER TABLE portfolio_events ADD COLUMN IF NOT EXISTS symbol VARCHAR(50)",
+         "portfolio_events.symbol")
+    _col(session,
+         "ALTER TABLE portfolio_events ADD COLUMN IF NOT EXISTS amount FLOAT",
+         "portfolio_events.amount")
+
     logger.info("Column checks complete.")
 
 
