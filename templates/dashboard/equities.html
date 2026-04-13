@@ -192,7 +192,7 @@
                         <th>Current Value</th>
                         <th>P&L</th>
                         <th>P&L %</th>
-                        <th>Source</th>
+                        <th>Broker</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -218,9 +218,13 @@
                         </td>
                         <td>
                             {% if holding.source == 'manual' %}
-                            <span class="badge bg-info">Manual</span>
+                            <span class="badge" style="background:#64748b; font-size:11px;">
+                                <i class="fas fa-pencil-alt me-1" style="font-size:9px;"></i>Manual
+                            </span>
                             {% else %}
-                            <span class="badge bg-primary">Broker</span>
+                            <span class="badge" style="background:#2563eb; font-size:11px;">
+                                <i class="fas fa-link me-1" style="font-size:9px;"></i>{{ holding.broker_name or 'Broker' }}
+                            </span>
                             {% endif %}
                         </td>
                         <td>

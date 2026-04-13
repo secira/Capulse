@@ -2623,6 +2623,7 @@ def dashboard_equities():
     # Get broker holdings AND open positions if user has broker access
     broker_holdings_list = []
     broker_positions_list = []
+    acc_id_to_name = {}   # broker_account_id → broker display name
     if current_user.can_access_menu('dashboard_broker_accounts'):
         try:
             from models_broker import BrokerAccount, BrokerPosition
@@ -2630,7 +2631,9 @@ def dashboard_equities():
                 user_id=current_user.id,
                 connection_status='connected'
             ).all()
-            
+
+            acc_id_to_name = {account.id: account.broker_name for account in broker_accounts}
+
             for account in broker_accounts:
                 broker_holdings = BrokerHolding.query.filter_by(
                     broker_account_id=account.id,
@@ -2674,10 +2677,11 @@ def dashboard_equities():
             'current_value': holding.current_value,
             'unrealized_pnl': holding.unrealized_pnl,
             'unrealized_pnl_percentage': holding.unrealized_pnl_percentage,
-            'source': 'manual'
+            'source': 'manual',
+            'broker_name': None,
         })
     
-    # Add broker holdings
+    # Add broker holdings — include actual broker name
     for holding in broker_holdings_list:
         combined_holdings.append({
             'id': holding.id,
@@ -2690,7 +2694,8 @@ def dashboard_equities():
             'current_value': holding.total_value,
             'unrealized_pnl': holding.pnl,
             'unrealized_pnl_percentage': holding.pnl_percentage,
-            'source': 'broker'
+            'source': 'broker',
+            'broker_name': acc_id_to_name.get(holding.broker_account_id, 'Broker'),
         })
     
     # Calculate summary
