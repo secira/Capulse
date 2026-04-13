@@ -206,7 +206,7 @@
                         </li>
                         {% endif %}
 
-                        {% if portfolio_flags.get('show_futures_options', false) %}
+                        {% if portfolio_flags.get('show_futures_options', true) %}
                         <li class="nav-item submenu-item">
                             <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'dashboard_futures_options' else '' }}"
                                href="{{ url_for('dashboard_futures_options') }}">
