@@ -2,7 +2,7 @@
 Broker Data Quality & Freshness Service — Target Capital
 Provides data freshness scoring, quality validation, and pre-trade safety checks.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,6 +12,8 @@ FRESHNESS_THRESHOLDS = {
     'medium': timedelta(minutes=30),
     'low':    timedelta(hours=2),
 }
+
+DUPLICATE_ORDER_WINDOW = timedelta(seconds=30)
 
 
 class BrokerDataQuality:
@@ -90,7 +92,7 @@ class BrokerDataQuality:
         }
 
     def get_quality_score(self):
-        from models_broker import BrokerAccount
+        from models_broker import BrokerAccount, BrokerHolding, BrokerPosition, BrokerOrder
         from models import ManualTradeImport
         accounts = BrokerAccount.query.filter_by(
             user_id=self.user_id, is_active=True, connection_status='connected'
@@ -102,6 +104,8 @@ class BrokerDataQuality:
         if not accounts:
             return {'score': 0, 'issues': ['No broker accounts connected'], 'grade': 'N/A'}
 
+        acct_ids = [a.id for a in accounts]
+
         for acct in accounts:
             if not acct.last_sync:
                 issues.append(f"{acct.broker_name}: Never synced")
@@ -112,6 +116,47 @@ class BrokerDataQuality:
             if acct.sync_status == 'failed':
                 issues.append(f"{acct.broker_name}: Last sync failed")
                 score -= 10
+
+        holdings_count = BrokerHolding.query.filter(
+            BrokerHolding.broker_account_id.in_(acct_ids)
+        ).count()
+        positions_count = BrokerPosition.query.filter(
+            BrokerPosition.broker_account_id.in_(acct_ids)
+        ).count()
+        orders_count = BrokerOrder.query.filter(
+            BrokerOrder.broker_account_id.in_(acct_ids)
+        ).count()
+
+        zero_price_holdings = BrokerHolding.query.filter(
+            BrokerHolding.broker_account_id.in_(acct_ids),
+            (BrokerHolding.current_price == None) | (BrokerHolding.current_price == 0)
+        ).count()
+        if zero_price_holdings > 0:
+            issues.append(f"{zero_price_holdings} holding(s) missing current price")
+            score -= min(zero_price_holdings * 2, 10)
+
+        orphan_positions = BrokerPosition.query.filter(
+            BrokerPosition.broker_account_id.in_(acct_ids),
+            BrokerPosition.quantity == 0
+        ).count()
+        if orphan_positions > 0:
+            issues.append(f"{orphan_positions} zero-quantity position(s) — may be stale")
+            score -= min(orphan_positions * 2, 8)
+
+        rejected_orders = BrokerOrder.query.filter(
+            BrokerOrder.broker_account_id.in_(acct_ids),
+            BrokerOrder.order_status == 'REJECTED'
+        ).count()
+        if rejected_orders > 3:
+            issues.append(f"{rejected_orders} rejected orders — check broker settings")
+            score -= 5
+
+        pending_orders = BrokerOrder.query.filter(
+            BrokerOrder.broker_account_id.in_(acct_ids),
+            BrokerOrder.order_status.in_(['PENDING', 'OPEN'])
+        ).count()
+        if pending_orders > 0:
+            issues.append(f"{pending_orders} open/pending order(s) awaiting execution")
 
         trades = ManualTradeImport.query.filter_by(
             user_id=self.user_id, tenant_id=self.tenant_id
@@ -146,9 +191,20 @@ class BrokerDataQuality:
         else:
             grade = 'Poor'
 
-        return {'score': score, 'issues': issues, 'grade': grade}
+        return {
+            'score': score,
+            'issues': issues,
+            'grade': grade,
+            'counts': {
+                'holdings': holdings_count,
+                'positions': positions_count,
+                'orders': orders_count,
+                'manual_trades': len(trades) if trades else 0,
+            },
+        }
 
     def pre_trade_validation(self, broker_account, order_data):
+        from models_broker import BrokerOrder
         checks = []
         passed = True
 
@@ -199,6 +255,23 @@ class BrokerDataQuality:
                 passed = False
             else:
                 checks.append({'check': 'Margin Check', 'pass': True, 'detail': f'₹{margin:,.0f} available'})
+
+        if symbol and qty and qty > 0:
+            cutoff = datetime.utcnow() - DUPLICATE_ORDER_WINDOW
+            recent_dupe = BrokerOrder.query.filter(
+                BrokerOrder.broker_account_id == broker_account.id,
+                BrokerOrder.symbol == symbol,
+                BrokerOrder.quantity == qty,
+                BrokerOrder.transaction_type == order_data.get('transaction_type', 'BUY'),
+                BrokerOrder.order_status.in_(['PENDING', 'OPEN', 'COMPLETE']),
+                BrokerOrder.created_at >= cutoff
+            ).first()
+            if recent_dupe:
+                checks.append({'check': 'Duplicate Guard', 'pass': False,
+                               'detail': f'Identical order placed {self._format_age(int((datetime.utcnow() - recent_dupe.created_at).total_seconds() / 60))} — possible double-submit'})
+                passed = False
+            else:
+                checks.append({'check': 'Duplicate Guard', 'pass': True, 'detail': 'No recent duplicates'})
 
         return {'passed': passed, 'checks': checks}
 

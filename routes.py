@@ -1077,7 +1077,7 @@ def login():
                             try:
                                 _acct.sync_status = 'syncing'
                                 db.session.commit()
-                                BrokerService.sync_broker_data(_acct.id, ['holdings', 'positions'])
+                                BrokerService.sync_broker_data(_acct.id, ['holdings', 'positions', 'orders'])
                                 _acct.sync_status = 'success'
                                 _acct.last_sync = datetime.utcnow()
                                 db.session.commit()
