@@ -67,12 +67,12 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3">
-                        <a href="{{ url_for('admin.add_trading_signal') }}" class="btn btn-success admin-btn w-100 mb-2">
+                        <a href="{{ url_for('admin.add_daily_signal') }}" class="btn btn-success admin-btn w-100 mb-2">
                             <i class="fas fa-plus me-2"></i>Add Trading Signal
                         </a>
                     </div>
                     <div class="col-md-3">
-                        <a href="{{ url_for('admin.trading_signals') }}" class="btn btn-info admin-btn w-100 mb-2">
+                        <a href="{{ url_for('admin.daily_signals') }}" class="btn btn-info admin-btn w-100 mb-2">
                             <i class="fas fa-chart-line me-2"></i>Manage Signals
                         </a>
                     </div>
@@ -100,7 +100,7 @@
                 <h5 class="mb-0">
                     <i class="fas fa-chart-line me-2"></i>Recent Trading Signals
                 </h5>
-                <a href="{{ url_for('admin.trading_signals') }}" class="btn btn-sm btn-light">View All</a>
+                <a href="{{ url_for('admin.daily_signals') }}" class="btn btn-sm btn-light">View All</a>
             </div>
             <div class="card-body">
                 {% if recent_signals %}
@@ -167,7 +167,7 @@
                     <div class="text-center py-4">
                         <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
                         <p class="text-muted">No trading signals created yet.</p>
-                        <a href="{{ url_for('admin.add_trading_signal') }}" class="btn btn-primary admin-btn">
+                        <a href="{{ url_for('admin.add_daily_signal') }}" class="btn btn-primary admin-btn">
                             <i class="fas fa-plus me-2"></i>Create First Signal
                         </a>
                     </div>
