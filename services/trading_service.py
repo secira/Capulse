@@ -589,23 +589,21 @@ class TradingService:
             return {'success': False, 'error': str(e)}
     
     def _get_current_price(self, symbol: str) -> float:
-        """Get current price for a symbol (mock implementation)"""
-        # In production, this would fetch real-time prices
-        base_prices = {
-            'NIFTY': 25000,
-            'BANKNIFTY': 52000,
-            'RELIANCE': 2850,
-            'HDFCBANK': 1630,
-            'TCS': 4100,
-            'INFY': 1450
-        }
-        base_price = base_prices.get(symbol, 1500)
-        # Add some random variation (±2%)
-        variation = random.uniform(-0.02, 0.02)
-        return round(base_price * (1 + variation), 2)
-    
+        """Get live price for a single symbol using the real price service."""
+        try:
+            from services.stock_price_service import stock_price_service
+            result = stock_price_service.get_real_price(symbol)
+            price = result.get('price', 0)
+            if price and float(price) > 0:
+                return float(price)
+        except Exception:
+            pass
+        return 0.0
+
     def get_all_assets(self) -> List[Dict]:
-        """Get all available trading assets"""
+        """Get all available trading assets.
+        Returns DB-stored prices; the Trade Now UI fetches live prices per-asset via AJAX.
+        """
         try:
             assets = TradingAsset.query.filter_by(is_active=True).all()
             return [
@@ -616,7 +614,7 @@ class TradingService:
                     'asset_class': asset.asset_class,
                     'exchange': asset.exchange,
                     'sector': asset.sector,
-                    'current_price': self._get_current_price(asset.symbol),
+                    'current_price': float(asset.current_price) if asset.current_price else 0,
                     'lot_size': asset.lot_size
                 }
                 for asset in assets

@@ -295,6 +295,29 @@
 </div>
 
 <script>
+// ─── Live Price Fetcher ────────────────────────────────────────────────────
+// Fetches the live market price for `symbol` from /api/nse/quote/<symbol>.
+// Uses yfinance → NSE API → fallback prices (no mock/random noise).
+// keepTarget / keepSL : passed through to populatePriceDefaults.
+function fetchLivePrice(symbol, keepTarget, keepSL) {
+    if (!symbol) return;
+    fetch('/api/nse/quote/' + encodeURIComponent(symbol))
+        .then(r => r.json())
+        .then(data => {
+            const priceDisplay = document.getElementById('currentPriceDisplay');
+            if (data.success && data.data && parseFloat(data.data.current_price) > 0) {
+                populatePriceDefaults(data.data.current_price, keepTarget, keepSL);
+            } else {
+                // API returned no price — clear the spinner and show a message
+                if (priceDisplay) priceDisplay.textContent = 'Live price unavailable';
+            }
+        })
+        .catch(() => {
+            const priceDisplay = document.getElementById('currentPriceDisplay');
+            if (priceDisplay) priceDisplay.textContent = 'Live price unavailable';
+        });
+}
+
 // ─── Price Defaults Helper ─────────────────────────────────────────────────
 // currentPrice  : the live market price (number or string)
 // keepTarget    : true = don't overwrite Target Price (signal already set it)
@@ -352,8 +375,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedOption = this.options[this.selectedIndex];
         if (!selectedOption || !selectedOption.value) return;
 
+        const symbol     = selectedOption.value;
         const assetClass = selectedOption.dataset.assetClass;
-        const assetPrice = selectedOption.dataset.price;
 
         // Show/hide options fields
         optionsFields.style.display = (assetClass === 'options') ? 'block' : 'none';
@@ -363,10 +386,15 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (assetClass === 'futures')  quantityInput.value = 1;
         else                                quantityInput.value = 100;
 
-        // Auto-populate price defaults from asset's stored price
-        if (assetPrice && parseFloat(assetPrice) > 0) {
-            populatePriceDefaults(assetPrice, false, false);
-        }
+        // Show loading spinner in the price banner while we fetch
+        const priceSection = document.getElementById('currentPriceSection');
+        const priceDisplay = document.getElementById('currentPriceDisplay');
+        if (priceSection) priceSection.classList.remove('d-none');
+        if (priceDisplay) priceDisplay.innerHTML =
+            '<i class="fas fa-spinner fa-spin me-1" style="font-size:14px;"></i>Fetching live price…';
+
+        // Fetch real-time price from the market quote API
+        fetchLivePrice(symbol, false, false);
     });
 
     // Set Signal Source label if arriving from another screen
@@ -447,30 +475,76 @@ function prePopulateForm(urlParams) {
         }
     }
 
-    // ── 2. Determine the best "current price" to use ─────────────────────────
-    // Priority: explicit ?price= param (from source screen) > dropdown stored price
-    const currentPrice = (price && parseFloat(price) > 0)
-        ? parseFloat(price)
-        : dropdownPrice;
+    // ── 2. Signal-provided entry price (from source screen) ──────────────────
+    const signalPrice = (price && parseFloat(price) > 0) ? parseFloat(price) : null;
+    const hasSignalTarget = !!(target);
+    const hasSignalSL     = !!(stopLoss);
 
-    // ── 3. Auto-fill price defaults ───────────────────────────────────────────
-    // If the source screen sent explicit signal targets/SL (e.g. Trading Signals page),
-    // honour those and don't overwrite them with the calculated defaults.
-    if (currentPrice) {
-        const hasSignalTarget = !!(target);
-        const hasSignalSL     = !!(stopLoss);
-        populatePriceDefaults(currentPrice, hasSignalTarget, hasSignalSL);
+    // ── 3. Always fetch the live market price for the banner ─────────────────
+    // The "Live Market Price" banner shows the real NSE/yfinance price.
+    // If the signal also provided an entry price, that fills the Entry Price
+    // input (overrides the +1% default), and signal target/SL are preserved.
+    const priceSection = document.getElementById('currentPriceSection');
+    const priceDisplay = document.getElementById('currentPriceDisplay');
+    if (priceSection) priceSection.classList.remove('d-none');
+    if (priceDisplay) priceDisplay.innerHTML =
+        '<i class="fas fa-spinner fa-spin me-1" style="font-size:14px;"></i>Fetching live price…';
 
-        // Apply the explicit signal target / SL on top of the defaults
-        if (hasSignalTarget) {
-            const targetInput = document.getElementById('targetPriceInput');
-            if (targetInput) targetInput.value = parseFloat(target).toFixed(2);
-        }
-        if (hasSignalSL) {
-            const slInput = document.getElementById('stopLossInput');
-            if (slInput) slInput.value = parseFloat(stopLoss).toFixed(2);
-        }
-    }
+    fetch('/api/nse/quote/' + encodeURIComponent(symbol))
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.data && parseFloat(data.data.current_price) > 0) {
+                const livePrice = parseFloat(data.data.current_price);
+                // Show live price in the banner
+                if (priceDisplay) {
+                    priceDisplay.textContent = '₹' + livePrice.toLocaleString('en-IN',
+                        {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+                // Compute hint labels from the live price
+                const hintEntry  = document.getElementById('hintEntry');
+                const hintTarget = document.getElementById('hintTarget');
+                const hintSL     = document.getElementById('hintSL');
+                if (hintEntry)  hintEntry.textContent  = '₹' + (livePrice * 1.01).toFixed(2);
+                if (hintTarget) hintTarget.textContent = '₹' + (livePrice + 20).toFixed(2);
+                if (hintSL)     hintSL.textContent     = '₹' + (livePrice - 10).toFixed(2);
+
+                // Fill entry price: prefer signal price, fall back to live+1%
+                const entryInput = document.getElementById('entryPriceInput');
+                if (entryInput && !entryInput.value) {
+                    entryInput.value = signalPrice
+                        ? signalPrice.toFixed(2)
+                        : (livePrice * 1.01).toFixed(2);
+                }
+                // Fill target & SL only if not already set by signal
+                const targetInput = document.getElementById('targetPriceInput');
+                const slInput     = document.getElementById('stopLossInput');
+                if (targetInput && !hasSignalTarget)
+                    targetInput.value = (livePrice + 20).toFixed(2);
+                if (slInput && !hasSignalSL)
+                    slInput.value = (livePrice - 10).toFixed(2);
+            } else {
+                // No live price — fall back to signal price or stored price
+                if (priceDisplay) priceDisplay.textContent = 'Live price unavailable';
+                const fallback = signalPrice || dropdownPrice;
+                if (fallback && fallback > 0)
+                    populatePriceDefaults(fallback, hasSignalTarget, hasSignalSL);
+            }
+            // Always restore signal's explicit target / SL (highest priority)
+            if (hasSignalTarget) {
+                const targetInput = document.getElementById('targetPriceInput');
+                if (targetInput) targetInput.value = parseFloat(target).toFixed(2);
+            }
+            if (hasSignalSL) {
+                const slInput = document.getElementById('stopLossInput');
+                if (slInput) slInput.value = parseFloat(stopLoss).toFixed(2);
+            }
+        })
+        .catch(() => {
+            if (priceDisplay) priceDisplay.textContent = 'Live price unavailable';
+            const fallback = signalPrice || dropdownPrice;
+            if (fallback && fallback > 0)
+                populatePriceDefaults(fallback, hasSignalTarget, hasSignalSL);
+        });
 
     // ── 4. Quantity ───────────────────────────────────────────────────────────
     const quantityInput = document.getElementById('quantityInput');
