@@ -3599,6 +3599,18 @@ def dashboard_futures_options():
     total_pnl = sum(p.unrealized_pnl or 0 for p in positions if p.position_status == 'Open')
     positions_count = len([p for p in positions if p.position_status == 'Open'])
 
+    # Fetch imported F&O trades from Behavioural AI / broker P&L imports
+    from models import ManualTradeImport
+    imported_fo_trades = ManualTradeImport.query.filter(
+        ManualTradeImport.user_id == current_user.id,
+        ManualTradeImport.asset_type.in_(['OPTION', 'FUTURES', 'FNO', 'F&O'])
+    ).order_by(ManualTradeImport.entry_time.desc()).all()
+
+    imported_wins  = sum(1 for t in imported_fo_trades if t.trade_result == 'WIN')
+    imported_losses = sum(1 for t in imported_fo_trades if t.trade_result == 'LOSS')
+    imported_total_pnl = sum(t.net_pnl or t.realized_pnl or 0 for t in imported_fo_trades)
+    imported_win_rate = round(imported_wins / len(imported_fo_trades) * 100, 1) if imported_fo_trades else 0
+
     # Fetch broker-synced F&O positions
     broker_fo_positions = []
     try:
@@ -3689,7 +3701,12 @@ def dashboard_futures_options():
                          positions_count=positions_count,
                          broker_fo_positions=broker_fo_positions,
                          broker_fo_unrealized=broker_fo_unrealized,
-                         broker_fo_realized=broker_fo_realized)
+                         broker_fo_realized=broker_fo_realized,
+                         imported_fo_trades=imported_fo_trades,
+                         imported_wins=imported_wins,
+                         imported_losses=imported_losses,
+                         imported_total_pnl=imported_total_pnl,
+                         imported_win_rate=imported_win_rate)
 
 @app.route('/api/futures-options/<int:position_id>', methods=['DELETE'])
 @login_required

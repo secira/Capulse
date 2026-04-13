@@ -161,49 +161,156 @@
 
 <div class="row">
     <!-- Summary Cards -->
-    <div class="col-md-3 mb-4">
-        <div class="card">
+    <div class="col-6 col-md-3 mb-4">
+        <div class="card h-100">
             <div class="card-body">
-                <h6 class="text-muted mb-2">Manual Investment</h6>
-                <h3 class="mb-0">₹{{ "{:,.0f}".format(total_investment) if total_investment else '0' }}</h3>
+                <h6 class="text-muted mb-1" style="font-size:12px;">Total Trades</h6>
+                <h3 class="mb-0">{{ imported_fo_trades|length + positions_count + broker_fo_positions|length }}</h3>
+                {% if imported_fo_trades %}
+                <small class="text-muted">{{ imported_fo_trades|length }} completed + {{ positions_count + broker_fo_positions|length }} open</small>
+                {% endif %}
             </div>
         </div>
     </div>
-    <div class="col-md-3 mb-4">
-        <div class="card">
+    <div class="col-6 col-md-3 mb-4">
+        <div class="card h-100" style="{% if imported_total_pnl < 0 %}border-color:#fca5a5;{% else %}border-color:#86efac;{% endif %}">
             <div class="card-body">
-                <h6 class="text-muted mb-2">Manual Unrealized P&L</h6>
-                <h3 class="mb-0 {% if total_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
-                    ₹{{ "{:,.0f}".format(total_pnl) if total_pnl else '0' }}
+                <h6 class="text-muted mb-1" style="font-size:12px;">Realised P&L (Closed)</h6>
+                <h3 class="mb-0 {% if imported_total_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    ₹{{ "{:,.0f}".format(imported_total_pnl) }}
                 </h3>
+                {% if imported_fo_trades %}
+                <small class="text-muted">{{ imported_wins }}W / {{ imported_losses }}L &nbsp;·&nbsp; {{ imported_win_rate }}% win</small>
+                {% endif %}
             </div>
         </div>
     </div>
-    <div class="col-md-3 mb-4">
-        <div class="card" style="{% if broker_fo_positions %}border-color:#fde68a;{% endif %}">
+    <div class="col-6 col-md-3 mb-4">
+        <div class="card h-100" style="{% if broker_fo_unrealized + broker_fo_realized < 0 %}border-color:#fca5a5;{% elif broker_fo_positions %}border-color:#fde68a;{% endif %}">
             <div class="card-body">
-                <h6 class="text-muted mb-2">
-                    Broker F&O P&L
-                    {% if broker_fo_positions %}<span class="badge ms-1" style="background:#d97706; font-size:10px;">LIVE</span>{% endif %}
+                <h6 class="text-muted mb-1" style="font-size:12px;">
+                    Open P&L (Broker Live)
+                    {% if broker_fo_positions %}<span class="badge ms-1" style="background:#d97706; font-size:9px;">LIVE</span>{% endif %}
                 </h6>
                 <h3 class="mb-0 {% if broker_fo_unrealized + broker_fo_realized >= 0 %}text-success{% else %}text-danger{% endif %}">
                     ₹{{ "{:,.0f}".format(broker_fo_unrealized + broker_fo_realized) }}
                 </h3>
+                {% if broker_fo_positions %}
+                <small class="text-muted">{{ broker_fo_positions|length }} live position{{ 's' if broker_fo_positions|length != 1 else '' }}</small>
+                {% else %}
+                <small class="text-muted">No live broker positions</small>
+                {% endif %}
             </div>
         </div>
     </div>
-    <div class="col-md-3 mb-4">
-        <div class="card">
+    <div class="col-6 col-md-3 mb-4">
+        <div class="card h-100">
             <div class="card-body">
-                <h6 class="text-muted mb-2">Total Open Positions</h6>
-                <h3 class="mb-0">{{ positions_count + broker_fo_positions|length }}</h3>
-                {% if broker_fo_positions %}
-                <small class="text-muted">{{ positions_count }} manual + {{ broker_fo_positions|length }} broker</small>
+                <h6 class="text-muted mb-1" style="font-size:12px;">Win Rate</h6>
+                <h3 class="mb-0 {% if imported_win_rate >= 50 %}text-success{% else %}text-danger{% endif %}">
+                    {{ imported_win_rate }}%
+                </h3>
+                {% if imported_fo_trades %}
+                <small class="text-muted">{{ imported_wins }} wins out of {{ imported_fo_trades|length }} trades</small>
+                {% else %}
+                <small class="text-muted">No closed trades yet</small>
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
+
+<!-- Imported / Completed F&O Trades from Broker P&L -->
+{% if imported_fo_trades %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background:#f0fdf4; border-bottom:1px solid #bbf7d0;">
+        <div>
+            <h5 class="mb-0" style="color:#166534;">
+                <i class="fas fa-history me-2" style="color:#16a34a;"></i>
+                Completed F&O Trades
+                <span class="badge ms-2" style="background:#16a34a; font-size:11px;">{{ imported_fo_trades|length }}</span>
+            </h5>
+            <small class="text-muted">Executed trades synced from Dhan — NIFTY &amp; SENSEX options, all contracts</small>
+        </div>
+        <div class="d-flex gap-2">
+            <span class="badge bg-success py-2 px-3">{{ imported_wins }} Wins</span>
+            <span class="badge bg-danger py-2 px-3">{{ imported_losses }} Losses</span>
+            <span class="badge py-2 px-3 {% if imported_total_pnl >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+                ₹{{ "{:,.0f}".format(imported_total_pnl) }}
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" style="font-size:13px;">
+                <thead style="background:#f0fdf4;">
+                    <tr>
+                        <th style="padding-left:16px;">#</th>
+                        <th>Symbol</th>
+                        <th>Contract</th>
+                        <th>Broker</th>
+                        <th>Qty</th>
+                        <th>Entry ₹</th>
+                        <th>Exit ₹</th>
+                        <th>P&L</th>
+                        <th>Result</th>
+                        <th>Entry Date</th>
+                        <th>Exit Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trade in imported_fo_trades %}
+                    <tr>
+                        <td style="padding-left:16px; color:#94a3b8; font-size:11px;">{{ loop.index }}</td>
+                        <td style="font-weight:600;">
+                            {{ trade.symbol }}
+                            {% if 'CE' in trade.symbol %}<span class="badge bg-success ms-1" style="font-size:9px;">CE</span>
+                            {% elif 'PE' in trade.symbol %}<span class="badge bg-danger ms-1" style="font-size:9px;">PE</span>
+                            {% elif 'FUT' in trade.symbol %}<span class="badge bg-primary ms-1" style="font-size:9px;">FUT</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size:11px; color:#64748b; max-width:160px;">{{ trade.instrument_detail or '—' }}</td>
+                        <td style="font-size:12px; color:#64748b;">{{ trade.broker_name or '—' }}</td>
+                        <td>{{ trade.quantity }}</td>
+                        <td>₹{{ "%.2f"|format(trade.entry_price) }}</td>
+                        <td>₹{{ "%.2f"|format(trade.exit_price) }}</td>
+                        <td style="font-weight:700; color:{% if (trade.net_pnl or trade.realized_pnl or 0) >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                            ₹{{ "{:,.0f}".format(trade.net_pnl or trade.realized_pnl or 0) }}
+                        </td>
+                        <td>
+                            {% if trade.trade_result == 'WIN' %}
+                            <span class="badge bg-success" style="font-size:10px;">WIN</span>
+                            {% elif trade.trade_result == 'LOSS' %}
+                            <span class="badge bg-danger" style="font-size:10px;">LOSS</span>
+                            {% else %}
+                            <span class="badge bg-secondary" style="font-size:10px;">{{ trade.trade_result }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size:11px;">{{ trade.entry_time.strftime('%d %b %Y') if trade.entry_time else '—' }}</td>
+                        <td style="font-size:11px;">{{ trade.exit_time.strftime('%d %b %Y') if trade.exit_time else '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot style="background:#f0fdf4; font-weight:600;">
+                    <tr>
+                        <td colspan="7" style="padding-left:16px;">Total ({{ imported_fo_trades|length }} trades)</td>
+                        <td style="color:{% if imported_total_pnl >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                            ₹{{ "{:,.0f}".format(imported_total_pnl) }}
+                        </td>
+                        <td>{{ imported_win_rate }}% win</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <div class="px-3 py-2" style="font-size:12px; color:#4ade80; background:#f0fdf4; border-top:1px solid #bbf7d0; color:#166534;">
+            <i class="fas fa-info-circle me-1"></i>
+            These are closed/completed trades synced from your broker's P&L report. 
+            Open positions appear in the "Live Broker F&amp;O Positions" section below.
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Broker-Synced F&O Positions -->
 {% if broker_fo_positions %}
