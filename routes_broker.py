@@ -336,11 +336,59 @@ def api_sync_broker_account(account_id):
 
         logger.info(f"Sync completed for broker {broker_account.broker_name}: {sync_results}")
 
+        # Build data preview from DB after sync
+        from models_broker import BrokerHolding, BrokerPosition, BrokerOrder
+        holdings_preview = []
+        positions_preview = []
+        orders_preview = []
+
+        for h in BrokerHolding.query.filter_by(broker_account_id=account_id).limit(50).all():
+            holdings_preview.append({
+                'symbol': h.trading_symbol or h.symbol,
+                'exchange': h.exchange,
+                'qty': h.total_quantity or h.available_quantity or 0,
+                'avg_price': round(h.avg_cost_price or 0, 2),
+                'current_price': round(h.current_price or 0, 2),
+                'invested': round(h.investment_value or 0, 2),
+                'current_val': round(h.total_value or 0, 2),
+                'pnl': round(h.pnl or 0, 2),
+                'pnl_pct': round(h.pnl_percentage or 0, 2),
+            })
+
+        for p in BrokerPosition.query.filter_by(broker_account_id=account_id).limit(50).all():
+            positions_preview.append({
+                'symbol': p.trading_symbol or p.symbol,
+                'exchange': p.exchange,
+                'product': p.product_type.value if p.product_type else '',
+                'qty': p.quantity,
+                'avg_buy': round(p.avg_buy_price or 0, 2),
+                'current_price': round(p.current_price or 0, 2),
+                'unrealized_pnl': round(p.unrealized_pnl or 0, 2),
+                'realized_pnl': round(p.realized_pnl or 0, 2),
+            })
+
+        for o in BrokerOrder.query.filter_by(broker_account_id=account_id).order_by(BrokerOrder.order_time.desc()).limit(20).all():
+            orders_preview.append({
+                'broker_order_id': o.broker_order_id or '—',
+                'symbol': o.trading_symbol or o.symbol,
+                'type': o.transaction_type.value if o.transaction_type else '',
+                'qty': o.quantity,
+                'price': round(o.price or 0, 2),
+                'status': o.order_status.value if o.order_status else '—',
+                'time': o.order_time.strftime('%d %b %H:%M') if o.order_time else '—',
+            })
+
         return jsonify({
             'success': True,
             'message': 'Account synced successfully',
+            'broker_name': broker_account.broker_name,
             'sync_results': sync_results,
-            'last_sync': broker_account.last_sync.strftime('%b %d, %I:%M %p') if broker_account.last_sync else None
+            'last_sync': broker_account.last_sync.strftime('%b %d, %I:%M %p') if broker_account.last_sync else None,
+            'data_preview': {
+                'holdings': holdings_preview,
+                'positions': positions_preview,
+                'orders': orders_preview,
+            }
         })
 
     except BrokerAPIError as e:
