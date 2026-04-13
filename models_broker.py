@@ -138,9 +138,12 @@ class BrokerAccount(db.Model):
         """Decrypt sensitive data"""
         if not encrypted_data:
             return None
-        fernet = Fernet(self._get_encryption_key())
-        return fernet.decrypt(encrypted_data.encode()).decode()
-    
+        try:
+            fernet = Fernet(self._get_encryption_key())
+            return fernet.decrypt(encrypted_data.encode()).decode()
+        except Exception:
+            return None
+
     def set_credentials(self, client_id, access_token=None, api_secret=None, totp_secret=None):
         """Set encrypted credentials (temporary compatibility method)"""
         self.api_key = self.encrypt_data(client_id)  # Store client_id in api_key for compatibility
@@ -156,19 +159,29 @@ class BrokerAccount(db.Model):
     
     def get_credentials(self):
         """Get decrypted credentials (temporary compatibility method)"""
-        api_secret = self.decrypt_data(self.api_secret)
-        totp_secret = None
-        
-        # Extract TOTP secret for Angel One (stored as secret|totp)
-        if api_secret and '|' in api_secret:
-            api_secret, totp_secret = api_secret.split('|', 1)
-        
-        return {
-            'client_id': self.decrypt_data(self.api_key),  # client_id stored in api_key for compatibility
-            'access_token': self.decrypt_data(self.access_token),
-            'api_secret': api_secret,
-            'totp_secret': totp_secret
-        }
+        try:
+            api_secret = self.decrypt_data(self.api_secret)
+            totp_secret = None
+
+            # Extract TOTP secret for Angel One (stored as secret|totp)
+            if api_secret and '|' in api_secret:
+                api_secret, totp_secret = api_secret.split('|', 1)
+
+            return {
+                'client_id': self.decrypt_data(self.api_key),
+                'access_token': self.decrypt_data(self.access_token),
+                'api_secret': api_secret,
+                'totp_secret': totp_secret,
+                'credentials_valid': True
+            }
+        except Exception:
+            return {
+                'client_id': None,
+                'access_token': None,
+                'api_secret': None,
+                'totp_secret': None,
+                'credentials_valid': False
+            }
     
     def update_connection_status(self, status, error_message=None):
         """Update connection status"""

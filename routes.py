@@ -575,30 +575,94 @@ def sync_broker_account(account_id):
     """Sync broker account data"""
     try:
         from models_broker import BrokerAccount
-        
+        from services.broker_service import BrokerService, BrokerAPIError
+
         account = BrokerAccount.query.filter_by(
             id=account_id,
             user_id=current_user.id,
             is_active=True
         ).first()
-        
+
         if not account:
             return jsonify({'success': False, 'message': 'Broker account not found'})
-        
+
         if account.connection_status != 'connected':
             return jsonify({'success': False, 'message': 'Broker must be connected to sync data'})
-        
-        # TODO: Implement actual broker API sync
-        # For now, just update the last_sync timestamp
-        account.last_sync = datetime.utcnow()
+
+        account.sync_status = 'syncing'
         db.session.commit()
-        
-        return jsonify({'success': True, 'message': f'{account.broker_name} synced successfully!'})
-        
+
+        try:
+            results = BrokerService.sync_broker_data(account, ['holdings', 'positions', 'orders'])
+            account.sync_status = 'success'
+            account.last_sync = datetime.utcnow()
+            db.session.commit()
+            holdings = results.get('holdings', 0)
+            positions = results.get('positions', 0)
+            orders = results.get('orders', 0)
+            return jsonify({
+                'success': True,
+                'message': f'{account.broker_name} synced — {holdings} holdings, {positions} positions, {orders} orders'
+            })
+        except BrokerAPIError as broker_err:
+            account.sync_status = 'failed'
+            db.session.commit()
+            logging.warning(f"Broker API error syncing account {account_id}: {broker_err}")
+            return jsonify({'success': False, 'message': f'Broker API error: {broker_err}'})
+
     except Exception as e:
         db.session.rollback()
         logging.error(f"Error syncing broker account {account_id}: {str(e)}")
         return jsonify({'success': False, 'message': 'Error syncing broker account'})
+
+
+@app.route('/api/broker/sync-all', methods=['POST'])
+@login_required
+def sync_all_broker_accounts():
+    """Sync all connected broker accounts for the current user"""
+    try:
+        from models_broker import BrokerAccount
+        from services.broker_service import BrokerService, BrokerAPIError
+
+        accounts = BrokerAccount.query.filter_by(
+            user_id=current_user.id,
+            is_active=True,
+            connection_status='connected'
+        ).all()
+
+        if not accounts:
+            return jsonify({'success': False, 'message': 'No connected broker accounts found'})
+
+        synced = []
+        failed = []
+
+        for account in accounts:
+            try:
+                account.sync_status = 'syncing'
+                db.session.commit()
+                BrokerService.sync_broker_data(account, ['holdings', 'positions', 'orders'])
+                account.sync_status = 'success'
+                account.last_sync = datetime.utcnow()
+                db.session.commit()
+                synced.append(account.broker_name)
+            except Exception as err:
+                account.sync_status = 'failed'
+                db.session.commit()
+                logging.warning(f"Sync failed for {account.broker_name} (id={account.id}): {err}")
+                failed.append(account.broker_name)
+
+        if failed and not synced:
+            return jsonify({'success': False, 'message': f'Sync failed for: {", ".join(failed)}'})
+
+        msg = f'Synced {len(synced)} broker(s) successfully.'
+        if failed:
+            msg += f' Failed: {", ".join(failed)}.'
+        return jsonify({'success': True, 'message': msg})
+
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error in sync-all: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error syncing brokers'})
 
 @app.route('/api/broker/test-connection/<int:account_id>', methods=['POST'])
 @login_required
