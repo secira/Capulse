@@ -21,8 +21,8 @@
         <div class="d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="fas fa-building me-2"></i>All Supported Brokers</h5>
             <small class="text-muted">
-                <span class="badge bg-success">3 Active</span>
-                <span class="badge bg-secondary ms-2">9 Coming Soon</span>
+                <span class="badge bg-success">8 Active</span>
+                <span class="badge bg-secondary ms-2">5 Coming Soon</span>
             </small>
         </div>
     </div>
@@ -173,22 +173,23 @@
                         <optgroup label="✅ Available Now">
                             <option value="dhan">Dhan (Free APIs)</option>
                             <option value="zerodha">Zerodha Kite Connect (₹500/month)</option>
+                            <option value="angel_broking">Angel One (SmartAPI)</option>
                             <option value="upstox">Upstox (Official SDK)</option>
+                            <option value="icicidirect">ICICI Direct (Breeze Connect)</option>
+                            <option value="groww">Groww</option>
+                            <option value="alice_blue">Alice Blue (ANT API)</option>
+                            <option value="5paisa">5 Paisa</option>
                         </optgroup>
                         <optgroup label="🔜 Coming Soon">
-                            <option value="angel_broking" disabled>Angel One - Coming Soon</option>
-                            <option value="groww" disabled>Groww - Coming Soon</option>
                             <option value="" disabled>FYERS - Coming Soon</option>
-                            <option value="" disabled>ICICI Direct - Coming Soon</option>
                             <option value="" disabled>HDFC Securities - Coming Soon</option>
                             <option value="" disabled>Kotak Securities - Coming Soon</option>
-                            <option value="" disabled>5Paisa - Coming Soon</option>
                             <option value="" disabled>Choice India - Coming Soon</option>
                             <option value="" disabled>Goodwill - Coming Soon</option>
                         </optgroup>
                     </select>
                     <small class="form-text text-muted mt-2 d-block">
-                        <i class="fas fa-info-circle me-1"></i>Currently supporting 3 major Indian brokers. More brokers will be added soon!
+                        <i class="fas fa-info-circle me-1"></i>Supporting 8 major Indian brokers. More coming soon!
                     </small>
                 </div>
             </div>
@@ -257,26 +258,153 @@
                         <li>Use your client code and trading PIN below</li>
                     </ol>
                 </div>
-                
                 <div class="row">
                     <div class="col-md-4 mb-3">
-                        <label for="angelApiKey" class="form-label">API Key <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="angelApiKey" name="client_id" placeholder="Your Angel One API Key">
+                        <label class="form-label">API Key <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="client_id" placeholder="Your Angel One API Key">
                     </div>
-                    
                     <div class="col-md-4 mb-3">
-                        <label for="angelClientCode" class="form-label">Client Code <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="angelClientCode" name="access_token" placeholder="Your Angel One Client Code">
+                        <label class="form-label">Client Code <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="access_token" placeholder="Your Angel One Client Code">
                     </div>
-                    
                     <div class="col-md-4 mb-3">
-                        <label for="angelPin" class="form-label">Trading PIN <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" id="angelPin" name="api_secret" placeholder="Your Angel One Trading PIN">
+                        <label class="form-label">Trading PIN <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="api_secret" placeholder="Your Angel One Trading PIN">
                     </div>
                 </div>
                 <small class="form-text text-muted d-block mb-3">Your trading PIN (not login password)</small>
             </div>
-            
+
+            <!-- Upstox Credentials -->
+            <div id="upstoxCredentials" style="display: none;">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>Get Your Upstox API Credentials</h6>
+                    <ol class="mb-0">
+                        <li>Go to <a href="https://developer.upstox.com" target="_blank">developer.upstox.com</a></li>
+                        <li>Create an app and get your API Key and Secret</li>
+                        <li>Complete the OAuth login flow to get your Access Token</li>
+                    </ol>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">API Key <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="client_id" placeholder="Your Upstox API Key">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Access Token <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="access_token" placeholder="Your Upstox Access Token">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">API Secret <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="api_secret" placeholder="Your Upstox API Secret">
+                    </div>
+                </div>
+                <small class="form-text text-muted d-block mb-3">Generate the access token via the Upstox OAuth login flow</small>
+            </div>
+
+            <!-- ICICI Direct Credentials -->
+            <div id="iciciCredentials" style="display: none;">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>Get Your ICICI Direct Breeze Credentials</h6>
+                    <ol class="mb-0">
+                        <li>Go to <a href="https://api.icicidirect.com" target="_blank">api.icicidirect.com</a></li>
+                        <li>Login and create an app to get API Key and Secret</li>
+                        <li>Complete the session login to get your Access Token (Session Token)</li>
+                    </ol>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">API Key <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="client_id" placeholder="Your Breeze API Key">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Session Token <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="access_token" placeholder="Your Breeze Session Token">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">API Secret <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="api_secret" placeholder="Your Breeze API Secret">
+                    </div>
+                </div>
+                <small class="form-text text-muted d-block mb-3">Session token is generated each day via the ICICI Direct login flow</small>
+            </div>
+
+            <!-- Groww Credentials -->
+            <div id="growwCredentials" style="display: none;">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>Get Your Groww API Credentials</h6>
+                    <ol class="mb-0">
+                        <li>Go to <a href="https://groww.in" target="_blank">groww.in</a> and log in</li>
+                        <li>Navigate to Profile → API Access and generate your Access Token</li>
+                    </ol>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Client ID <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="client_id" placeholder="Your Groww Client ID">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Access Token <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="access_token" placeholder="Your Groww Access Token">
+                    </div>
+                </div>
+                <small class="form-text text-muted d-block mb-3">Your credentials are encrypted and stored securely</small>
+            </div>
+
+            <!-- Alice Blue Credentials -->
+            <div id="aliceblueCredentials" style="display: none;">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>Get Your Alice Blue ANT API Credentials</h6>
+                    <ol class="mb-0">
+                        <li>Go to <a href="https://ant.aliceblueonline.com" target="_blank">ant.aliceblueonline.com</a></li>
+                        <li>Register as a developer and get your API credentials</li>
+                        <li>Enable TOTP on your account for secure login</li>
+                    </ol>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Client ID <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="client_id" placeholder="Your Alice Blue Client ID">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Access Token <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="access_token" placeholder="Your Alice Blue Access Token">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">API Secret <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="api_secret" placeholder="Your Alice Blue API Secret">
+                    </div>
+                </div>
+                <small class="form-text text-muted d-block mb-3">Your credentials are encrypted and stored securely</small>
+            </div>
+
+            <!-- 5 Paisa Credentials -->
+            <div id="fivepaisaCredentials" style="display: none;">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>Get Your 5 Paisa API Credentials</h6>
+                    <ol class="mb-0">
+                        <li>Go to <a href="https://www.5paisa.com/developer-apis" target="_blank">5paisa.com/developer-apis</a></li>
+                        <li>Register and get your API credentials from the developer portal</li>
+                        <li>Generate your access token via the 5 Paisa login flow</li>
+                    </ol>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Client Code <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="client_id" placeholder="Your 5 Paisa Client Code">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Access Token <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="access_token" placeholder="Your 5 Paisa Access Token">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">App Secret <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" name="api_secret" placeholder="Your 5 Paisa App Secret">
+                    </div>
+                </div>
+                <small class="form-text text-muted d-block mb-3">Your credentials are encrypted and stored securely</small>
+            </div>
+
             <div class="d-flex justify-content-end gap-2">
                 <button type="button" class="btn btn-secondary" onclick="hideAddBrokerForm()">
                     <i class="fas fa-times me-2"></i>Cancel
@@ -316,15 +444,18 @@ function showAddBrokerForm(brokerType, brokerName) {
     }, 100);
 }
 
+// Hide all broker credential sections
+function hideAllCredentialSections() {
+    ['dhanCredentials','zerodhaCredentials','angelCredentials','upstoxCredentials',
+     'iciciCredentials','growwCredentials','aliceblueCredentials','fivepaisaCredentials'
+    ].forEach(id => { document.getElementById(id).style.display = 'none'; });
+}
+
 // Hide Add Broker Form
 function hideAddBrokerForm() {
     document.getElementById('addBrokerSection').style.display = 'none';
     document.getElementById('addBrokerForm').reset();
-    
-    // Hide all credential forms
-    document.getElementById('dhanCredentials').style.display = 'none';
-    document.getElementById('zerodhaCredentials').style.display = 'none';
-    document.getElementById('angelCredentials').style.display = 'none';
+    hideAllCredentialSections();
 }
 
 // Edit existing broker
@@ -550,28 +681,29 @@ async function setPrimaryBroker(accountId) {
 // Show/hide credentials based on broker selection
 document.getElementById('brokerType').addEventListener('change', function() {
     const brokerType = this.value;
-    
-    // Hide all credential forms
-    document.getElementById('dhanCredentials').style.display = 'none';
-    document.getElementById('zerodhaCredentials').style.display = 'none';
-    document.getElementById('angelCredentials').style.display = 'none';
-    
-    // Show selected broker credentials
-    if (brokerType === 'dhan') {
-        document.getElementById('dhanCredentials').style.display = 'block';
-    } else if (brokerType === 'zerodha') {
-        document.getElementById('zerodhaCredentials').style.display = 'block';
-    } else if (brokerType === 'angel_broking') {
-        document.getElementById('angelCredentials').style.display = 'block';
+
+    hideAllCredentialSections();
+
+    const credMap = {
+        'dhan': 'dhanCredentials',
+        'zerodha': 'zerodhaCredentials',
+        'angel_broking': 'angelCredentials',
+        'upstox': 'upstoxCredentials',
+        'icicidirect': 'iciciCredentials',
+        'groww': 'growwCredentials',
+        'alice_blue': 'aliceblueCredentials',
+        '5paisa': 'fivepaisaCredentials'
+    };
+
+    if (credMap[brokerType]) {
+        document.getElementById(credMap[brokerType]).style.display = 'block';
     }
 });
 
 // Reset form function
 function resetForm() {
     document.getElementById('addBrokerForm').reset();
-    document.getElementById('dhanCredentials').style.display = 'none';
-    document.getElementById('zerodhaCredentials').style.display = 'none';
-    document.getElementById('angelCredentials').style.display = 'none';
+    hideAllCredentialSections();
 }
 
 // Add broker account
