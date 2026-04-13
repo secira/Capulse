@@ -3598,13 +3598,98 @@ def dashboard_futures_options():
     current_value = sum(p.current_value or 0 for p in positions if p.position_status == 'Open')
     total_pnl = sum(p.unrealized_pnl or 0 for p in positions if p.position_status == 'Open')
     positions_count = len([p for p in positions if p.position_status == 'Open'])
-    
+
+    # Fetch broker-synced F&O positions
+    broker_fo_positions = []
+    try:
+        import re as _re
+        from models_broker import BrokerPosition as _BPos, BrokerAccount as _BAcc
+
+        def _is_fo(pos):
+            """Return True if this BrokerPosition looks like an F&O instrument."""
+            exch = (pos.exchange or '').upper()
+            sym  = (pos.trading_symbol or pos.symbol or '').upper()
+            if any(k in exch for k in ('FNO', 'NFO', 'BFO', 'BSE_FO', 'NSE_FO', 'MCX_FO', 'NSE_FNO', 'BSE_FNO')):
+                return True
+            if _re.search(r'(CE|PE|FUT)$', sym):
+                return True
+            return False
+
+        def _parse_fo_symbol(trading_symbol):
+            """Parse a broker trading symbol into F&O components.
+            Handles patterns like:
+              NIFTY26APR24550CE  → underlying=NIFTY, expiry=26APR, strike=24550, contract=CE
+              BANKNIFTY26APR52000PE → underlying=BANKNIFTY, expiry=26APR, strike=52000, contract=PE
+              NIFTY26APRFUT       → underlying=NIFTY, expiry=26APR, strike=None, contract=FUT
+            """
+            sym = (trading_symbol or '').upper().strip()
+            m_opt = _re.match(r'^([A-Z]+?)(\d{2}[A-Z]{3})(\d+\.?\d*)(CE|PE)$', sym)
+            m_fut = _re.match(r'^([A-Z]+?)(\d{2}[A-Z]{3})(FUT)$', sym)
+            if m_opt:
+                return {
+                    'underlying': m_opt.group(1),
+                    'expiry': m_opt.group(2),
+                    'strike': float(m_opt.group(3)),
+                    'contract': m_opt.group(4),
+                }
+            elif m_fut:
+                return {
+                    'underlying': m_fut.group(1),
+                    'expiry': m_fut.group(2),
+                    'strike': None,
+                    'contract': 'FUT',
+                }
+            # Fallback — can't parse
+            contract = 'CE' if sym.endswith('CE') else ('PE' if sym.endswith('PE') else 'FUT')
+            return {'underlying': sym, 'expiry': None, 'strike': None, 'contract': contract}
+
+        _user_accounts = _BAcc.query.filter_by(user_id=current_user.id, is_active=True).all()
+        _acc_ids = [a.id for a in _user_accounts]
+        _acc_map = {a.id: a.broker_name for a in _user_accounts}
+
+        if _acc_ids:
+            _all_positions = _BPos.query.filter(
+                _BPos.broker_account_id.in_(_acc_ids)
+            ).order_by(_BPos.position_date.desc()).all()
+
+            for pos in _all_positions:
+                if not _is_fo(pos):
+                    continue
+                parsed = _parse_fo_symbol(pos.trading_symbol or pos.symbol or '')
+                broker_fo_positions.append({
+                    'id': pos.id,
+                    'symbol': pos.symbol,
+                    'trading_symbol': pos.trading_symbol,
+                    'exchange': pos.exchange,
+                    'underlying': parsed['underlying'],
+                    'expiry': parsed['expiry'],
+                    'strike': parsed['strike'],
+                    'contract': parsed['contract'],
+                    'broker_name': _acc_map.get(pos.broker_account_id, 'Broker'),
+                    'quantity': pos.quantity,
+                    'avg_buy_price': pos.avg_buy_price or 0.0,
+                    'current_price': pos.current_price or 0.0,
+                    'unrealized_pnl': pos.unrealized_pnl or 0.0,
+                    'realized_pnl': pos.realized_pnl or 0.0,
+                    'total_pnl': pos.total_pnl or 0.0,
+                    'position_date': pos.position_date,
+                })
+    except Exception as _e:
+        logger.warning(f"Could not fetch broker F&O positions: {_e}")
+
+    # Aggregate broker F&O into summary totals
+    broker_fo_unrealized = sum(p['unrealized_pnl'] for p in broker_fo_positions)
+    broker_fo_realized = sum(p['realized_pnl'] for p in broker_fo_positions)
+
     return render_template('dashboard/futures_options.html',
                          positions=positions,
                          total_investment=total_investment,
                          current_value=current_value,
                          total_pnl=total_pnl,
-                         positions_count=positions_count)
+                         positions_count=positions_count,
+                         broker_fo_positions=broker_fo_positions,
+                         broker_fo_unrealized=broker_fo_unrealized,
+                         broker_fo_realized=broker_fo_realized)
 
 @app.route('/api/futures-options/<int:position_id>', methods=['DELETE'])
 @login_required

@@ -164,7 +164,7 @@
     <div class="col-md-3 mb-4">
         <div class="card">
             <div class="card-body">
-                <h6 class="text-muted mb-2">Total Investment</h6>
+                <h6 class="text-muted mb-2">Manual Investment</h6>
                 <h3 class="mb-0">₹{{ "{:,.0f}".format(total_investment) if total_investment else '0' }}</h3>
             </div>
         </div>
@@ -172,15 +172,7 @@
     <div class="col-md-3 mb-4">
         <div class="card">
             <div class="card-body">
-                <h6 class="text-muted mb-2">Current Value</h6>
-                <h3 class="mb-0">₹{{ "{:,.0f}".format(current_value) if current_value else '0' }}</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3 mb-4">
-        <div class="card">
-            <div class="card-body">
-                <h6 class="text-muted mb-2">Unrealized P&L</h6>
+                <h6 class="text-muted mb-2">Manual Unrealized P&L</h6>
                 <h3 class="mb-0 {% if total_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
                     ₹{{ "{:,.0f}".format(total_pnl) if total_pnl else '0' }}
                 </h3>
@@ -188,19 +180,148 @@
         </div>
     </div>
     <div class="col-md-3 mb-4">
+        <div class="card" style="{% if broker_fo_positions %}border-color:#fde68a;{% endif %}">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">
+                    Broker F&O P&L
+                    {% if broker_fo_positions %}<span class="badge ms-1" style="background:#d97706; font-size:10px;">LIVE</span>{% endif %}
+                </h6>
+                <h3 class="mb-0 {% if broker_fo_unrealized + broker_fo_realized >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    ₹{{ "{:,.0f}".format(broker_fo_unrealized + broker_fo_realized) }}
+                </h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-4">
         <div class="card">
             <div class="card-body">
-                <h6 class="text-muted mb-2">Open Positions</h6>
-                <h3 class="mb-0">{{ positions_count }}</h3>
+                <h6 class="text-muted mb-2">Total Open Positions</h6>
+                <h3 class="mb-0">{{ positions_count + broker_fo_positions|length }}</h3>
+                {% if broker_fo_positions %}
+                <small class="text-muted">{{ positions_count }} manual + {{ broker_fo_positions|length }} broker</small>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
+<!-- Broker-Synced F&O Positions -->
+{% if broker_fo_positions %}
+<div class="card mb-4" style="border:1px solid #fde68a;">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background:#fefce8; border-bottom:1px solid #fde68a;">
+        <div>
+            <h5 class="mb-0" style="color:#92400e;">
+                <i class="fas fa-link me-2" style="color:#d97706;"></i>
+                Live Broker F&O Positions
+                <span class="badge ms-2" style="background:#d97706; font-size:11px;">{{ broker_fo_positions|length }}</span>
+            </h5>
+            <small class="text-muted">Synced from your connected broker — includes Futures &amp; Options positions</small>
+        </div>
+        <a href="{{ url_for('broker_management') }}" class="btn btn-sm btn-outline-warning">
+            <i class="fas fa-sync-alt me-1"></i>Sync Broker
+        </a>
+    </div>
+    <!-- Broker F&O Summary Strip -->
+    <div class="row g-0 border-bottom" style="background:#fffbeb;">
+        <div class="col-6 col-md-3 p-3 border-end text-center">
+            <div class="text-muted" style="font-size:11px; text-transform:uppercase; letter-spacing:.5px;">Positions</div>
+            <div class="fw-bold fs-5">{{ broker_fo_positions|length }}</div>
+        </div>
+        <div class="col-6 col-md-3 p-3 border-end text-center">
+            <div class="text-muted" style="font-size:11px; text-transform:uppercase; letter-spacing:.5px;">Unrealized P&amp;L</div>
+            <div class="fw-bold fs-5" style="color:{% if broker_fo_unrealized >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                ₹{{ "{:,.0f}".format(broker_fo_unrealized) }}
+            </div>
+        </div>
+        <div class="col-6 col-md-3 p-3 border-end text-center">
+            <div class="text-muted" style="font-size:11px; text-transform:uppercase; letter-spacing:.5px;">Realized P&amp;L</div>
+            <div class="fw-bold fs-5" style="color:{% if broker_fo_realized >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                ₹{{ "{:,.0f}".format(broker_fo_realized) }}
+            </div>
+        </div>
+        <div class="col-6 col-md-3 p-3 text-center">
+            <div class="text-muted" style="font-size:11px; text-transform:uppercase; letter-spacing:.5px;">Total P&amp;L</div>
+            <div class="fw-bold fs-5" style="color:{% if (broker_fo_unrealized + broker_fo_realized) >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                ₹{{ "{:,.0f}".format(broker_fo_unrealized + broker_fo_realized) }}
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" style="font-size:13px;">
+                <thead style="background:#fffbeb;">
+                    <tr>
+                        <th style="padding-left:16px;">Type</th>
+                        <th>Underlying</th>
+                        <th>Strike</th>
+                        <th>Expiry</th>
+                        <th>Broker</th>
+                        <th>Exchange</th>
+                        <th>Qty</th>
+                        <th>Avg Price</th>
+                        <th>Curr Price</th>
+                        <th>Unreal P&amp;L</th>
+                        <th>Real P&amp;L</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pos in broker_fo_positions %}
+                    <tr>
+                        <td style="padding-left:16px;">
+                            {% if pos.contract == 'CE' %}
+                            <span class="badge bg-success">CE</span>
+                            {% elif pos.contract == 'PE' %}
+                            <span class="badge bg-danger">PE</span>
+                            {% else %}
+                            <span class="badge bg-primary">FUT</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-weight:600;">{{ pos.underlying }}</td>
+                        <td>
+                            {% if pos.strike %}
+                            ₹{{ "{:,.0f}".format(pos.strike) }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size:12px;">{{ pos.expiry or '—' }}</td>
+                        <td style="font-size:12px; color:#64748b;">{{ pos.broker_name }}</td>
+                        <td><span class="badge bg-secondary" style="font-size:10px;">{{ pos.exchange }}</span></td>
+                        <td>{{ pos.quantity }}</td>
+                        <td>₹{{ "%.2f"|format(pos.avg_buy_price) }}</td>
+                        <td>
+                            {% if pos.current_price > 0 %}
+                            ₹{{ "%.2f"|format(pos.current_price) }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-weight:600; color:{% if pos.unrealized_pnl >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                            ₹{{ "%.0f"|format(pos.unrealized_pnl) }}
+                        </td>
+                        <td style="font-weight:600; color:{% if pos.realized_pnl >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                            ₹{{ "%.0f"|format(pos.realized_pnl) }}
+                        </td>
+                        <td style="font-size:11px; color:#64748b;">{{ pos.position_date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="px-3 py-2" style="font-size:12px; color:#78716c; background:#fffbeb; border-top:1px solid #fde68a;">
+            <i class="fas fa-info-circle me-1"></i>
+            Trading symbols parsed automatically — NIFTY, BANKNIFTY, SENSEX, MIDCAP, FINNIFTY and individual stock F&amp;O are all supported.
+            Positions update each time you sync your broker.
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Positions Table -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">F&O Positions</h5>
+        <h5 class="mb-0">Manual F&O Positions</h5>
         <div class="btn-group btn-group-sm" role="group">
             <input type="radio" class="btn-check" name="filterType" id="allFilter" autocomplete="off" checked>
             <label class="btn btn-outline-primary" for="allFilter" onclick="filterPositions('all')">All</label>
