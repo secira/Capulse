@@ -155,6 +155,136 @@
         .am-divider { display: none; }
         .am-layout { gap: 20px; }
     }
+
+    /* ── Behavioural AI Section ── */
+    .bai-section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+        margin-top: 28px;
+    }
+    .bai-section-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .bai-section-label .bai-icon {
+        width: 32px; height: 32px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 14px;
+    }
+    .bai-section-label h4 {
+        margin: 0; font-size: 15px; font-weight: 700; color: #1e293b;
+    }
+    .bai-section-label span {
+        font-size: 11px; color: #94a3b8; margin-top: 1px; display: block;
+    }
+    .bai-view-all {
+        font-size: 12px; font-weight: 600; color: #6366f1;
+        text-decoration: none; display: flex; align-items: center; gap: 4px;
+    }
+    .bai-view-all:hover { color: #4f46e5; }
+
+    /* Score Ring */
+    .score-ring-wrap {
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: center; gap: 12px; padding: 20px 16px;
+    }
+    .score-ring-svg { position: relative; }
+    .score-ring-center {
+        position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center; line-height: 1.2;
+    }
+    .score-ring-num { font-size: 30px; font-weight: 800; color: #1e293b; }
+    .score-ring-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; }
+    .score-category-badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    }
+    .score-sub-scores {
+        width: 100%; display: flex; flex-direction: column; gap: 8px;
+        padding: 0 4px;
+    }
+    .sub-score-row {
+        display: flex; align-items: center; gap: 8px;
+    }
+    .sub-score-name { font-size: 11px; color: #64748b; width: 82px; flex-shrink: 0; }
+    .sub-score-bar-wrap {
+        flex: 1; height: 5px; background: #f1f5f9; border-radius: 99px; overflow: hidden;
+    }
+    .sub-score-bar { height: 100%; border-radius: 99px; }
+    .sub-score-val { font-size: 11px; font-weight: 600; color: #1e293b; width: 26px; text-align: right; flex-shrink: 0; }
+
+    /* Personality Card */
+    .personality-card-body { display: flex; flex-direction: column; gap: 12px; }
+    .personality-top {
+        display: flex; align-items: center; gap: 14px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: #f8fafc;
+    }
+    .personality-icon {
+        width: 52px; height: 52px; border-radius: 14px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 22px; color: #fff; flex-shrink: 0;
+    }
+    .personality-name { font-size: 15px; font-weight: 700; color: #1e293b; }
+    .personality-desc { font-size: 12px; color: #64748b; margin-top: 3px; line-height: 1.5; }
+    .personality-sw { display: flex; flex-direction: column; gap: 8px; }
+    .sw-row {
+        display: flex; gap: 8px; align-items: flex-start;
+        font-size: 12px; color: #475569;
+    }
+    .sw-label {
+        font-size: 10px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.05em; padding: 2px 7px; border-radius: 5px;
+        white-space: nowrap; flex-shrink: 0;
+    }
+    .sw-label.strength { background: #dcfce7; color: #15803d; }
+    .sw-label.weakness { background: #fee2e2; color: #b91c1c; }
+    .personality-no-data {
+        text-align: center; padding: 40px 16px; color: #94a3b8;
+    }
+    .personality-no-data i { font-size: 36px; margin-bottom: 10px; display: block; opacity: 0.3; }
+    .personality-no-data p { font-size: 13px; margin: 0 0 12px; }
+
+    /* Alerts Card */
+    .alerts-list { display: flex; flex-direction: column; gap: 0; }
+    .alert-item {
+        display: flex; gap: 12px; align-items: flex-start;
+        padding: 13px 16px;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .alert-item:last-child { border-bottom: none; }
+    .alert-icon-wrap {
+        width: 34px; height: 34px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 14px; flex-shrink: 0;
+    }
+    .alert-text-wrap { flex: 1; min-width: 0; }
+    .alert-message { font-size: 12px; font-weight: 600; color: #1e293b; line-height: 1.5; }
+    .alert-action { font-size: 11px; color: #64748b; margin-top: 3px; line-height: 1.4; }
+    .alerts-empty {
+        text-align: center; padding: 36px 16px; color: #94a3b8;
+    }
+    .alerts-empty i { font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.25; }
+    .alerts-empty p { font-size: 12px; margin: 0; color: #64748b; }
+    .bai-cta-row {
+        padding: 12px 16px;
+        border-top: 1px solid #f1f5f9;
+    }
+    .bai-cta-btn {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        width: 100%; padding: 9px 16px; border-radius: 8px;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: #fff; font-size: 13px; font-weight: 600;
+        text-decoration: none; transition: opacity 0.15s;
+    }
+    .bai-cta-btn:hover { opacity: 0.9; color: #fff; }
 </style>
 
 <!-- Portfolio Overview Cards -->
@@ -239,8 +369,167 @@
     </div>
 </div>
 
-<!-- Main Dashboard Content -->
+<!-- ── Behavioural AI Intelligence ── -->
+<div class="bai-section-header">
+    <div class="bai-section-label">
+        <div class="bai-icon"><i class="fas fa-brain"></i></div>
+        <div>
+            <h4>Behavioural AI · Trading DNA</h4>
+            <span>Psychology-driven coaching powered by Scentric AI</span>
+        </div>
+    </div>
+    <a href="{{ url_for('behavioural_insights') }}" class="bai-view-all">
+        Full Analysis <i class="fas fa-arrow-right"></i>
+    </a>
+</div>
+
+{% if behaviour_summary.has_data %}
 <div class="dashboard-grid cols-3">
+
+    <!-- Trading Discipline Score -->
+    <div class="dashboard-card">
+        <div class="card-header">
+            <h3>Discipline Score</h3>
+            <span class="badge" style="background:{{ behaviour_summary.color }}20; color:{{ behaviour_summary.color }}; font-size:11px; font-weight:600; padding:3px 10px;">
+                {{ behaviour_summary.category }}
+            </span>
+        </div>
+        <div class="score-ring-wrap">
+            {# SVG ring gauge #}
+            {% set score = behaviour_summary.score %}
+            {% set circ = 283 %}
+            {% set offset = circ - (circ * score / 100) %}
+            <div class="score-ring-svg">
+                <svg width="120" height="120" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#f1f5f9" stroke-width="8"/>
+                    <circle cx="50" cy="50" r="45" fill="none"
+                        stroke="{{ behaviour_summary.color }}" stroke-width="8"
+                        stroke-dasharray="{{ circ }}"
+                        stroke-dashoffset="{{ offset }}"
+                        stroke-linecap="round"
+                        transform="rotate(-90 50 50)"/>
+                </svg>
+                <div class="score-ring-center">
+                    <div class="score-ring-num" style="color:{{ behaviour_summary.color }}">{{ score }}</div>
+                    <div class="score-ring-label">/ 100</div>
+                </div>
+            </div>
+
+            {# Category breakdown bars #}
+            <div class="score-sub-scores">
+                {% set cat_labels = {'trading':'Trading','risk':'Risk Mgmt','portfolio':'Portfolio','performance':'Performance','psychology':'Psychology'} %}
+                {% set cat_colors = {'trading':'#6366f1','risk':'#f59e0b','portfolio':'#10b981','performance':'#3b82f6','psychology':'#ec4899'} %}
+                {% for k, v in behaviour_summary.cats.items() %}
+                <div class="sub-score-row">
+                    <div class="sub-score-name">{{ cat_labels.get(k, k) }}</div>
+                    <div class="sub-score-bar-wrap">
+                        <div class="sub-score-bar" style="width:{{ v }}%; background:{{ cat_colors.get(k,'#6366f1') }};"></div>
+                    </div>
+                    <div class="sub-score-val">{{ v }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Trading Personality -->
+    <div class="dashboard-card">
+        <div class="card-header">
+            <h3>Trading Personality</h3>
+        </div>
+        <div class="card-body personality-card-body">
+            <div class="personality-top">
+                <div class="personality-icon" style="background:{{ behaviour_summary.personality.color }};">
+                    <i class="{{ behaviour_summary.personality.icon }}"></i>
+                </div>
+                <div>
+                    <div class="personality-name">{{ behaviour_summary.personality.type }}</div>
+                    <div class="personality-desc">{{ behaviour_summary.personality.description }}</div>
+                </div>
+            </div>
+            <div class="personality-sw">
+                <div class="sw-row">
+                    <span class="sw-label strength">Strength</span>
+                    <span>{{ behaviour_summary.personality.strength }}</span>
+                </div>
+                <div class="sw-row">
+                    <span class="sw-label weakness">Weakness</span>
+                    <span>{{ behaviour_summary.personality.weakness }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="bai-cta-row">
+            <a href="{{ url_for('behavioural_insights') }}" class="bai-cta-btn">
+                <i class="fas fa-brain"></i> Open Full Behavioural Analysis
+            </a>
+        </div>
+    </div>
+
+    <!-- Today's Alerts -->
+    <div class="dashboard-card">
+        <div class="card-header">
+            <h3>Today's Alerts</h3>
+            {% if behaviour_summary.alerts %}
+            <span class="badge bg-danger">{{ behaviour_summary.alerts|length }}</span>
+            {% else %}
+            <span class="badge bg-success">Clear</span>
+            {% endif %}
+        </div>
+        <div class="p-0">
+            {% if behaviour_summary.alerts %}
+            <div class="alerts-list">
+                {% for alert in behaviour_summary.alerts %}
+                <div class="alert-item">
+                    <div class="alert-icon-wrap" style="background:{{ alert.color }}20; color:{{ alert.color }};">
+                        <i class="{{ alert.icon }}"></i>
+                    </div>
+                    <div class="alert-text-wrap">
+                        <div class="alert-message">{{ alert.message }}</div>
+                        <div class="alert-action">{{ alert.action }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alerts-empty">
+                <i class="fas fa-shield-check"></i>
+                <p>No behavioural alerts today.<br>Your trading patterns look healthy.</p>
+            </div>
+            {% endif %}
+        </div>
+        <div class="bai-cta-row">
+            <a href="{{ url_for('behavioural_insights') }}" class="bai-cta-btn">
+                <i class="fas fa-chart-line"></i> View Detailed Psychology Report
+            </a>
+        </div>
+    </div>
+
+</div>
+{% else %}
+{# No trade data yet — show onboarding prompt #}
+<div class="dashboard-card" style="border: 2px dashed #e2e8f0; background: #fafbff;">
+    <div class="card-body text-center py-4">
+        <div style="width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;">
+            <i class="fas fa-brain" style="font-size:26px;color:#fff;"></i>
+        </div>
+        <h5 style="font-weight:700;color:#1e293b;margin-bottom:6px;">Unlock Your Trading DNA</h5>
+        <p style="font-size:13px;color:#64748b;max-width:400px;margin:0 auto 18px;">
+            Import your trade history to get your <strong>Trading Discipline Score</strong>, personality archetype, and personalised behavioural coaching from Scentric AI.
+        </p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+            <a href="{{ url_for('behavioural_insights') }}" class="btn btn-sm" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-weight:600;border-radius:8px;padding:8px 20px;">
+                <i class="fas fa-upload me-1"></i> Import Trades
+            </a>
+            <a href="{{ url_for('broker_management') }}" class="btn btn-outline-secondary btn-sm" style="border-radius:8px;padding:8px 20px;font-weight:600;">
+                <i class="fas fa-link me-1"></i> Connect Broker
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Main Dashboard Content -->
+<div class="dashboard-grid cols-3" style="margin-top: 24px;">
     <!-- Asset Allocation - Clickable -->
     <div class="dashboard-card">
         <div class="card-header">

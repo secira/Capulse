@@ -1275,8 +1275,38 @@ def dashboard():
             account_manager = AccountManager.get_or_create_default()
         except Exception:
             account_manager = None
-    
-    return render_template('dashboard/dashboard_improved.html', 
+
+    # Behavioural AI summary widget
+    behaviour_summary = {'has_data': False}
+    try:
+        from services.behaviour_engine import BehaviourEngine
+        _be = BehaviourEngine(current_user.id, current_user.tenant_id or 'live')
+        _cats = {
+            'trading':     _be.get_trading_behavior(),
+            'risk':        _be.get_risk_behavior(),
+            'portfolio':   _be.get_portfolio_behavior(),
+            'performance': _be.get_performance_patterns(),
+            'psychology':  _be.get_psychology_patterns(),
+        }
+        _master = _be.get_master_score(_cats)
+        _patterns = {}
+        for _cd in _cats.values():
+            _patterns.update(_cd.get('modules', {}))
+        _personality = _be.get_trading_personality(_patterns, _master['score'])
+        _alerts = _be.get_today_alerts()[:2]
+        behaviour_summary = {
+            'has_data':    True,
+            'score':       _master['score'],
+            'category':    _master['category'],
+            'color':       _master['color'],
+            'personality': _personality,
+            'alerts':      _alerts,
+            'cats': {k: v['score'] for k, v in _cats.items()},
+        }
+    except Exception as _exc:
+        current_app.logger.debug(f"Behaviour summary skipped on dashboard: {_exc}")
+
+    return render_template('dashboard/dashboard_improved.html',
                          portfolio_summary=portfolio_summary,
                          top_performers=top_performers,
                          trading_signals_count=trading_signals_count,
@@ -1284,7 +1314,8 @@ def dashboard():
                          user_level=user_level,
                          level_progress=level_progress,
                          broker_accounts=broker_accounts,
-                         account_manager=account_manager)
+                         account_manager=account_manager,
+                         behaviour_summary=behaviour_summary)
 
 # Stock Analysis route removed as requested by user
 
