@@ -102,108 +102,136 @@
 
 <!-- Connected Brokers Section -->
 <div class="card shadow-sm">
-    <div class="card-header bg-white">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-link me-2"></i>Connected Brokers</h5>
+        <small class="text-muted"><i class="fas fa-sync-alt me-1"></i>Sync = current holdings &amp; positions &nbsp;|&nbsp; <i class="fas fa-history me-1"></i>Trade History = date-range trades</small>
     </div>
-    <div class="card-body">
+    <div class="card-body p-4">
 {% if brokers %}
-<div class="row">
+<div class="row g-4">
     {% for broker in brokers %}
     {% set sync_st = broker.sync_status or 'pending' %}
-    <div class="col-lg-6 col-xl-4 mb-4">
-        <div class="card h-100 shadow-sm" style="border-radius:12px; border:1px solid {% if broker.connection_status == 'connected' %}#bbf7d0{% else %}#e2e8f0{% endif %}; overflow:hidden;">
+    <div class="col-md-6">
+        <div class="card h-100 shadow" style="border-radius:16px; border:2px solid {% if broker.connection_status == 'connected' %}#bbf7d0{% else %}#e2e8f0{% endif %}; overflow:hidden;">
 
-            <div class="card-header d-flex justify-content-between align-items-center py-3 px-3" style="background:#fafbfc; border-bottom:1px solid #f1f5f9;">
-                <div class="d-flex align-items-center gap-2">
-                    <div style="width:36px;height:36px;border-radius:10px;background:{% if broker.connection_status == 'connected' %}#dcfce7{% else %}#f1f5f9{% endif %};display:flex;align-items:center;justify-content:center;">
-                        <i class="fas fa-building" style="color:{% if broker.connection_status == 'connected' %}#16a34a{% else %}#94a3b8{% endif %};font-size:14px;"></i>
+            <!-- Card Header -->
+            <div class="card-header d-flex justify-content-between align-items-center py-4 px-4" style="background:{% if broker.connection_status == 'connected' %}#f0fdf4{% else %}#fafbfc{% endif %}; border-bottom:1px solid {% if broker.connection_status == 'connected' %}#dcfce7{% else %}#f1f5f9{% endif %};">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width:48px;height:48px;border-radius:12px;background:{% if broker.connection_status == 'connected' %}#dcfce7{% else %}#f1f5f9{% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas fa-building" style="color:{% if broker.connection_status == 'connected' %}#16a34a{% else %}#94a3b8{% endif %};font-size:20px;"></i>
                     </div>
                     <div>
-                        <strong style="font-size:14px;">{{ broker.broker_name }}</strong>
-                        {% if broker.is_primary %}<span class="badge bg-dark ms-1" style="font-size:9px;">PRIMARY</span>{% endif %}
+                        <div style="font-size:17px; font-weight:700; color:#1e293b;">{{ broker.broker_name }}</div>
+                        {% if broker.is_primary %}<span class="badge bg-dark" style="font-size:10px;">PRIMARY</span>{% endif %}
                     </div>
                 </div>
-                <span class="badge rounded-pill" style="font-size:10px; {% if broker.connection_status == 'connected' %}background:#dcfce7; color:#15803d;{% else %}background:#f1f5f9; color:#64748b;{% endif %}">
+                <span class="badge rounded-pill px-3 py-2" style="font-size:12px; font-weight:600; {% if broker.connection_status == 'connected' %}background:#dcfce7; color:#15803d;{% else %}background:#fee2e2; color:#dc2626;{% endif %}">
+                    <i class="fas fa-{% if broker.connection_status == 'connected' %}check-circle{% else %}times-circle{% endif %} me-1"></i>
                     {% if broker.connection_status == 'connected' %}Connected{% else %}Disconnected{% endif %}
                 </span>
             </div>
 
-            <div class="card-body px-3 py-3">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <div>
-                        <small class="text-muted d-block" style="font-size:11px; text-transform:uppercase; letter-spacing:0.04em;">Sync Status</small>
-                        <div class="d-flex align-items-center gap-1 mt-1">
-                            {% if sync_st == 'success' %}
-                            <i class="fas fa-check-circle text-success" style="font-size:12px;"></i>
-                            <span style="font-size:13px; font-weight:600; color:#16a34a;">Synced</span>
-                            {% elif sync_st == 'syncing' %}
-                            <i class="fas fa-spinner fa-spin text-primary" style="font-size:12px;"></i>
-                            <span style="font-size:13px; font-weight:600; color:#3b82f6;">Syncing...</span>
-                            {% elif sync_st == 'failed' %}
-                            <i class="fas fa-exclamation-circle text-danger" style="font-size:12px;"></i>
-                            <span style="font-size:13px; font-weight:600; color:#dc2626;">Failed</span>
-                            {% else %}
-                            <i class="fas fa-clock text-warning" style="font-size:12px;"></i>
-                            <span style="font-size:13px; font-weight:600; color:#f59e0b;">Pending</span>
-                            {% endif %}
+            <!-- Card Body -->
+            <div class="card-body px-4 py-4">
+                <!-- Status row -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6">
+                        <div class="p-3 rounded-3" style="background:#f8fafc; border:1px solid #e2e8f0;">
+                            <small class="text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:0.06em; font-weight:600;">Holdings Sync</small>
+                            <div class="d-flex align-items-center gap-1">
+                                {% if sync_st == 'success' %}
+                                <i class="fas fa-check-circle text-success"></i>
+                                <span style="font-size:14px; font-weight:700; color:#16a34a;">Synced</span>
+                                {% elif sync_st == 'syncing' %}
+                                <i class="fas fa-spinner fa-spin text-primary"></i>
+                                <span style="font-size:14px; font-weight:700; color:#3b82f6;">Syncing...</span>
+                                {% elif sync_st == 'failed' %}
+                                <i class="fas fa-exclamation-circle text-danger"></i>
+                                <span style="font-size:14px; font-weight:700; color:#dc2626;">Failed</span>
+                                {% else %}
+                                <i class="fas fa-clock text-warning"></i>
+                                <span style="font-size:14px; font-weight:700; color:#f59e0b;">Pending</span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
-                    <div class="text-end">
-                        <small class="text-muted d-block" style="font-size:11px; text-transform:uppercase; letter-spacing:0.04em;">Last Synced</small>
-                        <span style="font-size:12px; color:#475569; font-weight:500;" id="lastSync-{{ broker.id }}">
-                            {% if broker.last_sync %}
-                                {{ broker.last_sync.strftime('%b %d, %I:%M %p') }}
-                            {% else %}
-                                Never
-                            {% endif %}
-                        </span>
+                    <div class="col-6">
+                        <div class="p-3 rounded-3" style="background:#f8fafc; border:1px solid #e2e8f0;">
+                            <small class="text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:0.06em; font-weight:600;">Last Synced</small>
+                            <span style="font-size:13px; color:#475569; font-weight:600;" id="lastSync-{{ broker.id }}">
+                                {% if broker.last_sync %}{{ broker.last_sync.strftime('%b %d, %I:%M %p') }}{% else %}Never{% endif %}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="mb-3">
-                    <small class="text-muted d-block" style="font-size:11px; text-transform:uppercase; letter-spacing:0.04em;">API Key</small>
-                    <div class="font-monospace" style="font-size:12px; color:#475569;">
+                <!-- API Key -->
+                <div class="mb-3 p-3 rounded-3" style="background:#f8fafc; border:1px solid #e2e8f0;">
+                    <small class="text-muted d-block mb-1" style="font-size:10px; text-transform:uppercase; letter-spacing:0.06em; font-weight:600;">Client / API Key</small>
+                    <div class="font-monospace" style="font-size:13px; color:#475569; font-weight:600;">
                         {% set credentials = broker.get_credentials() %}
                         {% set api_key = credentials.get('client_id', '') %}
                         {% if api_key and api_key|length > 8 %}
-                            {{ api_key[:4] }}***{{ api_key[-4:] }}
+                            {{ api_key[:4] }}•••••{{ api_key[-4:] }}
                         {% elif api_key %}
-                            {{ '*' * api_key|length }}
+                            {{ '•' * api_key|length }}
                         {% else %}
-                            <span class="text-muted">Not configured</span>
+                            <span class="text-muted fst-italic">Not configured</span>
                         {% endif %}
                     </div>
                 </div>
 
-                <div class="d-flex gap-2 flex-wrap">
-                    <small class="text-muted" style="font-size:11px;">
-                        <i class="fas fa-database me-1"></i>Holdings, Positions, Orders
-                    </small>
-                    <small class="text-muted" style="font-size:11px;">
-                        <i class="fas fa-shield-alt me-1"></i>AES-256 Encrypted
-                    </small>
+                <!-- Capabilities -->
+                <div class="d-flex gap-3 flex-wrap">
+                    <span style="font-size:12px; color:#64748b;"><i class="fas fa-layer-group me-1 text-primary"></i>Holdings</span>
+                    <span style="font-size:12px; color:#64748b;"><i class="fas fa-chart-line me-1 text-success"></i>Positions</span>
+                    <span style="font-size:12px; color:#64748b;"><i class="fas fa-file-alt me-1 text-warning"></i>Orders</span>
+                    <span style="font-size:12px; color:#64748b;"><i class="fas fa-history me-1 text-info"></i>Trade History</span>
+                    <span style="font-size:12px; color:#64748b;"><i class="fas fa-shield-alt me-1 text-danger"></i>AES-256</span>
                 </div>
             </div>
 
-            <div class="card-footer bg-transparent px-3 py-2 d-flex gap-2" style="border-top:1px solid #f1f5f9;">
+            <!-- Card Footer -->
+            <div class="card-footer bg-transparent px-4 py-3" style="border-top:1px solid #f1f5f9;">
                 {% if broker.connection_status == 'connected' %}
-                <button class="btn btn-sm flex-fill" id="syncBtn-{{ broker.id }}" onclick="syncBroker({{ broker.id }})" style="background:#00091a; color:#fff; border-radius:8px; font-size:12px; font-weight:600;">
-                    <i class="fas fa-sync-alt me-1"></i>Sync
-                </button>
-                <button class="btn btn-outline-warning btn-sm" onclick="disconnectBroker({{ broker.id }})" style="border-radius:8px; font-size:12px;">
-                    <i class="fas fa-unlink me-1"></i>Disconnect
-                </button>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-sm flex-fill" id="syncBtn-{{ broker.id }}" onclick="syncBroker({{ broker.id }})"
+                            style="background:#00091a; color:#fff; border-radius:8px; font-size:13px; font-weight:600; padding:8px 12px;">
+                        <i class="fas fa-sync-alt me-1"></i>Sync Holdings
+                    </button>
+                    <button class="btn btn-sm flex-fill btn-outline-info" onclick="openTradeHistoryModal({{ broker.id }}, '{{ broker.broker_name }}')"
+                            style="border-radius:8px; font-size:13px; font-weight:600; padding:8px 12px;">
+                        <i class="fas fa-history me-1"></i>Trade History
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm" onclick="disconnectBroker({{ broker.id }})"
+                            style="border-radius:8px; font-size:13px; padding:8px 12px;" title="Disconnect">
+                        <i class="fas fa-unlink"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="editBroker({{ broker.id }})"
+                            style="border-radius:8px; font-size:13px; padding:8px 12px;" title="Edit credentials">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteBroker({{ broker.id }})"
+                            style="border-radius:8px; font-size:13px; padding:8px 12px;" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
                 {% else %}
-                <button class="btn btn-outline-success btn-sm flex-fill" onclick="connectBroker({{ broker.id }})" style="border-radius:8px; font-size:12px;">
-                    <i class="fas fa-link me-1"></i>Connect
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm flex-fill" onclick="connectBroker({{ broker.id }})"
+                            style="border-radius:8px; font-size:13px; font-weight:600; padding:8px 12px;">
+                        <i class="fas fa-link me-1"></i>Connect
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="editBroker({{ broker.id }})"
+                            style="border-radius:8px; font-size:13px; padding:8px 12px;" title="Edit credentials">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteBroker({{ broker.id }})"
+                            style="border-radius:8px; font-size:13px; padding:8px 12px;" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
                 {% endif %}
-                <button class="btn btn-outline-secondary btn-sm" onclick="editBroker({{ broker.id }})" style="border-radius:8px; font-size:12px;">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-outline-danger btn-sm" onclick="deleteBroker({{ broker.id }})" style="border-radius:8px; font-size:12px;">
-                    <i class="fas fa-trash"></i>
-                </button>
             </div>
         </div>
     </div>
@@ -211,13 +239,103 @@
 </div>
 {% else %}
 <div class="text-center py-5">
-    <div style="width:64px;height:64px;border-radius:16px;background:#f1f5f9;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;">
-        <i class="fas fa-building" style="font-size:28px;color:#94a3b8;"></i>
+    <div style="width:72px;height:72px;border-radius:18px;background:#f1f5f9;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <i class="fas fa-building" style="font-size:32px;color:#94a3b8;"></i>
     </div>
     <h5 style="color:#1e293b;">No Brokers Connected Yet</h5>
-    <p class="text-muted mb-0" style="font-size:13px;">Use the form above to connect your first broker account</p>
+    <p class="text-muted mb-0" style="font-size:14px;">Use the form above to connect your first broker account</p>
 </div>
 {% endif %}
+    </div>
+</div>
+
+<!-- Trade History Date Picker Modal -->
+<div class="modal fade" id="tradeHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#00091a; color:#fff;">
+                <h5 class="modal-title mb-0">
+                    <i class="fas fa-history me-2" style="color:#60a5fa;"></i>
+                    Trade History — <span id="thBrokerName">Broker</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="thBrokerId">
+                <div class="alert alert-info mb-4" style="font-size:13px;">
+                    <i class="fas fa-info-circle me-2"></i>
+                    For <strong>Dhan</strong> this calls the <code>/v2/tradeHistory</code> API with date-range pagination.
+                    Other brokers return their available trade book for the period.
+                </div>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold">From Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="thFromDate">
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold">To Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="thToDate">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-primary w-100" onclick="fetchTradeHistory()"
+                                id="thFetchBtn" style="height:38px;">
+                            <i class="fas fa-search me-1"></i>Fetch
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick range shortcuts -->
+                <div class="mb-4 d-flex gap-2 flex-wrap">
+                    <span class="text-muted" style="font-size:12px; line-height:28px;">Quick:</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="setQuickRange(7)">Last 7 days</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="setQuickRange(30)">Last 30 days</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="setQuickRange(90)">Last 3 months</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="setCurrentMonth()">This month</button>
+                </div>
+
+                <!-- Results area -->
+                <div id="thResults" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0" id="thResultsTitle"></h6>
+                        <span class="badge bg-primary" id="thTradeCount"></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover" style="font-size:13px;">
+                            <thead style="background:#f8fafc; position:sticky; top:0;">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Symbol</th>
+                                    <th>Exchange</th>
+                                    <th>Type</th>
+                                    <th>Product</th>
+                                    <th>Qty</th>
+                                    <th>Price</th>
+                                    <th>Value</th>
+                                    <th>Trade ID</th>
+                                </tr>
+                            </thead>
+                            <tbody id="thTableBody"></tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted mt-2 mb-0" style="font-size:12px;">
+                        <i class="fas fa-info-circle me-1"></i>Trade data feeds into Behavioural AI and Portfolio analytics automatically when synced.
+                    </p>
+                </div>
+
+                <div id="thLoading" style="display:none;" class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x text-primary mb-3"></i>
+                    <p class="text-muted">Fetching trade history from broker API...</p>
+                </div>
+                <div id="thEmpty" style="display:none;" class="text-center py-4">
+                    <i class="fas fa-inbox fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">No trades found for the selected period.</p>
+                </div>
+                <div id="thError" style="display:none;" class="alert alert-danger"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -580,6 +698,101 @@ function disconnectBroker(brokerId) {
     .catch(error => {
         console.error('Error:', error);
         alert('Error disconnecting broker');
+    });
+}
+
+// ── Trade History ─────────────────────────────────────────────────────────────
+
+function openTradeHistoryModal(brokerId, brokerName) {
+    document.getElementById('thBrokerId').value   = brokerId;
+    document.getElementById('thBrokerName').textContent = brokerName;
+    // Reset UI
+    ['thResults','thLoading','thEmpty','thError'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+    });
+    document.getElementById('thTableBody').innerHTML = '';
+    // Default: current month
+    setCurrentMonth();
+    new bootstrap.Modal(document.getElementById('tradeHistoryModal')).show();
+}
+
+function setQuickRange(days) {
+    const to   = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - days);
+    document.getElementById('thFromDate').value = from.toISOString().split('T')[0];
+    document.getElementById('thToDate').value   = to.toISOString().split('T')[0];
+}
+
+function setCurrentMonth() {
+    const now   = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    document.getElementById('thFromDate').value = first.toISOString().split('T')[0];
+    document.getElementById('thToDate').value   = now.toISOString().split('T')[0];
+}
+
+function fetchTradeHistory() {
+    const brokerId  = document.getElementById('thBrokerId').value;
+    const fromDate  = document.getElementById('thFromDate').value;
+    const toDate    = document.getElementById('thToDate').value;
+
+    if (!fromDate || !toDate) { alert('Please select both From and To dates.'); return; }
+    if (fromDate > toDate)    { alert('From date cannot be after To date.');     return; }
+
+    ['thResults','thEmpty','thError'].forEach(id => document.getElementById(id).style.display = 'none');
+    document.getElementById('thLoading').style.display = 'block';
+    document.getElementById('thFetchBtn').disabled = true;
+
+    fetch(`/api/broker/trade-history/${brokerId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_date: fromDate, to_date: toDate })
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('thLoading').style.display  = 'none';
+        document.getElementById('thFetchBtn').disabled = false;
+
+        if (!data.success) {
+            document.getElementById('thError').textContent = data.message || 'Failed to fetch trade history.';
+            document.getElementById('thError').style.display = 'block';
+            return;
+        }
+
+        const trades = data.trades || [];
+        if (trades.length === 0) {
+            document.getElementById('thEmpty').style.display = 'block';
+            return;
+        }
+
+        document.getElementById('thResultsTitle').textContent =
+            `Trade History: ${data.broker_name}  (${data.from_date} → ${data.to_date})`;
+        document.getElementById('thTradeCount').textContent = `${data.trade_count} trades`;
+
+        const tbody = document.getElementById('thTableBody');
+        tbody.innerHTML = trades.map(t => {
+            const isBuy = (t.transaction_type || '').toUpperCase() === 'BUY';
+            const val   = (parseFloat(t.trade_value || 0)).toLocaleString('en-IN', {maximumFractionDigits:2});
+            return `<tr>
+                <td style="font-size:12px;">${t.trade_date || '—'}</td>
+                <td><strong>${t.trading_symbol || t.symbol || '—'}</strong></td>
+                <td><span class="badge bg-secondary" style="font-size:10px;">${t.exchange || '—'}</span></td>
+                <td><span class="badge ${isBuy ? 'bg-success' : 'bg-danger'}" style="font-size:11px;">${t.transaction_type || '—'}</span></td>
+                <td style="font-size:12px;">${t.product_type || '—'}</td>
+                <td>${t.quantity || '—'}</td>
+                <td>₹${parseFloat(t.price||0).toFixed(2)}</td>
+                <td style="font-weight:600;">₹${val}</td>
+                <td style="font-family:monospace;font-size:11px;color:#94a3b8;">${t.trade_id || '—'}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('thResults').style.display = 'block';
+    })
+    .catch(err => {
+        document.getElementById('thLoading').style.display  = 'none';
+        document.getElementById('thFetchBtn').disabled = false;
+        document.getElementById('thError').textContent = 'Network error: ' + err.message;
+        document.getElementById('thError').style.display    = 'block';
     });
 }
 </script>

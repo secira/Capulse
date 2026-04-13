@@ -431,6 +431,71 @@ def api_sync_broker_account(account_id):
             pass
         return jsonify({'success': False, 'message': f'Sync failed: {str(e)}'}), 500
 
+@app.route('/api/broker/trade-history/<int:account_id>', methods=['POST'])
+@login_required
+def api_broker_trade_history(account_id):
+    """Fetch historic trades for a broker account within a date range.
+    Works for Dhan via /v2/tradeHistory (paginated).
+    Other brokers fall back to their trade book / generic implementation."""
+    try:
+        broker_account = BrokerAccount.query.filter_by(
+            id=account_id,
+            user_id=current_user.id
+        ).first()
+
+        if not broker_account:
+            return jsonify({'success': False, 'message': 'Broker account not found'}), 404
+
+        if broker_account.connection_status != 'connected':
+            return jsonify({'success': False, 'message': 'Please connect the broker first'}), 400
+
+        body = request.get_json() or {}
+        from_date_str = body.get('from_date')
+        to_date_str   = body.get('to_date')
+
+        if not from_date_str or not to_date_str:
+            return jsonify({'success': False, 'message': 'from_date and to_date are required (YYYY-MM-DD)'}), 400
+
+        try:
+            from_date = datetime.strptime(from_date_str, '%Y-%m-%d')
+            to_date   = datetime.strptime(to_date_str,   '%Y-%m-%d')
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+        if from_date > to_date:
+            return jsonify({'success': False, 'message': 'from_date cannot be after to_date'}), 400
+
+        client = BrokerService.get_broker_client(broker_account)
+        if not client.connect():
+            return jsonify({'success': False, 'message': 'Failed to connect to broker'}), 400
+
+        trades = client.get_trade_history(from_date=from_date, to_date=to_date)
+
+        # Serialise trade_date field
+        serialised = []
+        for t in trades or []:
+            row = dict(t)
+            if isinstance(row.get('trade_date'), datetime):
+                row['trade_date'] = row['trade_date'].strftime('%d %b %Y %H:%M')
+            serialised.append(row)
+
+        return jsonify({
+            'success': True,
+            'broker_name': str(broker_account.broker_name),
+            'from_date': from_date_str,
+            'to_date': to_date_str,
+            'trade_count': len(serialised),
+            'trades': serialised,
+        })
+
+    except BrokerAPIError as e:
+        logger.error(f"BrokerAPIError fetching trade history: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error fetching trade history: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'Failed to fetch trade history: {str(e)}'}), 500
+
+
 @app.route('/api/broker/remove-account/<int:account_id>', methods=['DELETE'])
 @login_required
 def api_remove_broker_account(account_id):

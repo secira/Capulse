@@ -434,9 +434,54 @@ class DhanBrokerClient(BaseBrokerClient):
 
     def get_trade_history(self, from_date: Optional[datetime] = None,
                           to_date: Optional[datetime] = None) -> List[Dict]:
-        """Get Dhan trade book (executed trades)"""
+        """Get Dhan trade history with date range using /v2/tradeHistory API.
+        Falls back to today's trade book if the date-range endpoint is unavailable."""
         if not self._client:
             raise BrokerAPIError("Not connected to Dhan")
+
+        client_id = self.credentials.get('client_id', '')
+        access_token = self.credentials.get('access_token', '')
+
+        # Format dates for Dhan API (YYYY-MM-DD)
+        from_str = (from_date or datetime.utcnow().replace(day=1)).strftime('%Y-%m-%d')
+        to_str   = (to_date   or datetime.utcnow()).strftime('%Y-%m-%d')
+
+        all_trades: List[Dict] = []
+        try:
+            import requests as _req
+            page = 0
+            while True:
+                payload = {"from_date": from_str, "to_date": to_str, "page": page}
+                headers = {
+                    "access-token": access_token,
+                    "client-id": client_id,
+                    "Content-Type": "application/json",
+                }
+                resp = _req.post(
+                    "https://api.dhan.co/v2/tradeHistory",
+                    json=payload,
+                    headers=headers,
+                    timeout=15,
+                )
+                if resp.status_code != 200:
+                    logger.warning(f"Dhan tradeHistory API returned {resp.status_code}: {resp.text[:200]}")
+                    break
+                data = resp.json()
+                records = data.get('data', []) if isinstance(data, dict) else []
+                if not records:
+                    break
+                all_trades.extend(records)
+                # Dhan paginates in groups of 50; stop if fewer returned
+                if len(records) < 50:
+                    break
+                page += 1
+
+            if all_trades:
+                return self._normalize_dhan_trades(all_trades)
+        except Exception as hist_err:
+            logger.warning(f"Dhan tradeHistory date-range fetch failed, falling back to trade book: {hist_err}")
+
+        # Fallback: today's trade book
         try:
             trades = self._client.get_trade_book()
             return self._normalize_dhan_trades(trades)
