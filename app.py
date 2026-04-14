@@ -362,6 +362,21 @@ with app.app_context():
         '''INSERT INTO data_source_config (source_key, display_name, description, icon, is_active)
            VALUES ('user_custom', 'User Data Source', 'Manual CSV upload or custom data input for backtesting and historical analysis.', 'fa-upload', false)
            ON CONFLICT (source_key) DO NOTHING''',
+        '''CREATE TABLE IF NOT EXISTS fno_signal_history (
+            id SERIAL PRIMARY KEY,
+            signal_type VARCHAR(20) DEFAULT 'SCAN',
+            direction VARCHAR(20),
+            confidence INTEGER DEFAULT 0,
+            confidence_grade VARCHAR(20),
+            entry_mode VARCHAR(20),
+            spot_price FLOAT,
+            atm_strike INTEGER,
+            trades_json TEXT,
+            layers_json TEXT,
+            alert_sent BOOLEAN DEFAULT FALSE,
+            data_source VARCHAR(50) DEFAULT 'nse_python',
+            created_at TIMESTAMP DEFAULT NOW()
+        )''',
     ]
     try:
         with db.engine.connect() as _conn:
@@ -408,6 +423,12 @@ try:
     app.register_blueprint(fno_bp)
 except ImportError as e:
     logging.warning(f"F&O blueprint not available: {e}")
+
+try:
+    from services.fno_monitor import start_scheduler as start_fno_monitor
+    start_fno_monitor(app)
+except Exception as e:
+    logging.warning(f"F&O monitor not started: {e}")
 
 
 # WebSocket Server Management

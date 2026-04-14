@@ -59,3 +59,4 @@ Flask-Mail
 anthropic
 gTTS
 breeze-connect
+apscheduler

@@ -66,6 +66,22 @@
 .spinner-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.7);z-index:999;align-items:center;justify-content:center}
 .spinner-overlay.show{display:flex}
 
+.monitor-bar{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.monitor-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+.monitor-dot.active{background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,.5);animation:pulse-dot 2s infinite}
+.monitor-dot.inactive{background:#94a3b8}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+.monitor-stat{font-size:12px;color:#64748b}
+.monitor-stat span{font-weight:700;color:#334155}
+
+.signal-history-table{width:100%;font-size:12px;border-collapse:collapse}
+.signal-history-table th{background:#f8fafc;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;text-align:left;border-bottom:2px solid #e2e8f0}
+.signal-history-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;color:#334155}
+.signal-history-table tr:hover{background:#f8fafc}
+.alert-badge{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
+.alert-sent{background:#dcfce7;color:#16a34a}
+.alert-none{background:#f1f5f9;color:#94a3b8}
+
 .collapse-header{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:0;transition:all .2s}
 .collapse-header:hover{background:#f1f5f9}
 .collapse-header[aria-expanded="true"]{border-radius:12px 12px 0 0;border-bottom:none}
@@ -108,6 +124,19 @@
         <span class="data-src-tag" id="dataSrcTag">—</span>
         <button class="btn btn-sm btn-outline-primary" onclick="refreshAnalysis()"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
     </div>
+</div>
+
+<!-- Monitor Status Bar -->
+<div class="monitor-bar" id="monitorBar">
+    <div>
+        <span class="monitor-dot inactive" id="monitorDot"></span>
+        <strong style="font-size:13px" id="monitorLabel">Scanner: Loading...</strong>
+    </div>
+    <div class="monitor-stat">Market: <span id="monitorMarket">—</span></div>
+    <div class="monitor-stat">Signals today: <span id="monitorSignals">0 / 3</span></div>
+    <div class="monitor-stat">Last alert: <span id="monitorLast">—</span></div>
+    <div class="monitor-stat">Threshold: <span id="monitorThreshold">75+</span></div>
+    <div class="monitor-stat">Scan: <span>Every 60s</span></div>
 </div>
 
 <!-- MIDDLE: Confidence & Entry + Trade Recommendations -->
@@ -226,6 +255,17 @@
             <div class="risk-rule"><i class="fas fa-percentage"></i><span>Daily loss limit: 3% of capital (<strong id="riskDailyLoss">₹3,000</strong>)</span></div>
             <div class="risk-rule"><i class="fas fa-coins"></i><span>Risk per trade: 1% of capital (<strong id="riskPerTradeRule">₹1,000</strong>)</span></div>
         </div>
+    </div>
+</div>
+
+<!-- Signal History -->
+<div class="engine-card mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="engine-title mb-0"><i class="fas fa-history"></i> Signal History</div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="loadSignalHistory()"><i class="fas fa-refresh me-1"></i>Refresh</button>
+    </div>
+    <div id="signalHistoryContainer">
+        <p class="text-muted text-center py-3" style="font-size:13px">Loading signal history...</p>
     </div>
 </div>
 
@@ -406,6 +446,63 @@ function refreshAnalysis() {
     });
 }
 
+function loadMonitorStatus() {
+    fetch('/dashboard/fno/api/monitor-status').then(function(r){return r.json()}).then(function(res) {
+        if (!res.success) return;
+        var d = res.data;
+        var dot = document.getElementById('monitorDot');
+        var label = document.getElementById('monitorLabel');
+        if (d.running && d.market_hours) {
+            dot.className = 'monitor-dot active';
+            label.textContent = 'Scanner: Active';
+            label.style.color = '#16a34a';
+        } else if (d.running && !d.market_hours) {
+            dot.className = 'monitor-dot inactive';
+            label.textContent = 'Scanner: Waiting for market';
+            label.style.color = '#d97706';
+        } else {
+            dot.className = 'monitor-dot inactive';
+            label.textContent = 'Scanner: Offline';
+            label.style.color = '#dc2626';
+        }
+        document.getElementById('monitorMarket').textContent = d.market_hours ? 'Open' : 'Closed';
+        document.getElementById('monitorMarket').style.color = d.market_hours ? '#16a34a' : '#dc2626';
+        document.getElementById('monitorSignals').textContent = d.signals_today + ' / ' + d.max_signals;
+        document.getElementById('monitorLast').textContent = d.last_signal_time || 'None';
+        document.getElementById('monitorThreshold').textContent = d.confidence_threshold + '+';
+    }).catch(function(){});
+}
+
+function loadSignalHistory() {
+    fetch('/dashboard/fno/api/signal-history?limit=15').then(function(r){return r.json()}).then(function(res) {
+        var container = document.getElementById('signalHistoryContainer');
+        if (!res.success || !res.data || res.data.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center py-3" style="font-size:13px">No signals recorded yet. The scanner saves signals when confidence is 60+ or alerts are triggered.</p>';
+            return;
+        }
+        var html = '<div style="max-height:300px;overflow-y:auto"><table class="signal-history-table"><thead><tr>';
+        html += '<th>Time</th><th>Type</th><th>Direction</th><th>Confidence</th><th>Entry Mode</th><th>Spot</th><th>ATM</th><th>Alert</th>';
+        html += '</tr></thead><tbody>';
+        res.data.forEach(function(s) {
+            var dirClass = s.direction === 'BULLISH' ? 'badge-bullish' : s.direction === 'BEARISH' ? 'badge-bearish' : 'badge-neutral';
+            html += '<tr>';
+            html += '<td>' + s.created_at + '</td>';
+            html += '<td><span class="data-src-tag">' + s.signal_type + '</span></td>';
+            html += '<td><span class="layer-badge ' + dirClass + '">' + s.direction + '</span></td>';
+            html += '<td><strong>' + s.confidence + '</strong>/100</td>';
+            html += '<td>' + s.entry_mode + '</td>';
+            html += '<td>₹' + fmt(s.spot_price) + '</td>';
+            html += '<td>' + s.atm_strike + '</td>';
+            html += '<td><span class="alert-badge ' + (s.alert_sent ? 'alert-sent' : 'alert-none') + '">' + (s.alert_sent ? 'SENT' : '—') + '</span></td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }).catch(function(){
+        document.getElementById('signalHistoryContainer').innerHTML = '<p class="text-muted text-center py-3" style="font-size:13px">Could not load signal history.</p>';
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     updateCapitalCalcs();
 
@@ -427,6 +524,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     refreshAnalysis();
+    loadMonitorStatus();
+    loadSignalHistory();
+
+    setInterval(loadMonitorStatus, 30000);
+    setInterval(loadSignalHistory, 60000);
 });
 </script>
 {% endblock %}

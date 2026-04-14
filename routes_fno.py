@@ -30,6 +30,12 @@ def fno_analysis_api():
         from services.nifty_options_engine import NiftyOptionsEngine
         engine = NiftyOptionsEngine()
         analysis = engine.generate_analysis()
+
+        from services.fno_monitor import _save_signal_to_db
+        from flask import current_app
+        analysis['signal_type'] = 'MANUAL'
+        _save_signal_to_db(current_app._get_current_object(), analysis)
+
         return jsonify({'success': True, 'data': analysis})
     except Exception as e:
         logger.error(f"F&O analysis error: {e}")
@@ -46,4 +52,52 @@ def fno_indices_api():
         return jsonify({'success': True, 'data': indices})
     except Exception as e:
         logger.error(f"Indices fetch error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@fno_bp.route('/api/monitor-status')
+@login_required
+def fno_monitor_status():
+    try:
+        from services.fno_monitor import get_monitor_status
+        status = get_monitor_status()
+        return jsonify({'success': True, 'data': status})
+    except Exception as e:
+        logger.error(f"Monitor status error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@fno_bp.route('/api/signal-history')
+@login_required
+def fno_signal_history():
+    try:
+        from app import db
+        limit = request.args.get('limit', 20, type=int)
+        rows = db.session.execute(db.text("""
+            SELECT id, signal_type, direction, confidence, confidence_grade,
+                   entry_mode, spot_price, atm_strike, alert_sent, data_source,
+                   created_at
+            FROM fno_signal_history
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """), {'limit': min(limit, 50)}).fetchall()
+
+        signals = []
+        for r in rows:
+            signals.append({
+                'id': r.id,
+                'signal_type': r.signal_type,
+                'direction': r.direction,
+                'confidence': r.confidence,
+                'confidence_grade': r.confidence_grade,
+                'entry_mode': r.entry_mode,
+                'spot_price': r.spot_price,
+                'atm_strike': r.atm_strike,
+                'alert_sent': r.alert_sent,
+                'data_source': r.data_source,
+                'created_at': r.created_at.strftime('%d/%m %I:%M %p') if r.created_at else '',
+            })
+        return jsonify({'success': True, 'data': signals})
+    except Exception as e:
+        logger.error(f"Signal history error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500

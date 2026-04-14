@@ -54,6 +54,7 @@ Target Capital employs a dual AI engine approach:
 -   **Research Watch List in Co-Pilot**: Displays active `ResearchList` entries for easy filtering, search, and deep-dive queries.
 -   **F&O Analysis Engine (NIFTY Options)**: MVLA (Momentum-Validated, Loss-Averse) decision engine with 3-layer architecture: Time Filter, Direction Engine (VWAP + Supertrend + DMI), Strength & Momentum (ADX + ATR + OI). Generates 3-6 trade recommendations with confidence scoring (0-100), strike selection (ATM/ITM/OTM), and risk management rules. Connected to Trade Now for execution. Supports NIFTY 50 (active), Bank Nifty, FIN NIFTY, SENSEX (coming soon). Routes: `routes_fno.py` blueprint, Engine: `services/nifty_options_engine.py`.
 -   **Admin Data Input Source**: Switchable market data sources (NSE Python default, TrueData API, User Custom). Stored in `data_source_config` table, manageable from Admin Panel → Data Input Source.
+-   **F&O Continuous Monitor**: APScheduler-based background scanner (60s interval) in `services/fno_monitor.py`. Runs during market hours (9:15 AM–3:30 PM IST), saves signals to `fno_signal_history` table. Smart alert system: Telegram alerts only when confidence > 75, new direction (not duplicate), 10-min cooldown, max 3 alerts/day. Signal history viewable on the F&O page.
 -   **Comprehensive Trading Signal System**: LangGraph-powered signal pipeline.
 -   **Subscription Model**: Tiered access (FREE, TARGET PLUS, TARGET PRO, HNI).
 -   **Knowledge Base**: Educational trading articles.
