@@ -654,14 +654,23 @@ function _portfolioToast(msg, type) {
     <div class="row mb-4">
         <div class="col-12">
             <div class="card shadow-sm" style="border-color: #3182ce;">
-                <div class="card-header text-white d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #00091a 0%, #1a365d 100%);">
+                <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap gap-2" style="background: linear-gradient(135deg, #00091a 0%, #1a365d 100%);">
                     <h5 class="mb-0"><i class="fas fa-project-diagram me-2"></i>LangGraph Multi-Agent Portfolio Optimizer</h5>
-                    <button class="btn btn-light btn-sm" onclick="runPortfolioOptimization()" id="optimizeBtn">
-                        <i class="fas fa-robot me-1"></i>Run AI Optimization
-                    </button>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-outline-light btn-sm" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#agentStepsPanel"
+                                id="toggleStepsBtn" aria-expanded="false">
+                            <i class="fas fa-eye me-1"></i>Show Steps
+                        </button>
+                        <button class="btn btn-light btn-sm" onclick="runPortfolioOptimization()" id="optimizeBtn">
+                            <i class="fas fa-robot me-1"></i>Run AI Optimization
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div id="portfolioAgentWorkflow"></div>
+                    <div class="collapse" id="agentStepsPanel">
+                        <div id="portfolioAgentWorkflow" class="mb-3"></div>
+                    </div>
 
                     {% if latest_optimization %}
                     <!-- Last saved optimization result -->
@@ -1096,6 +1105,18 @@ document.addEventListener('DOMContentLoaded', function() {
         window.portfolioWorkflow = portfolioWorkflow;
     };
     document.head.appendChild(script);
+
+    // Toggle button label when collapse opens/closes
+    const stepsPanel = document.getElementById('agentStepsPanel');
+    const toggleBtn = document.getElementById('toggleStepsBtn');
+    if (stepsPanel && toggleBtn) {
+        stepsPanel.addEventListener('show.bs.collapse', function() {
+            toggleBtn.innerHTML = '<i class="fas fa-eye-slash me-1"></i>Hide Steps';
+        });
+        stepsPanel.addEventListener('hide.bs.collapse', function() {
+            toggleBtn.innerHTML = '<i class="fas fa-eye me-1"></i>Show Steps';
+        });
+    }
 });
 
 async function runPortfolioOptimization() {
@@ -1103,7 +1124,14 @@ async function runPortfolioOptimization() {
     const originalText = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Running Multi-Agent Analysis...';
-    
+
+    // Auto-expand the steps panel so the user can watch the workflow
+    const stepsPanel = document.getElementById('agentStepsPanel');
+    if (stepsPanel && !stepsPanel.classList.contains('show')) {
+        const bsCollapse = new bootstrap.Collapse(stepsPanel, { toggle: false });
+        bsCollapse.show();
+    }
+
     // Reset workflow
     if (portfolioWorkflow) {
         portfolioWorkflow.reset();
