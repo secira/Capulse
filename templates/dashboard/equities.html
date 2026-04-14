@@ -177,6 +177,9 @@
                 <input type="radio" class="btn-check" name="viewType" id="brokerView" autocomplete="off">
                 <label class="btn btn-outline-primary" for="brokerView" onclick="setFilter('broker')">Broker</label>
             </div>
+            <button class="btn btn-outline-success btn-sm" id="refreshPricesBtn" onclick="fetchAllLivePrices()" title="Fetch live prices from NSE for all holdings">
+                <i class="fas fa-sync-alt me-1"></i>Live Prices
+            </button>
         </div>
     </div>
     <div class="card-body p-0">
@@ -205,7 +208,11 @@
                     {% set pnl_pct = holding.unrealized_pnl_percentage or 0 %}
                     {% set pnl_pos = pnl >= 0 %}
                     <tr class="holding-row" data-source="{{ holding.source }}"
-                        data-symbol="{{ holding.symbol|lower }}">
+                        data-symbol="{{ holding.symbol }}"
+                        data-id="{{ holding.id }}"
+                        data-qty="{{ holding.quantity }}"
+                        data-buy="{{ holding.purchase_price or 0 }}"
+                        data-investment="{{ holding.total_investment or 0 }}">
                         <td style="padding-left:16px;">
                             <div class="fw-bold" style="font-size:14px;">{{ holding.symbol }}</div>
                             <div class="text-muted" style="font-size:11px;">{{ holding.company_name }}</div>
@@ -225,24 +232,22 @@
                             {% endif %}
                         </td>
                         <td class="text-end">₹{{ "{:,.2f}".format(holding.purchase_price or 0) }}</td>
-                        <td class="text-end">
-                            {% if holding.current_price %}
-                            <span style="color:{{ '#16a34a' if pnl_pos else '#dc2626' }}; font-weight:600;">
-                                ₹{{ "{:,.2f}".format(holding.current_price) }}
+                        <td class="text-end curr-price-cell">
+                            <span class="curr-price-val fw-semibold" style="color:{{ '#16a34a' if pnl_pos else ('#dc2626' if pnl < 0 else '#64748b') }};">
+                                {% if holding.current_price %}₹{{ "{:,.2f}".format(holding.current_price) }}{% else %}—{% endif %}
                             </span>
-                            {% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
                         <td class="text-end">{{ holding.quantity }}</td>
                         <td class="text-end text-muted">₹{{ "{:,.0f}".format(holding.total_investment or 0) }}</td>
-                        <td class="text-end">
+                        <td class="text-end curr-value-cell">
                             {% if holding.current_value %}
                             ₹{{ "{:,.0f}".format(holding.current_value) }}
                             {% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
-                        <td class="text-end fw-bold" style="color:{{ '#16a34a' if pnl_pos else '#dc2626' }};">
+                        <td class="text-end fw-bold pnl-cell" style="color:{{ '#16a34a' if pnl_pos else '#dc2626' }};">
                             {{ '+' if pnl_pos else '' }}₹{{ "{:,.0f}".format(pnl) }}
                         </td>
-                        <td class="text-end fw-bold" style="color:{{ '#16a34a' if pnl_pos else '#dc2626' }};">
+                        <td class="text-end fw-bold pnlpct-cell" style="color:{{ '#16a34a' if pnl_pos else '#dc2626' }};">
                             {{ '+' if pnl_pos else '' }}{{ "{:.2f}".format(pnl_pct) }}%
                         </td>
                         <td class="text-center">
@@ -270,8 +275,8 @@
                             </span>
                         </td>
                         <td class="text-center" style="white-space:nowrap;">
-                            <a href="{{ url_for('dashboard_trade_now') }}?symbol={{ holding.symbol }}&action=SELL"
-                               class="btn btn-sm btn-outline-danger" title="Sell this stock"
+                            <a href="{{ url_for('dashboard_trade_now') }}?symbol={{ holding.symbol }}&action=SELL&quantity={{ holding.quantity|int }}"
+                               class="btn btn-sm btn-outline-danger" title="Trade this stock"
                                style="padding:3px 7px; font-size:11px;">
                                 <i class="fas fa-exchange-alt me-1"></i>Trade
                             </a>
@@ -458,7 +463,109 @@ document.addEventListener('DOMContentLoaded', function() {
             if (this.value.trim()) fetchMarketPrice();
         });
     }
+    // Auto-fetch live prices for all holdings on page load
+    fetchAllLivePrices();
 });
+
+async function fetchAllLivePrices() {
+    const btn = document.getElementById('refreshPricesBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Fetching...';
+    }
+
+    // Collect unique symbols from all holding rows
+    const rows = document.querySelectorAll('tr.holding-row[data-symbol]');
+    const symbolMap = {};   // symbol → [row, ...]
+    rows.forEach(row => {
+        const sym = row.dataset.symbol;
+        if (sym) {
+            if (!symbolMap[sym]) symbolMap[sym] = [];
+            symbolMap[sym].push(row);
+        }
+    });
+
+    // Set loading indicator on each price cell
+    rows.forEach(row => {
+        const cell = row.querySelector('.curr-price-val');
+        if (cell) cell.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:10px; color:#94a3b8;"></i>';
+    });
+
+    // Fetch live price for each unique symbol (in parallel)
+    const symbols = Object.keys(symbolMap);
+    await Promise.all(symbols.map(async (sym) => {
+        try {
+            const resp = await fetch(`/api/realtime/stock/${encodeURIComponent(sym)}`);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            const price = parseFloat(data.price || data.current_price || data.lastPrice || 0);
+            if (price > 0) {
+                symbolMap[sym].forEach(row => updateRowWithPrice(row, price));
+            } else {
+                symbolMap[sym].forEach(row => {
+                    const cell = row.querySelector('.curr-price-val');
+                    if (cell) cell.innerHTML = '<span class="text-muted">—</span>';
+                });
+            }
+        } catch (e) {
+            symbolMap[sym].forEach(row => {
+                const cell = row.querySelector('.curr-price-val');
+                if (cell) cell.innerHTML = '<span class="text-muted">—</span>';
+            });
+        }
+    }));
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Live Prices';
+    }
+}
+
+function updateRowWithPrice(row, price) {
+    const qty        = parseFloat(row.dataset.qty)        || 0;
+    const buyPrice   = parseFloat(row.dataset.buy)        || 0;
+    const investment = parseFloat(row.dataset.investment) || (qty * buyPrice);
+
+    const currValue  = qty * price;
+    const pnl        = currValue - investment;
+    const pnlPct     = investment > 0 ? (pnl / investment) * 100 : 0;
+    const isPos      = pnl >= 0;
+    const color      = isPos ? '#16a34a' : '#dc2626';
+    const fmt        = (n, dec=0) => n.toLocaleString('en-IN', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+
+    // Current Price cell
+    const priceCell = row.querySelector('.curr-price-val');
+    if (priceCell) {
+        priceCell.style.color = color;
+        priceCell.innerHTML = '₹' + fmt(price, 2);
+    }
+
+    // Current Value cell
+    const valCell = row.querySelector('.curr-value-cell');
+    if (valCell) valCell.innerHTML = '₹' + fmt(currValue);
+
+    // P&L cell
+    const pnlCell = row.querySelector('.pnl-cell');
+    if (pnlCell) {
+        pnlCell.style.color = color;
+        pnlCell.innerHTML = (isPos ? '+' : '') + '₹' + fmt(Math.abs(pnl));
+    }
+
+    // P&L % cell
+    const pnlPctCell = row.querySelector('.pnlpct-cell');
+    if (pnlPctCell) {
+        pnlPctCell.style.color = color;
+        pnlPctCell.innerHTML = (isPos ? '+' : '') + fmt(pnlPct, 2) + '%';
+    }
+
+    // Update Trade button URL with fresh price — open with action=SELL
+    const tradeBtn = row.querySelector('a[href*="trade_now"]');
+    if (tradeBtn) {
+        const url = new URL(tradeBtn.href, window.location.origin);
+        url.searchParams.set('current_price', price.toFixed(2));
+        tradeBtn.href = url.toString();
+    }
+}
 
 async function fetchMarketPrice() {
     const symbol = document.getElementById('symbol').value.trim().toUpperCase();
