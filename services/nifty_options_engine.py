@@ -171,7 +171,8 @@ class NiftyOptionsEngine:
             for entry in data:
                 if entry.get('expiryDate') != expiry_str:
                     continue
-                strike = entry.get('strikePrice', 0)
+                strike_raw = entry.get('strikePrice', 0)
+                strike = int(strike_raw) if strike_raw == int(strike_raw) else strike_raw
                 ce = entry.get('CE', {})
                 pe = entry.get('PE', {})
                 if ce:
@@ -212,7 +213,9 @@ class NiftyOptionsEngine:
             logger.warning(f"Chain parse error for {expiry_str}: {e}")
 
         if not chain:
+            logger.info(f"No chain data for expiry {expiry_str}, using sample")
             return self._get_sample_chain(spot)
+        logger.info(f"Chain for {expiry_str}: {len(chain)} strikes, keys sample: {list(chain.keys())[:6]}")
         return chain
 
     def _get_option_chain_data(self) -> Dict[str, Any]:
@@ -359,7 +362,7 @@ class NiftyOptionsEngine:
         return min(score, 100)
 
     def _select_strikes(self, spot: float, direction: str) -> List[Dict[str, Any]]:
-        atm = round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL
+        atm = int(round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL)
         trades = []
         opt_type = 'CE' if direction == 'BULLISH' else 'PE'
         if direction == 'NEUTRAL':
@@ -406,10 +409,23 @@ class NiftyOptionsEngine:
     def _enrich_trades(self, trades: List[Dict], chain: dict, confidence: int, entry_mode: str, expiry_info: dict = None) -> List[Dict]:
         enriched = []
         for t in trades:
-            key = f"{t['strike']}{t['type']}"
+            strike = int(t['strike']) if isinstance(t['strike'], float) and t['strike'] == int(t['strike']) else t['strike']
+            key = f"{strike}{t['type']}"
             opt_data = chain.get(key, {})
             ltp = opt_data.get('ltp', 0)
             if ltp <= 0:
+                nearby_keys = [k for k in chain.keys() if k.endswith(t['type'])]
+                if nearby_keys:
+                    def extract_strike(k):
+                        try:
+                            return int(k.replace('CE','').replace('PE',''))
+                        except ValueError:
+                            return 0
+                    nearest = min(nearby_keys, key=lambda k: abs(extract_strike(k) - strike))
+                    opt_data = chain.get(nearest, {})
+                    ltp = opt_data.get('ltp', 0)
+            if ltp <= 0:
+                logger.warning(f"No option data for {key}, skipping")
                 continue
 
             sl_points = 10
@@ -481,7 +497,7 @@ class NiftyOptionsEngine:
             current_chain = oc_data.get('option_chain', {})
             next_chain = {}
 
-        atm = round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL
+        atm = int(round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL)
 
         direction = self._direction_engine(spot)
         strength = self._strength_engine(spot)
