@@ -805,14 +805,14 @@ function executeTrade() {
             showTradeResult(true, 'Trade order sent successfully!\n\nOrder ID: ' + (data.order_id || 'Processing'));
             setTimeout(function(){ location.reload(); }, 2500);
         } else {
-            showTradeResult(false, data.error || 'Unknown error');
+            showTradeResult(false, data.error || 'Unknown error', data.broker_settings_url || null);
         }
     })
     .catch(function(err) { showTradeResult(false, 'Network error: ' + err.message); });
 }
 
 // ─── Trade Result Modal ───────────────────────────────────────────────────────
-function showTradeResult(success, message) {
+function showTradeResult(success, message, settingsUrl) {
     // Close confirm modal if open
     var confirmModalEl = document.getElementById('tradeConfirmModal');
     if (confirmModalEl) {
@@ -823,7 +823,17 @@ function showTradeResult(success, message) {
     var el = document.createElement('div');
     el.className = 'modal fade';
     el.setAttribute('tabindex', '-1');
-    var lines = (message || '').split('\n').map(function(l){ return '<p class="mb-1" style="font-size:14px;">' + l + '</p>'; }).join('');
+    var lines = (message || '').split('\n').map(function(l){
+        return l.trim() ? '<p class="mb-1" style="font-size:13px;line-height:1.5;">' + l + '</p>' : '<div class="mb-1"></div>';
+    }).join('');
+    var footerBtns = !success
+        ? (settingsUrl
+            ? `<a href="${settingsUrl}" class="btn btn-sm fw-semibold" style="background:#00091a;color:#fff;border-radius:8px;">
+                   <i class="fas fa-cog me-1"></i>Go to Broker Settings
+               </a>
+               <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>`
+            : `<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>`)
+        : '';
     el.innerHTML = `
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="border-radius:18px;overflow:hidden;">
@@ -836,12 +846,12 @@ function showTradeResult(success, message) {
                     </div>
                     <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body px-4 pb-4" style="background:${success ? '#f0fdf4' : '#fff5f5'};">
+                <div class="modal-body px-4 pt-3 pb-2" style="background:${success ? '#f0fdf4' : '#fff5f5'};">
                     <div style="color:#374151;">${lines}</div>
                 </div>
-                ${!success ? `
-                <div class="modal-footer border-0 pt-0" style="background:#fff5f5;">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                ${footerBtns ? `
+                <div class="modal-footer border-0 pt-0 gap-2" style="background:${success ? '#f0fdf4' : '#fff5f5'};">
+                    ${footerBtns}
                 </div>` : ''}
             </div>
         </div>`;

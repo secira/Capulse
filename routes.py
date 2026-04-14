@@ -5378,7 +5378,7 @@ def api_trade_execute_signal():
             err_str = str(broker_error)
             logger.error(f"Broker execution error: {err_str}")
 
-            # Detect Dhan "Invalid IP" — requires IP whitelisting in Dhan API settings
+            # Detect Dhan "Invalid IP" — token was generated before IP whitelist was saved
             if 'Invalid IP' in err_str or 'invalid ip' in err_str.lower():
                 import requests as _req
                 try:
@@ -5388,11 +5388,17 @@ def api_trade_execute_signal():
                 return jsonify({
                     'success': False,
                     'error': (
-                        f'Dhan API rejected the order: IP address not whitelisted.\n\n'
-                        f'Our server IP is: {server_ip}\n\n'
-                        f'Please go to Dhan → Apps & API → your API key → '
-                        f'add {server_ip} to the allowed IP list, then try again.'
-                    )
+                        f'Dhan Order API rejected: Invalid IP (DH-905)\n\n'
+                        f'Our server IP ({server_ip}) is whitelisted in Dhan, '
+                        f'but your stored Access Token was generated BEFORE the whitelist was saved — '
+                        f'Dhan embeds the IP permission into the token at generation time.\n\n'
+                        f'Fix (takes 1 minute):\n'
+                        f'1. Go to Dhan → DhanHQ APIs → click "Generate" next to your app\n'
+                        f'2. Copy the new Access Token\n'
+                        f'3. Update it in Target Capital → Broker Settings → Edit Dhan\n\n'
+                        f'Then try your trade again.'
+                    ),
+                    'broker_settings_url': '/dashboard/broker-accounts'
                 }), 403
 
             return jsonify({
