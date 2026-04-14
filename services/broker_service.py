@@ -236,7 +236,9 @@ class DhanBrokerClient(BaseBrokerClient):
         try:
             # Convert our order format to Dhan format
             dhan_order = self._convert_to_dhan_order(order_data)
+            logger.info(f"Dhan place_order payload: {dhan_order}")
             result = self._client.place_order(**dhan_order)
+            logger.info(f"Dhan place_order response: {result}")
             return self._normalize_order_response(result)
         except Exception as e:
             logger.error(f"Error placing Dhan order: {e}")
@@ -460,6 +462,8 @@ class DhanBrokerClient(BaseBrokerClient):
             'disclosed_quantity': int(order_data.get('disclosed_quantity', 0)),
             'after_market_order': bool(order_data.get('after_market_order', False)),
             'validity':           order_data.get('validity', 'DAY'),
+            'bo_profit_value':    0,
+            'bo_stop_loss_Value': 0,   # SDK has a capital V typo — must match exactly
         }
 
     def _lookup_dhan_security_id(self, symbol: str, exchange_segment: str) -> Optional[str]:
