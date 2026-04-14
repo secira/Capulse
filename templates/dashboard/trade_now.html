@@ -44,30 +44,16 @@
     {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════════════════════
-     DIRECTION BANNER + SIGNAL INFO (full-width, above card)
-══════════════════════════════════════════════════════════ -->
-<!-- Direction alert (BUY/SELL from source screen) -->
-<div class="d-none mb-3" id="actionDirectionBanner">
-    <div class="p-3 rounded-3 d-flex align-items-center gap-3" id="actionDirectionInner">
-        <span id="actionDirectionIcon" class="fs-2"></span>
-        <div>
-            <div class="fw-bold fs-5" id="actionDirectionLabel"></div>
-            <div class="text-muted" style="font-size:13px;" id="actionDirectionSymbol"></div>
-        </div>
-    </div>
-</div>
-
 <!-- Signal info card -->
 <div id="signalInfoCard" class="card border-0 shadow-sm d-none mb-3" style="border-radius:14px;">
     <div class="card-body p-4" id="signalInfoBody"></div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     TRADE CARD  (single column, centred max-width)
+     TRADE CARD  (full width)
 ══════════════════════════════════════════════════════════ -->
-<div class="row justify-content-center mb-4">
-    <div class="col-12 col-md-8 col-xl-6">
+<div class="row mb-4">
+    <div class="col-12">
         <div class="card border-0 shadow-lg" style="border-radius:18px;overflow:hidden;">
 
             <!-- ── HEADER: Asset picker + Live price ───────────────── -->
@@ -595,8 +581,6 @@ function prePopulateForm(urlParams) {
     // Product type from URL (e.g. CNC from Equities page)
     if (productType) setProductType(productType.toUpperCase());
 
-    // Direction banner
-    if (action) showActionDirectionBanner(action, script || symbol);
 
     // Qty
     if (quantity && parseInt(quantity) > 0) {
@@ -699,27 +683,6 @@ function prePopulateForm(urlParams) {
     }
 }
 
-// ─── BUY/SELL banner ─────────────────────────────────────────────────────────
-function showActionDirectionBanner(action, symbol) {
-    var banner = document.getElementById('actionDirectionBanner');
-    var inner  = document.getElementById('actionDirectionInner');
-    var icon   = document.getElementById('actionDirectionIcon');
-    var label  = document.getElementById('actionDirectionLabel');
-    var sym    = document.getElementById('actionDirectionSymbol');
-    if (!banner) return;
-
-    var isBuy = (action || '').toUpperCase() === 'BUY';
-    inner.style.background = isBuy ? 'linear-gradient(135deg,#f0fff4,#dcfce7)' : 'linear-gradient(135deg,#fff5f5,#fee2e2)';
-    inner.style.border     = isBuy ? '2px solid #16a34a' : '2px solid #dc2626';
-    icon.innerHTML  = isBuy
-        ? '<i class="fas fa-arrow-circle-up text-success"></i>'
-        : '<i class="fas fa-arrow-circle-down text-danger"></i>';
-    label.innerHTML = isBuy
-        ? '<span class="text-success">BUY Order</span>'
-        : '<span class="text-danger">SELL Order</span>';
-    if (sym && symbol) sym.textContent = symbol;
-    banner.classList.remove('d-none');
-}
 
 // ─── Trade Confirmation Modal ─────────────────────────────────────────────────
 function showTradeConfirmation() {
