@@ -415,8 +415,8 @@ class NiftyOptionsEngine:
             sl_points = 10
             target_points = 20
             entry_price = ltp
-            sl = round(entry_price - sl_points, 2) if t['type'] == 'CE' else round(entry_price + sl_points, 2)
-            target = round(entry_price + target_points, 2) if t['type'] == 'CE' else round(entry_price - target_points, 2)
+            target = round(entry_price + target_points, 2)
+            sl = round(entry_price - sl_points, 2)
 
             lot_value = ltp * NIFTY_LOT_SIZE
             max_loss_per_lot = sl_points * NIFTY_LOT_SIZE
