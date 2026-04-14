@@ -600,8 +600,14 @@ class DhanBrokerClient(BaseBrokerClient):
 
         # Fallback: today's trade book
         try:
-            trades = self._client.get_trade_book()
-            return self._normalize_dhan_trades(trades)
+            raw = self._client.get_trade_book()
+            # Dhan SDK may return the full response envelope {"status":..., "data":[...]}
+            # or a plain list — normalise to a list before passing on.
+            if isinstance(raw, dict):
+                raw = raw.get('data', [])
+            if not isinstance(raw, list):
+                raw = []
+            return self._normalize_dhan_trades(raw)
         except Exception as e:
             logger.error(f"Error fetching Dhan trade history: {e}")
             raise BrokerAPIError(f"Failed to fetch trade history: {e}")
@@ -610,6 +616,8 @@ class DhanBrokerClient(BaseBrokerClient):
         """Normalize Dhan trade book to unified schema"""
         normalized = []
         for t in trades or []:
+            if not isinstance(t, dict):
+                continue
             qty = float(t.get('tradedQuantity', 0))
             price = float(t.get('tradedPrice', 0.0))
             normalized.append({
