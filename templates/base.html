@@ -23,10 +23,29 @@
         }
     })();
     </script>
-    <title>{% block title %}Target Capital - The Intelligent Investing Platform for All
-{% endblock %}</title>
+    <title>{% block title %}Target Capital - The Intelligent Investing Platform for All{% endblock %}</title>
     <meta name="description" content="{% block description %}Target Capital — Scentric AI Decision Engine for Indian traders. I-Score signals, multi-broker portfolio hub, and AI-guided trade execution with behavioural guardrails.{% endblock %}">
-    
+    <meta name="keywords" content="{% block keywords %}AI trading platform India, portfolio management software, F&O trading signals, stock research India, multi-broker portfolio tracker, behavioural trading psychology, I-Score rating, Nifty 50 analysis, NSE stocks, intraday trading signals, swing trading, SEBI registered, demat account, Target Capital, Scentric AI Decision Engine, Trading DNA, trading discipline score, Dhan Zerodha Angel Groww Upstox portfolio{% endblock %}">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Target Capital - Scentric Network Private Limited">
+    <link rel="canonical" href="{{ request.url.split('?')[0] }}">
+
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Target Capital">
+    <meta property="og:locale" content="en_IN">
+    <meta property="og:title" content="{% block og_title %}Target Capital — AI Portfolio Co-Pilot for Indian Traders{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}I-Score signals, multi-broker portfolio hub, behavioural guardrails and AI-guided trade execution. India's Scentric AI Decision Engine.{% endblock %}">
+    <meta property="og:image" content="{{ request.host_url }}static/images/logo.png">
+    <meta property="og:url" content="{{ request.url }}">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@ShankarUday2020">
+    <meta name="twitter:title" content="{% block twitter_title %}Target Capital — AI Portfolio Co-Pilot{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}I-Score signals, multi-broker portfolio hub and behavioural guardrails for Indian F&O traders.{% endblock %}">
+    <meta name="twitter:image" content="{{ request.host_url }}static/images/logo.png">
+
     <!-- Google AdSense -->
     <meta name="google-adsense-account" content="ca-pub-1783556602775038">
     
@@ -59,6 +78,37 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://fonts.gstatic.com">
     
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Target Capital",
+      "alternateName": "Scentric AI",
+      "url": "https://targetcapital.in",
+      "logo": "{{ request.host_url }}static/images/logo.png",
+      "description": "AI-powered investment platform for Indian retail traders featuring I-Score signals, multi-broker portfolio management, behavioural guardrails, and Scentric AI Decision Engine.",
+      "foundingDate": "2020",
+      "areaServed": "IN",
+      "sameAs": [
+        "https://x.com/ShankarUday2020",
+        "https://www.linkedin.com/company/tcapitalbiz/",
+        "https://www.facebook.com/tcapital2020/"
+      ],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer support",
+        "availableLanguage": ["English", "Hindi"]
+      },
+      "offers": {
+        "@type": "AggregateOffer",
+        "priceCurrency": "INR",
+        "offerCount": "3",
+        "description": "Subscription plans for AI-powered trading platform: Target Plus, Target Pro, HNI"
+      }
+    }
+    </script>
+
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -251,6 +301,24 @@
             color: #d1d5db;
             letter-spacing: 0.2px;
         }
+
+        .seo-kw-tag {
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            color: #9ca3af;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 3px 10px;
+            text-decoration: none;
+            transition: color 0.2s, border-color 0.2s;
+            white-space: nowrap;
+        }
+        .seo-kw-tag:hover {
+            color: #e5e7eb;
+            border-color: rgba(255,255,255,0.25);
+            transform: none;
+        }
     </style>
     
     <footer class="text-light py-5">
@@ -311,7 +379,48 @@
             </div>
             
             <hr class="my-4">
-            
+
+            <!-- SEO Keyword Section — Supported Brokers -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <p style="font-size:11px;font-weight:600;letter-spacing:1px;color:#6b7280;text-transform:uppercase;margin-bottom:10px;">Supported Brokers</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for broker in [('Dhan','#'),('Zerodha','#'),('Angel One','#'),('Upstox','#'),('ICICI Direct','#'),('Groww','#'),('Alice Blue','#'),('5 Paisa','#')] %}
+                        <span style="font-size:12px;color:#9ca3af;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:3px 10px;">{{ broker[0] }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- SEO Keyword Section — Services -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <p style="font-size:11px;font-weight:600;letter-spacing:1px;color:#6b7280;text-transform:uppercase;margin-bottom:10px;">Our Services</p>
+                    <div class="d-flex flex-wrap gap-2" style="line-height:2.2;">
+                        <a href="{{ url_for('portfolio_analysis') }}" class="seo-kw-tag">Portfolio Management</a>
+                        <a href="{{ url_for('daily_signals_feature') }}" class="seo-kw-tag">F&amp;O Trading Signals</a>
+                        <a href="{{ url_for('stock_research') }}" class="seo-kw-tag">AI Stock Research</a>
+                        <a href="{{ url_for('services') }}" class="seo-kw-tag">Behavioural Trading Analysis</a>
+                        <a href="{{ url_for('stock_research') }}" class="seo-kw-tag">I-Score Investment Rating</a>
+                        <a href="{{ url_for('portfolio_analysis') }}" class="seo-kw-tag">Multi-Broker Portfolio Tracker</a>
+                        <a href="{{ url_for('services') }}" class="seo-kw-tag">Trading Discipline Score</a>
+                        <a href="{{ url_for('services') }}" class="seo-kw-tag">Live Market Pulse</a>
+                        <a href="{{ url_for('daily_signals_feature') }}" class="seo-kw-tag">Nifty 50 Signals</a>
+                        <a href="{{ url_for('trading_signals') }}" class="seo-kw-tag">Intraday Trading Signals</a>
+                        <a href="{{ url_for('trading_signals') }}" class="seo-kw-tag">Swing Trading Research</a>
+                        <a href="{{ url_for('portfolio_analysis') }}" class="seo-kw-tag">Risk Heat Map</a>
+                        <a href="{{ url_for('portfolio_analysis') }}" class="seo-kw-tag">Demat Account Analytics</a>
+                        <a href="{{ url_for('daily_signals_feature') }}" class="seo-kw-tag">Options Trading India</a>
+                        <a href="{{ url_for('services') }}" class="seo-kw-tag">AI Financial Advisor India</a>
+                        <a href="{{ url_for('services') }}" class="seo-kw-tag">Trading DNA Profile</a>
+                        <a href="{{ url_for('portfolio_analysis') }}" class="seo-kw-tag">Portfolio Rebalancing</a>
+                        <a href="{{ url_for('stock_research') }}" class="seo-kw-tag">Stock Research India</a>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
             <div class="row align-items-center">
                 <div class="col-md-6">
                     <p class="footer-copyright mb-0">&copy; 2026 Scentric Network Private Limited. All rights reserved.</p>
@@ -319,7 +428,7 @@
                 <div class="col-md-6 text-md-end">
                     <p class="footer-security mb-0">
                         <i class="fas fa-shield-alt me-1"></i>
-                        SEBI Regulated | NSE
+                        SEBI Regulated | NSE | BSE | MCX
                     </p>
                 </div>
             </div>

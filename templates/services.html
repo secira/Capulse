@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Our Features - Target Capital{% endblock %}
+{% block title %}Scentric AI Decision Engine — All Features | Target Capital{% endblock %}
+{% block description %}Explore all features of the Scentric AI Decision Engine: I-Score ratings, multi-broker Portfolio Hub, Behavioural Trading DNA, Live Market Pulse, Trade Now with guardrails, and AI Research Co-Pilot. Built for Indian F&O traders.{% endblock %}
+{% block keywords %}Scentric AI features, I-Score investment rating, behavioural trading AI, Trading DNA profile, trading discipline score, live market pulse, multi-broker portfolio, F&O signals India, AI research co-pilot, portfolio risk analysis{% endblock %}
+{% block og_title %}Scentric AI Decision Engine — All Features | Target Capital{% endblock %}
+{% block og_description %}I-Score, Behavioural AI, Live Market Pulse, 8-broker Trade Now, Portfolio Hub — all in one platform for Indian traders.{% endblock %}
 
 {% block content %}
 <!-- Header Section -->
@@ -10,7 +14,7 @@
             <div class="col-lg-8">
                 <h1 class="display-4 fw-bold mb-4">Scentric AI Decision Engine</h1>
                 <p class="lead">
-                    Six powerful capabilities powered by our dual AI engine—Anthropic Claude and GPT-4—to research smarter, manage risk, and trade with confidence.
+                    Nine powerful capabilities powered by our dual AI engine—Anthropic Claude and GPT-4—to research smarter, manage risk, and trade with confidence.
                 </p>
             </div>
         </div>
@@ -101,7 +105,52 @@
                         </div>
                         <h4 class="fw-bold">Behavioural Guardrails</h4>
                         <p class="text-muted">Live client-side checks that warn against risk profile violations and concentration risk (>20% in one trade) before you execute.</p>
-                        <a href="#trade-now" class="btn btn-outline-primary" style="border-color: #dd6b20; color: #dd6b20;">Learn More</a>
+                        <a href="#behavioural-ai" class="btn btn-outline-primary" style="border-color: #dd6b20; color: #dd6b20;">Learn More</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- New Features Row -->
+        <div class="row g-4 mt-4">
+            <div class="col-lg-4">
+                <div class="service-card" style="border-top: 3px solid #7c3aed;">
+                    <div class="card-body p-4 text-center">
+                        <div class="service-icon text-white rounded-circle mx-auto mb-3" style="background: linear-gradient(135deg, #7c3aed, #4c1d95);">
+                            <i class="fas fa-dna fa-2x"></i>
+                        </div>
+                        <span class="badge mb-2" style="background:#7c3aed;font-size:10px;">NEW</span>
+                        <h4 class="fw-bold">Behavioural AI — Trading DNA</h4>
+                        <p class="text-muted">Analyses your full trade history to detect Revenge Trading, Overtrading, Fear-Based Exits and other harmful patterns. Generates a Trading Discipline Score and personalised risk personality profile.</p>
+                        <a href="#behavioural-ai" class="btn btn-outline-primary" style="border-color: #7c3aed; color: #7c3aed;">Learn More</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="service-card" style="border-top: 3px solid #0891b2;">
+                    <div class="card-body p-4 text-center">
+                        <div class="service-icon text-white rounded-circle mx-auto mb-3" style="background: linear-gradient(135deg, #0891b2, #164e63);">
+                            <i class="fas fa-satellite-dish fa-2x"></i>
+                        </div>
+                        <span class="badge mb-2" style="background:#0891b2;font-size:10px;">NEW</span>
+                        <h4 class="fw-bold">Live Market Pulse</h4>
+                        <p class="text-muted">Live Nifty 50 treemap, sector heatmap, top movers, AI market commentary and voice-enabled Scentric AI queries — all in a single real-time dashboard updated continuously.</p>
+                        <a href="{{ url_for('register') }}" class="btn btn-outline-primary" style="border-color: #0891b2; color: #0891b2;">Access Now</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="service-card" style="border-top: 3px solid #16a34a;">
+                    <div class="card-body p-4 text-center">
+                        <div class="service-icon text-white rounded-circle mx-auto mb-3" style="background: linear-gradient(135deg, #16a34a, #14532d);">
+                            <i class="fas fa-exchange-alt fa-2x"></i>
+                        </div>
+                        <span class="badge mb-2 bg-success" style="font-size:10px;">LIVE</span>
+                        <h4 class="fw-bold">Multi-Broker Trade Now</h4>
+                        <p class="text-muted">Place BUY/SELL orders (Market, Limit, SL) across 8 live broker APIs — Dhan, Zerodha, Angel One, Upstox, ICICI Direct, Groww, Alice Blue, 5 Paisa — from one screen.</p>
+                        <a href="{{ url_for('trading_signals') }}" class="btn btn-outline-primary" style="border-color: #16a34a; color: #16a34a;">Learn More</a>
                     </div>
                 </div>
             </div>
