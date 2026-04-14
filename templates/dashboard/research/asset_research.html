@@ -17,24 +17,9 @@
                             Research Co-Pilot
                         </h5>
                         <div class="d-flex align-items-center gap-2">
-                            {% if asset_key == 'stocks' %}
-                            <button class="btn btn-sm btn-outline-primary" id="refreshWatchlistBtn" onclick="startWatchlistRefresh()" title="Refresh I-Scores for all stocks in your watchlist">
-                                <i class="fas fa-sync-alt me-1"></i>Refresh My Watchlist I-Scores
-                            </button>
-                            {% endif %}
                             <span class="badge bg-info">AI-Powered Research</span>
                         </div>
                     </div>
-                    {% if asset_key == 'stocks' %}
-                    <div id="watchlistRefreshPanel" style="display:none;" class="mt-3">
-                        <div class="progress mb-1" style="height: 18px;">
-                            <div id="watchlistProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
-                                 role="progressbar" style="width: 0%; transition: width 0.5s ease;">0%</div>
-                        </div>
-                        <small id="watchlistStatusText" class="text-muted">Starting...</small>
-                        <div id="watchlistLogLines" class="text-muted mt-1"></div>
-                    </div>
-                    {% endif %}
                 </div>
                 <div class="card-body p-4">
                     {% set plan_value = current_user.pricing_plan.value if current_user.pricing_plan.value is defined else current_user.pricing_plan %}
@@ -1778,23 +1763,60 @@ function formatDetailValue(value) {
     return String(value);
 }
 
-// Auto-fill symbol when arriving from the Research Watch List.
-// Analysis is NOT triggered automatically — the user must click Analyze.
+// When arriving from the Research Watch List with a pre-filled symbol:
+// 1. Fill the input box
+// 2. Load any existing I-Score from the shared master cache/list and display it
+// 3. If no data exists yet, show a hint to run the first analysis
 (function() {
     const sym = {{ prefill_symbol | default('') | tojson }};
-    if (sym) {
-        const input = document.getElementById('iscoreSymbol');
-        if (input) {
-            input.value = sym;
-            input.focus();
-            // Show a subtle hint below the input
-            const hint = document.getElementById('symbolPrefillHint');
+    if (!sym) return;
+
+    const input = document.getElementById('iscoreSymbol');
+    if (input) input.value = sym;
+
+    const hint = document.getElementById('symbolPrefillHint');
+
+    // Fetch existing cached result from the master list
+    fetch('/api/research/cached/' + encodeURIComponent(sym) + '?asset_type=' + ASSET_KEY)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.cached && data.result) {
+                // Show the stored I-Score immediately — no spinner needed
+                displayIScoreResult(data.result);
+
+                // Add a soft banner so the user knows it's stored data
+                const cachedAt = data.cached_at
+                    ? new Date(data.cached_at).toLocaleString('en-IN', {
+                          day: '2-digit', month: 'short', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit'
+                      })
+                    : 'earlier';
+                if (hint) {
+                    hint.innerHTML =
+                        '<i class="fas fa-database me-1"></i>Showing stored I-Score computed ' +
+                        cachedAt + '. Click <strong>Analyze</strong> to refresh with latest market data.';
+                    hint.style.display = 'block';
+                }
+            } else {
+                // No stored data — prompt the user to run their first analysis
+                if (hint) {
+                    hint.innerHTML =
+                        '<i class="fas fa-info-circle me-1"></i>' + sym +
+                        ' has no I-Score yet. Click <strong>Analyze</strong> to generate one.';
+                    hint.style.display = 'block';
+                }
+                if (input) input.focus();
+            }
+        })
+        .catch(() => {
+            // On network error, just pre-fill and let the user decide
+            if (input) input.focus();
             if (hint) {
-                hint.textContent = sym + ' pre-filled from your Watch List. Press Analyze to run the I-Score.';
+                hint.innerHTML = '<i class="fas fa-info-circle me-1"></i>' + sym +
+                    ' loaded. Click <strong>Analyze</strong> to run the I-Score.';
                 hint.style.display = 'block';
             }
-        }
-    }
+        });
 })();
 
 // ── Trade button: pass symbol + current price to Trade Now ─────────────────
@@ -1827,71 +1849,5 @@ function tradeFromResearch() {
     window.location.href = `/dashboard/trade-now?${params.toString()}`;
 }
 
-// ── Watchlist I-Score Refresh ─────────────────────────────────────────────────
-{% if asset_key == 'stocks' %}
-let _watchlistJobId = null;
-let _watchlistPollTimer = null;
-
-function startWatchlistRefresh() {
-    if (_watchlistJobId) {
-        alert('A refresh is already running. Please wait.');
-        return;
-    }
-    document.getElementById('refreshWatchlistBtn').disabled = true;
-    document.getElementById('watchlistRefreshPanel').style.display = 'block';
-    document.getElementById('watchlistProgressBar').style.width = '0%';
-    document.getElementById('watchlistProgressBar').textContent = '0%';
-    document.getElementById('watchlistStatusText').textContent = 'Starting...';
-    document.getElementById('watchlistLogLines').innerHTML = '';
-
-    fetch('/api/research/refresh-watchlist-iscores', { method: 'POST' })
-        .then(r => r.json())
-        .then(data => {
-            if (!data.success) {
-                document.getElementById('watchlistStatusText').textContent = data.message || 'Could not start refresh.';
-                document.getElementById('refreshWatchlistBtn').disabled = false;
-                return;
-            }
-            _watchlistJobId = data.job_id;
-            document.getElementById('watchlistStatusText').textContent = data.message;
-            _watchlistPollTimer = setInterval(_pollWatchlist, 3000);
-        })
-        .catch(e => {
-            document.getElementById('watchlistStatusText').textContent = 'Network error.';
-            document.getElementById('refreshWatchlistBtn').disabled = false;
-        });
-}
-
-function _pollWatchlist() {
-    if (!_watchlistJobId) return;
-    fetch('/api/research/refresh-watchlist-iscores/status?job_id=' + _watchlistJobId)
-        .then(r => r.json())
-        .then(data => {
-            if (!data.found) { clearInterval(_watchlistPollTimer); document.getElementById('refreshWatchlistBtn').disabled = false; return; }
-
-            document.getElementById('watchlistProgressBar').style.width = data.pct + '%';
-            document.getElementById('watchlistProgressBar').textContent = data.pct + '%';
-
-            const sym = data.current_symbol ? ` — ${data.current_symbol}` : '';
-            document.getElementById('watchlistStatusText').textContent =
-                `${data.done} / ${data.total} done  ✓ ${data.success}  ✗ ${data.errors}${sym}`;
-
-            if (data.recent_log && data.recent_log.length) {
-                document.getElementById('watchlistLogLines').innerHTML =
-                    data.recent_log.map(l => `<div class="small font-monospace">${l}</div>`).join('');
-            }
-
-            if (data.status === 'completed' || data.status === 'failed') {
-                clearInterval(_watchlistPollTimer);
-                _watchlistJobId = null;
-                document.getElementById('refreshWatchlistBtn').disabled = false;
-                document.getElementById('watchlistProgressBar').classList.remove('progress-bar-animated');
-                document.getElementById('watchlistStatusText').textContent =
-                    `Done — ✓ ${data.success} refreshed, ✗ ${data.errors} errors.`;
-            }
-        })
-        .catch(() => {});
-}
-{% endif %}
 </script>
 {% endblock %}

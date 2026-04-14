@@ -423,48 +423,78 @@ def api_research_analyze():
 @app.route('/api/research/cached/<symbol>')
 @login_required
 def api_research_cached(symbol):
-    """Get cached I-Score for a symbol if available"""
+    """
+    Return an existing I-Score for `symbol` without running fresh analysis.
+    Priority:
+      1. ResearchCache row valid today  → full result_payload
+      2. ResearchList master entry       → reconstruct compatible payload
+      3. Nothing found                   → {cached: False}
+    The JS caller uses data.result to feed displayIScoreResult() directly.
+    """
     try:
         plan = current_user.pricing_plan
         plan_value = plan.value if hasattr(plan, 'value') else str(plan)
         if plan_value == 'free':
             return jsonify({'success': False, 'cached': False}), 403
-        
+
         symbol = symbol.upper().strip()
         asset_type = request.args.get('asset_type', 'stocks')
-        
+
+        # ── 1. Today's ResearchCache (full payload stored after last analysis) ─
         import hashlib
-        cache_key = hashlib.md5(f"iscore:{asset_type}:{symbol}:{date.today().isoformat()}".encode()).hexdigest()
-        
-        cached = ResearchCache.query.filter_by(
-            cache_key=cache_key,
-            is_valid=True
-        ).first()
-        
-        if cached and cached.expires_at > datetime.utcnow():
+        cache_key = hashlib.md5(
+            f"iscore:{asset_type}:{symbol}:{date.today().isoformat()}".encode()
+        ).hexdigest()
+        cached = ResearchCache.query.filter_by(cache_key=cache_key, is_valid=True).first()
+        if cached and cached.expires_at > datetime.utcnow() and cached.result_payload:
             cached.hit_count += 1
             cached.last_hit_at = datetime.utcnow()
-            db.session.commit()
-            
-            result = cached.result_payload or {}
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
             return jsonify({
                 'success': True,
                 'cached': True,
-                'symbol': symbol,
-                'iscore': float(cached.overall_score) if cached.overall_score else result.get('overall_score', 0),
-                'recommendation': cached.recommendation or result.get('recommendation', 'INCONCLUSIVE'),
-                'summary': result.get('recommendation_summary', ''),
-                'components': {
-                    'qualitative': result.get('qualitative', {}),
-                    'quantitative': result.get('quantitative', {}),
-                    'search': result.get('search', {}),
-                    'trend': result.get('trend', {})
-                },
-                'computed_at': cached.computed_at.isoformat() if cached.computed_at else None
+                'cached_at': cached.computed_at.isoformat() if cached.computed_at else None,
+                'result': cached.result_payload,
             })
-        
+
+        # ── 2. ResearchList master entry (any vintage) ────────────────────────
+        rl = ResearchList.query.filter_by(symbol=symbol, is_active=True).first()
+        if rl and rl.i_score is not None:
+            computed_at = rl.last_computed_at or rl.updated_at
+            # Build a response shape compatible with displayIScoreResult()
+            payload = {
+                'success': True,
+                'symbol': symbol,
+                'asset_name': rl.company_name or symbol,
+                'iscore': float(rl.i_score),
+                'confidence': float(rl.confidence) if rl.confidence else 0,
+                'recommendation': rl.recommendation or 'HOLD',
+                'summary': rl.recommendation_summary or '',
+                'components': {
+                    'qualitative':  {'score': float(rl.qualitative_score or 0),  'details': rl.qualitative_details or {}},
+                    'quantitative': {'score': float(rl.quantitative_score or 0), 'details': rl.quantitative_details or {}},
+                    'search':       {'score': float(rl.search_score or 0),       'details': rl.search_details or {}},
+                    'trend':        {'score': float(rl.trend_score or 0),        'details': rl.trend_details or {}},
+                },
+                'market_data': {
+                    'current_price':  float(rl.current_price) if rl.current_price else None,
+                    'previous_close': float(rl.previous_close) if rl.previous_close else None,
+                    'change_pct':     float(rl.price_change_pct) if rl.price_change_pct else None,
+                },
+                '_from_cache': True,
+            }
+            return jsonify({
+                'success': True,
+                'cached': True,
+                'cached_at': computed_at.isoformat() if computed_at else None,
+                'result': payload,
+            })
+
         return jsonify({'success': True, 'cached': False, 'symbol': symbol})
-    
+
     except Exception as e:
         db.session.rollback()
         logger.error(f"I-Score cache lookup error for {symbol}: {e}")
