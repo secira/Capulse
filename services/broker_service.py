@@ -2458,11 +2458,17 @@ class BrokerService:
 
     @staticmethod
     def _sync_positions(broker_account: BrokerAccount, positions_data: List[Dict]):
-        """Replace today's positions with fresh broker data."""
+        """Replace ALL stored positions with the current broker snapshot.
+        Broker position APIs return the complete list of currently open positions.
+        Any position no longer returned (moved to holdings, squared off, etc.)
+        must be removed so it does not appear as falsely open in the UI.
+        """
         today = datetime.utcnow().date()
+        # Delete every stored position for this account — not just today's.
+        # Positions from previous days that are no longer open would otherwise
+        # keep appearing in the portfolio even after moving to holdings.
         BrokerPosition.query.filter_by(
             broker_account_id=broker_account.id,
-            position_date=today,
         ).delete()
         for p in positions_data:
             position = BrokerPosition(

@@ -2640,8 +2640,9 @@ def dashboard_equities():
                 ).all()
                 broker_holdings_list.extend(broker_holdings)
 
-                positions = BrokerPosition.query.filter_by(
-                    broker_account_id=account.id,
+                positions = BrokerPosition.query.filter(
+                    BrokerPosition.broker_account_id == account.id,
+                    BrokerPosition.quantity != 0,
                 ).all()
                 for p in positions:
                     broker_positions_list.append({
@@ -3669,7 +3670,8 @@ def dashboard_futures_options():
 
         if _acc_ids:
             _all_positions = _BPos.query.filter(
-                _BPos.broker_account_id.in_(_acc_ids)
+                _BPos.broker_account_id.in_(_acc_ids),
+                _BPos.quantity != 0,
             ).order_by(_BPos.position_date.desc()).all()
 
             for pos in _all_positions:
