@@ -58,6 +58,7 @@
                                     </button>
                                 </div>
                                 <small class="text-muted">Enter a {{ asset.name|lower }} symbol for I-Score analysis</small>
+                                <div id="symbolPrefillHint" class="mt-1 small text-primary fw-semibold" style="display:none;"></div>
                             </div>
                             
                             <div class="alert alert-light border mb-0" id="iscoreInfo">
@@ -1777,14 +1778,21 @@ function formatDetailValue(value) {
     return String(value);
 }
 
-// Auto-fill and trigger analysis when arriving from the Research Watch List
+// Auto-fill symbol when arriving from the Research Watch List.
+// Analysis is NOT triggered automatically — the user must click Analyze.
 (function() {
     const sym = {{ prefill_symbol | default('') | tojson }};
     if (sym) {
         const input = document.getElementById('iscoreSymbol');
         if (input) {
             input.value = sym;
-            setTimeout(analyzeSymbol, 300);
+            input.focus();
+            // Show a subtle hint below the input
+            const hint = document.getElementById('symbolPrefillHint');
+            if (hint) {
+                hint.textContent = sym + ' pre-filled from your Watch List. Press Analyze to run the I-Score.';
+                hint.style.display = 'block';
+            }
         }
     }
 })();

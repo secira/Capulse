@@ -304,6 +304,30 @@ def api_research_analyze():
         if asset_type not in ASSET_TYPES:
             return jsonify({'success': False, 'error': f'Invalid asset type: {asset_type}'}), 400
         
+        # ── Check shared ResearchCache first (saves API costs + time) ──────
+        import hashlib
+        today_str = date.today().isoformat()
+        cache_key = hashlib.md5(
+            f"iscore:{asset_type}:{symbol}:{today_str}".encode()
+        ).hexdigest()
+
+        cached = ResearchCache.query.filter_by(
+            cache_key=cache_key,
+            is_valid=True
+        ).first()
+        if cached and cached.expires_at > datetime.utcnow():
+            cached.hit_count += 1
+            cached.last_hit_at = datetime.utcnow()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+            payload = cached.result_payload or {}
+            payload['_from_cache'] = True
+            payload['_cached_at']  = cached.computed_at.isoformat() if cached.computed_at else today_str
+            logger.info(f"Returning cached I-Score for {symbol} (hits={cached.hit_count})")
+            return jsonify(payload)
+
         from services.langgraph_iscore_engine import LangGraphIScoreEngine
         
         engine = LangGraphIScoreEngine()
@@ -351,12 +375,38 @@ def api_research_analyze():
                 entry.update_from_iscore_result(mapped)
                 entry.computation_source  = 'real_time'
                 entry.last_requested_at   = datetime.utcnow()
+                db.session.flush()   # flush before cache write
+
+                # ── Save to shared ResearchCache (expires at midnight tonight) ──
+                # Any other user who requests the same symbol today will get
+                # this result instantly without re-running expensive AI calls.
+                expires = datetime.combine(date.today(), datetime.max.time()).replace(microsecond=0)
+                existing_cache = ResearchCache.query.filter_by(cache_key=cache_key).first()
+                if existing_cache is None:
+                    existing_cache = ResearchCache(
+                        cache_key=cache_key,
+                        tenant_id='live',
+                        asset_type=asset_type,
+                        symbol=symbol,
+                        analysis_date=date.today(),
+                    )
+                    db.session.add(existing_cache)
+                existing_cache.result_payload   = result
+                existing_cache.overall_score    = mapped['overall_score']
+                existing_cache.recommendation   = mapped['recommendation']
+                existing_cache.computed_at      = datetime.utcnow()
+                existing_cache.expires_at       = expires
+                existing_cache.is_valid         = True
+
                 db.session.commit()
-                logger.info(f"ResearchList upserted for {symbol}: I-Score={mapped['overall_score']}")
+                logger.info(
+                    f"ResearchList + ResearchCache saved for {symbol}: "
+                    f"I-Score={mapped['overall_score']}, expires={expires.isoformat()}"
+                )
 
             except Exception as save_err:
                 db.session.rollback()
-                logger.warning(f"Could not persist ResearchList for {symbol}: {save_err}")
+                logger.warning(f"Could not persist ResearchList/Cache for {symbol}: {save_err}")
                 # Non-fatal — still return result to user
 
         return jsonify(result)
