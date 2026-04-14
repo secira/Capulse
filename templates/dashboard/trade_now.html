@@ -839,13 +839,54 @@ function executeTrade() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {
-            alert('Trade order sent successfully!\n\nOrder ID: ' + (data.order_id || 'Processing'));
-            location.reload();
+            showTradeResult(true, 'Trade order sent successfully!\n\nOrder ID: ' + (data.order_id || 'Processing'));
+            setTimeout(function(){ location.reload(); }, 2500);
         } else {
-            alert('Trade execution failed: ' + (data.error || 'Unknown error'));
+            showTradeResult(false, data.error || 'Unknown error');
         }
     })
-    .catch(function(err) { alert('Error executing trade: ' + err.message); });
+    .catch(function(err) { showTradeResult(false, 'Network error: ' + err.message); });
+}
+
+// ─── Trade Result Modal ───────────────────────────────────────────────────────
+function showTradeResult(success, message) {
+    // Close confirm modal if open
+    var confirmModalEl = document.getElementById('tradeConfirmModal');
+    if (confirmModalEl) {
+        var inst = bootstrap.Modal.getInstance(confirmModalEl);
+        if (inst) inst.hide();
+    }
+
+    var el = document.createElement('div');
+    el.className = 'modal fade';
+    el.setAttribute('tabindex', '-1');
+    var lines = (message || '').split('\n').map(function(l){ return '<p class="mb-1" style="font-size:14px;">' + l + '</p>'; }).join('');
+    el.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius:18px;overflow:hidden;">
+                <div class="modal-header border-0 pb-0" style="background:${success ? '#f0fdf4' : '#fff5f5'};">
+                    <div class="d-flex align-items-center gap-2 py-2">
+                        <i class="fas ${success ? 'fa-check-circle text-success' : 'fa-exclamation-circle text-danger'} fa-2x"></i>
+                        <h5 class="modal-title fw-bold mb-0" style="color:${success ? '#16a34a' : '#dc2626'};">
+                            ${success ? 'Order Placed!' : 'Order Failed'}
+                        </h5>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body px-4 pb-4" style="background:${success ? '#f0fdf4' : '#fff5f5'};">
+                    <div style="color:#374151;">${lines}</div>
+                </div>
+                ${!success ? `
+                <div class="modal-footer border-0 pt-0" style="background:#fff5f5;">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                </div>` : ''}
+            </div>
+        </div>`;
+    document.body.appendChild(el);
+    var m = new bootstrap.Modal(el);
+    m.show();
+    el.addEventListener('hidden.bs.modal', function(){ el.remove(); });
+    if (success) setTimeout(function(){ m.hide(); }, 3000);
 }
 
 // ─── Scentric Behavioural Guardrails ─────────────────────────────────────────

@@ -5330,16 +5330,21 @@ def api_trade_execute_signal():
                 'error': 'No broker selected or connected. Please connect a broker first.'
             }), 400
 
+        order_type_raw = data.get('order_type', 'MARKET').upper()
+        # trigger_price is only valid for Stop-Loss order types; MARKET/LIMIT must send 0
+        is_sl_order = order_type_raw in ('STOP_LOSS', 'SL', 'SLM', 'SL-M', 'STOP_LOSS_MARKET')
+        trigger_price_val = float(data.get('stop_loss')) if (is_sl_order and data.get('stop_loss')) else 0
+
         order_data = {
             'symbol': data.get('symbol'),
             'trading_symbol': data.get('symbol'),
             'quantity': int(data.get('quantity', 1)),
             'price': float(data.get('price')) if data.get('price') else None,
             'transaction_type': data.get('action', 'BUY'),
-            'order_type': data.get('order_type', 'MARKET'),
+            'order_type': order_type_raw,
             'product_type': data.get('product_type', 'MIS'),
             'exchange': 'NSE',
-            'trigger_price': float(data.get('stop_loss')) if data.get('stop_loss') else None
+            'trigger_price': trigger_price_val
         }
 
         try:
@@ -5370,10 +5375,29 @@ def api_trade_execute_signal():
                 'message': f'Order placed successfully with {selected_broker.broker_name}'
             })
         except Exception as broker_error:
-            logger.error(f"Broker execution error: {str(broker_error)}")
+            err_str = str(broker_error)
+            logger.error(f"Broker execution error: {err_str}")
+
+            # Detect Dhan "Invalid IP" — requires IP whitelisting in Dhan API settings
+            if 'Invalid IP' in err_str or 'invalid ip' in err_str.lower():
+                import requests as _req
+                try:
+                    server_ip = _req.get('https://api.ipify.org', timeout=3).text.strip()
+                except Exception:
+                    server_ip = '34.23.50.247'
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'Dhan API rejected the order: IP address not whitelisted.\n\n'
+                        f'Our server IP is: {server_ip}\n\n'
+                        f'Please go to Dhan → Apps & API → your API key → '
+                        f'add {server_ip} to the allowed IP list, then try again.'
+                    )
+                }), 403
+
             return jsonify({
                 'success': False,
-                'error': f'Broker error: {str(broker_error)}'
+                'error': f'Broker error: {err_str}'
             }), 500
         
     except Exception as e:
