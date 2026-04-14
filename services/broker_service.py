@@ -563,50 +563,68 @@ class DhanBrokerClient(BaseBrokerClient):
         from_str = (from_date or datetime.utcnow().replace(day=1)).strftime('%Y-%m-%d')
         to_str   = (to_date   or datetime.utcnow()).strftime('%Y-%m-%d')
 
+        # Dhan historical trade API: GET /v2/tradeHistory/{from_date}/{to_date}/{page}
+        # (Path parameters, NOT a POST body — the POST endpoint returns 404.)
         all_trades: List[Dict] = []
+        api_succeeded = False
         try:
             import requests as _req
+            headers = {
+                "access-token": access_token,
+                "client-id":    client_id,
+                "Content-Type": "application/json",
+            }
             page = 0
             while True:
-                payload = {"from_date": from_str, "to_date": to_str, "page": page}
-                headers = {
-                    "access-token": access_token,
-                    "client-id": client_id,
-                    "Content-Type": "application/json",
-                }
-                resp = _req.post(
-                    "https://api.dhan.co/v2/tradeHistory",
-                    json=payload,
-                    headers=headers,
-                    timeout=15,
+                url = (
+                    f"https://api.dhan.co/v2/tradeHistory"
+                    f"/{from_str}/{to_str}/{page}"
                 )
+                resp = _req.get(url, headers=headers, timeout=15)
+                logger.info(f"Dhan tradeHistory GET {url} → {resp.status_code}")
                 if resp.status_code != 200:
-                    logger.warning(f"Dhan tradeHistory API returned {resp.status_code}: {resp.text[:200]}")
+                    logger.warning(
+                        f"Dhan tradeHistory API returned {resp.status_code}: {resp.text[:300]}"
+                    )
                     break
-                data = resp.json()
-                records = data.get('data', []) if isinstance(data, dict) else []
+                api_succeeded = True
+                raw = resp.json()
+                # Response may be a list directly or {"data": [...]}
+                if isinstance(raw, dict):
+                    records = raw.get('data', [])
+                elif isinstance(raw, list):
+                    records = raw
+                else:
+                    records = []
                 if not records:
                     break
                 all_trades.extend(records)
-                # Dhan paginates in groups of 50; stop if fewer returned
-                if len(records) < 50:
+                if len(records) < 50:   # last page
                     break
                 page += 1
 
             if all_trades:
+                logger.info(f"Dhan tradeHistory: {len(all_trades)} records for {from_str}→{to_str}")
                 return self._normalize_dhan_trades(all_trades)
-        except Exception as hist_err:
-            logger.warning(f"Dhan tradeHistory date-range fetch failed, falling back to trade book: {hist_err}")
 
-        # Fallback: today's trade book
+            # API responded OK but returned zero records for the requested range
+            if api_succeeded:
+                logger.info(f"Dhan tradeHistory: 0 records for {from_str}→{to_str}")
+                return []
+
+        except Exception as hist_err:
+            logger.warning(
+                f"Dhan tradeHistory date-range fetch failed, falling back to trade book: {hist_err}"
+            )
+
+        # Last resort: today's trade book (no date-range support)
         try:
             raw = self._client.get_trade_book()
-            # Dhan SDK may return the full response envelope {"status":..., "data":[...]}
-            # or a plain list — normalise to a list before passing on.
             if isinstance(raw, dict):
                 raw = raw.get('data', [])
             if not isinstance(raw, list):
                 raw = []
+            logger.info(f"Dhan trade book fallback: {len(raw)} records")
             return self._normalize_dhan_trades(raw)
         except Exception as e:
             logger.error(f"Error fetching Dhan trade history: {e}")
