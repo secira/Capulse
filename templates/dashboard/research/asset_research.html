@@ -778,20 +778,39 @@ function displayIScoreResult(data) {
         cBadge.innerHTML = '<i class="fas fa-shield-alt me-1"></i>Confidence: ' + cl;
     }
     if (data.penalty && data.penalty.applied && data.penalty.applied < 1.0) {
+        const pct = ((1 - data.penalty.applied) * 100).toFixed(0);
         const pBadge = document.getElementById('penaltyBadge');
         pBadge.style.display = '';
-        pBadge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Penalty: ' + ((1 - data.penalty.applied) * 100).toFixed(0) + '% applied';
         pBadge.className = 'badge bg-danger px-3 py-2';
+        const penaltyTip = 'The raw I-Score was reduced by ' + pct + '% because risk warning signals were detected in this stock — such as high volatility, weak trend structure, large drawdown, or overbought RSI. This adjustment brings the final score closer to the actual risk you would face as a trader. The reasons are listed below the badge.';
+        pBadge.innerHTML =
+            '<i class="fas fa-exclamation-triangle me-1"></i>Penalty: ' + pct + '% applied' +
+            ' <i class="fas fa-question-circle ms-1" style="cursor:pointer;opacity:0.85;" ' +
+            'data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="false" ' +
+            'title="' + penaltyTip.replace(/"/g, '&quot;') + '"></i>';
+        const tipEl = pBadge.querySelector('[data-bs-toggle="tooltip"]');
+        if (tipEl && window.bootstrap) new bootstrap.Tooltip(tipEl, { trigger: 'hover focus', boundary: 'window' });
+
         if (data.penalty.reasons && data.penalty.reasons.length) {
             const pReasons = document.getElementById('penaltyReasons');
             pReasons.style.display = 'block';
-            pReasons.innerHTML = data.penalty.reasons.map(r => '<small class="text-danger"><i class="fas fa-minus-circle me-1"></i>' + r + '</small>').join('<br>');
+            pReasons.innerHTML = data.penalty.reasons.map(r =>
+                '<small class="text-danger"><i class="fas fa-minus-circle me-1"></i>' + r + '</small>'
+            ).join('<br>');
         }
     } else if (data.penalty && data.penalty.applied > 1.0) {
+        const bonusPct = ((data.penalty.applied - 1) * 100).toFixed(0);
         const pBadge = document.getElementById('penaltyBadge');
         pBadge.style.display = '';
-        pBadge.innerHTML = '<i class="fas fa-arrow-up me-1"></i>Bonus: +' + ((data.penalty.applied - 1) * 100).toFixed(0) + '%';
         pBadge.className = 'badge bg-success px-3 py-2';
+        const bonusTip = 'The raw I-Score received a +' + bonusPct + '% bonus because the Quantitative, Trend, and Risk components are all strongly aligned — a rare combination that increases confidence in the score.';
+        pBadge.innerHTML =
+            '<i class="fas fa-arrow-up me-1"></i>Bonus: +' + bonusPct + '%' +
+            ' <i class="fas fa-question-circle ms-1" style="cursor:pointer;opacity:0.85;" ' +
+            'data-bs-toggle="tooltip" data-bs-placement="top" ' +
+            'title="' + bonusTip.replace(/"/g, '&quot;') + '"></i>';
+        const tipEl = pBadge.querySelector('[data-bs-toggle="tooltip"]');
+        if (tipEl && window.bootstrap) new bootstrap.Tooltip(tipEl, { trigger: 'hover focus', boundary: 'window' });
     }
 
     if (data.score_factors && data.score_factors.length) {
