@@ -144,6 +144,17 @@
                             </div>
                         </div>
 
+                        <!-- Direction Banner: always shown when action is in URL -->
+                        <div class="col-12 d-none" id="actionDirectionBanner">
+                            <div class="d-flex align-items-center gap-3 p-3 rounded-3" id="actionDirectionInner">
+                                <span id="actionDirectionIcon" class="fs-2"></span>
+                                <div>
+                                    <div class="fw-bold fs-5" id="actionDirectionLabel"></div>
+                                    <div class="text-muted" style="font-size:13px;" id="actionDirectionSymbol"></div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Order Parameters -->
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Entry Price</label>
@@ -157,7 +168,7 @@
                         
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Order Type</label>
-                            <select class="form-select" name="order_type" required>
+                            <select class="form-select" name="order_type" id="orderTypeSelect" required onchange="handleOrderTypeChange(this.value)">
                                 <option value="MARKET">Market Order</option>
                                 <option value="LIMIT">Limit Order</option>
                             </select>
@@ -366,6 +377,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Check for URL parameters to pre-populate form
     const urlParams = new URLSearchParams(window.location.search);
+
+    // Apply Market Order rule immediately on page load
+    handleOrderTypeChange(document.getElementById('orderTypeSelect')?.value || 'MARKET');
+
     if (urlParams.has('symbol')) {
         prePopulateForm(urlParams);
     }
@@ -445,6 +460,48 @@ function exitTrade(tradeId) {
     alert('Exit trade functionality will be implemented');
 }
 
+function handleOrderTypeChange(orderType) {
+    const targetInput = document.getElementById('targetPriceInput');
+    const targetLabel = targetInput ? targetInput.closest('.col-md-4')?.querySelector('label') : null;
+    if (!targetInput) return;
+    if (orderType === 'MARKET') {
+        targetInput.value = '0';
+        targetInput.readOnly = true;
+        targetInput.style.background = '#f8fafc';
+        targetInput.style.color = '#94a3b8';
+        if (targetLabel) targetLabel.innerHTML = 'Target Price <small class="text-muted fw-normal">(N/A for Market)</small>';
+    } else {
+        targetInput.readOnly = false;
+        targetInput.style.background = '';
+        targetInput.style.color = '';
+        if (targetLabel) targetLabel.innerHTML = 'Target Price';
+    }
+}
+
+function showActionDirectionBanner(action, symbol) {
+    const banner = document.getElementById('actionDirectionBanner');
+    const inner  = document.getElementById('actionDirectionInner');
+    const icon   = document.getElementById('actionDirectionIcon');
+    const label  = document.getElementById('actionDirectionLabel');
+    const sym    = document.getElementById('actionDirectionSymbol');
+    if (!banner) return;
+
+    const isBuy = (action || '').toUpperCase() === 'BUY';
+    if (isBuy) {
+        inner.style.background = 'linear-gradient(135deg,#f0fff4,#dcfce7)';
+        inner.style.border     = '2px solid #16a34a';
+        icon.innerHTML  = '<i class="fas fa-arrow-circle-up text-success"></i>';
+        label.innerHTML = '<span class="text-success">BUY Order</span>';
+    } else {
+        inner.style.background = 'linear-gradient(135deg,#fff5f5,#fee2e2)';
+        inner.style.border     = '2px solid #dc2626';
+        icon.innerHTML  = '<i class="fas fa-arrow-circle-down text-danger"></i>';
+        label.innerHTML = '<span class="text-danger">SELL Order</span>';
+    }
+    if (sym && symbol) sym.textContent = symbol;
+    banner.classList.remove('d-none');
+}
+
 function prePopulateForm(urlParams) {
     const symbol    = urlParams.get('symbol');
     const script    = urlParams.get('script');
@@ -459,6 +516,12 @@ function prePopulateForm(urlParams) {
     const target3   = urlParams.get('target_3');
     const riskLevel = urlParams.get('risk_level');
     const signalId  = urlParams.get('signal_id');
+
+    // ── 0. Show direction (BUY / SELL) banner ────────────────────────────────
+    if (action) showActionDirectionBanner(action, script || symbol);
+
+    // ── 0b. Market Order → zero out Target Price immediately ─────────────────
+    handleOrderTypeChange(document.getElementById('orderTypeSelect')?.value || 'MARKET');
 
     // ── 1. Select the asset in the dropdown ──────────────────────────────────
     const assetSelect = document.getElementById('assetSelect');

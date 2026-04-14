@@ -460,8 +460,6 @@ class DhanBrokerClient(BaseBrokerClient):
             'disclosed_quantity': int(order_data.get('disclosed_quantity', 0)),
             'after_market_order': bool(order_data.get('after_market_order', False)),
             'validity':           order_data.get('validity', 'DAY'),
-            'bo_profit_value':    float(order_data.get('bo_profit_value') or 0),
-            'bo_stop_loss_value': float(order_data.get('bo_stop_loss_value') or 0),
         }
 
     def _lookup_dhan_security_id(self, symbol: str, exchange_segment: str) -> Optional[str]:
