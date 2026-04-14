@@ -195,9 +195,9 @@
             <p class="text-muted mb-3">You now have access to all premium features for {{ subscription.days_remaining }} days.</p>
             
             {% set plan_features = {
-                'TARGET_PLUS': ['1 broker connection', 'Portfolio analysis', 'Real-time data', 'Trading signals', 'Research Assistant'],
-                'TARGET_PRO': ['3 broker connections', 'Trade execution (1 primary)', 'Advanced AI insights', 'Portfolio optimization', 'Smart Signals'],
-                'HNI': ['Unlimited brokers', 'Trade execution (1 primary)', 'Priority support', 'Custom strategies', 'Full access']
+                'TARGET_PLUS': ['3 broker connections', 'Portfolio analysis', 'Real-time data', 'Trading signals', 'Research Assistant'],
+                'TARGET_PRO': ['3 broker connections', 'Trade Now (any broker)', 'Advanced AI insights', 'Portfolio optimization', 'Smart Signals'],
+                'HNI': ['3 broker connections', 'Trade Now (any broker)', 'Priority support', 'Custom strategies', 'Full access']
             } %}
             
             {% if payment.plan_type.value.upper() in plan_features %}

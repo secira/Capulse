@@ -451,12 +451,6 @@ def add_broker():
             flash('You can add a maximum of 3 broker connections. Please remove an existing broker before adding a new one.', 'error')
             return redirect(url_for('broker_management'))
         
-        # Additional plan-specific limits (more restrictive than hard cap)
-        from models import PricingPlan
-        if current_user.pricing_plan == PricingPlan.TARGET_PLUS and existing_brokers_count >= 1:
-            flash('Target Plus plan allows only one broker connection. Upgrade to Target Pro for multiple brokers.', 'error')
-            return redirect(url_for('broker_management'))
-        
         # Create new broker connection (Step 1: Add broker with disconnected status)
         new_broker = BrokerAccount(
             user_id=current_user.id,
