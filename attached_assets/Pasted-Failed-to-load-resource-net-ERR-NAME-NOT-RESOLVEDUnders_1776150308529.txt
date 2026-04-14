@@ -1,0 +1,35 @@
+Failed to load resource: net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Axhr%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3Aeec9f3f4&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=529322ca-b401-42ae-b87c-790af3f1b8fb:1  Failed to load resource: net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+events.launchdarkly.com/events/bulk/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+events.launchdarkly.com/events/bulk/62b35a865152ab14c5942820:1  Failed to load resource: net::ERR_NAME_NOT_RESOLVEDUnderstand this error
+0.iwmr61bxw24.js:2 WebSocket connection to 'wss://production-chort.replit.com/api/river' failed: 
+(anonymous) @ 0.iwmr61bxw24.js:2Understand this error
+4901v72nincpr98.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 01v72nincpr98.js:21Understand this warning
+0yl0m8q9e8vw3.js:2 WebSocket connection to 'wss://eval.worf.platform.replit.com/wsv2/v2.public.Q2dZSXRyLzB6Z1lTQmdqVjIvVE9CaUlFZDI5eVpqQUFPcVVDQ2lRek56UXdNMlV4WVMweVpUZ3lMVFEyWVRNdE9EVmlPQzB3TkROa1pqTmtPRFJoTVdVU0EyNXBlQm9XY21Wd2JHbDBMWEpsY0d3dFptbHNaWE10ZDI5eVppSU9WR0Z5WjJWMExVTmhjR2wwWVd3cUJuVmtZWGxwWkVKT0NoZHlaWEJzYVhRdGNtVndiQzFpYkc5amEzTXRkMjl5WmhJVmNtVndiR2wwTFhKbGNHd3RiV1YwWVMxM2IzSm1HaHh5WlhCc2FYUXRiV0Z5WjJGeWFXNWxMV0pzYjJOcmN5MTNiM0ptU2djSTZyV2ZFQkFCVUFCYUdXOXVZbTloY21ScGJtZGZaWGh3WlhKcFpXNWpaVjlzYjNkYUQybHVkR1Z1ZEY5aWRYTnBibVZ6YzNJTUNnWnFk...HY0V4SFkzTnhkbTVEWXpCa2NXaHJaazFoYTNoWlR6UlFWSHBXVFc5RGEzUnFPWHBNVHpKeVNHSlFXVmxrUzJ0T09VWnJWMU5wTTFCclRtOTJjakJ0UXpZMGN6VWxNa1pEWlhGS1JYQldhSFk1YjI5M2FXZDRKVEpHVDFWTU9YcE5iblYwWkZKbVRIZHhKVEpHTTNaa1FVUTNNazRsTWtaMFFraFdSRlpZVFVNME9FbDBOMWR2YkUxcVZXSWxNa0pQV1RCQ056UjJWV2R4V1hwUlYzWTBKVEpDT1c4MGJGWmtVU1V5Um5CcWRFMHliMHhsZUhaR2IwTXhVamd6VEVJeWRVVlBkbEZRSlRKQ0pUSkdObFpvVUVFbE0wUWxNMFE9wEHp2ioVXrGnX2TBgvWvOn5hLiCeSB1PS3pBIbxjgc0IW1Ol7pMQqQdJwvDJRDx97tEOTCNcoeqoIl3TR6lfAA.Q2dad2NtOWtPak1pQ25KbGNHeHBkQzVqYjIwPQ' failed: 
+connect @ 0yl0m8q9e8vw3.js:2Understand this error
+0.iwmr61bxw24.js:2 WebSocket connection to 'wss://production-chort.replit.com/api/river' failed: 
+(anonymous) @ 0.iwmr61bxw24.js:2Understand this error
+/data/repls/37403e1a-2e82-46a3-85b8-043df3d84a1e/get_connection_metadata:1  Failed to load resource: net::ERR_NETWORK_IO_SUSPENDEDUnderstand this error
+01v72nincpr98.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 01v72nincpr98.js:21Understand this warning
+0d9t0915n9jma.js:2 WebSocket connection to 'wss://production-chort.replit.com/api/river-chat' failed: 
+(anonymous) @ 0d9t0915n9jma.js:2Understand this error
+0vly5xq8j5f64.js:13 WebSocket connection to 'wss://production-taskman.replit.com/api/river' failed: 
+(anonymous) @ 0vly5xq8j5f64.js:13Understand this error
+4701v72nincpr98.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 01v72nincpr98.js:21Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'ambient-light-sensor'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'battery'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'execution-while-not-rendered'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'execution-while-out-of-viewport'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'layout-animations'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'legacy-image-formats'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'navigation-override'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'oversized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'publickey-credentials'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'speaker-selection'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'unoptimized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'unsized-media'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Allow attribute will take precedence over 'allowfullscreen'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Allow attribute will take precedence over 'allowpaymentrequest'.

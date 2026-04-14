@@ -563,39 +563,31 @@ class DhanBrokerClient(BaseBrokerClient):
         from_str = (from_date or datetime.utcnow().replace(day=1)).strftime('%Y-%m-%d')
         to_str   = (to_date   or datetime.utcnow()).strftime('%Y-%m-%d')
 
-        # Dhan historical trade API: GET /v2/tradeHistory/{from_date}/{to_date}/{page}
-        # (Path parameters, NOT a POST body — the POST endpoint returns 404.)
+        # Use the SDK's built-in get_trade_history() which calls:
+        #   GET /v2/trades/{from_date}/{to_date}/{page_number}
         all_trades: List[Dict] = []
-        api_succeeded = False
+        api_responded = False
         try:
-            import requests as _req
-            headers = {
-                "access-token": access_token,
-                "client-id":    client_id,
-                "Content-Type": "application/json",
-            }
             page = 0
             while True:
-                url = (
-                    f"https://api.dhan.co/v2/tradeHistory"
-                    f"/{from_str}/{to_str}/{page}"
-                )
-                resp = _req.get(url, headers=headers, timeout=15)
-                logger.info(f"Dhan tradeHistory GET {url} → {resp.status_code}")
-                if resp.status_code != 200:
-                    logger.warning(
-                        f"Dhan tradeHistory API returned {resp.status_code}: {resp.text[:300]}"
-                    )
+                resp = self._client.get_trade_history(from_str, to_str, page)
+                # SDK returns dict with 'status' and 'data'
+                if not isinstance(resp, dict):
+                    logger.warning(f"Dhan get_trade_history unexpected response type: {type(resp)}")
                     break
-                api_succeeded = True
-                raw = resp.json()
-                # Response may be a list directly or {"data": [...]}
-                if isinstance(raw, dict):
-                    records = raw.get('data', [])
-                elif isinstance(raw, list):
-                    records = raw
+                if resp.get('status') == 'failure':
+                    logger.warning(f"Dhan get_trade_history error: {resp.get('remarks', '')}")
+                    break
+                api_responded = True
+                raw_data = resp.get('data', [])
+                # Normalize: SDK may return list or the raw value
+                if isinstance(raw_data, list):
+                    records = raw_data
+                elif isinstance(raw_data, dict):
+                    records = raw_data.get('data', [])
                 else:
                     records = []
+                logger.info(f"Dhan trade history page {page}: {len(records)} records ({from_str}→{to_str})")
                 if not records:
                     break
                 all_trades.extend(records)
@@ -604,20 +596,14 @@ class DhanBrokerClient(BaseBrokerClient):
                 page += 1
 
             if all_trades:
-                logger.info(f"Dhan tradeHistory: {len(all_trades)} records for {from_str}→{to_str}")
                 return self._normalize_dhan_trades(all_trades)
-
-            # API responded OK but returned zero records for the requested range
-            if api_succeeded:
-                logger.info(f"Dhan tradeHistory: 0 records for {from_str}→{to_str}")
-                return []
+            if api_responded:
+                return []  # valid response but no trades in this date range
 
         except Exception as hist_err:
-            logger.warning(
-                f"Dhan tradeHistory date-range fetch failed, falling back to trade book: {hist_err}"
-            )
+            logger.warning(f"Dhan trade history SDK call failed: {hist_err}")
 
-        # Last resort: today's trade book (no date-range support)
+        # Last resort: today's executed trade book (no date-range support)
         try:
             raw = self._client.get_trade_book()
             if isinstance(raw, dict):
