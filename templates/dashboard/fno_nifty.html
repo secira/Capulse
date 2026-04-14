@@ -64,12 +64,12 @@
 .spinner-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.7);z-index:999;align-items:center;justify-content:center}
 .spinner-overlay.show{display:flex}
 
-.expiry-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid #e2e8f0}
-.expiry-tab{padding:10px 20px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;background:none;border:none;border-bottom:2px solid transparent}
-.expiry-tab:hover{color:#3b82f6}
-.expiry-tab.active{color:#1e293b;border-bottom-color:#3b82f6}
-.expiry-tab .dte{font-size:10px;font-weight:700;background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:4px;margin-left:6px}
-.expiry-tab.active .dte{background:#dbeafe;color:#2563eb}
+.expiry-dropdown-wrap{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.expiry-dropdown-wrap label{font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin:0;white-space:nowrap}
+.expiry-select{border:1px solid #cbd5e1;border-radius:8px;padding:8px 32px 8px 12px;font-size:13px;font-weight:600;color:#1e293b;background:#fff;cursor:pointer;min-width:240px;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.expiry-select:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.expiry-dte-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:#dbeafe;color:#2563eb}
+.buy-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:#dcfce7;color:#16a34a;letter-spacing:.5px;text-transform:uppercase}
 
 .opt-data-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:0 -16px}
 .opt-data-item{display:flex;justify-content:space-between;padding:6px 16px;font-size:12px;border-bottom:1px solid #f8fafc}
@@ -191,18 +191,15 @@
         <h6 class="fw-bold mb-0"><i class="fas fa-list-ol me-2 text-primary"></i>Recommended Trades</h6>
         <span class="text-muted" style="font-size:12px">ATM Strike: <strong id="atmStrike">—</strong> | Spot: <strong id="spotPrice">—</strong></span>
     </div>
-    <div class="expiry-tabs" id="expiryTabs">
-        <button class="expiry-tab active" data-expiry="current" onclick="switchExpiry('current')">
-            <span id="expiryCurrentLabel">Current Week</span>
-            <span class="dte" id="expiryCurrentDTE">—</span>
-        </button>
-        <button class="expiry-tab" id="expiryNextTab" data-expiry="next" onclick="switchExpiry('next')" style="display:none">
-            <span id="expiryNextLabel">Next Week</span>
-            <span class="dte" id="expiryNextDTE">—</span>
-        </button>
+    <div class="expiry-dropdown-wrap">
+        <label><i class="fas fa-calendar-alt me-1"></i>Expiry</label>
+        <select class="expiry-select" id="expirySelect" onchange="onExpiryChange()">
+            <option value="current" id="expiryOptCurrent">Loading...</option>
+        </select>
+        <span class="expiry-dte-badge" id="expiryDTEBadge">—</span>
+        <span class="buy-badge"><i class="fas fa-arrow-up me-1"></i>Option Buy Only</span>
     </div>
-    <div id="currentExpiryTrades"><div class="row g-3" id="tradesGrid"></div></div>
-    <div id="nextExpiryTrades" style="display:none"><div class="row g-3" id="tradesGridNext"></div></div>
+    <div class="row g-3" id="tradesGrid"></div>
 </div>
 
 <!-- BOTTOM: Collapsible Layers + Risk Management -->
@@ -360,16 +357,20 @@ function badgeClass(val) {
     return 'badge-neutral';
 }
 
-function switchExpiry(which) {
-    document.querySelectorAll('.expiry-tab').forEach(function(t) { t.classList.remove('active'); });
-    document.querySelector('.expiry-tab[data-expiry="'+which+'"]').classList.add('active');
-    if (which === 'current') {
-        document.getElementById('currentExpiryTrades').style.display = '';
-        document.getElementById('nextExpiryTrades').style.display = 'none';
+function onExpiryChange() {
+    var sel = document.getElementById('expirySelect');
+    var val = sel.value;
+    if (!cachedAnalysis) return;
+    var trades, dte;
+    if (val === 'current') {
+        trades = cachedAnalysis.trades || [];
+        dte = (cachedAnalysis.expiry_info || {}).current_dte || 0;
     } else {
-        document.getElementById('currentExpiryTrades').style.display = 'none';
-        document.getElementById('nextExpiryTrades').style.display = '';
+        trades = cachedAnalysis.next_expiry_trades || [];
+        dte = (cachedAnalysis.expiry_info || {}).next_dte || 0;
     }
+    document.getElementById('expiryDTEBadge').textContent = dte + ' days to expiry';
+    renderTrades(trades, 'tradesGrid');
 }
 
 function buildTradeCard(t) {
@@ -393,7 +394,8 @@ function buildTradeCard(t) {
                 (t.dte !== undefined ? '<span style="font-size:10px;color:#94a3b8;margin-left:4px">(' + t.dte + 'd)</span>' : '') +
                 '</div>' +
             '</div>' +
-            '<span class="trade-type ' + (isCE ? 'type-ce' : 'type-pe') + '">' + t.label + '</span>' +
+            '<div><span class="trade-type ' + (isCE ? 'type-ce' : 'type-pe') + '">' + t.label + '</span>' +
+            '<span class="buy-badge ms-1">BUY</span></div>' +
         '</div>' +
         '<div class="trade-body" style="padding:0">' +
             '<div class="opt-data-grid">' +
@@ -424,7 +426,7 @@ function buildTradeCard(t) {
             '</div>' +
         '</div>' +
         '<div class="trade-footer">' +
-            '<a href="/dashboard/trade-now?symbol=NIFTY&strike=' + t.strike + '&type=' + t.type + '" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-exchange-alt me-1"></i>Trade Now</a>' +
+            '<a href="/dashboard/trade-now?symbol=NIFTY&strike=' + t.strike + '&type=' + t.type + '&action=BUY" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-shopping-cart me-1"></i>Buy ' + t.symbol + '</a>' +
         '</div>' +
     '</div>';
     return html;
@@ -508,26 +510,27 @@ function refreshAnalysis() {
         document.getElementById('atmStrike').textContent = d.atm_strike;
 
         var ei = d.expiry_info || {};
-        document.getElementById('expiryCurrentLabel').textContent = (ei.current_label || 'Weekly') + ' — ' + (ei.current || '');
-        document.getElementById('expiryCurrentDTE').textContent = (ei.current_dte || 0) + 'd';
+        var sel = document.getElementById('expirySelect');
+        sel.innerHTML = '';
+        var opt1 = document.createElement('option');
+        opt1.value = 'current';
+        opt1.textContent = (ei.current_label || 'Weekly') + ' — ' + (ei.current || 'Nearest');
+        sel.appendChild(opt1);
 
-        var nextTab = document.getElementById('expiryNextTab');
         if (ei.has_next && d.next_expiry_trades && d.next_expiry_trades.length > 0) {
-            nextTab.style.display = '';
-            document.getElementById('expiryNextLabel').textContent = (ei.next_label || 'Monthly') + ' — ' + (ei.next || '');
-            document.getElementById('expiryNextDTE').textContent = (ei.next_dte || 0) + 'd';
-        } else {
-            nextTab.style.display = 'none';
+            var opt2 = document.createElement('option');
+            opt2.value = 'next';
+            opt2.textContent = (ei.next_label || 'Monthly') + ' — ' + (ei.next || '');
+            sel.appendChild(opt2);
         }
+
+        sel.value = 'current';
+        document.getElementById('expiryDTEBadge').textContent = (ei.current_dte || 0) + ' days to expiry';
 
         if (d.trades && d.trades.length > 0) {
             document.getElementById('noTradeArea').style.display = 'none';
             document.getElementById('tradesArea').style.display = 'block';
             renderTrades(d.trades, 'tradesGrid');
-            if (d.next_expiry_trades && d.next_expiry_trades.length > 0) {
-                renderTrades(d.next_expiry_trades, 'tradesGridNext');
-            }
-            switchExpiry('current');
         } else {
             document.getElementById('tradesArea').style.display = 'none';
             document.getElementById('noTradeArea').style.display = 'block';

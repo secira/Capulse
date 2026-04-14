@@ -424,6 +424,7 @@ class NiftyOptionsEngine:
 
             trade_data = {
                 **t,
+                'action': 'BUY',
                 'symbol': f"NIFTY {t['strike']} {t['type']}",
                 'ltp': round(ltp, 2),
                 'entry_price': round(entry_price, 2),
