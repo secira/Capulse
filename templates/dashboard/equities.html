@@ -164,57 +164,54 @@
 
 <!-- Holdings Table -->
 <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Equity Holdings</h5>
-        <div class="btn-group btn-group-sm" role="group">
-            <input type="radio" class="btn-check" name="viewType" id="manualView" autocomplete="off" checked>
-            <label class="btn btn-outline-primary" for="manualView" onclick="filterHoldings('manual')">Manual</label>
-            
-            <input type="radio" class="btn-check" name="viewType" id="brokerView" autocomplete="off">
-            <label class="btn btn-outline-primary" for="brokerView" onclick="filterHoldings('broker')">Broker</label>
-            
-            <input type="radio" class="btn-check" name="viewType" id="allView" autocomplete="off">
-            <label class="btn btn-outline-primary" for="allView" onclick="filterHoldings('all')">All</label>
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0"><i class="fas fa-layer-group me-2 text-primary"></i>My Holdings</h5>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <input type="text" class="form-control form-control-sm" id="holdingsSearch"
+                   placeholder="Search symbol…" style="width:160px;" oninput="filterHoldings()">
+            <div class="btn-group btn-group-sm" role="group">
+                <input type="radio" class="btn-check" name="viewType" id="allView" autocomplete="off" checked>
+                <label class="btn btn-outline-primary" for="allView" onclick="setFilter('all')">All</label>
+                <input type="radio" class="btn-check" name="viewType" id="manualView" autocomplete="off">
+                <label class="btn btn-outline-primary" for="manualView" onclick="setFilter('manual')">Manual</label>
+                <input type="radio" class="btn-check" name="viewType" id="brokerView" autocomplete="off">
+                <label class="btn btn-outline-primary" for="brokerView" onclick="setFilter('broker')">Broker</label>
+            </div>
         </div>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         {% if holdings %}
         <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
+            <table class="table table-hover mb-0" style="font-size:13px;">
+                <thead style="background:#f8fafc; position:sticky; top:0; z-index:1;">
                     <tr>
-                        <th>Symbol</th>
-                        <th>Company</th>
-                        <th>Quantity</th>
-                        <th>Purchase Price</th>
-                        <th>Current Price</th>
-                        <th>Investment</th>
-                        <th>Current Value</th>
-                        <th>P&L</th>
-                        <th>P&L %</th>
-                        <th>Broker</th>
-                        <th>Actions</th>
+                        <th style="padding-left:16px; white-space:nowrap;">Symbol</th>
+                        <th>Broker / Source</th>
+                        <th class="text-end">Buy Price</th>
+                        <th class="text-end">Curr Price</th>
+                        <th class="text-end">Qty</th>
+                        <th class="text-end">Investment</th>
+                        <th class="text-end">Curr Value</th>
+                        <th class="text-end">P&amp;L</th>
+                        <th class="text-end">P&amp;L %</th>
+                        <th class="text-center">Holding Days</th>
+                        <th class="text-center">Signal</th>
+                        <th class="text-center" style="white-space:nowrap;">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="holdingsTable">
                     {% for holding in holdings %}
-                    <tr class="holding-row" data-source="{{ 'manual' if holding.source == 'manual' else 'broker' }}">
-                        <td><strong>{{ holding.symbol }}</strong></td>
-                        <td>{{ holding.company_name }}</td>
-                        <td>{{ holding.quantity }}</td>
-                        <td>₹{{ "{:,.2f}".format(holding.purchase_price) }}</td>
-                        <td>₹{{ "{:,.2f}".format(holding.current_price) if holding.current_price else '-' }}</td>
-                        <td>₹{{ "{:,.0f}".format(holding.total_investment) }}</td>
-                        <td>₹{{ "{:,.0f}".format(holding.current_value) if holding.current_value else '-' }}</td>
-                        <td class="{% if holding.unrealized_pnl is not none and holding.unrealized_pnl >= 0 %}text-success{% elif holding.unrealized_pnl is not none and holding.unrealized_pnl < 0 %}text-danger{% else %}text-muted{% endif %}">
-                            {% if holding.unrealized_pnl is not none %}
-                            ₹{{ "{:,.0f}".format(holding.unrealized_pnl) }}
-                            {% else %}0{% endif %}
-                        </td>
-                        <td class="{% if holding.unrealized_pnl_percentage is not none and holding.unrealized_pnl_percentage >= 0 %}text-success{% elif holding.unrealized_pnl_percentage is not none and holding.unrealized_pnl_percentage < 0 %}text-danger{% else %}text-muted{% endif %}">
-                            {% if holding.unrealized_pnl_percentage is not none %}
-                            {{ "{:,.2f}".format(holding.unrealized_pnl_percentage) }}%
-                            {% else %}0.00%{% endif %}
+                    {% set pnl = holding.unrealized_pnl or 0 %}
+                    {% set pnl_pct = holding.unrealized_pnl_percentage or 0 %}
+                    {% set pnl_pos = pnl >= 0 %}
+                    <tr class="holding-row" data-source="{{ holding.source }}"
+                        data-symbol="{{ holding.symbol|lower }}">
+                        <td style="padding-left:16px;">
+                            <div class="fw-bold" style="font-size:14px;">{{ holding.symbol }}</div>
+                            <div class="text-muted" style="font-size:11px;">{{ holding.company_name }}</div>
+                            {% if holding.purchase_date_str %}
+                            <div style="font-size:10px; color:#94a3b8;">Since {{ holding.purchase_date_str }}</div>
+                            {% endif %}
                         </td>
                         <td>
                             {% if holding.source == 'manual' %}
@@ -227,16 +224,83 @@
                             </span>
                             {% endif %}
                         </td>
-                        <td>
+                        <td class="text-end">₹{{ "{:,.2f}".format(holding.purchase_price or 0) }}</td>
+                        <td class="text-end">
+                            {% if holding.current_price %}
+                            <span style="color:{{ '#16a34a' if pnl_pos else '#dc2626' }}; font-weight:600;">
+                                ₹{{ "{:,.2f}".format(holding.current_price) }}
+                            </span>
+                            {% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td class="text-end">{{ holding.quantity }}</td>
+                        <td class="text-end text-muted">₹{{ "{:,.0f}".format(holding.total_investment or 0) }}</td>
+                        <td class="text-end">
+                            {% if holding.current_value %}
+                            ₹{{ "{:,.0f}".format(holding.current_value) }}
+                            {% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td class="text-end fw-bold" style="color:{{ '#16a34a' if pnl_pos else '#dc2626' }};">
+                            {{ '+' if pnl_pos else '' }}₹{{ "{:,.0f}".format(pnl) }}
+                        </td>
+                        <td class="text-end fw-bold" style="color:{{ '#16a34a' if pnl_pos else '#dc2626' }};">
+                            {{ '+' if pnl_pos else '' }}{{ "{:.2f}".format(pnl_pct) }}%
+                        </td>
+                        <td class="text-center">
+                            {% if holding.holding_days is not none %}
+                            <span class="badge bg-light text-dark border" style="font-size:11px;">
+                                {{ holding.holding_days }}d
+                            </span>
+                            {% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% set rc = holding.recommendation_color %}
+                            <span class="badge
+                                {% if rc == 'success' %}bg-success
+                                {% elif rc == 'danger' %}bg-danger
+                                {% else %}bg-warning text-dark{% endif %}"
+                                style="font-size:11px; white-space:nowrap;">
+                                {% if holding.recommendation == 'BOOK PROFIT' %}
+                                <i class="fas fa-arrow-up me-1"></i>
+                                {% elif holding.recommendation == 'REVIEW' %}
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                {% else %}
+                                <i class="fas fa-pause-circle me-1"></i>
+                                {% endif %}
+                                {{ holding.recommendation }}
+                            </span>
+                        </td>
+                        <td class="text-center" style="white-space:nowrap;">
+                            <a href="{{ url_for('trade_now') }}?symbol={{ holding.symbol }}&action=SELL"
+                               class="btn btn-sm btn-outline-danger" title="Sell this stock"
+                               style="padding:3px 7px; font-size:11px;">
+                                <i class="fas fa-exchange-alt me-1"></i>Trade
+                            </a>
                             {% if holding.source == 'manual' %}
-                            <button class="btn btn-sm btn-outline-primary" onclick="editHolding({{ holding.id }})">
+                            <button class="btn btn-sm btn-outline-primary" title="Edit"
+                                    style="padding:3px 7px; font-size:11px;"
+                                    onclick="editHolding({{ holding.id }})">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteHolding({{ holding.id }})">
+                            <button class="btn btn-sm btn-outline-secondary" title="Delete"
+                                    style="padding:3px 7px; font-size:11px;"
+                                    onclick="deleteHolding({{ holding.id }})">
                                 <i class="fas fa-trash"></i>
                             </button>
                             {% else %}
-                            <span class="text-muted">-</span>
+                            <button class="btn btn-sm btn-outline-primary" title="Correct prices / qty"
+                                    style="padding:3px 7px; font-size:11px;"
+                                    onclick="editBrokerHolding({{ holding.id }},
+                                        '{{ holding.symbol }}',
+                                        {{ holding.purchase_price or 0 }},
+                                        {{ holding.current_price or 0 }},
+                                        {{ holding.quantity or 0 }})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" title="Remove (re-appears on next sync)"
+                                    style="padding:3px 7px; font-size:11px;"
+                                    onclick="deleteBrokerHolding({{ holding.id }}, '{{ holding.symbol }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
                             {% endif %}
                         </td>
                     </tr>
@@ -244,15 +308,60 @@
                 </tbody>
             </table>
         </div>
+        <div id="holdingsEmpty" class="text-center py-4" style="display:none;">
+            <i class="fas fa-search fa-2x text-muted mb-2"></i>
+            <p class="text-muted mb-0">No holdings match your filter.</p>
+        </div>
         {% else %}
         <div class="text-center py-5">
             <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
-            <p class="text-muted">No equity holdings found. Add your first equity holding!</p>
+            <p class="text-muted">No equity holdings found. Add your first equity holding or sync your broker!</p>
             <button class="btn btn-primary" onclick="toggleAddEquityForm()">
                 <i class="fas fa-plus me-2"></i>Add Equity
             </button>
         </div>
         {% endif %}
+    </div>
+</div>
+
+<!-- Broker Holding Edit Modal -->
+<div class="modal fade" id="brokerHoldingEditModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#00091a; color:#fff;">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2" style="color:#60a5fa;"></i>
+                    Correct Holding — <span id="bhEditSymbol"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="bhEditId">
+                <p class="text-muted small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    These values will be overwritten on the next broker sync. Use this to correct a data mismatch.
+                </p>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Avg Buy Price (₹)</label>
+                    <input type="number" class="form-control" id="bhEditBuyPrice" step="0.01" min="0">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Current Market Price (₹)</label>
+                    <input type="number" class="form-control" id="bhEditCurrPrice" step="0.01" min="0">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Quantity</label>
+                    <input type="number" class="form-control" id="bhEditQty" step="1" min="0">
+                </div>
+                <div id="bhEditResult" class="alert" style="display:none; font-size:13px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveBrokerHolding()">
+                    <i class="fas fa-save me-1"></i>Save Corrections
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -445,14 +554,76 @@ async function submitEquityForm(event) {
     }
 }
 
-function filterHoldings(type) {
+let _activeSourceFilter = 'all';
+
+function setFilter(type) {
+    _activeSourceFilter = type;
+    filterHoldings();
+}
+
+function filterHoldings() {
+    const q = (document.getElementById('holdingsSearch')?.value || '').toLowerCase();
     const rows = document.querySelectorAll('.holding-row');
+    let visible = 0;
     rows.forEach(row => {
-        if (type === 'all') {
-            row.style.display = '';
+        const matchSource = _activeSourceFilter === 'all' || row.dataset.source === _activeSourceFilter;
+        const matchSearch = !q || (row.dataset.symbol || '').includes(q);
+        const show = matchSource && matchSearch;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    const emptyEl = document.getElementById('holdingsEmpty');
+    if (emptyEl) emptyEl.style.display = visible === 0 ? 'block' : 'none';
+}
+
+function editBrokerHolding(id, symbol, buyPrice, currPrice, qty) {
+    document.getElementById('bhEditId').value = id;
+    document.getElementById('bhEditSymbol').textContent = symbol;
+    document.getElementById('bhEditBuyPrice').value = buyPrice;
+    document.getElementById('bhEditCurrPrice').value = currPrice;
+    document.getElementById('bhEditQty').value = qty;
+    document.getElementById('bhEditResult').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('brokerHoldingEditModal')).show();
+}
+
+async function saveBrokerHolding() {
+    const id = document.getElementById('bhEditId').value;
+    const res = document.getElementById('bhEditResult');
+    res.className = 'alert alert-secondary';
+    res.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving…';
+    res.style.display = 'block';
+    try {
+        const resp = await fetch(`/api/broker/holding/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                avg_cost_price: parseFloat(document.getElementById('bhEditBuyPrice').value),
+                current_price:  parseFloat(document.getElementById('bhEditCurrPrice').value),
+                quantity:       parseFloat(document.getElementById('bhEditQty').value),
+            })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            res.className = 'alert alert-success';
+            res.innerHTML = '<i class="fas fa-check-circle me-2"></i>Saved. Reloading…';
+            setTimeout(() => location.reload(), 900);
         } else {
-            row.style.display = row.dataset.source === type ? '' : 'none';
+            res.className = 'alert alert-danger';
+            res.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + data.message;
         }
+    } catch (e) {
+        res.className = 'alert alert-danger';
+        res.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Network error.';
+    }
+}
+
+function deleteBrokerHolding(id, symbol) {
+    if (!confirm(`Remove ${symbol} from your holdings?\n\nNote: It will re-appear on the next broker sync.`)) return;
+    fetch(`/api/broker/holding/${id}`, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) location.reload();
+        else alert('Error: ' + data.message);
     });
 }
 

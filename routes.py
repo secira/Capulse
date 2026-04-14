@@ -2665,8 +2665,27 @@ def dashboard_equities():
     # Combine holdings for display
     combined_holdings = []
     
+    from datetime import date as _date
+
+    def _recommendation(pnl_pct):
+        """Simple rule-based recommendation from P&L %."""
+        if pnl_pct is None:
+            return ('HOLD', 'secondary')
+        if pnl_pct >= 25:
+            return ('BOOK PROFIT', 'success')
+        if pnl_pct >= 0:
+            return ('HOLD', 'warning')
+        if pnl_pct >= -10:
+            return ('HOLD', 'warning')
+        return ('REVIEW', 'danger')
+
+    today = _date.today()
+
     # Add manual holdings
     for holding in manual_holdings:
+        pnl_pct = holding.unrealized_pnl_percentage
+        rec_label, rec_color = _recommendation(pnl_pct)
+        holding_days = (today - holding.purchase_date).days if holding.purchase_date else None
         combined_holdings.append({
             'id': holding.id,
             'symbol': holding.symbol,
@@ -2677,13 +2696,21 @@ def dashboard_equities():
             'total_investment': holding.total_investment,
             'current_value': holding.current_value,
             'unrealized_pnl': holding.unrealized_pnl,
-            'unrealized_pnl_percentage': holding.unrealized_pnl_percentage,
+            'unrealized_pnl_percentage': pnl_pct,
             'source': 'manual',
             'broker_name': None,
+            'holding_days': holding_days,
+            'recommendation': rec_label,
+            'recommendation_color': rec_color,
+            'purchase_date_str': holding.purchase_date.strftime('%d %b %Y') if holding.purchase_date else '',
         })
-    
+
     # Add broker holdings — include actual broker name
     for holding in broker_holdings_list:
+        pnl_pct = holding.pnl_percentage
+        rec_label, rec_color = _recommendation(pnl_pct)
+        synced_date = holding.created_at.date() if holding.created_at else None
+        holding_days = (today - synced_date).days if synced_date else None
         combined_holdings.append({
             'id': holding.id,
             'symbol': holding.symbol,
@@ -2694,9 +2721,14 @@ def dashboard_equities():
             'total_investment': holding.investment_value,
             'current_value': holding.total_value,
             'unrealized_pnl': holding.pnl,
-            'unrealized_pnl_percentage': holding.pnl_percentage,
+            'unrealized_pnl_percentage': pnl_pct,
             'source': 'broker',
             'broker_name': acc_id_to_name.get(holding.broker_account_id, 'Broker'),
+            'broker_account_id': holding.broker_account_id,
+            'holding_days': holding_days,
+            'recommendation': rec_label,
+            'recommendation_color': rec_color,
+            'purchase_date_str': holding.created_at.strftime('%d %b %Y') if holding.created_at else '',
         })
     
     # Calculate summary

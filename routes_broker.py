@@ -619,6 +619,68 @@ def api_broker_import_trades(account_id):
         return jsonify({'success': False, 'message': f'Import failed: {str(e)}'}), 500
 
 
+@app.route('/api/broker/holding/<int:holding_id>', methods=['PUT'])
+@login_required
+def api_update_broker_holding(holding_id):
+    """Edit avg_cost_price or current_price of a synced broker holding."""
+    try:
+        from models_broker import BrokerHolding, BrokerAccount
+        holding = BrokerHolding.query.join(
+            BrokerAccount, BrokerHolding.broker_account_id == BrokerAccount.id
+        ).filter(
+            BrokerHolding.id == holding_id,
+            BrokerAccount.user_id == current_user.id,
+        ).first()
+        if not holding:
+            return jsonify({'success': False, 'message': 'Holding not found'}), 404
+
+        data = request.get_json() or {}
+        if 'avg_cost_price' in data:
+            holding.avg_cost_price = float(data['avg_cost_price'])
+        if 'current_price' in data:
+            holding.current_price = float(data['current_price'])
+        if 'quantity' in data:
+            holding.available_quantity = float(data['quantity'])
+            holding.total_quantity = float(data['quantity'])
+
+        # Recalculate derived fields
+        holding.investment_value = holding.avg_cost_price * (holding.available_quantity or 0)
+        holding.total_value = holding.current_price * (holding.available_quantity or 0)
+        holding.pnl = holding.total_value - holding.investment_value
+        holding.pnl_percentage = (holding.pnl / holding.investment_value * 100) if holding.investment_value else 0
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Holding updated.'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating broker holding: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/broker/holding/<int:holding_id>', methods=['DELETE'])
+@login_required
+def api_delete_broker_holding(holding_id):
+    """Delete a synced broker holding record (will re-appear on next sync)."""
+    try:
+        from models_broker import BrokerHolding, BrokerAccount
+        holding = BrokerHolding.query.join(
+            BrokerAccount, BrokerHolding.broker_account_id == BrokerAccount.id
+        ).filter(
+            BrokerHolding.id == holding_id,
+            BrokerAccount.user_id == current_user.id,
+        ).first()
+        if not holding:
+            return jsonify({'success': False, 'message': 'Holding not found'}), 404
+
+        db.session.delete(holding)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Holding removed.'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting broker holding: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @app.route('/api/broker/remove-account/<int:account_id>', methods=['DELETE'])
 @login_required
 def api_remove_broker_account(account_id):
