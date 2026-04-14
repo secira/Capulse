@@ -826,10 +826,12 @@ function showTradeResult(success, message, settingsUrl) {
     var lines = (message || '').split('\n').map(function(l){
         return l.trim() ? '<p class="mb-1" style="font-size:13px;line-height:1.5;">' + l + '</p>' : '<div class="mb-1"></div>';
     }).join('');
+    var isExternal = settingsUrl && (settingsUrl.startsWith('http://') || settingsUrl.startsWith('https://'));
+    var btnLabel   = settingsUrl && settingsUrl.includes('dhan.co') ? 'Open Dhan App' : 'Go to Broker Settings';
     var footerBtns = !success
         ? (settingsUrl
-            ? `<a href="${settingsUrl}" class="btn btn-sm fw-semibold" style="background:#00091a;color:#fff;border-radius:8px;">
-                   <i class="fas fa-cog me-1"></i>Go to Broker Settings
+            ? `<a href="${settingsUrl}" ${isExternal ? 'target="_blank" rel="noopener"' : ''} class="btn btn-sm fw-semibold" style="background:#00091a;color:#fff;border-radius:8px;">
+                   <i class="fas fa-external-link-alt me-1"></i>${btnLabel}
                </a>
                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>`
             : `<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>`)

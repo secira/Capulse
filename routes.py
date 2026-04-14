@@ -5401,6 +5401,25 @@ def api_trade_execute_signal():
                     'broker_settings_url': '/dashboard/broker-accounts'
                 }), 403
 
+            # DH-906: CDSL TPIN/DDPI authorization needed for CNC sell orders
+            if 'DH-906' in err_str or 'Validate Qty from CDSL' in err_str or 'CDSL' in err_str:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'CDSL Authorization Required (DH-906)\n\n'
+                        'SEBI regulations require you to authorize the debit of delivery shares '
+                        'from your demat account before selling. This is a one-time or per-trade step.\n\n'
+                        'Two ways to fix this:\n\n'
+                        'Option A — Enable DDPI (recommended, one-time):\n'
+                        '  Open Dhan app → Profile → DDPI → Activate\n'
+                        '  After activation, all future CNC sells work automatically.\n\n'
+                        'Option B — Authorize via TPIN (per trade):\n'
+                        '  Open Dhan app → Holdings → TATASTEEL → Sell\n'
+                        '  Complete the CDSL TPIN step there, then retry here.'
+                    ),
+                    'broker_settings_url': 'https://dhan.co'
+                }), 400
+
             return jsonify({
                 'success': False,
                 'error': f'Broker error: {err_str}'
