@@ -254,23 +254,35 @@
                 <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-item {{ 'active' if request.endpoint == 'admin.dashboard' }}">
                     <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                 </a>
-                <a href="{{ url_for('admin.users') }}" class="admin-nav-item {{ 'active' if request.endpoint == 'admin.users' }}">
-                    <i class="fas fa-users me-2"></i>Users
+                <a href="{{ url_for('admin.users') }}" class="admin-nav-item {{ 'active' if 'users' in request.endpoint }}">
+                    <i class="fas fa-users me-2"></i>User Management
+                </a>
+                <a href="{{ url_for('admin.research_list') }}" class="admin-nav-item {{ 'active' if 'research_list' in request.endpoint or 'research_stock' in request.endpoint }}">
+                    <i class="fas fa-microscope me-2"></i>Research List
                 </a>
                 <a href="{{ url_for('admin.daily_signals') }}" class="admin-nav-item {{ 'active' if 'daily_signals' in request.endpoint }}">
-                    <i class="fas fa-chart-line me-2"></i>Trading Signals
+                    <i class="fas fa-calendar-day me-2"></i>Daily Signals
                 </a>
-                <a href="{{ url_for('admin.research_config') }}" class="admin-nav-item {{ 'active' if 'research_config' in request.endpoint }}">
-                    <i class="fas fa-brain me-2"></i>AI Research Config
+                <a href="{{ url_for('admin.payments') }}" class="admin-nav-item {{ 'active' if 'payments' in request.endpoint }}">
+                    <i class="fas fa-credit-card me-2"></i>Payment Management
                 </a>
-                <a href="{{ url_for('admin.payments') }}" class="admin-nav-item {{ 'active' if request.endpoint == 'admin.payments' }}">
-                    <i class="fas fa-credit-card me-2"></i>Payments
-                </a>
-                <a href="{{ url_for('admin.account_handling') }}" class="admin-nav-item {{ 'active' if request.endpoint == 'admin.account_handling' }}">
+                <a href="{{ url_for('admin.account_handling') }}" class="admin-nav-item {{ 'active' if 'account_handling' in request.endpoint }}">
                     <i class="fas fa-user-cog me-2"></i>Account Handling
                 </a>
-                <a href="{{ url_for('admin.data_sources') }}" class="admin-nav-item {{ 'active' if request.endpoint == 'admin.data_sources' }}">
+                <a href="{{ url_for('admin.research_config') }}" class="admin-nav-item {{ 'active' if 'research_config' in request.endpoint }}">
+                    <i class="fas fa-brain me-2"></i>Research Config
+                </a>
+                <a href="{{ url_for('admin.data_sources') }}" class="admin-nav-item {{ 'active' if 'data_sources' in request.endpoint }}">
                     <i class="fas fa-database me-2"></i>Data Input Source
+                </a>
+                <a href="{{ url_for('admin.contact_messages') }}" class="admin-nav-item {{ 'active' if 'contact_message' in request.endpoint }}">
+                    <i class="fas fa-envelope me-2"></i>Contact Messages
+                </a>
+                <a href="{{ url_for('admin.blog_list') }}" class="admin-nav-item {{ 'active' if 'blog' in request.endpoint }}">
+                    <i class="fas fa-blog me-2"></i>Blog Management
+                </a>
+                <a href="{{ url_for('admin.branding') }}" class="admin-nav-item {{ 'active' if 'branding' in request.endpoint }}">
+                    <i class="fas fa-building me-2"></i>Branding
                 </a>
                 <hr class="my-3">
                 <a href="{{ url_for('admin.logout') }}" class="admin-nav-item">
