@@ -10,289 +10,339 @@
 {% block dashboard_content %}
 <div class="trade-now-page">
 
-<!-- Broker Selection Bar -->
-<div class="grid-responsive mb-4">
-    <div class="grid-item full-width">
-        {% if connected_brokers|length > 0 %}
-        <div class="d-flex align-items-center gap-3 p-3" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px;">
-            <i class="fas fa-check-circle text-success fs-5"></i>
-            <div class="flex-grow-1">
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <strong style="font-size:13px; color:#1e293b;">Trade with:</strong>
-                    <select id="brokerSelect" class="form-select form-select-sm" style="width:auto; min-width:180px; border-radius:8px; font-weight:600; border-color:#86efac;">
-                        {% for b in connected_brokers %}
-                        <option value="{{ b.id }}" {% if b.id == primary_broker.id %}selected{% endif %}>
-                            {{ b.broker_name }}{% if b.is_primary %} (Primary){% endif %}
-                        </option>
-                        {% endfor %}
-                    </select>
-                    <small class="text-muted" style="font-size:11px;">
-                        {{ connected_brokers|length }} broker{{ 's' if connected_brokers|length > 1 }} connected
-                    </small>
-                </div>
-            </div>
-            <a href="{{ url_for('dashboard_broker_accounts') }}" class="btn btn-sm btn-outline-secondary" style="border-radius:8px; font-size:11px;">
-                <i class="fas fa-cog me-1"></i>Manage
-            </a>
-        </div>
-        {% else %}
-        <div class="d-flex align-items-center gap-3 p-3" style="background:rgba(113,128,150,0.08); border:1px solid #cbd5e1; border-radius:10px;">
-            <i class="fas fa-exclamation-triangle" style="color:#94a3b8; font-size:18px;"></i>
-            <div class="flex-grow-1">
-                <strong style="color:#475569; font-size:13px;">No Broker Connected</strong>
-                <small class="d-block" style="color:#94a3b8; font-size:12px;">Connect a broker account to enable direct trade execution</small>
-            </div>
-            <a href="{{ url_for('dashboard_broker_accounts') }}" class="btn btn-sm" style="background:#3182ce; color:white; border-radius:8px; font-size:12px;">
-                <i class="fas fa-link me-1"></i>Connect Broker
-            </a>
-        </div>
-        {% endif %}
+<!-- ══════════════════════════════════════════════════════════
+     BROKER BAR
+══════════════════════════════════════════════════════════ -->
+<div class="mb-4">
+    {% if connected_brokers|length > 0 %}
+    <div class="d-flex align-items-center gap-3 p-3" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;">
+        <i class="fas fa-check-circle text-success"></i>
+        <strong style="font-size:13px;color:#1e293b;">Broker:</strong>
+        <select id="brokerSelect" class="form-select form-select-sm" style="width:auto;min-width:180px;border-radius:8px;font-weight:600;border-color:#86efac;">
+            {% for b in connected_brokers %}
+            <option value="{{ b.id }}" {% if b.id == primary_broker.id %}selected{% endif %}>
+                {{ b.broker_name }}{% if b.is_primary %} (Primary){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <small class="text-muted ms-1" style="font-size:11px;">{{ connected_brokers|length }} connected</small>
+        <a href="{{ url_for('dashboard_broker_accounts') }}" class="btn btn-sm btn-outline-secondary ms-auto" style="border-radius:8px;font-size:11px;">
+            <i class="fas fa-cog me-1"></i>Manage
+        </a>
     </div>
+    {% else %}
+    <div class="d-flex align-items-center gap-3 p-3" style="background:rgba(113,128,150,0.08);border:1px solid #cbd5e1;border-radius:12px;">
+        <i class="fas fa-exclamation-triangle" style="color:#94a3b8;"></i>
+        <div class="flex-grow-1">
+            <strong style="color:#475569;font-size:13px;">No Broker Connected</strong>
+            <small class="d-block" style="color:#94a3b8;font-size:12px;">Connect a broker to enable live trade execution</small>
+        </div>
+        <a href="{{ url_for('dashboard_broker_accounts') }}" class="btn btn-sm" style="background:#3182ce;color:white;border-radius:8px;font-size:12px;">
+            <i class="fas fa-link me-1"></i>Connect Broker
+        </a>
+    </div>
+    {% endif %}
 </div>
 
-<!-- ═══════════════════════════════════════════
-     SCENTRIC BEHAVIOURAL GUARDRAILS
-     ═══════════════════════════════════════════ -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="card border-0 shadow-sm" style="border-radius:12px; overflow:hidden;">
+<!-- ══════════════════════════════════════════════════════════
+     MAIN LAYOUT  (trade card + guardrails side panel)
+══════════════════════════════════════════════════════════ -->
+<div class="row g-4 align-items-start">
+
+    <!-- ─── LEFT: DHAN-STYLE TRADE CARD ─────────────────────── -->
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-lg" style="border-radius:18px;overflow:hidden;">
+
+            <!-- ── HEADER: Asset picker + Live price ───────────────── -->
+            <div class="p-4 pb-3" style="background:#fff;border-bottom:1px solid #f1f5f9;">
+                <div class="mb-3">
+                    <select class="form-select fw-bold" id="assetSelect" name="symbol" required
+                            style="border:none;border-bottom:2px solid #e2e8f0;border-radius:0;font-size:16px;padding-left:0;box-shadow:none;">
+                        <option value="">Search or choose an asset…</option>
+                        {% for r in research_assets %}
+                        <option value="{{ r.symbol }}"
+                                data-asset-class="{{ r.asset_type }}"
+                                data-price="{{ r.current_price or '' }}"
+                                data-company="{{ r.company_name or r.symbol }}"
+                                data-sector="{{ r.sector or '' }}"
+                                data-iscore="{{ r.i_score or '' }}"
+                                data-rec="{{ r.recommendation or '' }}">
+                            {{ r.symbol }}{% if r.company_name %} — {{ r.company_name }}{% endif %}{% if r.recommendation %} ({{ r.recommendation | replace('_',' ') }}){% endif %}
+                        </option>
+                        {% endfor %}
+                        {% if not research_assets %}
+                        {% for asset in assets %}
+                        <option value="{{ asset.symbol }}" data-asset-class="{{ asset.asset_class }}" data-price="{{ asset.current_price }}">
+                            {{ asset.symbol }} - {{ asset.company_name }} ({{ asset.asset_class.title() }})
+                        </option>
+                        {% endfor %}
+                        {% endif %}
+                    </select>
+                    <input type="hidden" id="strategySelect" name="strategy_id" value="1">
+                </div>
+
+                <!-- Live price banner -->
+                <div id="livePriceBar" class="d-flex align-items-baseline gap-3 d-none">
+                    <span id="livePriceVal" class="fw-bold" style="font-size:22px;color:#1e293b;">—</span>
+                    <span id="livePriceChg" class="badge rounded-pill px-3 py-1" style="font-size:12px;background:#e2e8f0;color:#475569;">—</span>
+                    <span class="ms-auto badge" style="background:#eef2ff;color:#4338ca;font-size:11px;border-radius:6px;padding:4px 8px;">NSE</span>
+                </div>
+                <!-- Hint row (entry / target / SL) -->
+                <div id="hintRow" class="d-flex gap-3 mt-2 d-none" style="font-size:12px;color:#64748b;">
+                    <span>Entry: <strong id="hintEntry">—</strong></span>
+                    <span>Target: <strong id="hintTarget" class="text-success">—</strong></span>
+                    <span>SL: <strong id="hintSL" class="text-danger">—</strong></span>
+                </div>
+                <!-- Spinner shown while price loads -->
+                <div id="livePriceSpinner" class="text-muted d-none" style="font-size:13px;">
+                    <i class="fas fa-spinner fa-spin me-1"></i>Fetching live price…
+                </div>
+            </div>
+
+            <!-- ── PRODUCT TYPE TABS (Trading / Investing / NRML) ─── -->
+            <div style="background:#fafbfc;border-bottom:1px solid #f1f5f9;">
+                <div class="d-flex" id="productTypeTabs" role="group">
+                    <button type="button" class="pt-tab flex-fill py-3 fw-semibold active" data-pt="MIS"
+                            style="border:none;background:transparent;font-size:13px;border-bottom:3px solid transparent;color:#64748b;cursor:pointer;transition:all .2s;">
+                        Trading (Intraday)
+                    </button>
+                    <button type="button" class="pt-tab flex-fill py-3 fw-semibold" data-pt="CNC"
+                            style="border:none;background:transparent;font-size:13px;border-bottom:3px solid transparent;color:#64748b;cursor:pointer;transition:all .2s;">
+                        Investing (CNC)
+                    </button>
+                    <button type="button" class="pt-tab flex-fill py-3 fw-semibold" data-pt="NRML"
+                            style="border:none;background:transparent;font-size:13px;border-bottom:3px solid transparent;color:#64748b;cursor:pointer;transition:all .2s;">
+                        NRML
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── BODY ───────────────────────────────────────────── -->
+            <div class="card-body p-4" style="background:#fff;">
+
+                <!-- Order type tabs + Buy/Sell toggle -->
+                <div class="d-flex align-items-center justify-content-between mb-4 gap-2">
+                    <!-- Order type pills -->
+                    <div class="d-flex gap-1" id="orderTypeTabs">
+                        <button type="button" class="ot-tab btn btn-sm active" data-ot="MARKET"
+                                style="border-radius:20px;font-size:12px;font-weight:600;padding:5px 14px;">Market</button>
+                        <button type="button" class="ot-tab btn btn-sm" data-ot="LIMIT"
+                                style="border-radius:20px;font-size:12px;font-weight:600;padding:5px 14px;">Limit</button>
+                        <button type="button" class="ot-tab btn btn-sm" data-ot="STOP_LOSS"
+                                style="border-radius:20px;font-size:12px;font-weight:600;padding:5px 14px;">SL</button>
+                    </div>
+                    <!-- Buy / Sell toggle -->
+                    <div class="d-flex rounded-pill overflow-hidden" style="border:2px solid #e2e8f0;">
+                        <button type="button" id="buyBtn" onclick="setAction('BUY')"
+                                class="px-4 py-2 fw-bold border-0 action-active-buy"
+                                style="font-size:13px;cursor:pointer;transition:all .2s;background:#16a34a;color:#fff;">
+                            ▲ BUY
+                        </button>
+                        <button type="button" id="sellBtn" onclick="setAction('SELL')"
+                                class="px-4 py-2 fw-bold border-0"
+                                style="font-size:13px;cursor:pointer;transition:all .2s;background:#f8fafc;color:#94a3b8;">
+                            ▼ SELL
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Qty row -->
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" style="font-size:13px;color:#475569;">Qty.</label>
+                    <div class="input-group">
+                        <button type="button" class="btn btn-outline-secondary" onclick="changeQty(-1)"
+                                style="border-radius:8px 0 0 8px;font-weight:700;font-size:16px;width:44px;">−</button>
+                        <input type="number" id="quantityInput" class="form-control text-center fw-bold"
+                               name="quantity" min="1" value="1" required
+                               style="border-left:0;border-right:0;font-size:16px;">
+                        <button type="button" class="btn btn-outline-secondary" onclick="changeQty(1)"
+                                style="border-radius:0 8px 8px 0;font-weight:700;font-size:16px;width:44px;">+</button>
+                    </div>
+                </div>
+
+                <!-- Price row (hidden for Market orders) -->
+                <div class="mb-3" id="priceRow">
+                    <label class="form-label fw-semibold" style="font-size:13px;color:#475569;">Price</label>
+                    <div class="input-group">
+                        <span class="input-group-text" style="background:#f8fafc;font-weight:600;color:#64748b;">₹</span>
+                        <input type="number" id="entryPriceInput" class="form-control fw-bold"
+                               name="entry_price" step="0.01" placeholder="Market"
+                               style="font-size:15px;" readonly>
+                    </div>
+                    <div id="priceNote" class="text-muted mt-1" style="font-size:11px;">Price will be at best available market price</div>
+                </div>
+
+                <!-- More Options toggle -->
+                <div class="mb-3">
+                    <button type="button" class="btn btn-link p-0 text-decoration-none" id="moreOptionsToggle"
+                            onclick="toggleMoreOptions()"
+                            style="font-size:13px;color:#3182ce;font-weight:600;">
+                        <i class="fas fa-plus-circle me-1"></i>More Options (Stop Loss / Target)
+                    </button>
+                </div>
+
+                <!-- More Options: Stop Loss + Target + Max Loss -->
+                <div id="moreOptionsPanel" class="d-none mb-3 p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold mb-1" style="font-size:12px;color:#475569;">Stop Loss ₹</label>
+                            <input type="number" id="stopLossInput" class="form-control form-control-sm" name="stop_loss" step="0.01" placeholder="Optional">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold mb-1" style="font-size:12px;color:#475569;" id="targetPriceLabel">Target ₹</label>
+                            <input type="number" id="targetPriceInput" class="form-control form-control-sm" name="target_price" step="0.01" placeholder="Optional">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold mb-1" style="font-size:12px;color:#475569;">Max Loss ₹</label>
+                            <input type="number" id="maxLossInput" class="form-control form-control-sm" name="max_loss" step="0.01" placeholder="Optional">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Options fields (F&O) hidden by default -->
+                <div id="optionsFields" class="d-none mb-3 p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label fw-semibold mb-1" style="font-size:12px;">Expiry</label>
+                            <input type="date" class="form-control form-control-sm" name="expiry_date">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label fw-semibold mb-1" style="font-size:12px;">Strike</label>
+                            <input type="number" class="form-control form-control-sm" name="strike_price" step="0.01">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label fw-semibold mb-1" style="font-size:12px;">Type</label>
+                            <select class="form-select form-select-sm" name="option_type">
+                                <option value="">—</option>
+                                <option value="CALL">Call</option>
+                                <option value="PUT">Put</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Margin info row -->
+                <div class="d-flex justify-content-between text-muted mb-4 pt-1" style="font-size:12px;border-top:1px solid #f1f5f9;">
+                    <span class="mt-2">Margin Required: <strong id="marginRequired">—</strong></span>
+                    <span class="mt-2">Available: <strong id="marginAvailable">—</strong></span>
+                </div>
+
+                <!-- Hidden inputs used by JS -->
+                <input type="hidden" id="orderTypeHidden" name="order_type" value="MARKET">
+                <input type="hidden" id="productTypeHidden" name="product_type" value="MIS">
+                <input type="hidden" id="actionHidden" value="BUY">
+
+                <!-- INSTANT TRADE BUTTON -->
+                {% if connected_brokers|length > 0 and current_user.pricing_plan in [PricingPlan.TARGET_PRO, PricingPlan.HNI] %}
+                <button type="button" id="instantTradeBtn" onclick="showTradeConfirmation()"
+                        class="btn w-100 py-3 fw-bold" id="tradeNowBtn"
+                        style="background:#16a34a;color:#fff;border-radius:12px;font-size:16px;letter-spacing:.3px;border:none;transition:background .2s;">
+                    <i class="fas fa-bolt me-2"></i>Instant Buy
+                </button>
+                {% else %}
+                <button type="button" class="btn w-100 py-3 fw-bold" disabled
+                        style="background:#e2e8f0;color:#94a3b8;border-radius:12px;font-size:16px;border:none;">
+                    <i class="fas fa-lock me-2"></i>{{ 'Connect Broker to Trade' if connected_brokers|length == 0 else 'Upgrade to TARGET PRO' }}
+                </button>
+                {% endif %}
+
+            </div><!-- /card-body -->
+        </div><!-- /trade card -->
+    </div><!-- /col-lg-6 -->
+
+    <!-- ─── RIGHT: GUARDRAILS + SIGNAL INFO ─────────────────── -->
+    <div class="col-12 col-lg-6 d-flex flex-column gap-3">
+
+        <!-- Direction alert (BUY/SELL from source screen) -->
+        <div class="d-none" id="actionDirectionBanner">
+            <div class="p-3 rounded-3 d-flex align-items-center gap-3" id="actionDirectionInner">
+                <span id="actionDirectionIcon" class="fs-2"></span>
+                <div>
+                    <div class="fw-bold fs-5" id="actionDirectionLabel"></div>
+                    <div class="text-muted" style="font-size:13px;" id="actionDirectionSymbol"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Behavioural Guardrails -->
+        <div class="card border-0 shadow-sm" style="border-radius:14px;overflow:hidden;">
             <div class="card-header py-3 px-4 d-flex align-items-center justify-content-between"
-                 style="background:#00091a; color:#fff;">
+                 style="background:#00091a;color:#fff;">
                 <div class="d-flex align-items-center gap-2">
                     <i class="fas fa-shield-alt"></i>
-                    <span class="fw-semibold">Behavioural Guardrails</span>
+                    <span class="fw-semibold" style="font-size:14px;">Behavioural Guardrails</span>
                     <span class="badge bg-success rounded-pill" style="font-size:10px;">ACTIVE</span>
                 </div>
                 {% if risk_profile %}
-                <div class="d-flex align-items-center gap-3" style="font-size:13px;">
-                    <span class="opacity-75">Risk Appetite:</span>
-                    <span class="badge rounded-pill px-3
+                <div class="d-flex align-items-center gap-2" style="font-size:12px;">
+                    <span class="opacity-75">Risk:</span>
+                    <span class="badge rounded-pill px-2
                         {% if risk_profile.risk_tolerance == 'conservative' %}bg-success
                         {% elif risk_profile.risk_tolerance == 'aggressive' %}bg-danger
                         {% else %}bg-warning text-dark{% endif %}">
                         {{ risk_profile.risk_tolerance | title }}
                     </span>
-                    <span class="opacity-75 d-none d-md-inline">Goal: {{ risk_profile.investment_goal | replace('_',' ') | title }}</span>
-                    <a href="{{ url_for('portfolio_risk_profile') }}" class="text-white opacity-75" style="font-size:12px;">
-                        <i class="fas fa-edit"></i> Edit
+                    <a href="{{ url_for('portfolio_risk_profile') }}" class="text-white opacity-75">
+                        <i class="fas fa-edit"></i>
                     </a>
                 </div>
                 {% else %}
-                <a href="{{ url_for('portfolio_risk_profile') }}" class="btn btn-sm btn-outline-light rounded-pill">
-                    <i class="fas fa-plus me-1"></i>Set Risk Profile
+                <a href="{{ url_for('portfolio_risk_profile') }}" class="btn btn-sm btn-outline-light rounded-pill" style="font-size:11px;">
+                    <i class="fas fa-plus me-1"></i>Set Profile
                 </a>
                 {% endif %}
             </div>
-            <!-- Live guardrail alerts — populated by JS when form changes -->
             <div id="guardrailAlerts" class="d-none">
                 <div class="card-body py-3 px-4" style="background:#fffbeb;">
                     <div id="guardrailContent"></div>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- Trade Recommendation Engine -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-header text-white" style="background: linear-gradient(135deg, #00091a 0%, #1a365d 100%);">
-                <h5 class="mb-0">
-                    <i class="fas fa-robot me-2"></i>AI Trade Recommendation Engine
-                </h5>
-            </div>
-            
-            <div class="card-body">
-                <form id="tradeRecommendationForm">
-                    <div class="row g-3">
-                        <!-- Asset Selection -->
-                        <div class="col-12">
-                            <label class="form-label fw-bold">Select Asset</label>
-                            <select class="form-select" id="assetSelect" name="symbol" required>
-                                <option value="">Search or choose an asset…</option>
-                                {% for r in research_assets %}
-                                <option value="{{ r.symbol }}"
-                                        data-asset-class="{{ r.asset_type }}"
-                                        data-price="{{ r.current_price or '' }}"
-                                        data-company="{{ r.company_name or r.symbol }}"
-                                        data-sector="{{ r.sector or '' }}"
-                                        data-iscore="{{ r.i_score or '' }}"
-                                        data-rec="{{ r.recommendation or '' }}">
-                                    {{ r.symbol }}{% if r.company_name %} — {{ r.company_name }}{% endif %}{% if r.recommendation %} ({{ r.recommendation | replace('_', ' ') }}){% endif %}
-                                </option>
-                                {% endfor %}
-                                {% if not research_assets %}
-                                {% for asset in assets %}
-                                <option value="{{ asset.symbol }}" data-asset-class="{{ asset.asset_class }}" data-price="{{ asset.current_price }}">
-                                    {{ asset.symbol }} - {{ asset.company_name }} ({{ asset.asset_class.title() }})
-                                </option>
-                                {% endfor %}
-                                {% endif %}
-                            </select>
-                            <input type="hidden" id="strategySelect" name="strategy_id" value="1">
-                        </div>
-                        
-                        <!-- Current Price Display (shown after asset selection) -->
-                        <div class="col-12 d-none" id="currentPriceSection">
-                            <div class="d-flex align-items-center gap-3 p-3 rounded-3" style="background: linear-gradient(135deg, #f0fff4 0%, #e6fffa 100%); border: 1px solid #9ae6b4;">
-                                <div class="d-flex align-items-center gap-2">
-                                    <i class="fas fa-chart-line" style="color: #276749;"></i>
-                                    <span class="fw-bold" style="color: #276749;">Live Market Price</span>
-                                </div>
-                                <div class="flex-grow-1">
-                                    <span class="fs-4 fw-bold" id="currentPriceDisplay" style="color: #22543d;">—</span>
-                                </div>
-                                <div class="d-flex gap-3 text-muted" style="font-size: 12px;">
-                                    <span><i class="fas fa-arrow-up text-success me-1"></i>Entry: <strong id="hintEntry">—</strong></span>
-                                    <span><i class="fas fa-bullseye text-primary me-1"></i>Target: <strong id="hintTarget">—</strong></span>
-                                    <span><i class="fas fa-shield-alt text-danger me-1"></i>SL: <strong id="hintSL">—</strong></span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Direction Banner: always shown when action is in URL -->
-                        <div class="col-12 d-none" id="actionDirectionBanner">
-                            <div class="d-flex align-items-center gap-3 p-3 rounded-3" id="actionDirectionInner">
-                                <span id="actionDirectionIcon" class="fs-2"></span>
-                                <div>
-                                    <div class="fw-bold fs-5" id="actionDirectionLabel"></div>
-                                    <div class="text-muted" style="font-size:13px;" id="actionDirectionSymbol"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Order Parameters -->
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold">Entry Price</label>
-                            <input type="number" class="form-control" name="entry_price" id="entryPriceInput" step="0.01" placeholder="₹">
-                        </div>
-                        
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold">Quantity</label>
-                            <input type="number" class="form-control" name="quantity" id="quantityInput" min="1" value="100" required>
-                        </div>
-                        
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold">Order Type</label>
-                            <select class="form-select" name="order_type" id="orderTypeSelect" required onchange="handleOrderTypeChange(this.value)">
-                                <option value="MARKET">Market Order</option>
-                                <option value="LIMIT">Limit Order</option>
-                            </select>
-                        </div>
-                        
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold">Product Type</label>
-                            <select class="form-select" name="product_type" required>
-                                <option value="MIS">MIS (Intraday)</option>
-                                <option value="CNC">CNC (Delivery)</option>
-                                <option value="NRML">NRML (Normal)</option>
-                            </select>
-                        </div>
-                        
-                        <!-- Risk Management -->
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">Target Price</label>
-                            <input type="number" class="form-control" name="target_price" step="0.01" id="targetPriceInput">
-                        </div>
-                        
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">Stop Loss</label>
-                            <input type="number" class="form-control" name="stop_loss" step="0.01" id="stopLossInput">
-                        </div>
-                        
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">Max Loss (₹)</label>
-                            <input type="number" class="form-control" name="max_loss" step="0.01" id="maxLossInput">
-                        </div>
-                        
-                        <!-- Options Fields (Hidden by default) -->
-                        <div id="optionsFields" class="row g-3" style="display: none;">
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold">Expiry Date</label>
-                                <input type="date" class="form-control" name="expiry_date">
-                            </div>
-                            
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold">Strike Price</label>
-                                <input type="number" class="form-control" name="strike_price" step="0.01">
-                            </div>
-                            
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold">Option Type</label>
-                                <select class="form-select" name="option_type">
-                                    <option value="">Select Type</option>
-                                    <option value="CALL">Call Option</option>
-                                    <option value="PUT">Put Option</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <!-- Action Buttons -->
-                        <div class="col-12">
-                            <div class="d-flex gap-2 flex-wrap">
-                                {% if connected_brokers|length > 0 and current_user.pricing_plan in [PricingPlan.TARGET_PRO, PricingPlan.HNI] %}
-                                <button type="button" class="btn btn-success btn-lg" id="tradeNowBtn" onclick="showTradeConfirmation()" style="background: #00091a; border-color: #00091a;">
-                                    <i class="fas fa-rocket me-2"></i>Trade Now
-                                </button>
-                                {% else %}
-                                <button type="button" class="btn btn-secondary btn-lg" disabled>
-                                    <i class="fas fa-lock me-2"></i>Trade Now ({{ 'Connect Broker' if connected_brokers|length == 0 else 'Upgrade Required' }})
-                                </button>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </form>
+            <div id="guardrailsOk" class="card-body py-3 px-4" style="background:#f0fdf4;">
+                <div class="d-flex align-items-center gap-2 text-success" style="font-size:13px;">
+                    <i class="fas fa-check-circle"></i>
+                    <span>No risk violations detected for this trade</span>
+                </div>
             </div>
         </div>
-    </div>
-</div>
 
-<!-- Recent Trade History -->
-<div class="row">
-    <div class="col-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white">
-                <h6 class="fw-bold mb-0">
-                    <i class="fas fa-history me-2"></i>Recent Trade History
+        <!-- Signal info card (shown when arriving from signals/equities/etc.) -->
+        <div id="signalInfoCard" class="card border-0 shadow-sm d-none" style="border-radius:14px;">
+            <div class="card-body p-4" id="signalInfoBody"></div>
+        </div>
+
+        <!-- Recent Trade History -->
+        <div class="card border-0 shadow-sm" style="border-radius:14px;">
+            <div class="card-header bg-white py-3 px-4">
+                <h6 class="fw-bold mb-0" style="font-size:14px;">
+                    <i class="fas fa-history me-2 text-muted"></i>Recent Trade History
                 </h6>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 {% if user_trades.recent_history %}
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover mb-0" style="font-size:13px;">
                         <thead class="table-light">
                             <tr>
-                                <th>Date</th>
+                                <th class="ps-4">Date</th>
                                 <th>Symbol</th>
-                                <th>Strategy</th>
                                 <th>Entry</th>
                                 <th>Exit</th>
                                 <th>P&L</th>
-                                <th>Result</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for trade in user_trades.recent_history %}
                             <tr>
-                                <td>{{ trade.exit_time.strftime('%m/%d') }}</td>
+                                <td class="ps-4 text-muted">{{ trade.exit_time.strftime('%d %b') }}</td>
                                 <td>
                                     <div class="fw-bold">{{ trade.symbol }}</div>
                                     <small class="text-muted">{{ trade.quantity }} qty</small>
                                 </td>
-                                <td>{{ trade.strategy }}</td>
                                 <td>₹{{ "%.2f"|format(trade.entry_price) }}</td>
                                 <td>₹{{ "%.2f"|format(trade.exit_price) }}</td>
                                 <td>
                                     <span class="fw-bold {{ 'text-success' if trade.realized_pnl >= 0 else 'text-danger' }}">
                                         {{ '+' if trade.realized_pnl >= 0 else '' }}₹{{ "%.0f"|format(trade.realized_pnl) }}
-                                    </span>
-                                    <small class="d-block text-muted">{{ "%.2f"|format(trade.pnl_percentage) }}%</small>
-                                </td>
-                                <td>
-                                    <span class="badge {{ 'bg-success' if trade.trade_result == 'WIN' else 'bg-danger' if trade.trade_result == 'LOSS' else 'bg-secondary' }}">
-                                        {{ trade.trade_result }}
                                     </span>
                                 </td>
                             </tr>
@@ -301,265 +351,272 @@
                     </table>
                 </div>
                 {% else %}
-                <div class="text-center py-4 text-muted">
-                    <i class="fas fa-chart-bar fa-3x mb-3"></i>
-                    <p>No trade history</p>
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-chart-bar fa-2x mb-3 opacity-25"></i>
+                    <p class="mb-1" style="font-size:14px;">No trade history</p>
                     <small>Your completed trades will appear here</small>
                 </div>
                 {% endif %}
             </div>
         </div>
-    </div>
-</div>
 
+    </div><!-- /col-lg-6 right -->
+
+</div><!-- /row -->
+
+<!-- ══════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════ -->
 <script>
-// ─── Live Price Fetcher ────────────────────────────────────────────────────
-// Fetches the live market price for `symbol` from /api/nse/quote/<symbol>.
-// Uses yfinance → NSE API → fallback prices (no mock/random noise).
-// keepTarget / keepSL : passed through to populatePriceDefaults.
+// ─── State ────────────────────────────────────────────────────────────────────
+var currentAction      = 'BUY';   // BUY | SELL
+var currentOrderType   = 'MARKET';
+var currentProductType = 'MIS';
+
+// ─── Quantity stepper ─────────────────────────────────────────────────────────
+function changeQty(delta) {
+    var el = document.getElementById('quantityInput');
+    var v  = parseInt(el.value) || 1;
+    el.value = Math.max(1, v + delta);
+    checkGuardrails();
+}
+
+// ─── BUY / SELL toggle ────────────────────────────────────────────────────────
+function setAction(action) {
+    currentAction = action;
+    document.getElementById('actionHidden').value = action;
+    var buyBtn  = document.getElementById('buyBtn');
+    var sellBtn = document.getElementById('sellBtn');
+    var tradeBtn = document.getElementById('instantTradeBtn');
+    if (action === 'BUY') {
+        buyBtn.style.background  = '#16a34a'; buyBtn.style.color  = '#fff';
+        sellBtn.style.background = '#f8fafc'; sellBtn.style.color = '#94a3b8';
+        if (tradeBtn) { tradeBtn.style.background = '#16a34a'; tradeBtn.innerHTML = '<i class="fas fa-bolt me-2"></i>Instant Buy'; }
+    } else {
+        sellBtn.style.background = '#dc2626'; sellBtn.style.color = '#fff';
+        buyBtn.style.background  = '#f8fafc'; buyBtn.style.color  = '#94a3b8';
+        if (tradeBtn) { tradeBtn.style.background = '#dc2626'; tradeBtn.innerHTML = '<i class="fas fa-bolt me-2"></i>Instant Sell'; }
+    }
+}
+
+// ─── Order type tabs ──────────────────────────────────────────────────────────
+function setOrderType(ot) {
+    currentOrderType = ot;
+    document.getElementById('orderTypeHidden').value = ot;
+
+    document.querySelectorAll('.ot-tab').forEach(function(btn) {
+        var active = btn.dataset.ot === ot;
+        btn.style.background  = active ? '#00091a' : '#f8fafc';
+        btn.style.color       = active ? '#fff' : '#64748b';
+        btn.style.borderColor = active ? '#00091a' : '#e2e8f0';
+    });
+
+    var priceRow  = document.getElementById('priceRow');
+    var priceNote = document.getElementById('priceNote');
+    var priceInput = document.getElementById('entryPriceInput');
+    var targetLbl  = document.getElementById('targetPriceLabel');
+
+    if (ot === 'MARKET') {
+        priceInput.readOnly = true;
+        priceInput.value    = '';
+        priceInput.placeholder = 'Market';
+        priceInput.style.color = '#94a3b8';
+        if (priceNote) priceNote.textContent = 'Price will be at best available market price';
+        if (targetLbl) targetLbl.innerHTML = 'Target ₹ <small class="text-muted fw-normal">(N/A for Market)</small>';
+        var tgt = document.getElementById('targetPriceInput');
+        if (tgt) { tgt.value = ''; tgt.readOnly = true; tgt.style.color = '#94a3b8'; }
+    } else {
+        priceInput.readOnly = false;
+        priceInput.placeholder = '0.00';
+        priceInput.style.color = '';
+        if (priceNote) priceNote.textContent = '';
+        if (targetLbl) targetLbl.innerHTML = 'Target ₹';
+        var tgt = document.getElementById('targetPriceInput');
+        if (tgt) { tgt.readOnly = false; tgt.style.color = ''; }
+    }
+}
+
+// ─── Product type tabs ────────────────────────────────────────────────────────
+function setProductType(pt) {
+    currentProductType = pt;
+    document.getElementById('productTypeHidden').value = pt;
+    document.querySelectorAll('.pt-tab').forEach(function(btn) {
+        var active = btn.dataset.pt === pt;
+        btn.style.color         = active ? '#00091a' : '#64748b';
+        btn.style.borderBottomColor = active ? '#00091a' : 'transparent';
+        btn.style.fontWeight    = active ? '700' : '600';
+        btn.style.background    = active ? '#fff' : 'transparent';
+    });
+}
+
+// ─── More Options ─────────────────────────────────────────────────────────────
+function toggleMoreOptions() {
+    var panel  = document.getElementById('moreOptionsPanel');
+    var toggle = document.getElementById('moreOptionsToggle');
+    if (panel.classList.contains('d-none')) {
+        panel.classList.remove('d-none');
+        toggle.innerHTML = '<i class="fas fa-minus-circle me-1"></i>Hide Options';
+    } else {
+        panel.classList.add('d-none');
+        toggle.innerHTML = '<i class="fas fa-plus-circle me-1"></i>More Options (Stop Loss / Target)';
+    }
+}
+
+// ─── Live Price ───────────────────────────────────────────────────────────────
 function fetchLivePrice(symbol, keepTarget, keepSL) {
     if (!symbol) return;
+    var spinner = document.getElementById('livePriceSpinner');
+    var bar     = document.getElementById('livePriceBar');
+    var hintRow = document.getElementById('hintRow');
+    if (spinner) { spinner.classList.remove('d-none'); }
+    if (bar)     { bar.classList.add('d-none'); }
+    if (hintRow) { hintRow.classList.add('d-none'); }
+
     fetch('/api/nse/quote/' + encodeURIComponent(symbol))
-        .then(r => r.json())
-        .then(data => {
-            const priceDisplay = document.getElementById('currentPriceDisplay');
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (spinner) spinner.classList.add('d-none');
             if (data.success && data.data && parseFloat(data.data.current_price) > 0) {
                 populatePriceDefaults(data.data.current_price, keepTarget, keepSL);
             } else {
-                // API returned no price — clear the spinner and show a message
-                if (priceDisplay) priceDisplay.textContent = 'Live price unavailable';
+                if (bar) { bar.classList.remove('d-none'); document.getElementById('livePriceVal').textContent = 'Price unavailable'; }
             }
         })
-        .catch(() => {
-            const priceDisplay = document.getElementById('currentPriceDisplay');
-            if (priceDisplay) priceDisplay.textContent = 'Live price unavailable';
+        .catch(function() {
+            if (spinner) spinner.classList.add('d-none');
+            if (bar) { bar.classList.remove('d-none'); document.getElementById('livePriceVal').textContent = 'Price unavailable'; }
         });
 }
 
-// ─── Price Defaults Helper ─────────────────────────────────────────────────
-// currentPrice  : the live market price (number or string)
-// keepTarget    : true = don't overwrite Target Price (signal already set it)
-// keepSL        : true = don't overwrite Stop Loss   (signal already set it)
 function populatePriceDefaults(currentPrice, keepTarget, keepSL) {
-    const price = parseFloat(currentPrice);
+    var price = parseFloat(currentPrice);
     if (isNaN(price) || price <= 0) return;
 
-    const entryPrice  = parseFloat((price * 1.01).toFixed(2));   // +1 %
-    const targetPrice = parseFloat((price + 20).toFixed(2));      // +20 pts
-    const slPrice     = parseFloat((price - 10).toFixed(2));      // −10 pts
+    var entryPrice  = parseFloat((price * 1.01).toFixed(2));
+    var targetPrice = parseFloat((price + 20).toFixed(2));
+    var slPrice     = parseFloat((price - 10).toFixed(2));
 
-    // — Current price banner —
-    const section = document.getElementById('currentPriceSection');
-    const display = document.getElementById('currentPriceDisplay');
-    if (section && display) {
-        section.classList.remove('d-none');
-        display.textContent = '₹' + price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-    }
+    // Live price bar
+    var bar     = document.getElementById('livePriceBar');
+    var priceEl = document.getElementById('livePriceVal');
+    var chgEl   = document.getElementById('livePriceChg');
+    var hintRow = document.getElementById('hintRow');
+    if (bar)     bar.classList.remove('d-none');
+    if (priceEl) priceEl.textContent = '₹' + price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
     // Hint labels
-    const hintEntry  = document.getElementById('hintEntry');
-    const hintTarget = document.getElementById('hintTarget');
-    const hintSL     = document.getElementById('hintSL');
-    if (hintEntry)  hintEntry.textContent  = '₹' + entryPrice.toFixed(2);
-    if (hintTarget) hintTarget.textContent = '₹' + targetPrice.toFixed(2);
-    if (hintSL)     hintSL.textContent     = '₹' + slPrice.toFixed(2);
+    var hE = document.getElementById('hintEntry');
+    var hT = document.getElementById('hintTarget');
+    var hS = document.getElementById('hintSL');
+    if (hE) hE.textContent = '₹' + entryPrice.toFixed(2);
+    if (hT) hT.textContent = '₹' + targetPrice.toFixed(2);
+    if (hS) hS.textContent = '₹' + slPrice.toFixed(2);
+    if (hintRow) hintRow.classList.remove('d-none');
 
-    // — Fill form fields (user can still change them) —
-    const entryInput  = document.getElementById('entryPriceInput');
-    const targetInput = document.getElementById('targetPriceInput');
-    const slInput     = document.getElementById('stopLossInput');
+    // Fill form fields
+    var entryInput  = document.getElementById('entryPriceInput');
+    var targetInput = document.getElementById('targetPriceInput');
+    var slInput     = document.getElementById('stopLossInput');
 
-    if (entryInput)              entryInput.value  = entryPrice;
-    if (targetInput && !keepTarget) targetInput.value = targetPrice;
+    if (entryInput && currentOrderType !== 'MARKET') entryInput.value = entryPrice;
+    if (targetInput && !keepTarget && currentOrderType !== 'MARKET') targetInput.value = targetPrice;
     if (slInput     && !keepSL)     slInput.value     = slPrice;
 }
 
-// ─── Main DOMContentLoaded ─────────────────────────────────────────────────
+// ─── Asset dropdown change ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
-    const assetSelect  = document.getElementById('assetSelect');
-    const optionsFields = document.getElementById('optionsFields');
-    const quantityInput = document.getElementById('quantityInput');
+    var assetSelect  = document.getElementById('assetSelect');
+    var quantityInput = document.getElementById('quantityInput');
 
-    // Available strategies data
-    const strategies = {{ strategies | tojson }};
-
-    // Check for URL parameters to pre-populate form
-    const urlParams = new URLSearchParams(window.location.search);
-
-    // Apply Market Order rule immediately on page load
-    handleOrderTypeChange(document.getElementById('orderTypeSelect')?.value || 'MARKET');
-
-    if (urlParams.has('symbol')) {
-        prePopulateForm(urlParams);
-    }
-
-    // Handle asset selection from dropdown
-    assetSelect.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        if (!selectedOption || !selectedOption.value) return;
-
-        const symbol     = selectedOption.value;
-        const assetClass = selectedOption.dataset.assetClass;
-
-        // Show/hide options fields
-        optionsFields.style.display = (assetClass === 'options') ? 'block' : 'none';
-
-        // Default quantity by asset type
-        if (assetClass === 'options')       quantityInput.value = 3;
-        else if (assetClass === 'futures')  quantityInput.value = 1;
-        else                                quantityInput.value = 100;
-
-        // Show loading spinner in the price banner while we fetch
-        const priceSection = document.getElementById('currentPriceSection');
-        const priceDisplay = document.getElementById('currentPriceDisplay');
-        if (priceSection) priceSection.classList.remove('d-none');
-        if (priceDisplay) priceDisplay.innerHTML =
-            '<i class="fas fa-spinner fa-spin me-1" style="font-size:14px;"></i>Fetching live price…';
-
-        // Fetch real-time price from the market quote API
-        fetchLivePrice(symbol, false, false);
+    // Wire up order type tabs
+    document.querySelectorAll('.ot-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() { setOrderType(btn.dataset.ot); });
     });
 
-    // Set Signal Source label if arriving from another screen
-    if (urlParams.has('source')) {
-        const source   = urlParams.get('source');
-        const strategy = urlParams.get('strategy');
-        const sourceInfo = {
-            'trading_signals': 'Admin Trading Signal',
-            'stock_picker':    'AI Stock Recommendation',
-            'my_portfolio':    'Portfolio Holding',
-            'daily_signals':   'Daily Trading Signal',
-            'research':        'AI Research Co-Pilot',
-            'market_pulse':    'Live Market Pulse'
-        };
-        const signalSourceDisplay = document.getElementById('signalSourceDisplay');
-        if (signalSourceDisplay) {
-            let displayText = sourceInfo[source] || 'Trading Signal';
-            if (strategy) displayText += ` — Strategy: ${strategy}`;
-            signalSourceDisplay.value = displayText;
-        }
-    }
+    // Wire up product type tabs
+    document.querySelectorAll('.pt-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() { setProductType(btn.dataset.pt); });
+    });
+
+    // Init tab styles
+    setOrderType('MARKET');
+    setProductType('MIS');
+
+    assetSelect.addEventListener('change', function() {
+        var opt = this.options[this.selectedIndex];
+        if (!opt || !opt.value) return;
+        var symbol     = opt.value;
+        var assetClass = opt.dataset.assetClass || '';
+
+        // F&O fields
+        var optFields = document.getElementById('optionsFields');
+        if (optFields) optFields.classList.toggle('d-none', assetClass !== 'options');
+
+        // Default qty
+        if (assetClass === 'options')      quantityInput.value = 3;
+        else if (assetClass === 'futures') quantityInput.value = 1;
+        else                               quantityInput.value = 1;
+
+        // Fetch live price
+        var spinner = document.getElementById('livePriceSpinner');
+        var bar     = document.getElementById('livePriceBar');
+        var hintRow = document.getElementById('hintRow');
+        if (spinner) spinner.classList.remove('d-none');
+        if (bar)     bar.classList.add('d-none');
+        if (hintRow) hintRow.classList.add('d-none');
+        fetchLivePrice(symbol, false, false);
+        checkGuardrails();
+    });
+
+    // URL pre-population
+    var urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('symbol')) prePopulateForm(urlParams);
 });
 
-function deployTrade(recommendationId) {
-    if (!confirm('Deploy this trade to your broker?')) return;
-    
-    fetch(`/api/trade/deploy/${recommendationId}`, {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Trade deployed successfully! Order ID: ' + data.broker_order_id);
-            location.reload();
-        } else {
-            alert('Failed to deploy trade: ' + data.error);
-        }
-    })
-    .catch(error => {
-        alert('Error: ' + error);
-    });
-}
-
-function exitTrade(tradeId) {
-    if (!confirm('Exit this trade position?')) return;
-    
-    // Implementation for exiting trades
-    alert('Exit trade functionality will be implemented');
-}
-
-function handleOrderTypeChange(orderType) {
-    const targetInput = document.getElementById('targetPriceInput');
-    const targetLabel = targetInput ? targetInput.closest('.col-md-4')?.querySelector('label') : null;
-    if (!targetInput) return;
-    if (orderType === 'MARKET') {
-        targetInput.value = '0';
-        targetInput.readOnly = true;
-        targetInput.style.background = '#f8fafc';
-        targetInput.style.color = '#94a3b8';
-        if (targetLabel) targetLabel.innerHTML = 'Target Price <small class="text-muted fw-normal">(N/A for Market)</small>';
-    } else {
-        targetInput.readOnly = false;
-        targetInput.style.background = '';
-        targetInput.style.color = '';
-        if (targetLabel) targetLabel.innerHTML = 'Target Price';
-    }
-}
-
-function showActionDirectionBanner(action, symbol) {
-    const banner = document.getElementById('actionDirectionBanner');
-    const inner  = document.getElementById('actionDirectionInner');
-    const icon   = document.getElementById('actionDirectionIcon');
-    const label  = document.getElementById('actionDirectionLabel');
-    const sym    = document.getElementById('actionDirectionSymbol');
-    if (!banner) return;
-
-    const isBuy = (action || '').toUpperCase() === 'BUY';
-    if (isBuy) {
-        inner.style.background = 'linear-gradient(135deg,#f0fff4,#dcfce7)';
-        inner.style.border     = '2px solid #16a34a';
-        icon.innerHTML  = '<i class="fas fa-arrow-circle-up text-success"></i>';
-        label.innerHTML = '<span class="text-success">BUY Order</span>';
-    } else {
-        inner.style.background = 'linear-gradient(135deg,#fff5f5,#fee2e2)';
-        inner.style.border     = '2px solid #dc2626';
-        icon.innerHTML  = '<i class="fas fa-arrow-circle-down text-danger"></i>';
-        label.innerHTML = '<span class="text-danger">SELL Order</span>';
-    }
-    if (sym && symbol) sym.textContent = symbol;
-    banner.classList.remove('d-none');
-}
-
+// ─── Pre-populate from URL ─────────────────────────────────────────────────────
 function prePopulateForm(urlParams) {
-    const symbol    = urlParams.get('symbol');
-    const script    = urlParams.get('script');
-    const action    = urlParams.get('action');
-    const price     = urlParams.get('price');       // current market price from source screen
-    const quantity  = urlParams.get('quantity');
-    const type      = urlParams.get('type');
-    const source    = urlParams.get('source');
-    const stopLoss  = urlParams.get('stop_loss');   // explicit SL from a trading signal
-    const target    = urlParams.get('target');       // explicit target from a trading signal
-    const target2   = urlParams.get('target_2');
-    const target3   = urlParams.get('target_3');
-    const riskLevel    = urlParams.get('risk_level');
-    const signalId     = urlParams.get('signal_id');
-    const productType  = urlParams.get('product_type');   // e.g. CNC from Equities page
+    var symbol      = urlParams.get('symbol');
+    var script      = urlParams.get('script');
+    var action      = urlParams.get('action');
+    var price       = urlParams.get('price');
+    var quantity    = urlParams.get('quantity');
+    var stopLoss    = urlParams.get('stop_loss');
+    var target      = urlParams.get('target');
+    var target2     = urlParams.get('target_2');
+    var target3     = urlParams.get('target_3');
+    var riskLevel   = urlParams.get('risk_level');
+    var signalId    = urlParams.get('signal_id');
+    var productType = urlParams.get('product_type');
+    var source      = urlParams.get('source');
 
-    // ── 0. Show direction (BUY / SELL) banner ────────────────────────────────
+    // BUY/SELL
+    if (action) setAction(action.toUpperCase());
+
+    // Product type from URL (e.g. CNC from Equities page)
+    if (productType) setProductType(productType.toUpperCase());
+
+    // Direction banner
     if (action) showActionDirectionBanner(action, script || symbol);
 
-    // ── 0a. Apply product type from URL (e.g. CNC when coming from Equities) ──
-    if (productType) {
-        const ptSel = document.querySelector('select[name="product_type"]');
-        if (ptSel) {
-            for (let opt of ptSel.options) {
-                if (opt.value === productType.toUpperCase()) { opt.selected = true; break; }
-            }
-        }
+    // Qty
+    if (quantity && parseInt(quantity) > 0) {
+        var qEl = document.getElementById('quantityInput');
+        if (qEl) qEl.value = parseInt(quantity);
     }
 
-    // ── 0b. Market Order → zero out Target Price immediately ─────────────────
-    handleOrderTypeChange(document.getElementById('orderTypeSelect')?.value || 'MARKET');
-
-    // ── 1. Select the asset in the dropdown ──────────────────────────────────
-    const assetSelect = document.getElementById('assetSelect');
-    let dropdownPrice = null;
-    let found = false;
-    for (let option of assetSelect.options) {
-        if (option.value === symbol) {
-            option.selected = true;
+    // Asset dropdown: find or inject
+    var assetSelect = document.getElementById('assetSelect');
+    var found = false;
+    for (var i = 0; i < assetSelect.options.length; i++) {
+        if (assetSelect.options[i].value === symbol) {
+            assetSelect.selectedIndex = i;
             found = true;
-            // Read the price stored on the option before firing change
-            if (option.dataset.price && parseFloat(option.dataset.price) > 0) {
-                dropdownPrice = parseFloat(option.dataset.price);
-            }
             assetSelect.dispatchEvent(new Event('change'));
             break;
         }
     }
-    // If symbol not in the list (e.g. came from Equities or Signals), inject it
     if (!found && symbol) {
-        const opt = document.createElement('option');
+        var opt = document.createElement('option');
         opt.value = symbol;
         opt.text  = symbol + (script && script !== symbol ? ' — ' + script : '');
         opt.dataset.price = price || '';
@@ -568,373 +625,289 @@ function prePopulateForm(urlParams) {
         assetSelect.dispatchEvent(new Event('change'));
     }
 
-    // ── 2. Signal-provided entry price (from source screen) ──────────────────
-    const signalPrice = (price && parseFloat(price) > 0) ? parseFloat(price) : null;
-    const hasSignalTarget = !!(target);
-    const hasSignalSL     = !!(stopLoss);
+    // Signal-provided prices
+    var hasSignalTarget = !!target;
+    var hasSignalSL     = !!stopLoss;
 
-    // ── 3. Always fetch the live market price for the banner ─────────────────
-    // The "Live Market Price" banner shows the real NSE/yfinance price.
-    // If the signal also provided an entry price, that fills the Entry Price
-    // input (overrides the +1% default), and signal target/SL are preserved.
-    const priceSection = document.getElementById('currentPriceSection');
-    const priceDisplay = document.getElementById('currentPriceDisplay');
-    if (priceSection) priceSection.classList.remove('d-none');
-    if (priceDisplay) priceDisplay.innerHTML =
-        '<i class="fas fa-spinner fa-spin me-1" style="font-size:14px;"></i>Fetching live price…';
+    // Fetch live price — then override with signal values if present
+    if (symbol) {
+        var spinner = document.getElementById('livePriceSpinner');
+        var bar     = document.getElementById('livePriceBar');
+        if (spinner) spinner.classList.remove('d-none');
+        if (bar)     bar.classList.add('d-none');
 
-    fetch('/api/nse/quote/' + encodeURIComponent(symbol))
-        .then(r => r.json())
-        .then(data => {
-            if (data.success && data.data && parseFloat(data.data.current_price) > 0) {
-                const livePrice = parseFloat(data.data.current_price);
-                // Show live price in the banner
-                if (priceDisplay) {
-                    priceDisplay.textContent = '₹' + livePrice.toLocaleString('en-IN',
-                        {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        fetch('/api/nse/quote/' + encodeURIComponent(symbol))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (spinner) spinner.classList.add('d-none');
+                if (data.success && data.data && parseFloat(data.data.current_price) > 0) {
+                    var livePrice = parseFloat(data.data.current_price);
+                    populatePriceDefaults(livePrice, hasSignalTarget, hasSignalSL);
+
+                    // Price change badge
+                    var chgEl = document.getElementById('livePriceChg');
+                    if (chgEl && data.data.change_percent != null) {
+                        var chg = parseFloat(data.data.change_percent);
+                        chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+                        chgEl.style.background = chg >= 0 ? '#dcfce7' : '#fee2e2';
+                        chgEl.style.color = chg >= 0 ? '#16a34a' : '#dc2626';
+                    }
                 }
-                // Compute hint labels from the live price
-                const hintEntry  = document.getElementById('hintEntry');
-                const hintTarget = document.getElementById('hintTarget');
-                const hintSL     = document.getElementById('hintSL');
-                if (hintEntry)  hintEntry.textContent  = '₹' + (livePrice * 1.01).toFixed(2);
-                if (hintTarget) hintTarget.textContent = '₹' + (livePrice + 20).toFixed(2);
-                if (hintSL)     hintSL.textContent     = '₹' + (livePrice - 10).toFixed(2);
-
-                // Fill entry price: prefer signal price, fall back to live+1%
-                const entryInput = document.getElementById('entryPriceInput');
-                if (entryInput && !entryInput.value) {
-                    entryInput.value = signalPrice
-                        ? signalPrice.toFixed(2)
-                        : (livePrice * 1.01).toFixed(2);
+                // Override with signal-provided entry price
+                if (price && parseFloat(price) > 0) {
+                    var ep = document.getElementById('entryPriceInput');
+                    if (ep && currentOrderType !== 'MARKET') ep.value = parseFloat(price).toFixed(2);
                 }
-                // Fill target & SL only if not already set by signal
-                const targetInput = document.getElementById('targetPriceInput');
-                const slInput     = document.getElementById('stopLossInput');
-                if (targetInput && !hasSignalTarget)
-                    targetInput.value = (livePrice + 20).toFixed(2);
-                if (slInput && !hasSignalSL)
-                    slInput.value = (livePrice - 10).toFixed(2);
-            } else {
-                // No live price — fall back to signal price or stored price
-                if (priceDisplay) priceDisplay.textContent = 'Live price unavailable';
-                const fallback = signalPrice || dropdownPrice;
-                if (fallback && fallback > 0)
-                    populatePriceDefaults(fallback, hasSignalTarget, hasSignalSL);
-            }
-            // Always restore signal's explicit target / SL (highest priority)
-            if (hasSignalTarget) {
-                const targetInput = document.getElementById('targetPriceInput');
-                if (targetInput) targetInput.value = parseFloat(target).toFixed(2);
-            }
-            if (hasSignalSL) {
-                const slInput = document.getElementById('stopLossInput');
-                if (slInput) slInput.value = parseFloat(stopLoss).toFixed(2);
-            }
-        })
-        .catch(() => {
-            if (priceDisplay) priceDisplay.textContent = 'Live price unavailable';
-            const fallback = signalPrice || dropdownPrice;
-            if (fallback && fallback > 0)
-                populatePriceDefaults(fallback, hasSignalTarget, hasSignalSL);
-        });
-
-    // ── 4. Quantity ───────────────────────────────────────────────────────────
-    const quantityInput = document.getElementById('quantityInput');
-    if (quantity) {
-        quantityInput.value = quantity;
-    } else if (type) {
-        const t = type.toLowerCase();
-        if (t === 'options' || t === 'option')   quantityInput.value = 3;
-        else if (t === 'futures' || t === 'future') quantityInput.value = 1;
-        else                                       quantityInput.value = 100;
+                if (hasSignalTarget) {
+                    var tp = document.getElementById('targetPriceInput');
+                    if (tp) { tp.value = parseFloat(target).toFixed(2); }
+                    if (!document.getElementById('moreOptionsPanel').classList.contains('d-none') === false) toggleMoreOptions();
+                }
+                if (hasSignalSL) {
+                    var sl = document.getElementById('stopLossInput');
+                    if (sl) { sl.value = parseFloat(stopLoss).toFixed(2); }
+                    var panel = document.getElementById('moreOptionsPanel');
+                    if (panel && panel.classList.contains('d-none')) toggleMoreOptions();
+                }
+            })
+            .catch(function() { if (spinner) spinner.classList.add('d-none'); });
     }
 
-    // ── 5. Signal source info banner ──────────────────────────────────────────
-    if (source) {
-        const sourceInfo = {
-            'trading_signals': 'Admin Trading Signal',
-            'stock_picker':    'AI Stock Recommendation',
-            'my_portfolio':    'Portfolio Holding',
-            'daily_signals':   'Daily Trading Signal',
-            'research':        'AI Research Co-Pilot',
-            'market_pulse':    'Live Market Pulse'
-        };
-
-        const signalSourceDisplay = document.getElementById('signalSourceDisplay');
-        if (signalSourceDisplay) {
-            signalSourceDisplay.value = sourceInfo[source] || 'Trading Signal';
+    // Signal info card
+    if (source || signalId || riskLevel || target) {
+        var card = document.getElementById('signalInfoCard');
+        var body = document.getElementById('signalInfoBody');
+        if (card && body) {
+            var sourceLabels = {
+                'trading_signals': 'Admin Trading Signal',
+                'stock_picker':    'AI Stock Recommendation',
+                'my_portfolio':    'Portfolio Holding',
+                'daily_signals':   'Daily Trading Signal',
+                'research':        'Research Co-Pilot',
+                'market_pulse':    'Live Market Pulse'
+            };
+            var sourceLabel = sourceLabels[source] || source || 'Trading Signal';
+            var html = '<div class="d-flex flex-wrap gap-3 align-items-center">';
+            if (source) html += '<div><small class="text-muted d-block">Source</small><span class="badge" style="background:#eef2ff;color:#4338ca;font-size:12px;">' + sourceLabel + '</span></div>';
+            if (riskLevel) html += '<div><small class="text-muted d-block">Risk Level</small><span class="badge bg-warning text-dark">' + riskLevel + '</span></div>';
+            if (target)  html += '<div><small class="text-muted d-block">Signal Target</small><strong class="text-success">₹' + target + (target2 ? ', ₹' + target2 : '') + (target3 ? ', ₹' + target3 : '') + '</strong></div>';
+            if (stopLoss) html += '<div><small class="text-muted d-block">Signal SL</small><strong class="text-danger">₹' + stopLoss + '</strong></div>';
+            html += '</div>';
+            body.innerHTML = html;
+            card.classList.remove('d-none');
         }
-
-        // Banner card
-        const alertDiv = document.createElement('div');
-        alertDiv.className = 'alert alert-info alert-dismissible fade show mb-4';
-        alertDiv.innerHTML = `
-            <div class="d-flex align-items-start">
-                <i class="fas fa-chart-line fa-2x me-3 text-primary mt-1"></i>
-                <div class="flex-grow-1">
-                    <h5 class="alert-heading mb-2">${sourceInfo[source] || 'Trading Signal'}</h5>
-                    <div class="row g-2 align-items-center">
-                        <div class="col-auto">
-                            <small class="text-muted d-block">Symbol</small>
-                            <strong>${script || symbol}</strong>
-                        </div>
-                        <div class="col-auto">
-                            <small class="text-muted d-block">Action</small>
-                            <span class="badge ${action === 'BUY' ? 'bg-success' : 'bg-danger'} fs-6">${action || 'BUY'}</span>
-                        </div>
-                        ${currentPrice ? `
-                        <div class="col-auto">
-                            <small class="text-muted d-block">Current Price</small>
-                            <strong class="text-success">₹${parseFloat(currentPrice).toLocaleString('en-IN', {minimumFractionDigits: 2})}</strong>
-                        </div>` : ''}
-                        ${target ? `
-                        <div class="col-auto">
-                            <small class="text-muted d-block">Signal Targets</small>
-                            <strong class="text-primary">₹${target}</strong>${target2 ? `, ₹${target2}` : ''}${target3 ? `, ₹${target3}` : ''}
-                        </div>` : ''}
-                        ${stopLoss ? `
-                        <div class="col-auto">
-                            <small class="text-muted d-block">Signal SL</small>
-                            <strong class="text-danger">₹${stopLoss}</strong>
-                        </div>` : ''}
-                        ${riskLevel ? `
-                        <div class="col-auto">
-                            <small class="text-muted d-block">Risk Level</small>
-                            <span class="badge bg-warning text-dark">${riskLevel}</span>
-                        </div>` : ''}
-                    </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
-
-        const formCard = document.querySelector('#tradeRecommendationForm .card-body, .card-body');
-        if (formCard) formCard.insertBefore(alertDiv, formCard.firstChild);
     }
 }
 
-function refreshTrades() {
-    location.reload();
+// ─── BUY/SELL banner ─────────────────────────────────────────────────────────
+function showActionDirectionBanner(action, symbol) {
+    var banner = document.getElementById('actionDirectionBanner');
+    var inner  = document.getElementById('actionDirectionInner');
+    var icon   = document.getElementById('actionDirectionIcon');
+    var label  = document.getElementById('actionDirectionLabel');
+    var sym    = document.getElementById('actionDirectionSymbol');
+    if (!banner) return;
+
+    var isBuy = (action || '').toUpperCase() === 'BUY';
+    inner.style.background = isBuy ? 'linear-gradient(135deg,#f0fff4,#dcfce7)' : 'linear-gradient(135deg,#fff5f5,#fee2e2)';
+    inner.style.border     = isBuy ? '2px solid #16a34a' : '2px solid #dc2626';
+    icon.innerHTML  = isBuy
+        ? '<i class="fas fa-arrow-circle-up text-success"></i>'
+        : '<i class="fas fa-arrow-circle-down text-danger"></i>';
+    label.innerHTML = isBuy
+        ? '<span class="text-success">BUY Order</span>'
+        : '<span class="text-danger">SELL Order</span>';
+    if (sym && symbol) sym.textContent = symbol;
+    banner.classList.remove('d-none');
 }
 
+// ─── Trade Confirmation Modal ─────────────────────────────────────────────────
 function showTradeConfirmation() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const symbol = urlParams.get('symbol') || document.getElementById('assetSelect').value;
-    const script = urlParams.get('script') || symbol;
-    const action = urlParams.get('action') || 'BUY';
-    const price = document.getElementById('entryPriceInput')?.value || urlParams.get('price') || '';
-    const stopLoss = document.getElementById('stopLossInput')?.value || urlParams.get('stop_loss') || '';
-    const target = document.getElementById('targetPriceInput')?.value || urlParams.get('target') || '';
-    const quantity = document.getElementById('quantityInput')?.value || 1;
-    const orderType = document.querySelector('select[name="order_type"]')?.value || 'MARKET';
-    const productType = document.querySelector('select[name="product_type"]')?.value || 'MIS';
-    
-    if (!symbol) {
-        alert('Please select an asset first');
-        return;
-    }
-    
-    const brokerSelect = document.getElementById('brokerSelect');
-    const brokerName = brokerSelect ? brokerSelect.options[brokerSelect.selectedIndex].text : "Not Connected";
-    const brokerId = brokerSelect ? brokerSelect.value : null;
-    
-    const confirmModal = document.createElement('div');
-    confirmModal.className = 'modal fade';
-    confirmModal.id = 'tradeConfirmModal';
-    confirmModal.setAttribute('tabindex', '-1');
-    confirmModal.innerHTML = `
+    var symbol      = document.getElementById('assetSelect').value;
+    var action      = currentAction;
+    var price       = document.getElementById('entryPriceInput')?.value || '';
+    var stopLoss    = document.getElementById('stopLossInput')?.value || '';
+    var target      = document.getElementById('targetPriceInput')?.value || '';
+    var quantity    = document.getElementById('quantityInput')?.value || 1;
+    var orderType   = currentOrderType;
+    var productType = currentProductType;
+
+    if (!symbol) { alert('Please select an asset first'); return; }
+
+    var brokerSelect = document.getElementById('brokerSelect');
+    var brokerName   = brokerSelect ? brokerSelect.options[brokerSelect.selectedIndex].text : 'Not Connected';
+
+    var modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'tradeConfirmModal';
+    modal.setAttribute('tabindex', '-1');
+    var isBuy = action === 'BUY';
+    modal.innerHTML = `
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header" style="background: linear-gradient(135deg, #00091a 0%, #1a365d 100%);">
-                    <h5 class="modal-title text-white">
-                        <i class="fas fa-rocket me-2"></i>Confirm Trade Execution
+            <div class="modal-content" style="border-radius:18px;overflow:hidden;">
+                <div class="modal-header" style="background:${isBuy ? '#16a34a' : '#dc2626'};color:#fff;padding:20px 24px;">
+                    <h5 class="modal-title fw-bold">
+                        <i class="fas fa-bolt me-2"></i>Confirm ${action} Order
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="alert alert-warning mb-3">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>Important:</strong> This trade will be executed in your Primary Broker account.
-                    </div>
-                    
-                    <div class="card mb-3">
-                        <div class="card-body">
-                            <h6 class="card-title mb-3">Trade Details</h6>
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <small class="text-muted">Symbol</small>
-                                    <div class="fw-bold">${script}</div>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted">Action</small>
-                                    <div class="badge ${action === 'BUY' ? 'bg-success' : 'bg-danger'} fs-6">${action}</div>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted">Quantity</small>
-                                    <div class="fw-bold">${quantity}</div>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted">Order Type</small>
-                                    <div class="fw-bold">${orderType}</div>
-                                </div>
-                                ${price ? `
-                                <div class="col-6">
-                                    <small class="text-muted">Entry Price</small>
-                                    <div class="fw-bold text-success">₹${price}</div>
-                                </div>` : ''}
-                                ${stopLoss ? `
-                                <div class="col-6">
-                                    <small class="text-muted">Stop Loss</small>
-                                    <div class="fw-bold text-danger">₹${stopLoss}</div>
-                                </div>` : ''}
-                            </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Symbol</small>
+                            <strong style="font-size:16px;">${symbol}</strong>
                         </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Action</small>
+                            <span class="badge px-3 py-2 fs-6" style="background:${isBuy ? '#16a34a' : '#dc2626'};color:#fff;">${action}</span>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-muted d-block">Qty</small>
+                            <strong>${quantity}</strong>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-muted d-block">Order</small>
+                            <strong>${orderType}</strong>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-muted d-block">Product</small>
+                            <strong>${productType}</strong>
+                        </div>
+                        ${price ? `<div class="col-4"><small class="text-muted d-block">Price</small><strong>₹${price}</strong></div>` : ''}
+                        ${stopLoss ? `<div class="col-4"><small class="text-muted d-block">Stop Loss</small><strong class="text-danger">₹${stopLoss}</strong></div>` : ''}
+                        ${target ? `<div class="col-4"><small class="text-muted d-block">Target</small><strong class="text-success">₹${target}</strong></div>` : ''}
                     </div>
-                    
-                    <div class="d-flex align-items-center p-3 bg-light rounded">
-                        <i class="fas fa-building fa-2x text-primary me-3"></i>
+                    <div class="p-3 rounded-3 d-flex align-items-center gap-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
+                        <i class="fas fa-building text-muted"></i>
                         <div>
-                            <small class="text-muted d-block">Primary Broker</small>
+                            <small class="text-muted d-block">Executing via</small>
                             <strong>${brokerName}</strong>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-success" onclick="executeTrade()">
-                        <i class="fas fa-check me-2"></i>Execute Trade
+                <div class="modal-footer px-4 pb-4 border-0">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn px-5 fw-bold" onclick="executeTrade()"
+                            style="background:${isBuy ? '#16a34a' : '#dc2626'};color:#fff;border-radius:10px;">
+                        <i class="fas fa-bolt me-2"></i>Execute ${action}
                     </button>
                 </div>
             </div>
-        </div>
-    `;
-    
-    document.body.appendChild(confirmModal);
-    const modal = new bootstrap.Modal(confirmModal);
-    modal.show();
-    
-    confirmModal.addEventListener('hidden.bs.modal', function() {
-        confirmModal.remove();
-    });
+        </div>`;
+
+    document.body.appendChild(modal);
+    var bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    modal.addEventListener('hidden.bs.modal', function() { modal.remove(); });
 }
 
+// ─── Execute Trade ────────────────────────────────────────────────────────────
 function executeTrade() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const symbol = urlParams.get('symbol') || document.getElementById('assetSelect').value;
-    const action = urlParams.get('action') || 'BUY';
-    const price = urlParams.get('price') || '';
-    const stopLoss = urlParams.get('stop_loss') || document.getElementById('stopLossInput')?.value || '';
-    const target = urlParams.get('target') || document.getElementById('targetPriceInput')?.value || '';
-    const quantity = document.getElementById('quantityInput')?.value || 1;
-    const orderType = document.querySelector('select[name="order_type"]')?.value || 'MARKET';
-    const productType = document.querySelector('select[name="product_type"]')?.value || 'MIS';
-    const signalId = urlParams.get('signal_id') || '';
-    
-    // Close confirmation modal
-    const confirmModal = bootstrap.Modal.getInstance(document.getElementById('tradeConfirmModal'));
-    if (confirmModal) confirmModal.hide();
-    
-    // Show loading state
-    const executeBtn = document.querySelector('#tradeConfirmModal .btn-success');
-    if (executeBtn) {
-        executeBtn.disabled = true;
-        executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Executing...';
-    }
-    
-    // Send trade request to backend
+    var urlParams   = new URLSearchParams(window.location.search);
+    var symbol      = document.getElementById('assetSelect').value || urlParams.get('symbol');
+    var action      = currentAction;
+    var price       = document.getElementById('entryPriceInput')?.value || '';
+    var stopLoss    = document.getElementById('stopLossInput')?.value || '';
+    var target      = document.getElementById('targetPriceInput')?.value || '';
+    var quantity    = document.getElementById('quantityInput')?.value || 1;
+    var orderType   = currentOrderType;
+    var productType = currentProductType;
+    var signalId    = urlParams.get('signal_id') || '';
+
+    var modal = bootstrap.Modal.getInstance(document.getElementById('tradeConfirmModal'));
+    if (modal) modal.hide();
+
+    var btn = document.querySelector('#tradeConfirmModal .btn:last-child');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Executing…'; }
+
     fetch('/api/trade/execute-signal', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            symbol: symbol,
-            action: action,
-            quantity: parseInt(quantity),
-            price: parseFloat(price) || null,
-            stop_loss: parseFloat(stopLoss) || null,
+            symbol:       symbol,
+            action:       action,
+            quantity:     parseInt(quantity),
+            price:        parseFloat(price) || null,
+            stop_loss:    parseFloat(stopLoss) || null,
             target_price: parseFloat(target) || null,
-            order_type: orderType,
+            order_type:   orderType,
             product_type: productType,
-            signal_id: signalId ? parseInt(signalId) : null,
-            broker_id: document.getElementById('brokerSelect') ? document.getElementById('brokerSelect').value : null
+            signal_id:    signalId ? parseInt(signalId) : null,
+            broker_id:    document.getElementById('brokerSelect') ? document.getElementById('brokerSelect').value : null
         })
     })
-    .then(response => response.json())
-    .then(data => {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         if (data.success) {
-            alert('Trade order sent successfully to your broker!\n\nOrder ID: ' + (data.order_id || 'Processing'));
+            alert('Trade order sent successfully!\n\nOrder ID: ' + (data.order_id || 'Processing'));
             location.reload();
         } else {
             alert('Trade execution failed: ' + (data.error || 'Unknown error'));
         }
     })
-    .catch(error => {
-        alert('Error executing trade: ' + error.message);
-    });
+    .catch(function(err) { alert('Error executing trade: ' + err.message); });
 }
 
-// ─── Scentric Behavioural Guardrails ────────────────────────────────────────
+// ─── Scentric Behavioural Guardrails ─────────────────────────────────────────
 (function() {
-    var RISK_TOLERANCE = '{{ risk_profile.risk_tolerance if risk_profile else "" }}';
+    var RISK_TOLERANCE  = '{{ risk_profile.risk_tolerance if risk_profile else "" }}';
     var PORTFOLIO_VALUE = {{ trade_portfolio_summary.total_current_value if trade_portfolio_summary else 0 }};
-    var MAX_LOSS_PCT = {{ risk_profile.loss_tolerance if risk_profile and risk_profile.loss_tolerance else 0 }};
-
-    var HIGH_RISK = ['futures','options','f&o','derivatives','crypto','cryptocurrency'];
+    var HIGH_RISK = ['futures','options','f&o','derivatives','crypto'];
 
     function checkGuardrails() {
         var assetEl = document.getElementById('assetSelect');
         var qtyEl   = document.getElementById('quantityInput');
         var priceEl = document.getElementById('entryPriceInput');
-
         if (!assetEl || !assetEl.value) return clearGuardrails();
 
-        var selectedOpt = assetEl.options[assetEl.selectedIndex];
-        var assetClass  = (selectedOpt ? (selectedOpt.dataset.assetClass || '') : '').toLowerCase();
-        var qty    = parseFloat(qtyEl   ? qtyEl.value   : 0) || 0;
-        var price  = parseFloat(priceEl ? priceEl.value : 0) || 0;
+        var opt       = assetEl.options[assetEl.selectedIndex];
+        var assetClass = (opt ? (opt.dataset.assetClass || '') : '').toLowerCase();
+        var qty   = parseFloat(qtyEl   ? qtyEl.value   : 0) || 0;
+        var price = parseFloat(priceEl ? priceEl.value : 0) || 0;
         var tradeVal = qty * price;
 
         var alerts = [];
         var isHighRisk = HIGH_RISK.some(function(r){ return assetClass.includes(r); });
 
-        // Risk tolerance check
         if (RISK_TOLERANCE === 'conservative' && isHighRisk) {
             alerts.push({level:'danger', icon:'fa-shield-alt', title:'Risk Profile Violation',
-                msg: 'Your declared risk appetite is <strong>Conservative</strong>. ' + assetClass.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) + ' trading is classified as <strong>High Risk</strong> — this deviates from your strategy.'});
+                msg:'Your risk appetite is <strong>Conservative</strong>. This asset class is <strong>High Risk</strong>.'});
         } else if (RISK_TOLERANCE === 'moderate' && assetClass.includes('crypto')) {
             alerts.push({level:'warning', icon:'fa-exclamation-triangle', title:'Strategy Deviation',
-                msg: 'Cryptocurrency may exceed your <strong>Moderate</strong> risk tolerance. Consider reviewing your allocation.'});
+                msg:'Cryptocurrency may exceed your <strong>Moderate</strong> risk tolerance.'});
         }
-
-        // Concentration check (only if trade value entered)
         if (tradeVal > 0 && PORTFOLIO_VALUE > 0) {
             var conc = (tradeVal / PORTFOLIO_VALUE) * 100;
             if (conc > 30) {
                 alerts.push({level:'danger', icon:'fa-percentage', title:'High Concentration Risk',
-                    msg: 'This trade is <strong>' + conc.toFixed(1) + '%</strong> of your total portfolio. Target Capital recommends a maximum of 20% per position.'});
+                    msg:'This trade is <strong>' + conc.toFixed(1) + '%</strong> of your portfolio. Max recommended: 20%.'});
             } else if (conc > 20) {
                 alerts.push({level:'warning', icon:'fa-balance-scale', title:'Concentration Warning',
-                    msg: 'This trade represents <strong>' + conc.toFixed(1) + '%</strong> of your portfolio. Consider sizing down to maintain diversification.'});
+                    msg:'This trade represents <strong>' + conc.toFixed(1) + '%</strong> of your portfolio.'});
             }
         }
-
         renderGuardrails(alerts);
     }
+
+    window.checkGuardrails = checkGuardrails;
 
     function renderGuardrails(alerts) {
         var panel   = document.getElementById('guardrailAlerts');
         var content = document.getElementById('guardrailContent');
+        var okBar   = document.getElementById('guardrailsOk');
         if (!panel || !content) return;
-        if (alerts.length === 0) { panel.classList.add('d-none'); return; }
-
+        if (alerts.length === 0) {
+            panel.classList.add('d-none');
+            if (okBar) okBar.classList.remove('d-none');
+            return;
+        }
+        if (okBar) okBar.classList.add('d-none');
         var html = '<div class="d-flex flex-wrap gap-2">';
         alerts.forEach(function(a) {
             var bg = a.level === 'danger' ? '#fef2f2' : '#fffbeb';
             var bc = a.level === 'danger' ? '#ef4444' : '#f59e0b';
             var tc = a.level === 'danger' ? '#b91c1c' : '#92400e';
-            html += '<div class="p-3 rounded-3 flex-fill" style="background:' + bg + ';border-left:4px solid ' + bc + ';min-width:250px;">' +
+            html += '<div class="p-3 rounded-3 flex-fill" style="background:' + bg + ';border-left:4px solid ' + bc + ';min-width:220px;">' +
                 '<div class="d-flex align-items-center gap-2 mb-1" style="color:' + bc + ';">' +
                 '<i class="fas ' + a.icon + '"></i><strong>' + a.title + '</strong></div>' +
                 '<div style="color:' + tc + ';font-size:13px;">' + a.msg + '</div></div>';
@@ -946,12 +919,13 @@ function executeTrade() {
 
     function clearGuardrails() {
         var panel = document.getElementById('guardrailAlerts');
+        var okBar = document.getElementById('guardrailsOk');
         if (panel) panel.classList.add('d-none');
+        if (okBar) okBar.classList.remove('d-none');
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        var fields = ['assetSelect','quantityInput','entryPriceInput'];
-        fields.forEach(function(id) {
+        ['assetSelect','quantityInput','entryPriceInput'].forEach(function(id) {
             var el = document.getElementById(id);
             if (el) el.addEventListener('change', checkGuardrails);
             if (el) el.addEventListener('input',  checkGuardrails);
@@ -961,36 +935,18 @@ function executeTrade() {
 </script>
 
 <style>
-.card {
-    border: none !important;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
-}
-
-.table th {
-    border-top: none;
-    font-weight: 600;
-    font-size: 0.875rem;
-    color: #495057;
-}
-
-.badge {
-    font-size: 0.75rem;
-}
-
-.btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.775rem;
-}
-
-.alert {
-    border: none;
-}
-
-.form-control:focus, .form-select:focus {
+.trade-now-page .card { border: none !important; }
+.pt-tab { border-radius: 0 !important; border-bottom: 3px solid transparent; transition: all .2s; }
+.pt-tab:hover { background: #f8fafc !important; color: #00091a !important; }
+.ot-tab { border: 1px solid #e2e8f0 !important; transition: all .2s; }
+.ot-tab:hover { background: #00091a !important; color: #fff !important; border-color: #00091a !important; }
+#instantTradeBtn:hover { opacity: .9; }
+#buyBtn:hover, #sellBtn:hover { opacity: .85; }
+.form-select:focus, .form-control:focus {
     border-color: #86b7fe;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+    box-shadow: 0 0 0 0.2rem rgba(13,110,253,.15);
 }
 </style>
 
-</div> <!-- Close trade-now-page div -->
+</div><!-- /trade-now-page -->
 {% endblock %}
