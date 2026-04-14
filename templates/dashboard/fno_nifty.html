@@ -1,0 +1,310 @@
+{% extends "dashboard/base_dashboard.html" %}
+{% block title %}NIFTY Options Analysis — F&O Engine | Target Capital{% endblock %}
+{% block dashboard_title %}NIFTY Options Analysis{% endblock %}
+{% block dashboard_subtitle %}MVLA Decision Engine — Momentum-Validated, Loss-Averse{% endblock %}
+
+{% block dashboard_content %}
+<style>
+.idx-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+.idx-card{flex:1;min-width:140px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;text-align:center;transition:box-shadow .2s}
+.idx-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.idx-label{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px}
+.idx-price{font-size:18px;font-weight:700;color:#1e293b;margin:2px 0}
+.idx-change{font-size:12px;font-weight:600}
+.idx-up{color:#16a34a}.idx-down{color:#dc2626}.idx-flat{color:#64748b}
+
+.engine-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px}
+.engine-title{font-size:14px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.engine-title i{color:#3b82f6}
+.layer-badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase}
+.badge-bullish{background:#dcfce7;color:#16a34a}.badge-bearish{background:#fee2e2;color:#dc2626}.badge-neutral{background:#f1f5f9;color:#64748b}
+.badge-strong{background:#dbeafe;color:#2563eb}.badge-moderate{background:#fef3c7;color:#d97706}.badge-weak{background:#fee2e2;color:#dc2626}
+.badge-active{background:#dcfce7;color:#16a34a}.badge-blocked{background:#fee2e2;color:#dc2626}
+
+.indicator-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9}
+.indicator-row:last-child{border-bottom:none}
+.indicator-name{font-size:13px;color:#475569;font-weight:500}
+.indicator-val{font-size:13px;font-weight:700}
+
+.conf-meter{width:100%;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin:8px 0}
+.conf-fill{height:100%;border-radius:4px;transition:width .5s}
+.conf-high{background:linear-gradient(90deg,#22c55e,#16a34a)}.conf-med{background:linear-gradient(90deg,#f59e0b,#d97706)}.conf-low{background:#ef4444}
+
+.trade-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;transition:all .2s}
+.trade-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-2px)}
+.trade-header{padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+.trade-header.call-header{background:linear-gradient(135deg,#dcfce7,#f0fdf4);border-bottom:2px solid #22c55e}
+.trade-header.put-header{background:linear-gradient(135deg,#fee2e2,#fef2f2);border-bottom:2px solid #ef4444}
+.trade-symbol{font-size:15px;font-weight:700;color:#1e293b}
+.trade-type{font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;color:#fff}
+.type-ce{background:#22c55e}.type-pe{background:#ef4444}
+.trade-body{padding:14px 16px}
+.trade-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
+.trade-lbl{color:#64748b}.trade-val{font-weight:600;color:#1e293b}
+.trade-footer{padding:10px 16px;background:#f8fafc;border-top:1px solid #f1f5f9;display:flex;gap:8px}
+.trade-footer .btn{font-size:12px;padding:6px 14px}
+
+.risk-rule{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
+.risk-rule i{color:#ef4444;width:16px;text-align:center}
+
+.no-trade-banner{background:linear-gradient(135deg,#fef3c7,#fffbeb);border:1px solid #f59e0b;border-radius:12px;padding:24px;text-align:center}
+.no-trade-banner h5{color:#92400e;font-weight:700}
+.no-trade-banner p{color:#a16207;margin:0}
+
+.oi-bar{display:flex;height:20px;border-radius:4px;overflow:hidden;margin:6px 0}
+.oi-call{background:#ef4444}.oi-put{background:#22c55e}
+
+.data-src-tag{font-size:10px;background:#e2e8f0;color:#475569;padding:2px 8px;border-radius:4px;font-weight:600}
+
+.spinner-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.7);z-index:999;align-items:center;justify-content:center}
+.spinner-overlay.show{display:flex}
+</style>
+
+<div class="spinner-overlay" id="loadingOverlay">
+    <div class="text-center">
+        <div class="spinner-border text-primary" style="width:48px;height:48px"></div>
+        <p class="mt-3 fw-semibold text-muted">Analysing NIFTY Options...</p>
+    </div>
+</div>
+
+<div class="idx-strip" id="indicesStrip">
+    <div class="idx-card"><div class="idx-label">NIFTY 50</div><div class="idx-price" id="idx-nifty">—</div><div class="idx-change idx-flat" id="idx-nifty-chg">—</div></div>
+    <div class="idx-card"><div class="idx-label">SENSEX</div><div class="idx-price" id="idx-sensex">—</div><div class="idx-change idx-flat" id="idx-sensex-chg">—</div></div>
+    <div class="idx-card"><div class="idx-label">NIFTY FUT</div><div class="idx-price" id="idx-niftyfut">—</div><div class="idx-change idx-flat" id="idx-niftyfut-chg">—</div></div>
+    <div class="idx-card"><div class="idx-label">INDIA VIX</div><div class="idx-price" id="idx-vix">—</div><div class="idx-change idx-flat" id="idx-vix-chg">—</div></div>
+    <div class="idx-card"><div class="idx-label">BANK NIFTY</div><div class="idx-price" id="idx-banknifty">—</div><div class="idx-change idx-flat" id="idx-banknifty-chg">—</div></div>
+    <div class="idx-card"><div class="idx-label">BNIFTY FUT</div><div class="idx-price" id="idx-bankniftyfut">—</div><div class="idx-change idx-flat" id="idx-bankniftyfut-chg">—</div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="engine-card" id="timeCard">
+            <div class="engine-title"><i class="fas fa-clock"></i> Layer 1 — Time Filter</div>
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="indicator-name" id="timeReason">Checking...</span>
+                <span class="layer-badge" id="timeBadge">—</span>
+            </div>
+        </div>
+
+        <div class="engine-card" id="directionCard">
+            <div class="engine-title"><i class="fas fa-compass"></i> Layer 2 — Direction Engine</div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="indicator-name">Direction</span>
+                <span class="layer-badge" id="dirBadge">—</span>
+            </div>
+            <div class="indicator-row"><span class="indicator-name">Price vs VWAP</span><span class="indicator-val" id="vwapVal">—</span></div>
+            <div class="indicator-row"><span class="indicator-name">Supertrend</span><span class="indicator-val" id="stVal">—</span></div>
+            <div class="indicator-row"><span class="indicator-name">+DI / −DI</span><span class="indicator-val" id="dmiVal">—</span></div>
+        </div>
+
+        <div class="engine-card" id="strengthCard">
+            <div class="engine-title"><i class="fas fa-bolt"></i> Layer 3 — Strength & Momentum</div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="indicator-name">Strength</span>
+                <span class="layer-badge" id="strBadge">—</span>
+            </div>
+            <div class="indicator-row"><span class="indicator-name">ADX</span><span class="indicator-val" id="adxVal">—</span></div>
+            <div class="indicator-row"><span class="indicator-name">ADX Rising</span><span class="indicator-val" id="adxRising">—</span></div>
+            <div class="indicator-row"><span class="indicator-name">ATR</span><span class="indicator-val" id="atrVal">—</span></div>
+            <div class="indicator-row"><span class="indicator-name">ATR Rising</span><span class="indicator-val" id="atrRising">—</span></div>
+        </div>
+
+        <div class="engine-card">
+            <div class="engine-title"><i class="fas fa-chart-pie"></i> OI Analysis</div>
+            <div class="indicator-row"><span class="indicator-name">OI Signal</span><span class="layer-badge" id="oiBadge">—</span></div>
+            <div class="indicator-row"><span class="indicator-name">OI Differential</span><span class="indicator-val" id="oiDiff">—</span></div>
+            <div class="indicator-row"><span class="indicator-name">PCR</span><span class="indicator-val" id="pcrVal">—</span></div>
+            <div class="mt-2">
+                <div class="d-flex justify-content-between" style="font-size:11px;font-weight:600"><span style="color:#ef4444">Call OI</span><span style="color:#22c55e">Put OI</span></div>
+                <div class="oi-bar"><div class="oi-call" id="oiCallBar" style="width:50%"></div><div class="oi-put" id="oiPutBar" style="width:50%"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="engine-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="engine-title mb-0"><i class="fas fa-crosshairs"></i> Confidence & Entry</div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="data-src-tag" id="dataSrcTag">—</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshAnalysis()"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
+                </div>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-4 text-center">
+                    <div style="font-size:36px;font-weight:800" id="confScore">—</div>
+                    <div class="conf-meter"><div class="conf-fill" id="confFill" style="width:0"></div></div>
+                    <div style="font-size:12px;font-weight:600;color:#64748b" id="confGrade">—</div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <div style="font-size:12px;color:#64748b;font-weight:600">TRADE DIRECTION</div>
+                    <div style="font-size:24px;font-weight:800" id="tradeDir">—</div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <div style="font-size:12px;color:#64748b;font-weight:600">ENTRY MODE</div>
+                    <div style="font-size:24px;font-weight:800" id="entryMode">—</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="noTradeArea" style="display:none">
+            <div class="no-trade-banner">
+                <h5><i class="fas fa-hand-paper me-2"></i>No Trade Signal</h5>
+                <p id="noTradeReason">Conditions not met for high-confidence entry.</p>
+            </div>
+        </div>
+
+        <div id="tradesArea" style="display:none">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold mb-0"><i class="fas fa-list-ol me-2 text-primary"></i>Recommended Trades</h6>
+                <span class="text-muted" style="font-size:12px">ATM Strike: <strong id="atmStrike">—</strong> | Spot: <strong id="spotPrice">—</strong></span>
+            </div>
+            <div class="row g-3" id="tradesGrid"></div>
+        </div>
+
+        <div class="engine-card mt-3">
+            <div class="engine-title"><i class="fas fa-shield-alt"></i> Risk Management Rules</div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="risk-rule"><i class="fas fa-ban"></i><span>Max 3 trades per day</span></div>
+                    <div class="risk-rule"><i class="fas fa-times-circle"></i><span>Stop after 2 consecutive losses</span></div>
+                </div>
+                <div class="col-md-6">
+                    <div class="risk-rule"><i class="fas fa-percentage"></i><span>Daily loss limit: 3% of capital</span></div>
+                    <div class="risk-rule"><i class="fas fa-coins"></i><span>Risk per trade: 1% of capital</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function fmt(n) { return n ? n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—'; }
+
+function setIdx(id, price, change, pct) {
+    document.getElementById('idx-'+id).textContent = fmt(price);
+    var el = document.getElementById('idx-'+id+'-chg');
+    var sign = change >= 0 ? '+' : '';
+    el.textContent = sign + fmt(change) + ' (' + sign + (pct||0).toFixed(2) + '%)';
+    el.className = 'idx-change ' + (change > 0 ? 'idx-up' : change < 0 ? 'idx-down' : 'idx-flat');
+}
+
+function badgeClass(val) {
+    var v = val.toUpperCase();
+    if (['BULLISH','BUY','ABOVE','STRONG','ACTIVE','CONFIRMED'].indexOf(v) >= 0) return 'badge-bullish';
+    if (['BEARISH','SELL','BELOW','WEAK','BLOCKED'].indexOf(v) >= 0) return 'badge-bearish';
+    return 'badge-neutral';
+}
+
+function refreshAnalysis() {
+    document.getElementById('loadingOverlay').classList.add('show');
+    fetch('/dashboard/fno/api/indices').then(r=>r.json()).then(function(res) {
+        if (res.success) {
+            var d = res.data;
+            setIdx('nifty', d.nifty.price, d.nifty.change, d.nifty.pct);
+            setIdx('sensex', d.sensex.price, d.sensex.change, d.sensex.pct);
+            setIdx('niftyfut', d.nifty_fut.price, d.nifty_fut.change, d.nifty_fut.pct);
+            setIdx('vix', d.vix.price, d.vix.change, d.vix.pct);
+            setIdx('banknifty', d.banknifty.price, d.banknifty.change, d.banknifty.pct);
+            setIdx('bankniftyfut', d.banknifty_fut.price, d.banknifty_fut.change, d.banknifty_fut.pct);
+        }
+    }).catch(function(){});
+
+    fetch('/dashboard/fno/api/analysis').then(r=>r.json()).then(function(res) {
+        document.getElementById('loadingOverlay').classList.remove('show');
+        if (!res.success) return;
+        var d = res.data;
+
+        var tb = document.getElementById('timeBadge');
+        tb.textContent = d.time_filter.status.toUpperCase();
+        tb.className = 'layer-badge ' + badgeClass(d.time_filter.status);
+        document.getElementById('timeReason').textContent = d.time_filter.reason;
+
+        var db2 = document.getElementById('dirBadge');
+        db2.textContent = d.direction.direction;
+        db2.className = 'layer-badge ' + badgeClass(d.direction.direction);
+        document.getElementById('vwapVal').textContent = d.direction.spot_vs_vwap + ' (VWAP: ' + fmt(d.direction.vwap) + ')';
+        document.getElementById('stVal').textContent = d.direction.supertrend;
+        document.getElementById('stVal').style.color = d.direction.supertrend === 'BUY' ? '#16a34a' : '#dc2626';
+        document.getElementById('dmiVal').textContent = '+DI ' + d.direction.dmi_plus + ' / −DI ' + d.direction.dmi_minus;
+
+        var sb = document.getElementById('strBadge');
+        sb.textContent = d.strength.strength;
+        sb.className = 'layer-badge ' + badgeClass(d.strength.strength);
+        document.getElementById('adxVal').textContent = d.strength.adx;
+        document.getElementById('adxVal').style.color = d.strength.adx > 25 ? '#16a34a' : '#dc2626';
+        document.getElementById('adxRising').innerHTML = d.strength.adx_rising ? '<i class="fas fa-arrow-up text-success"></i> Yes' : '<i class="fas fa-arrow-down text-danger"></i> No';
+        document.getElementById('atrVal').textContent = d.strength.atr;
+        document.getElementById('atrRising').innerHTML = d.strength.atr_rising ? '<i class="fas fa-arrow-up text-success"></i> Yes' : '<i class="fas fa-arrow-down text-danger"></i> No';
+
+        var ob = document.getElementById('oiBadge');
+        ob.textContent = d.oi_analysis.oi_signal;
+        ob.className = 'layer-badge ' + badgeClass(d.oi_analysis.oi_signal);
+        document.getElementById('oiDiff').textContent = (d.oi_analysis.oi_diff * 100).toFixed(2) + '%';
+        document.getElementById('pcrVal').textContent = d.oi_analysis.pcr;
+        var totalOi = d.oi_analysis.total_call_oi + d.oi_analysis.total_put_oi;
+        if (totalOi > 0) {
+            document.getElementById('oiCallBar').style.width = (d.oi_analysis.total_call_oi / totalOi * 100).toFixed(1) + '%';
+            document.getElementById('oiPutBar').style.width = (d.oi_analysis.total_put_oi / totalOi * 100).toFixed(1) + '%';
+        }
+
+        document.getElementById('confScore').textContent = d.confidence;
+        var fill = document.getElementById('confFill');
+        fill.style.width = d.confidence + '%';
+        fill.className = 'conf-fill ' + (d.confidence >= 80 ? 'conf-high' : d.confidence >= 60 ? 'conf-med' : 'conf-low');
+        document.getElementById('confGrade').textContent = d.confidence_grade + ' Signal';
+        document.getElementById('tradeDir').textContent = d.trade_direction;
+        document.getElementById('tradeDir').style.color = d.trade_direction === 'BULLISH' ? '#16a34a' : d.trade_direction === 'BEARISH' ? '#dc2626' : '#64748b';
+        document.getElementById('entryMode').textContent = d.entry_mode;
+        document.getElementById('entryMode').style.color = d.entry_mode === 'CONFIRMED' ? '#16a34a' : d.entry_mode === 'EARLY' ? '#d97706' : '#dc2626';
+
+        document.getElementById('dataSrcTag').textContent = 'Source: ' + d.data_source;
+        document.getElementById('spotPrice').textContent = fmt(d.spot_price);
+        document.getElementById('atmStrike').textContent = d.atm_strike;
+
+        if (d.trades && d.trades.length > 0) {
+            document.getElementById('noTradeArea').style.display = 'none';
+            document.getElementById('tradesArea').style.display = 'block';
+            var grid = document.getElementById('tradesGrid');
+            grid.innerHTML = '';
+            d.trades.forEach(function(t) {
+                var isCE = t.type === 'CE';
+                var card = document.createElement('div');
+                card.className = 'col-md-6 col-lg-4';
+                card.innerHTML = '<div class="trade-card">' +
+                    '<div class="trade-header ' + (isCE ? 'call-header' : 'put-header') + '">' +
+                        '<span class="trade-symbol">' + t.symbol + '</span>' +
+                        '<span class="trade-type ' + (isCE ? 'type-ce' : 'type-pe') + '">' + t.label + '</span>' +
+                    '</div>' +
+                    '<div class="trade-body">' +
+                        '<div class="trade-row"><span class="trade-lbl">LTP</span><span class="trade-val">₹' + fmt(t.ltp) + '</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">Entry</span><span class="trade-val">₹' + fmt(t.entry_price) + '</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">Target</span><span class="trade-val" style="color:#16a34a">₹' + fmt(t.target) + ' (+' + t.target_points + ')</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">Stop Loss</span><span class="trade-val" style="color:#dc2626">₹' + fmt(t.sl) + ' (−' + t.sl_points + ')</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">R:R</span><span class="trade-val">' + t.risk_reward + '</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">OI</span><span class="trade-val">' + (t.oi/100000).toFixed(1) + 'L</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">IV</span><span class="trade-val">' + t.iv + '%</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">Mode</span><span class="trade-val">' + t.entry_mode + '</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">Risk</span><span class="trade-val">' + t.risk + '</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">For</span><span class="trade-val" style="font-size:11px">' + t.suggested_for + '</span></div>' +
+                    '</div>' +
+                    '<div class="trade-footer">' +
+                        '<a href="/dashboard/trade-now?symbol=NIFTY&strike=' + t.strike + '&type=' + t.type + '" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-exchange-alt me-1"></i>Trade Now</a>' +
+                    '</div>' +
+                '</div>';
+                grid.appendChild(card);
+            });
+        } else {
+            document.getElementById('tradesArea').style.display = 'none';
+            document.getElementById('noTradeArea').style.display = 'block';
+            document.getElementById('noTradeReason').textContent = d.time_filter.pass ? 'Confidence below threshold or no-trade zone active. ADX: ' + d.strength.adx : d.time_filter.reason;
+        }
+    }).catch(function(e) {
+        document.getElementById('loadingOverlay').classList.remove('show');
+        console.error('Analysis error:', e);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', refreshAnalysis);
+</script>
+{% endblock %}

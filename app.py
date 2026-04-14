@@ -344,6 +344,24 @@ with app.app_context():
         'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS external_trade_id VARCHAR(100)',
         'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS transaction_type VARCHAR(10)',
         'CREATE INDEX IF NOT EXISTS ix_manual_trade_imports_external_trade_id ON manual_trade_imports (external_trade_id)',
+        '''CREATE TABLE IF NOT EXISTS data_source_config (
+            id SERIAL PRIMARY KEY,
+            source_key VARCHAR(50) NOT NULL UNIQUE,
+            display_name VARCHAR(100) NOT NULL,
+            description TEXT,
+            icon VARCHAR(50) DEFAULT 'fa-database',
+            is_active BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )''',
+        '''INSERT INTO data_source_config (source_key, display_name, description, icon, is_active)
+           VALUES ('nse_python', 'NSE Python (Default)', 'Uses NSEPython, yfinance, and NSE official API for option chain and market data. Free, no API key required.', 'fa-code', true)
+           ON CONFLICT (source_key) DO NOTHING''',
+        '''INSERT INTO data_source_config (source_key, display_name, description, icon, is_active)
+           VALUES ('truedata', 'TrueData API', 'Professional real-time data feed with sub-second latency. Requires TrueData subscription and API key.', 'fa-bolt', false)
+           ON CONFLICT (source_key) DO NOTHING''',
+        '''INSERT INTO data_source_config (source_key, display_name, description, icon, is_active)
+           VALUES ('user_custom', 'User Data Source', 'Manual CSV upload or custom data input for backtesting and historical analysis.', 'fa-upload', false)
+           ON CONFLICT (source_key) DO NOTHING''',
     ]
     try:
         with db.engine.connect() as _conn:
@@ -384,6 +402,12 @@ try:
     app.register_blueprint(admin_bp)
 except ImportError as e:
     logging.warning(f"Admin blueprint not available: {e}")
+
+try:
+    from routes_fno import fno_bp
+    app.register_blueprint(fno_bp)
+except ImportError as e:
+    logging.warning(f"F&O blueprint not available: {e}")
 
 
 # WebSocket Server Management

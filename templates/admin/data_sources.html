@@ -1,0 +1,79 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}Data Input Sources — Admin | Target Capital{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-database me-2"></i>Data Input Sources</h2>
+</div>
+
+<div class="row g-4">
+    {% for src in sources %}
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100" style="border-radius:12px;{% if src.is_active %}border:2px solid #22c55e{% endif %}">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="fw-bold mb-1">{{ src.display_name }}</h5>
+                        <span class="badge {% if src.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                            {{ 'ACTIVE' if src.is_active else 'INACTIVE' }}
+                        </span>
+                    </div>
+                    <i class="fas {{ src.icon }} fa-2x" style="color:{% if src.is_active %}#22c55e{% else %}#94a3b8{% endif %}"></i>
+                </div>
+                <p class="text-muted mb-3" style="font-size:14px">{{ src.description }}</p>
+
+                {% if src.source_key == 'nse_python' %}
+                <div class="mb-3">
+                    <span class="badge bg-light text-dark me-1">NSEPython</span>
+                    <span class="badge bg-light text-dark me-1">yfinance</span>
+                    <span class="badge bg-light text-dark">NSE API</span>
+                </div>
+                {% elif src.source_key == 'truedata' %}
+                <div class="mb-3">
+                    <span class="badge bg-light text-dark me-1">TrueData API</span>
+                    <span class="badge bg-light text-dark">Low Latency</span>
+                </div>
+                {% elif src.source_key == 'user_custom' %}
+                <div class="mb-3">
+                    <span class="badge bg-light text-dark me-1">CSV Upload</span>
+                    <span class="badge bg-light text-dark">Manual Entry</span>
+                </div>
+                {% endif %}
+
+                <div class="d-flex gap-2">
+                    {% if not src.is_active %}
+                    <form method="POST" action="{{ url_for('admin.set_data_source') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="source_key" value="{{ src.source_key }}">
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check me-1"></i>Set Active</button>
+                    </form>
+                    {% else %}
+                    <span class="btn btn-success btn-sm disabled"><i class="fas fa-check-circle me-1"></i>Currently Active</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card border-0 shadow-sm mt-4" style="border-radius:12px">
+    <div class="card-body p-4">
+        <h5 class="fw-bold mb-3"><i class="fas fa-info-circle text-primary me-2"></i>How Data Sources Work</h5>
+        <div class="row">
+            <div class="col-md-4">
+                <h6 class="fw-semibold">NSE Python (Default)</h6>
+                <p class="text-muted" style="font-size:13px">Uses NSEPython library and yfinance for option chain, index data, and OI analysis. Free but subject to rate limits during market hours.</p>
+            </div>
+            <div class="col-md-4">
+                <h6 class="fw-semibold">TrueData API</h6>
+                <p class="text-muted" style="font-size:13px">Professional-grade real-time data feed with sub-second latency. Requires TrueData subscription and API key. Best for live trading.</p>
+            </div>
+            <div class="col-md-4">
+                <h6 class="fw-semibold">User Data Source</h6>
+                <p class="text-muted" style="font-size:13px">Manual data upload via CSV or direct input. Useful for backtesting strategies with historical data or custom datasets.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

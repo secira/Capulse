@@ -61,6 +61,47 @@
 
                 {% if current_user.is_authenticated %}
                 <li class="nav-item">
+                    <div class="nav-link collapsible-header" onclick="toggleFnoMenu()">
+                        <i class="nav-icon fas fa-chart-area"></i>
+                        <span class="nav-text">F&O Analysis</span>
+                        <span class="nav-badge-new">NEW</span>
+                        <i class="fas fa-chevron-down toggle-icon" id="fnoMenuToggle"></i>
+                    </div>
+                    <ul class="nav-list submenu-list" id="fnoMenu" style="display: none;">
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'fno.fno_nifty' else '' }}"
+                               href="{{ url_for('fno.fno_nifty') }}">
+                                <i class="nav-icon fas fa-chart-line"></i>
+                                <span class="nav-text">NIFTY 50</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link disabled" href="#" style="opacity:0.5;pointer-events:none">
+                                <i class="nav-icon fas fa-university"></i>
+                                <span class="nav-text">Bank Nifty</span>
+                                <span class="nav-badge-sm" style="font-size:9px">SOON</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link disabled" href="#" style="opacity:0.5;pointer-events:none">
+                                <i class="nav-icon fas fa-landmark"></i>
+                                <span class="nav-text">FIN NIFTY</span>
+                                <span class="nav-badge-sm" style="font-size:9px">SOON</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link disabled" href="#" style="opacity:0.5;pointer-events:none">
+                                <i class="nav-icon fas fa-rupee-sign"></i>
+                                <span class="nav-text">SENSEX</span>
+                                <span class="nav-badge-sm" style="font-size:9px">SOON</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                {% endif %}
+
+                {% if current_user.is_authenticated %}
+                <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_trade_now' else '' }}"
                        href="{{ url_for('dashboard_trade_now') }}">
                         <i class="nav-icon fas fa-exchange-alt"></i>
@@ -287,6 +328,13 @@
                                 <span class="nav-text">Blog Management</span>
                             </a>
                         </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'admin.data_sources' else '' }}"
+                               href="{{ url_for('admin.data_sources') }}">
+                                <i class="nav-icon fas fa-database"></i>
+                                <span class="nav-text">Data Input Source</span>
+                            </a>
+                        </li>
                     </ul>
                 </li>
             </ul>
@@ -376,6 +424,20 @@ function togglePortfolioHub() {
     }
 }
 
+function toggleFnoMenu() {
+    const menu = document.getElementById('fnoMenu');
+    const toggleIcon = document.getElementById('fnoMenuToggle');
+    if (menu.style.display === 'none' || menu.style.display === '') {
+        menu.style.display = 'block';
+        toggleIcon.classList.add('expanded');
+        localStorage.setItem('fnoMenuExpanded', 'true');
+    } else {
+        menu.style.display = 'none';
+        toggleIcon.classList.remove('expanded');
+        localStorage.setItem('fnoMenuExpanded', 'false');
+    }
+}
+
 function toggleAdminMenu() {
     const menu = document.getElementById('adminMenu');
     const toggleIcon = document.getElementById('adminMenuToggle');
@@ -417,9 +479,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    const fnoPages = ['fno.fno_landing', 'fno.fno_nifty'];
+    const fnoMenu = document.getElementById('fnoMenu');
+    const fnoToggle = document.getElementById('fnoMenuToggle');
+    if (fnoMenu && fnoToggle) {
+        const fnoExpanded = localStorage.getItem('fnoMenuExpanded');
+        if (fnoExpanded === 'true' || fnoPages.includes(currentEndpoint)) {
+            fnoMenu.style.display = 'block';
+            fnoToggle.classList.add('expanded');
+        }
+    }
+
     const adminPages = ['admin.users', 'admin.daily_signals', 'admin.research_list',
                         'admin.payments', 'admin.account_handling', 'admin.research_config',
-                        'admin.contact_messages', 'admin.blog_list'];
+                        'admin.contact_messages', 'admin.blog_list', 'admin.data_sources'];
     const adminMenu = document.getElementById('adminMenu');
     const adminToggle = document.getElementById('adminMenuToggle');
     if (adminMenu && adminToggle) {

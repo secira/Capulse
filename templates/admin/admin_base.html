@@ -269,6 +269,9 @@
                 <a href="{{ url_for('admin.account_handling') }}" class="admin-nav-item {{ 'active' if request.endpoint == 'admin.account_handling' }}">
                     <i class="fas fa-user-cog me-2"></i>Account Handling
                 </a>
+                <a href="{{ url_for('admin.data_sources') }}" class="admin-nav-item {{ 'active' if request.endpoint == 'admin.data_sources' }}">
+                    <i class="fas fa-database me-2"></i>Data Input Source
+                </a>
                 <hr class="my-3">
                 <a href="{{ url_for('admin.logout') }}" class="admin-nav-item">
                     <i class="fas fa-sign-out-alt me-2"></i>Logout

@@ -52,6 +52,8 @@ Target Capital employs a dual AI engine approach:
 -   **Behavioural AI Engine**: Analyzes trading psychology, detecting harmful patterns (e.g., Revenge Trading, Overtrading) to produce a **Trading Discipline Score**, personality profiles, and pre-trade checks. Includes new intelligence modules for timeline analysis, cross-broker insights, and real-time alerts.
 -   **Live Market Pulse**: A comprehensive market intelligence page featuring live Nifty 50 treemap, sector performance, Top Movers, AI market commentary, and interactive Scentric AI query input with voice support.
 -   **Research Watch List in Co-Pilot**: Displays active `ResearchList` entries for easy filtering, search, and deep-dive queries.
+-   **F&O Analysis Engine (NIFTY Options)**: MVLA (Momentum-Validated, Loss-Averse) decision engine with 3-layer architecture: Time Filter, Direction Engine (VWAP + Supertrend + DMI), Strength & Momentum (ADX + ATR + OI). Generates 3-6 trade recommendations with confidence scoring (0-100), strike selection (ATM/ITM/OTM), and risk management rules. Connected to Trade Now for execution. Supports NIFTY 50 (active), Bank Nifty, FIN NIFTY, SENSEX (coming soon). Routes: `routes_fno.py` blueprint, Engine: `services/nifty_options_engine.py`.
+-   **Admin Data Input Source**: Switchable market data sources (NSE Python default, TrueData API, User Custom). Stored in `data_source_config` table, manageable from Admin Panel → Data Input Source.
 -   **Comprehensive Trading Signal System**: LangGraph-powered signal pipeline.
 -   **Subscription Model**: Tiered access (FREE, TARGET PLUS, TARGET PRO, HNI).
 -   **Knowledge Base**: Educational trading articles.
