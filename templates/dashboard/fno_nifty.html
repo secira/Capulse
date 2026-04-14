@@ -250,9 +250,10 @@ function updateCapitalCalcs() {
     document.getElementById('riskPerTradeRule').textContent = '₹' + formatINR(risk1);
     document.getElementById('riskDailyLoss').textContent = '₹' + formatINR(risk3);
 
-    var lotSize = 25;
-    var avgPremium = 200;
-    var maxLots = Math.floor(tradingCapital / (lotSize * avgPremium));
+    var lotSize = 50;
+    var defaultSL = 10;
+    var maxLossPerLot = defaultSL * lotSize;
+    var maxLots = Math.floor(risk1 / maxLossPerLot);
     document.getElementById('maxLots').textContent = maxLots > 0 ? maxLots : '—';
 }
 
@@ -364,8 +365,12 @@ function refreshAnalysis() {
                 var card = document.createElement('div');
                 card.className = 'col-md-6 col-lg-4';
                 var risk1 = Math.round(tradingCapital * 0.01);
-                var suggestedQty = t.sl_points > 0 ? Math.floor(risk1 / (t.sl_points * 25)) * 25 : 25;
-                if (suggestedQty < 25) suggestedQty = 25;
+                var niftyLotSize = 50;
+                var slPoints = t.sl_points > 0 ? t.sl_points : 10;
+                var maxLossPerLot = slPoints * niftyLotSize;
+                var suggestedLots = Math.floor(risk1 / maxLossPerLot);
+                if (suggestedLots < 1) suggestedLots = 1;
+                var suggestedQty = suggestedLots * niftyLotSize;
                 card.innerHTML = '<div class="trade-card">' +
                     '<div class="trade-header ' + (isCE ? 'call-header' : 'put-header') + '">' +
                         '<span class="trade-symbol">' + t.symbol + '</span>' +
@@ -377,7 +382,7 @@ function refreshAnalysis() {
                         '<div class="trade-row"><span class="trade-lbl">Target</span><span class="trade-val" style="color:#16a34a">₹' + fmt(t.target) + ' (+' + t.target_points + ')</span></div>' +
                         '<div class="trade-row"><span class="trade-lbl">Stop Loss</span><span class="trade-val" style="color:#dc2626">₹' + fmt(t.sl) + ' (−' + t.sl_points + ')</span></div>' +
                         '<div class="trade-row"><span class="trade-lbl">R:R</span><span class="trade-val">' + t.risk_reward + '</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">Qty (based on capital)</span><span class="trade-val">' + suggestedQty + '</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">Lots (Qty)</span><span class="trade-val">' + suggestedLots + ' lots (' + suggestedQty + ')</span></div>' +
                         '<div class="trade-row"><span class="trade-lbl">OI</span><span class="trade-val">' + (t.oi/100000).toFixed(1) + 'L</span></div>' +
                         '<div class="trade-row"><span class="trade-lbl">IV</span><span class="trade-val">' + t.iv + '%</span></div>' +
                         '<div class="trade-row"><span class="trade-lbl">Mode</span><span class="trade-val">' + t.entry_mode + '</span></div>' +
