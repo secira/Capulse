@@ -45,12 +45,29 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     MAIN LAYOUT  (trade card + guardrails side panel)
+     DIRECTION BANNER + SIGNAL INFO (full-width, above card)
 ══════════════════════════════════════════════════════════ -->
-<div class="row g-4 align-items-start">
+<!-- Direction alert (BUY/SELL from source screen) -->
+<div class="d-none mb-3" id="actionDirectionBanner">
+    <div class="p-3 rounded-3 d-flex align-items-center gap-3" id="actionDirectionInner">
+        <span id="actionDirectionIcon" class="fs-2"></span>
+        <div>
+            <div class="fw-bold fs-5" id="actionDirectionLabel"></div>
+            <div class="text-muted" style="font-size:13px;" id="actionDirectionSymbol"></div>
+        </div>
+    </div>
+</div>
 
-    <!-- ─── LEFT: DHAN-STYLE TRADE CARD ─────────────────────── -->
-    <div class="col-12 col-lg-6">
+<!-- Signal info card -->
+<div id="signalInfoCard" class="card border-0 shadow-sm d-none mb-3" style="border-radius:14px;">
+    <div class="card-body p-4" id="signalInfoBody"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     TRADE CARD  (single column, centred max-width)
+══════════════════════════════════════════════════════════ -->
+<div class="row justify-content-center mb-4">
+    <div class="col-12 col-md-8 col-xl-6">
         <div class="card border-0 shadow-lg" style="border-radius:18px;overflow:hidden;">
 
             <!-- ── HEADER: Asset picker + Live price ───────────────── -->
@@ -248,121 +265,104 @@
 
             </div><!-- /card-body -->
         </div><!-- /trade card -->
-    </div><!-- /col-lg-6 -->
+    </div><!-- /col -->
+</div><!-- /row (trade card) -->
 
-    <!-- ─── RIGHT: GUARDRAILS + SIGNAL INFO ─────────────────── -->
-    <div class="col-12 col-lg-6 d-flex flex-column gap-3">
-
-        <!-- Direction alert (BUY/SELL from source screen) -->
-        <div class="d-none" id="actionDirectionBanner">
-            <div class="p-3 rounded-3 d-flex align-items-center gap-3" id="actionDirectionInner">
-                <span id="actionDirectionIcon" class="fs-2"></span>
-                <div>
-                    <div class="fw-bold fs-5" id="actionDirectionLabel"></div>
-                    <div class="text-muted" style="font-size:13px;" id="actionDirectionSymbol"></div>
-                </div>
-            </div>
+<!-- ══════════════════════════════════════════════════════════
+     BEHAVIOURAL GUARDRAILS  (full width, below trade card)
+══════════════════════════════════════════════════════════ -->
+<div class="card border-0 shadow-sm mb-4" style="border-radius:14px;overflow:hidden;">
+    <div class="card-header py-3 px-4 d-flex align-items-center justify-content-between"
+         style="background:#00091a;color:#fff;">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-shield-alt"></i>
+            <span class="fw-semibold" style="font-size:14px;">Behavioural Guardrails</span>
+            <span class="badge bg-success rounded-pill" style="font-size:10px;">ACTIVE</span>
         </div>
-
-        <!-- Behavioural Guardrails -->
-        <div class="card border-0 shadow-sm" style="border-radius:14px;overflow:hidden;">
-            <div class="card-header py-3 px-4 d-flex align-items-center justify-content-between"
-                 style="background:#00091a;color:#fff;">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="fas fa-shield-alt"></i>
-                    <span class="fw-semibold" style="font-size:14px;">Behavioural Guardrails</span>
-                    <span class="badge bg-success rounded-pill" style="font-size:10px;">ACTIVE</span>
-                </div>
-                {% if risk_profile %}
-                <div class="d-flex align-items-center gap-2" style="font-size:12px;">
-                    <span class="opacity-75">Risk:</span>
-                    <span class="badge rounded-pill px-2
-                        {% if risk_profile.risk_tolerance == 'conservative' %}bg-success
-                        {% elif risk_profile.risk_tolerance == 'aggressive' %}bg-danger
-                        {% else %}bg-warning text-dark{% endif %}">
-                        {{ risk_profile.risk_tolerance | title }}
-                    </span>
-                    <a href="{{ url_for('portfolio_risk_profile') }}" class="text-white opacity-75">
-                        <i class="fas fa-edit"></i>
-                    </a>
-                </div>
-                {% else %}
-                <a href="{{ url_for('portfolio_risk_profile') }}" class="btn btn-sm btn-outline-light rounded-pill" style="font-size:11px;">
-                    <i class="fas fa-plus me-1"></i>Set Profile
-                </a>
-                {% endif %}
-            </div>
-            <div id="guardrailAlerts" class="d-none">
-                <div class="card-body py-3 px-4" style="background:#fffbeb;">
-                    <div id="guardrailContent"></div>
-                </div>
-            </div>
-            <div id="guardrailsOk" class="card-body py-3 px-4" style="background:#f0fdf4;">
-                <div class="d-flex align-items-center gap-2 text-success" style="font-size:13px;">
-                    <i class="fas fa-check-circle"></i>
-                    <span>No risk violations detected for this trade</span>
-                </div>
-            </div>
+        {% if risk_profile %}
+        <div class="d-flex align-items-center gap-2" style="font-size:12px;">
+            <span class="opacity-75">Risk Appetite:</span>
+            <span class="badge rounded-pill px-2
+                {% if risk_profile.risk_tolerance == 'conservative' %}bg-success
+                {% elif risk_profile.risk_tolerance == 'aggressive' %}bg-danger
+                {% else %}bg-warning text-dark{% endif %}">
+                {{ risk_profile.risk_tolerance | title }}
+            </span>
+            <span class="opacity-75 d-none d-md-inline">Goal: {{ risk_profile.investment_goal | replace('_',' ') | title }}</span>
+            <a href="{{ url_for('portfolio_risk_profile') }}" class="text-white opacity-75">
+                <i class="fas fa-edit"></i>
+            </a>
         </div>
-
-        <!-- Signal info card (shown when arriving from signals/equities/etc.) -->
-        <div id="signalInfoCard" class="card border-0 shadow-sm d-none" style="border-radius:14px;">
-            <div class="card-body p-4" id="signalInfoBody"></div>
+        {% else %}
+        <a href="{{ url_for('portfolio_risk_profile') }}" class="btn btn-sm btn-outline-light rounded-pill" style="font-size:11px;">
+            <i class="fas fa-plus me-1"></i>Set Risk Profile
+        </a>
+        {% endif %}
+    </div>
+    <div id="guardrailAlerts" class="d-none">
+        <div class="card-body py-3 px-4" style="background:#fffbeb;">
+            <div id="guardrailContent"></div>
         </div>
-
-        <!-- Recent Trade History -->
-        <div class="card border-0 shadow-sm" style="border-radius:14px;">
-            <div class="card-header bg-white py-3 px-4">
-                <h6 class="fw-bold mb-0" style="font-size:14px;">
-                    <i class="fas fa-history me-2 text-muted"></i>Recent Trade History
-                </h6>
-            </div>
-            <div class="card-body p-0">
-                {% if user_trades.recent_history %}
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0" style="font-size:13px;">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="ps-4">Date</th>
-                                <th>Symbol</th>
-                                <th>Entry</th>
-                                <th>Exit</th>
-                                <th>P&L</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for trade in user_trades.recent_history %}
-                            <tr>
-                                <td class="ps-4 text-muted">{{ trade.exit_time.strftime('%d %b') }}</td>
-                                <td>
-                                    <div class="fw-bold">{{ trade.symbol }}</div>
-                                    <small class="text-muted">{{ trade.quantity }} qty</small>
-                                </td>
-                                <td>₹{{ "%.2f"|format(trade.entry_price) }}</td>
-                                <td>₹{{ "%.2f"|format(trade.exit_price) }}</td>
-                                <td>
-                                    <span class="fw-bold {{ 'text-success' if trade.realized_pnl >= 0 else 'text-danger' }}">
-                                        {{ '+' if trade.realized_pnl >= 0 else '' }}₹{{ "%.0f"|format(trade.realized_pnl) }}
-                                    </span>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center py-5 text-muted">
-                    <i class="fas fa-chart-bar fa-2x mb-3 opacity-25"></i>
-                    <p class="mb-1" style="font-size:14px;">No trade history</p>
-                    <small>Your completed trades will appear here</small>
-                </div>
-                {% endif %}
-            </div>
+    </div>
+    <div id="guardrailsOk" class="card-body py-3 px-4" style="background:#f0fdf4;">
+        <div class="d-flex align-items-center gap-2 text-success" style="font-size:13px;">
+            <i class="fas fa-check-circle"></i>
+            <span>No risk violations detected for this trade</span>
         </div>
+    </div>
+</div>
 
-    </div><!-- /col-lg-6 right -->
-
-</div><!-- /row -->
+<!-- ══════════════════════════════════════════════════════════
+     RECENT TRADE HISTORY  (full width)
+══════════════════════════════════════════════════════════ -->
+<div class="card border-0 shadow-sm" style="border-radius:14px;">
+    <div class="card-header bg-white py-3 px-4">
+        <h6 class="fw-bold mb-0" style="font-size:14px;">
+            <i class="fas fa-history me-2 text-muted"></i>Recent Trade History
+        </h6>
+    </div>
+    <div class="card-body p-0">
+        {% if user_trades.recent_history %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" style="font-size:13px;">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Date</th>
+                        <th>Symbol</th>
+                        <th>Entry</th>
+                        <th>Exit</th>
+                        <th>P&L</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trade in user_trades.recent_history %}
+                    <tr>
+                        <td class="ps-4 text-muted">{{ trade.exit_time.strftime('%d %b') }}</td>
+                        <td>
+                            <div class="fw-bold">{{ trade.symbol }}</div>
+                            <small class="text-muted">{{ trade.quantity }} qty</small>
+                        </td>
+                        <td>₹{{ "%.2f"|format(trade.entry_price) }}</td>
+                        <td>₹{{ "%.2f"|format(trade.exit_price) }}</td>
+                        <td>
+                            <span class="fw-bold {{ 'text-success' if trade.realized_pnl >= 0 else 'text-danger' }}">
+                                {{ '+' if trade.realized_pnl >= 0 else '' }}₹{{ "%.0f"|format(trade.realized_pnl) }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="fas fa-chart-bar fa-2x mb-3 opacity-25"></i>
+            <p class="mb-1" style="font-size:14px;">No trade history</p>
+            <small>Your completed trades will appear here</small>
+        </div>
+        {% endif %}
+    </div>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════
      JAVASCRIPT
