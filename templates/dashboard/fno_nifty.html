@@ -13,6 +13,13 @@
 .idx-change{font-size:12px;font-weight:600}
 .idx-up{color:#16a34a}.idx-down{color:#dc2626}.idx-flat{color:#64748b}
 
+.capital-bar{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.capital-bar label{font-size:13px;font-weight:600;color:#334155;margin:0;white-space:nowrap}
+.capital-input{width:180px;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:600;text-align:right}
+.capital-input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.capital-info{font-size:12px;color:#64748b;display:flex;gap:16px;flex-wrap:wrap}
+.capital-info span{font-weight:600;color:#334155}
+
 .engine-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px}
 .engine-title{font-size:14px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .engine-title i{color:#3b82f6}
@@ -58,6 +65,14 @@
 
 .spinner-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.7);z-index:999;align-items:center;justify-content:center}
 .spinner-overlay.show{display:flex}
+
+.collapse-header{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:0;transition:all .2s}
+.collapse-header:hover{background:#f1f5f9}
+.collapse-header[aria-expanded="true"]{border-radius:12px 12px 0 0;border-bottom:none}
+.collapse-header .engine-title{margin-bottom:0}
+.collapse-header .chevron{transition:transform .3s;color:#94a3b8;font-size:14px}
+.collapse-header[aria-expanded="true"] .chevron{transform:rotate(180deg)}
+.collapse-body{border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:16px 18px;background:#fff;margin-bottom:16px}
 </style>
 
 <div class="spinner-overlay" id="loadingOverlay">
@@ -67,6 +82,7 @@
     </div>
 </div>
 
+<!-- TOP: Index Strip -->
 <div class="idx-strip" id="indicesStrip">
     <div class="idx-card"><div class="idx-label">NIFTY 50</div><div class="idx-price" id="idx-nifty">—</div><div class="idx-change idx-flat" id="idx-nifty-chg">—</div></div>
     <div class="idx-card"><div class="idx-label">SENSEX</div><div class="idx-price" id="idx-sensex">—</div><div class="idx-change idx-flat" id="idx-sensex-chg">—</div></div>
@@ -76,109 +92,185 @@
     <div class="idx-card"><div class="idx-label">BNIFTY FUT</div><div class="idx-price" id="idx-bankniftyfut">—</div><div class="idx-change idx-flat" id="idx-bankniftyfut-chg">—</div></div>
 </div>
 
-<div class="row g-3">
-    <div class="col-lg-4">
-        <div class="engine-card" id="timeCard">
+<!-- Trading Capital Input -->
+<div class="capital-bar">
+    <label><i class="fas fa-wallet me-2 text-primary"></i>Trading Capital</label>
+    <div class="input-group" style="width:auto">
+        <span class="input-group-text" style="border-radius:8px 0 0 8px;font-weight:600;background:#f8fafc">₹</span>
+        <input type="text" class="capital-input" id="tradingCapital" value="1,00,000" placeholder="Enter capital" style="border-radius:0 8px 8px 0">
+    </div>
+    <div class="capital-info">
+        <div>Risk per trade (1%): <span id="riskPerTrade">₹1,000</span></div>
+        <div>Daily loss limit (3%): <span id="dailyLossLimit">₹3,000</span></div>
+        <div>Max lots: <span id="maxLots">—</span></div>
+    </div>
+    <div class="ms-auto d-flex align-items-center gap-2">
+        <span class="data-src-tag" id="dataSrcTag">—</span>
+        <button class="btn btn-sm btn-outline-primary" onclick="refreshAnalysis()"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
+    </div>
+</div>
+
+<!-- MIDDLE: Confidence & Entry + Trade Recommendations -->
+<div class="engine-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="engine-title mb-0"><i class="fas fa-crosshairs"></i> Confidence & Entry</div>
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-md-4 text-center">
+            <div style="font-size:36px;font-weight:800" id="confScore">—</div>
+            <div class="conf-meter"><div class="conf-fill" id="confFill" style="width:0"></div></div>
+            <div style="font-size:12px;font-weight:600;color:#64748b" id="confGrade">—</div>
+        </div>
+        <div class="col-md-4 text-center">
+            <div style="font-size:12px;color:#64748b;font-weight:600">TRADE DIRECTION</div>
+            <div style="font-size:24px;font-weight:800" id="tradeDir">—</div>
+        </div>
+        <div class="col-md-4 text-center">
+            <div style="font-size:12px;color:#64748b;font-weight:600">ENTRY MODE</div>
+            <div style="font-size:24px;font-weight:800" id="entryMode">—</div>
+        </div>
+    </div>
+</div>
+
+<div id="noTradeArea" style="display:none">
+    <div class="no-trade-banner">
+        <h5><i class="fas fa-hand-paper me-2"></i>No Trade Signal</h5>
+        <p id="noTradeReason">Conditions not met for high-confidence entry.</p>
+    </div>
+</div>
+
+<div id="tradesArea" style="display:none">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-bold mb-0"><i class="fas fa-list-ol me-2 text-primary"></i>Recommended Trades</h6>
+        <span class="text-muted" style="font-size:12px">ATM Strike: <strong id="atmStrike">—</strong> | Spot: <strong id="spotPrice">—</strong></span>
+    </div>
+    <div class="row g-3" id="tradesGrid"></div>
+</div>
+
+<!-- BOTTOM: Collapsible Layers + Risk Management -->
+<div class="row g-3 mt-3">
+    <div class="col-lg-3">
+        <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer1Collapse" aria-expanded="false">
             <div class="engine-title"><i class="fas fa-clock"></i> Layer 1 — Time Filter</div>
-            <div class="d-flex justify-content-between align-items-center">
-                <span class="indicator-name" id="timeReason">Checking...</span>
-                <span class="layer-badge" id="timeBadge">—</span>
-            </div>
+            <span class="layer-badge ms-auto me-2" id="timeBadge">—</span>
+            <i class="fas fa-chevron-down chevron"></i>
         </div>
-
-        <div class="engine-card" id="directionCard">
-            <div class="engine-title"><i class="fas fa-compass"></i> Layer 2 — Direction Engine</div>
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="indicator-name">Direction</span>
-                <span class="layer-badge" id="dirBadge">—</span>
-            </div>
-            <div class="indicator-row"><span class="indicator-name">Price vs VWAP</span><span class="indicator-val" id="vwapVal">—</span></div>
-            <div class="indicator-row"><span class="indicator-name">Supertrend</span><span class="indicator-val" id="stVal">—</span></div>
-            <div class="indicator-row"><span class="indicator-name">+DI / −DI</span><span class="indicator-val" id="dmiVal">—</span></div>
-        </div>
-
-        <div class="engine-card" id="strengthCard">
-            <div class="engine-title"><i class="fas fa-bolt"></i> Layer 3 — Strength & Momentum</div>
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="indicator-name">Strength</span>
-                <span class="layer-badge" id="strBadge">—</span>
-            </div>
-            <div class="indicator-row"><span class="indicator-name">ADX</span><span class="indicator-val" id="adxVal">—</span></div>
-            <div class="indicator-row"><span class="indicator-name">ADX Rising</span><span class="indicator-val" id="adxRising">—</span></div>
-            <div class="indicator-row"><span class="indicator-name">ATR</span><span class="indicator-val" id="atrVal">—</span></div>
-            <div class="indicator-row"><span class="indicator-name">ATR Rising</span><span class="indicator-val" id="atrRising">—</span></div>
-        </div>
-
-        <div class="engine-card">
-            <div class="engine-title"><i class="fas fa-chart-pie"></i> OI Analysis</div>
-            <div class="indicator-row"><span class="indicator-name">OI Signal</span><span class="layer-badge" id="oiBadge">—</span></div>
-            <div class="indicator-row"><span class="indicator-name">OI Differential</span><span class="indicator-val" id="oiDiff">—</span></div>
-            <div class="indicator-row"><span class="indicator-name">PCR</span><span class="indicator-val" id="pcrVal">—</span></div>
-            <div class="mt-2">
-                <div class="d-flex justify-content-between" style="font-size:11px;font-weight:600"><span style="color:#ef4444">Call OI</span><span style="color:#22c55e">Put OI</span></div>
-                <div class="oi-bar"><div class="oi-call" id="oiCallBar" style="width:50%"></div><div class="oi-put" id="oiPutBar" style="width:50%"></div></div>
+        <div class="collapse" id="layer1Collapse">
+            <div class="collapse-body" id="timeCard">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="indicator-name" id="timeReason">Checking...</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="col-lg-8">
-        <div class="engine-card">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div class="engine-title mb-0"><i class="fas fa-crosshairs"></i> Confidence & Entry</div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="data-src-tag" id="dataSrcTag">—</span>
-                    <button class="btn btn-sm btn-outline-primary" onclick="refreshAnalysis()"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
-                </div>
-            </div>
-            <div class="row g-3 mb-3">
-                <div class="col-md-4 text-center">
-                    <div style="font-size:36px;font-weight:800" id="confScore">—</div>
-                    <div class="conf-meter"><div class="conf-fill" id="confFill" style="width:0"></div></div>
-                    <div style="font-size:12px;font-weight:600;color:#64748b" id="confGrade">—</div>
-                </div>
-                <div class="col-md-4 text-center">
-                    <div style="font-size:12px;color:#64748b;font-weight:600">TRADE DIRECTION</div>
-                    <div style="font-size:24px;font-weight:800" id="tradeDir">—</div>
-                </div>
-                <div class="col-md-4 text-center">
-                    <div style="font-size:12px;color:#64748b;font-weight:600">ENTRY MODE</div>
-                    <div style="font-size:24px;font-weight:800" id="entryMode">—</div>
-                </div>
+    <div class="col-lg-3">
+        <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer2Collapse" aria-expanded="false">
+            <div class="engine-title"><i class="fas fa-compass"></i> Layer 2 — Direction</div>
+            <span class="layer-badge ms-auto me-2" id="dirBadge">—</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+        <div class="collapse" id="layer2Collapse">
+            <div class="collapse-body" id="directionCard">
+                <div class="indicator-row"><span class="indicator-name">Price vs VWAP</span><span class="indicator-val" id="vwapVal">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">Supertrend</span><span class="indicator-val" id="stVal">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">+DI / −DI</span><span class="indicator-val" id="dmiVal">—</span></div>
             </div>
         </div>
+    </div>
 
-        <div id="noTradeArea" style="display:none">
-            <div class="no-trade-banner">
-                <h5><i class="fas fa-hand-paper me-2"></i>No Trade Signal</h5>
-                <p id="noTradeReason">Conditions not met for high-confidence entry.</p>
+    <div class="col-lg-3">
+        <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer3Collapse" aria-expanded="false">
+            <div class="engine-title"><i class="fas fa-bolt"></i> Layer 3 — Strength</div>
+            <span class="layer-badge ms-auto me-2" id="strBadge">—</span>
+            <i class="fas fa-chevron-down chevron"></i>
+        </div>
+        <div class="collapse" id="layer3Collapse">
+            <div class="collapse-body" id="strengthCard">
+                <div class="indicator-row"><span class="indicator-name">ADX</span><span class="indicator-val" id="adxVal">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">ADX Rising</span><span class="indicator-val" id="adxRising">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">ATR</span><span class="indicator-val" id="atrVal">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">ATR Rising</span><span class="indicator-val" id="atrRising">—</span></div>
             </div>
         </div>
+    </div>
 
-        <div id="tradesArea" style="display:none">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-bold mb-0"><i class="fas fa-list-ol me-2 text-primary"></i>Recommended Trades</h6>
-                <span class="text-muted" style="font-size:12px">ATM Strike: <strong id="atmStrike">—</strong> | Spot: <strong id="spotPrice">—</strong></span>
-            </div>
-            <div class="row g-3" id="tradesGrid"></div>
+    <div class="col-lg-3">
+        <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#oiCollapse" aria-expanded="false">
+            <div class="engine-title"><i class="fas fa-chart-pie"></i> OI Analysis</div>
+            <span class="layer-badge ms-auto me-2" id="oiBadge">—</span>
+            <i class="fas fa-chevron-down chevron"></i>
         </div>
-
-        <div class="engine-card mt-3">
-            <div class="engine-title"><i class="fas fa-shield-alt"></i> Risk Management Rules</div>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="risk-rule"><i class="fas fa-ban"></i><span>Max 3 trades per day</span></div>
-                    <div class="risk-rule"><i class="fas fa-times-circle"></i><span>Stop after 2 consecutive losses</span></div>
-                </div>
-                <div class="col-md-6">
-                    <div class="risk-rule"><i class="fas fa-percentage"></i><span>Daily loss limit: 3% of capital</span></div>
-                    <div class="risk-rule"><i class="fas fa-coins"></i><span>Risk per trade: 1% of capital</span></div>
+        <div class="collapse" id="oiCollapse">
+            <div class="collapse-body">
+                <div class="indicator-row"><span class="indicator-name">OI Differential</span><span class="indicator-val" id="oiDiff">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">PCR</span><span class="indicator-val" id="pcrVal">—</span></div>
+                <div class="mt-2">
+                    <div class="d-flex justify-content-between" style="font-size:11px;font-weight:600"><span style="color:#ef4444">Call OI</span><span style="color:#22c55e">Put OI</span></div>
+                    <div class="oi-bar"><div class="oi-call" id="oiCallBar" style="width:50%"></div><div class="oi-put" id="oiPutBar" style="width:50%"></div></div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Risk Management Rules -->
+<div class="engine-card mt-3">
+    <div class="engine-title"><i class="fas fa-shield-alt"></i> Risk Management Rules</div>
+    <div class="row">
+        <div class="col-md-6">
+            <div class="risk-rule"><i class="fas fa-ban"></i><span>Max 3 trades per day</span></div>
+            <div class="risk-rule"><i class="fas fa-times-circle"></i><span>Stop after 2 consecutive losses</span></div>
+        </div>
+        <div class="col-md-6">
+            <div class="risk-rule"><i class="fas fa-percentage"></i><span>Daily loss limit: 3% of capital (<strong id="riskDailyLoss">₹3,000</strong>)</span></div>
+            <div class="risk-rule"><i class="fas fa-coins"></i><span>Risk per trade: 1% of capital (<strong id="riskPerTradeRule">₹1,000</strong>)</span></div>
+        </div>
+    </div>
+</div>
+
 <script>
+var tradingCapital = 100000;
+
+function parseCapital(str) {
+    return parseInt(str.replace(/[^0-9]/g, ''), 10) || 0;
+}
+
+function formatINR(n) {
+    return n.toLocaleString('en-IN');
+}
+
+function updateCapitalCalcs() {
+    var raw = document.getElementById('tradingCapital').value;
+    tradingCapital = parseCapital(raw);
+    var risk1 = Math.round(tradingCapital * 0.01);
+    var risk3 = Math.round(tradingCapital * 0.03);
+    document.getElementById('riskPerTrade').textContent = '₹' + formatINR(risk1);
+    document.getElementById('dailyLossLimit').textContent = '₹' + formatINR(risk3);
+    document.getElementById('riskPerTradeRule').textContent = '₹' + formatINR(risk1);
+    document.getElementById('riskDailyLoss').textContent = '₹' + formatINR(risk3);
+
+    var lotSize = 25;
+    var avgPremium = 200;
+    var maxLots = Math.floor(tradingCapital / (lotSize * avgPremium));
+    document.getElementById('maxLots').textContent = maxLots > 0 ? maxLots : '—';
+}
+
+document.getElementById('tradingCapital').addEventListener('input', function() {
+    var raw = parseCapital(this.value);
+    if (raw > 0) {
+        var pos = this.selectionStart;
+        this.value = formatINR(raw);
+        updateCapitalCalcs();
+    }
+});
+
+document.getElementById('tradingCapital').addEventListener('blur', function() {
+    var raw = parseCapital(this.value);
+    if (raw > 0) this.value = formatINR(raw);
+    updateCapitalCalcs();
+});
+
 function fmt(n) { return n ? n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—'; }
 
 function setIdx(id, price, change, pct) {
@@ -198,7 +290,7 @@ function badgeClass(val) {
 
 function refreshAnalysis() {
     document.getElementById('loadingOverlay').classList.add('show');
-    fetch('/dashboard/fno/api/indices').then(r=>r.json()).then(function(res) {
+    fetch('/dashboard/fno/api/indices').then(function(r){return r.json()}).then(function(res) {
         if (res.success) {
             var d = res.data;
             setIdx('nifty', d.nifty.price, d.nifty.change, d.nifty.pct);
@@ -210,19 +302,19 @@ function refreshAnalysis() {
         }
     }).catch(function(){});
 
-    fetch('/dashboard/fno/api/analysis').then(r=>r.json()).then(function(res) {
+    fetch('/dashboard/fno/api/analysis').then(function(r){return r.json()}).then(function(res) {
         document.getElementById('loadingOverlay').classList.remove('show');
         if (!res.success) return;
         var d = res.data;
 
         var tb = document.getElementById('timeBadge');
         tb.textContent = d.time_filter.status.toUpperCase();
-        tb.className = 'layer-badge ' + badgeClass(d.time_filter.status);
+        tb.className = 'layer-badge ms-auto me-2 ' + badgeClass(d.time_filter.status);
         document.getElementById('timeReason').textContent = d.time_filter.reason;
 
         var db2 = document.getElementById('dirBadge');
         db2.textContent = d.direction.direction;
-        db2.className = 'layer-badge ' + badgeClass(d.direction.direction);
+        db2.className = 'layer-badge ms-auto me-2 ' + badgeClass(d.direction.direction);
         document.getElementById('vwapVal').textContent = d.direction.spot_vs_vwap + ' (VWAP: ' + fmt(d.direction.vwap) + ')';
         document.getElementById('stVal').textContent = d.direction.supertrend;
         document.getElementById('stVal').style.color = d.direction.supertrend === 'BUY' ? '#16a34a' : '#dc2626';
@@ -230,7 +322,7 @@ function refreshAnalysis() {
 
         var sb = document.getElementById('strBadge');
         sb.textContent = d.strength.strength;
-        sb.className = 'layer-badge ' + badgeClass(d.strength.strength);
+        sb.className = 'layer-badge ms-auto me-2 ' + badgeClass(d.strength.strength);
         document.getElementById('adxVal').textContent = d.strength.adx;
         document.getElementById('adxVal').style.color = d.strength.adx > 25 ? '#16a34a' : '#dc2626';
         document.getElementById('adxRising').innerHTML = d.strength.adx_rising ? '<i class="fas fa-arrow-up text-success"></i> Yes' : '<i class="fas fa-arrow-down text-danger"></i> No';
@@ -239,7 +331,7 @@ function refreshAnalysis() {
 
         var ob = document.getElementById('oiBadge');
         ob.textContent = d.oi_analysis.oi_signal;
-        ob.className = 'layer-badge ' + badgeClass(d.oi_analysis.oi_signal);
+        ob.className = 'layer-badge ms-auto me-2 ' + badgeClass(d.oi_analysis.oi_signal);
         document.getElementById('oiDiff').textContent = (d.oi_analysis.oi_diff * 100).toFixed(2) + '%';
         document.getElementById('pcrVal').textContent = d.oi_analysis.pcr;
         var totalOi = d.oi_analysis.total_call_oi + d.oi_analysis.total_put_oi;
@@ -271,6 +363,9 @@ function refreshAnalysis() {
                 var isCE = t.type === 'CE';
                 var card = document.createElement('div');
                 card.className = 'col-md-6 col-lg-4';
+                var risk1 = Math.round(tradingCapital * 0.01);
+                var suggestedQty = t.sl_points > 0 ? Math.floor(risk1 / (t.sl_points * 25)) * 25 : 25;
+                if (suggestedQty < 25) suggestedQty = 25;
                 card.innerHTML = '<div class="trade-card">' +
                     '<div class="trade-header ' + (isCE ? 'call-header' : 'put-header') + '">' +
                         '<span class="trade-symbol">' + t.symbol + '</span>' +
@@ -282,6 +377,7 @@ function refreshAnalysis() {
                         '<div class="trade-row"><span class="trade-lbl">Target</span><span class="trade-val" style="color:#16a34a">₹' + fmt(t.target) + ' (+' + t.target_points + ')</span></div>' +
                         '<div class="trade-row"><span class="trade-lbl">Stop Loss</span><span class="trade-val" style="color:#dc2626">₹' + fmt(t.sl) + ' (−' + t.sl_points + ')</span></div>' +
                         '<div class="trade-row"><span class="trade-lbl">R:R</span><span class="trade-val">' + t.risk_reward + '</span></div>' +
+                        '<div class="trade-row"><span class="trade-lbl">Qty (based on capital)</span><span class="trade-val">' + suggestedQty + '</span></div>' +
                         '<div class="trade-row"><span class="trade-lbl">OI</span><span class="trade-val">' + (t.oi/100000).toFixed(1) + 'L</span></div>' +
                         '<div class="trade-row"><span class="trade-lbl">IV</span><span class="trade-val">' + t.iv + '%</span></div>' +
                         '<div class="trade-row"><span class="trade-lbl">Mode</span><span class="trade-val">' + t.entry_mode + '</span></div>' +
@@ -305,6 +401,27 @@ function refreshAnalysis() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', refreshAnalysis);
+document.addEventListener('DOMContentLoaded', function() {
+    updateCapitalCalcs();
+
+    var saved = localStorage.getItem('fno_trading_capital');
+    if (saved) {
+        document.getElementById('tradingCapital').value = formatINR(parseInt(saved));
+        updateCapitalCalcs();
+    }
+
+    document.getElementById('tradingCapital').addEventListener('change', function() {
+        localStorage.setItem('fno_trading_capital', parseCapital(this.value));
+    });
+
+    document.querySelectorAll('.collapse-header').forEach(function(header) {
+        var target = header.getAttribute('data-bs-target');
+        var el = document.querySelector(target);
+        el.addEventListener('show.bs.collapse', function() { header.setAttribute('aria-expanded', 'true'); });
+        el.addEventListener('hide.bs.collapse', function() { header.setAttribute('aria-expanded', 'false'); });
+    });
+
+    refreshAnalysis();
+});
 </script>
 {% endblock %}
