@@ -51,6 +51,69 @@ def _col(session, ddl: str, label: str):
 
 
 # ─────────────────────────────────────────────
+# Raw-SQL tables (not defined as SQLAlchemy models)
+# ─────────────────────────────────────────────
+
+def ensure_raw_tables(session):
+    """Create tables that are defined via raw SQL (not SQLAlchemy models)."""
+    from sqlalchemy import text
+    logger.info("Creating raw-SQL tables if missing…")
+
+    raw_tables = [
+        ("""CREATE TABLE IF NOT EXISTS data_source_config (
+            id SERIAL PRIMARY KEY,
+            source_key VARCHAR(50) NOT NULL UNIQUE,
+            display_name VARCHAR(100) NOT NULL,
+            description TEXT,
+            icon VARCHAR(50) DEFAULT 'fa-database',
+            is_active BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )""", "data_source_config"),
+
+        ("""CREATE TABLE IF NOT EXISTS fno_signal_history (
+            id SERIAL PRIMARY KEY,
+            signal_type VARCHAR(20) DEFAULT 'SCAN',
+            direction VARCHAR(20),
+            confidence INTEGER DEFAULT 0,
+            confidence_grade VARCHAR(20),
+            entry_mode VARCHAR(20),
+            spot_price FLOAT,
+            atm_strike INTEGER,
+            trades_json TEXT,
+            layers_json TEXT,
+            alert_sent BOOLEAN DEFAULT FALSE,
+            data_source VARCHAR(50) DEFAULT 'nse_python',
+            created_at TIMESTAMP DEFAULT NOW()
+        )""", "fno_signal_history"),
+    ]
+
+    for ddl, label in raw_tables:
+        try:
+            session.execute(text(ddl))
+            session.commit()
+            logger.info("  Table %s ready.", label)
+        except Exception as exc:
+            session.rollback()
+            logger.warning("  [skip] %s: %s", label, exc)
+
+    seed_data_sources = [
+        ("INSERT INTO data_source_config (source_key, display_name, description, icon, is_active) "
+         "VALUES ('nse_python', 'NSE Python (Default)', 'Uses NSEPython, yfinance, and NSE official API for option chain and market data. Free, no API key required.', 'fa-code', true) "
+         "ON CONFLICT (source_key) DO NOTHING", "seed nse_python"),
+        ("INSERT INTO data_source_config (source_key, display_name, description, icon, is_active) "
+         "VALUES ('truedata', 'TrueData API', 'Professional real-time data feed with sub-second latency. Requires TrueData subscription and API key.', 'fa-bolt', false) "
+         "ON CONFLICT (source_key) DO NOTHING", "seed truedata"),
+        ("INSERT INTO data_source_config (source_key, display_name, description, icon, is_active) "
+         "VALUES ('user_custom', 'User Data Source', 'Manual CSV upload or custom data input for backtesting and historical analysis.', 'fa-upload', false) "
+         "ON CONFLICT (source_key) DO NOTHING", "seed user_custom"),
+    ]
+    for ddl, label in seed_data_sources:
+        _col(session, ddl, label)
+
+    logger.info("Raw table creation complete.")
+
+
+# ─────────────────────────────────────────────
 # Column-level migrations (ADD COLUMN IF NOT EXISTS)
 # ─────────────────────────────────────────────
 
@@ -579,6 +642,7 @@ def ensure_indexes(session):
         ("CREATE INDEX IF NOT EXISTS idx_behavioural_alerts_user ON behavioural_alerts(user_id)",             "idx_behavioural_alerts_user"),
         ("CREATE INDEX IF NOT EXISTS idx_workflow_exec_user ON workflow_executions(user_id)",                 "idx_workflow_exec_user"),
         ("CREATE INDEX IF NOT EXISTS idx_workflow_exec_id ON workflow_executions(execution_id)",              "idx_workflow_exec_id"),
+        ("CREATE INDEX IF NOT EXISTS idx_fno_signal_created ON fno_signal_history(created_at DESC)",        "idx_fno_signal_created"),
     ]
     for ddl, label in indexes:
         try:
@@ -649,6 +713,9 @@ def create_tables_directly():
     except Exception as exc:
         logger.error("db.create_all() failed: %s", exc)
         raise
+
+    # 2b. Create raw-SQL tables not defined in SQLAlchemy models
+    ensure_raw_tables(session)
 
     # 3. Add missing columns to existing tables
     ensure_missing_columns(session)
@@ -746,6 +813,7 @@ def run_migrations():
             from sqlalchemy.orm import sessionmaker
             Session = sessionmaker(bind=db.engine)
             session = Session()
+            ensure_raw_tables(session)
             ensure_missing_columns(session)
             ensure_indexes(session)
             session.close()
