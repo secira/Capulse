@@ -406,6 +406,27 @@ class NiftyOptionsEngine:
 
         return trades
 
+    def _generate_trade_reasons(self, trade: dict, direction: dict, strength: dict, oi_signal: str) -> List[str]:
+        reasons = []
+        m = trade.get('moneyness', '')
+        if direction['indicators_aligned']:
+            reasons.append(f"All direction indicators aligned ({direction['direction']})")
+        if strength['adx'] > 25:
+            reasons.append(f"Strong trend — ADX {strength['adx']}")
+        if strength['adx_rising']:
+            reasons.append("ADX rising — trend gaining strength")
+        if strength['atr_rising']:
+            reasons.append("ATR rising — volatility expanding")
+        if oi_signal != 'NEUTRAL':
+            reasons.append(f"OI confirms {oi_signal.lower()} bias")
+        if m == 'ATM':
+            reasons.append("Best delta exposure — highest probability of profit")
+        elif m == 'OTM':
+            reasons.append("Lower premium cost — higher leverage if move extends")
+        elif m == 'ITM':
+            reasons.append("Higher intrinsic value — safer with more delta")
+        return reasons[:4]
+
     def _enrich_trades(self, trades: List[Dict], chain: dict, confidence: int, entry_mode: str, expiry_info: dict = None) -> List[Dict]:
         enriched = []
         for t in trades:
@@ -516,6 +537,30 @@ class NiftyOptionsEngine:
         if oi_signal != 'NEUTRAL' and direction['direction'] == 'NEUTRAL':
             trade_direction = oi_signal
 
+        block_reasons = []
+        if not time_check['pass']:
+            block_reasons.append(time_check['reason'])
+        if strength['no_trade_zone']:
+            block_reasons.append(f"Weak momentum — ADX {strength['adx']:.1f} (below 20)")
+        if not direction['indicators_aligned'] and direction['direction'] == 'NEUTRAL':
+            block_reasons.append("No clear direction — indicators not aligned")
+
+        is_blocked = entry_mode == 'NO TRADE'
+        final_decision = 'TRADE' if not is_blocked and confidence >= 60 else 'NO TRADE'
+        if is_blocked and not block_reasons:
+            if confidence < 60:
+                block_reasons.append(f"Confidence too low ({confidence}/100, need 60+)")
+            else:
+                block_reasons.append("Entry conditions not met")
+
+        momentum_pct = min(100, max(0, int(
+            (strength['adx'] / 40 * 40) +
+            (20 if strength['adx_rising'] else 0) +
+            (20 if strength['atr_rising'] else 0) +
+            (20 if direction['indicators_aligned'] else 0)
+        )))
+        momentum_label = 'STRONG' if momentum_pct >= 70 else ('MODERATE' if momentum_pct >= 40 else 'WEAK')
+
         current_trades = []
         next_trades = []
         raw_strikes = self._select_strikes(spot, trade_direction)
@@ -535,9 +580,21 @@ class NiftyOptionsEngine:
         if next_chain:
             next_trades = self._enrich_trades(raw_strikes, next_chain, confidence, entry_mode, next_expiry_info)
 
+        for t in current_trades:
+            t['trade_reasons'] = self._generate_trade_reasons(t, direction, strength, oi_signal)
+        for t in next_trades:
+            t['trade_reasons'] = self._generate_trade_reasons(t, direction, strength, oi_signal)
+
         total_put_oi = sum(v.get('oi', 0) for k, v in current_chain.items() if k.endswith('PE'))
         total_call_oi = sum(v.get('oi', 0) for k, v in current_chain.items() if k.endswith('CE'))
         pcr = round(total_put_oi / total_call_oi, 2) if total_call_oi else 0
+
+        layer_status = {
+            'time': 'pass' if time_check['pass'] else 'fail',
+            'direction': 'pass' if direction['indicators_aligned'] else ('warn' if direction['direction'] != 'NEUTRAL' else 'fail'),
+            'strength': 'pass' if strength['strength'] == 'STRONG' else ('warn' if strength['strength'] == 'MODERATE' else 'fail'),
+            'oi': 'pass' if abs(oi_diff) > 0.20 else ('warn' if abs(oi_diff) > 0.10 else 'fail'),
+        }
 
         return {
             'timestamp': now.strftime('%Y-%m-%d %H:%M:%S IST'),
@@ -557,6 +614,11 @@ class NiftyOptionsEngine:
             'confidence_grade': 'Strong' if confidence >= 80 else ('Medium' if confidence >= 60 else 'Weak'),
             'entry_mode': entry_mode,
             'trade_direction': trade_direction,
+            'final_decision': final_decision,
+            'is_blocked': is_blocked,
+            'block_reasons': block_reasons,
+            'momentum': {'pct': momentum_pct, 'label': momentum_label},
+            'layer_status': layer_status,
             'trades': current_trades,
             'next_expiry_trades': next_trades,
             'expiry_info': {

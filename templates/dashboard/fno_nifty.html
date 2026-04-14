@@ -37,8 +37,12 @@
 .conf-fill{height:100%;border-radius:4px;transition:width .5s}
 .conf-high{background:linear-gradient(90deg,#22c55e,#16a34a)}.conf-med{background:linear-gradient(90deg,#f59e0b,#d97706)}.conf-low{background:#ef4444}
 
-.trade-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;transition:all .2s}
+.trade-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;transition:all .2s;position:relative}
 .trade-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-2px)}
+.trade-card.trade-blocked{opacity:.55;pointer-events:none;filter:grayscale(30%)}
+.trade-card.trade-blocked:hover{box-shadow:none;transform:none}
+.trade-blocked-overlay{position:absolute;inset:0;background:rgba(241,245,249,.75);z-index:5;display:flex;align-items:center;justify-content:center;border-radius:12px}
+.trade-blocked-label{background:#fee2e2;color:#dc2626;font-size:12px;font-weight:700;padding:6px 16px;border-radius:8px;display:flex;align-items:center;gap:6px}
 .trade-header{padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
 .trade-header.call-header{background:linear-gradient(135deg,#dcfce7,#f0fdf4);border-bottom:2px solid #22c55e}
 .trade-header.put-header{background:linear-gradient(135deg,#fee2e2,#fef2f2);border-bottom:2px solid #ef4444}
@@ -53,10 +57,6 @@
 
 .risk-rule{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
 .risk-rule i{color:#ef4444;width:16px;text-align:center}
-
-.no-trade-banner{background:linear-gradient(135deg,#fef3c7,#fffbeb);border:1px solid #f59e0b;border-radius:12px;padding:24px;text-align:center}
-.no-trade-banner h5{color:#92400e;font-weight:700}
-.no-trade-banner p{color:#a16207;margin:0}
 
 .oi-bar{display:flex;height:20px;border-radius:4px;overflow:hidden;margin:6px 0}
 .oi-call{background:#ef4444}.oi-put{background:#22c55e}
@@ -108,6 +108,51 @@
 .collapse-header .chevron{transition:transform .3s;color:#94a3b8;font-size:14px}
 .collapse-header[aria-expanded="true"] .chevron{transform:rotate(180deg)}
 .collapse-body{border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:16px 18px;background:#fff;margin-bottom:16px}
+
+.decision-banner{border-radius:12px;padding:20px 24px;margin-bottom:20px;text-align:center;position:relative;overflow:hidden}
+.decision-banner.decision-trade{background:linear-gradient(135deg,#dcfce7,#f0fdf4);border:2px solid #22c55e}
+.decision-banner.decision-notrade{background:linear-gradient(135deg,#fee2e2,#fef2f2);border:2px solid #ef4444}
+.decision-banner .decision-icon{font-size:32px;margin-bottom:4px}
+.decision-banner .decision-text{font-size:22px;font-weight:800;letter-spacing:1px}
+.decision-banner.decision-trade .decision-text{color:#16a34a}
+.decision-banner.decision-notrade .decision-text{color:#dc2626}
+.decision-meta{display:flex;justify-content:center;gap:24px;margin-top:10px;flex-wrap:wrap}
+.decision-meta-item{font-size:13px;color:#475569}
+.decision-meta-item strong{color:#1e293b}
+.block-reasons{margin-top:12px;display:flex;flex-direction:column;gap:4px;align-items:center}
+.block-reason-item{font-size:12px;color:#dc2626;background:#fee2e2;padding:3px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:4px}
+
+.momentum-bar{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin-bottom:20px}
+.momentum-track{width:100%;height:14px;background:#e2e8f0;border-radius:7px;overflow:hidden;position:relative}
+.momentum-fill{height:100%;border-radius:7px;transition:width .6s ease}
+.momentum-fill.m-strong{background:linear-gradient(90deg,#22c55e,#16a34a)}
+.momentum-fill.m-moderate{background:linear-gradient(90deg,#f59e0b,#d97706)}
+.momentum-fill.m-weak{background:linear-gradient(90deg,#ef4444,#dc2626)}
+.momentum-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+
+.traffic-light{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
+.tl-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.tl-green{background:#22c55e;box-shadow:0 0 4px rgba(34,197,94,.4)}
+.tl-yellow{background:#f59e0b;box-shadow:0 0 4px rgba(245,158,11,.4)}
+.tl-red{background:#ef4444;box-shadow:0 0 4px rgba(239,68,68,.4)}
+
+.layer-decision-row{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 18px;margin-top:12px;display:flex;align-items:center;gap:10px;justify-content:center}
+.layer-decision-row.ld-blocked{background:#fef2f2;border-color:#fecaca}
+.layer-decision-row.ld-active{background:#f0fdf4;border-color:#bbf7d0}
+
+.trade-reasons{padding:10px 16px;border-top:1px solid #f1f5f9;background:#fffbeb}
+.trade-reasons-title{font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.trade-reason-item{font-size:11px;color:#78350f;padding:1px 0;display:flex;align-items:center;gap:4px}
+
+.moneyness-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.5px}
+.mt-recommended{background:#dbeafe;color:#2563eb;border:1px solid #93c5fd}
+.mt-aggressive{background:#fef3c7;color:#d97706;border:1px solid #fcd34d}
+.mt-conservative{background:#dcfce7;color:#16a34a;border:1px solid #86efac}
+
+.risk-live{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:2px solid #e2e8f0}
+.risk-live-item{text-align:center;flex:1;min-width:100px}
+.risk-live-val{font-size:20px;font-weight:800;color:#1e293b}
+.risk-live-lbl{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.3px}
 </style>
 
 <div class="spinner-overlay" id="loadingOverlay">
@@ -125,6 +170,18 @@
     <div class="idx-card"><div class="idx-label">INDIA VIX</div><div class="idx-price" id="idx-vix">—</div><div class="idx-change idx-flat" id="idx-vix-chg">—</div></div>
     <div class="idx-card"><div class="idx-label">BANK NIFTY</div><div class="idx-price" id="idx-banknifty">—</div><div class="idx-change idx-flat" id="idx-banknifty-chg">—</div></div>
     <div class="idx-card"><div class="idx-label">BNIFTY FUT</div><div class="idx-price" id="idx-bankniftyfut">—</div><div class="idx-change idx-flat" id="idx-bankniftyfut-chg">—</div></div>
+</div>
+
+<!-- FINAL DECISION BANNER -->
+<div class="decision-banner decision-notrade" id="decisionBanner" style="display:none">
+    <div class="decision-icon" id="decisionIcon">🚫</div>
+    <div class="decision-text" id="decisionText">NO TRADE</div>
+    <div class="decision-meta">
+        <div class="decision-meta-item">Market Direction: <strong id="decisionDir">—</strong></div>
+        <div class="decision-meta-item">Confidence: <strong id="decisionConf">—</strong></div>
+        <div class="decision-meta-item">Status: <strong id="decisionStatus">—</strong></div>
+    </div>
+    <div class="block-reasons" id="blockReasons" style="display:none"></div>
 </div>
 
 <!-- Trading Capital Input -->
@@ -157,7 +214,24 @@
     <div class="monitor-stat">Scan: <span>Every 60s</span></div>
 </div>
 
-<!-- MIDDLE: Confidence & Entry + Trade Recommendations -->
+<!-- MOMENTUM METER -->
+<div class="momentum-bar" id="momentumBar" style="display:none">
+    <div class="momentum-header">
+        <div style="display:flex;align-items:center;gap:8px">
+            <i class="fas fa-tachometer-alt text-primary"></i>
+            <span style="font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px">Momentum Meter</span>
+        </div>
+        <div>
+            <span style="font-size:18px;font-weight:800" id="momentumPct">—</span>
+            <span style="font-size:12px;font-weight:600;margin-left:4px" id="momentumLabel">—</span>
+        </div>
+    </div>
+    <div class="momentum-track">
+        <div class="momentum-fill" id="momentumFill" style="width:0"></div>
+    </div>
+</div>
+
+<!-- Confidence & Entry -->
 <div class="engine-card">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div class="engine-title mb-0"><i class="fas fa-crosshairs"></i> Confidence & Entry</div>
@@ -180,9 +254,9 @@
 </div>
 
 <div id="noTradeArea" style="display:none">
-    <div class="no-trade-banner">
-        <h5><i class="fas fa-hand-paper me-2"></i>No Trade Signal</h5>
-        <p id="noTradeReason">Conditions not met for high-confidence entry.</p>
+    <div class="engine-card" style="border-color:#fecaca;background:#fef2f2">
+        <div class="engine-title" style="color:#dc2626"><i class="fas fa-brain" style="color:#dc2626"></i> Why No Trade?</div>
+        <div id="noTradeIntelligence" style="font-size:13px;color:#7f1d1d"></div>
     </div>
 </div>
 
@@ -202,12 +276,12 @@
     <div class="row g-3" id="tradesGrid"></div>
 </div>
 
-<!-- BOTTOM: Collapsible Layers + Risk Management -->
+<!-- LAYERS: Traffic Light System -->
 <div class="row g-3 mt-3">
     <div class="col-lg-3">
         <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer1Collapse" aria-expanded="false">
-            <div class="engine-title"><i class="fas fa-clock"></i> Layer 1 — Time Filter</div>
-            <span class="layer-badge ms-auto me-2" id="timeBadge">—</span>
+            <div class="engine-title"><i class="fas fa-clock"></i> Layer 1 — Time</div>
+            <span class="traffic-light ms-auto me-2" id="timeTraffic"><span class="tl-dot tl-red"></span>—</span>
             <i class="fas fa-chevron-down chevron"></i>
         </div>
         <div class="collapse" id="layer1Collapse">
@@ -222,7 +296,7 @@
     <div class="col-lg-3">
         <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer2Collapse" aria-expanded="false">
             <div class="engine-title"><i class="fas fa-compass"></i> Layer 2 — Direction</div>
-            <span class="layer-badge ms-auto me-2" id="dirBadge">—</span>
+            <span class="traffic-light ms-auto me-2" id="dirTraffic"><span class="tl-dot tl-red"></span>—</span>
             <i class="fas fa-chevron-down chevron"></i>
         </div>
         <div class="collapse" id="layer2Collapse">
@@ -237,7 +311,7 @@
     <div class="col-lg-3">
         <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer3Collapse" aria-expanded="false">
             <div class="engine-title"><i class="fas fa-bolt"></i> Layer 3 — Strength</div>
-            <span class="layer-badge ms-auto me-2" id="strBadge">—</span>
+            <span class="traffic-light ms-auto me-2" id="strTraffic"><span class="tl-dot tl-red"></span>—</span>
             <i class="fas fa-chevron-down chevron"></i>
         </div>
         <div class="collapse" id="layer3Collapse">
@@ -253,7 +327,7 @@
     <div class="col-lg-3">
         <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#oiCollapse" aria-expanded="false">
             <div class="engine-title"><i class="fas fa-chart-pie"></i> OI Analysis</div>
-            <span class="layer-badge ms-auto me-2" id="oiBadge">—</span>
+            <span class="traffic-light ms-auto me-2" id="oiTraffic"><span class="tl-dot tl-red"></span>—</span>
             <i class="fas fa-chevron-down chevron"></i>
         </div>
         <div class="collapse" id="oiCollapse">
@@ -269,7 +343,13 @@
     </div>
 </div>
 
-<!-- Risk Management Rules -->
+<!-- SYSTEM DECISION ROW -->
+<div class="layer-decision-row ld-blocked mt-3" id="layerDecisionRow">
+    <i class="fas fa-robot" style="font-size:16px;color:#64748b"></i>
+    <span style="font-size:13px;font-weight:700;color:#334155" id="layerDecisionText">SYSTEM DECISION: Analysing...</span>
+</div>
+
+<!-- Risk Management Rules with LIVE STATUS -->
 <div class="engine-card mt-3">
     <div class="engine-title"><i class="fas fa-shield-alt"></i> Risk Management Rules</div>
     <div class="row">
@@ -280,6 +360,24 @@
         <div class="col-md-6">
             <div class="risk-rule"><i class="fas fa-percentage"></i><span>Daily loss limit: 3% of capital (<strong id="riskDailyLoss">₹3,000</strong>)</span></div>
             <div class="risk-rule"><i class="fas fa-coins"></i><span>Risk per trade: 1% of capital (<strong id="riskPerTradeRule">₹1,000</strong>)</span></div>
+        </div>
+    </div>
+    <div class="risk-live">
+        <div class="risk-live-item">
+            <div class="risk-live-val" id="rlTradesToday">0 / 3</div>
+            <div class="risk-live-lbl">Trades Today</div>
+        </div>
+        <div class="risk-live-item">
+            <div class="risk-live-val" id="rlLossStreak">0</div>
+            <div class="risk-live-lbl">Loss Streak</div>
+        </div>
+        <div class="risk-live-item">
+            <div class="risk-live-val" id="rlRemainingRisk">₹3,000</div>
+            <div class="risk-live-lbl">Remaining Risk</div>
+        </div>
+        <div class="risk-live-item">
+            <div class="risk-live-val" style="color:#16a34a" id="rlRiskStatus">OK</div>
+            <div class="risk-live-lbl">Risk Status</div>
         </div>
     </div>
 </div>
@@ -298,6 +396,7 @@
 <script>
 var tradingCapital = 100000;
 var cachedAnalysis = null;
+var isBlocked = false;
 
 function parseCapital(str) {
     return parseInt(str.replace(/[^0-9]/g, ''), 10) || 0;
@@ -316,6 +415,7 @@ function updateCapitalCalcs() {
     document.getElementById('dailyLossLimit').textContent = '₹' + formatINR(risk3);
     document.getElementById('riskPerTradeRule').textContent = '₹' + formatINR(risk1);
     document.getElementById('riskDailyLoss').textContent = '₹' + formatINR(risk3);
+    document.getElementById('rlRemainingRisk').textContent = '₹' + formatINR(risk3);
 
     var lotSize = 50;
     var defaultSL = 10;
@@ -350,11 +450,10 @@ function setIdx(id, price, change, pct) {
     el.className = 'idx-change ' + (change > 0 ? 'idx-up' : change < 0 ? 'idx-down' : 'idx-flat');
 }
 
-function badgeClass(val) {
-    var v = val.toUpperCase();
-    if (['BULLISH','BUY','ABOVE','STRONG','ACTIVE','CONFIRMED'].indexOf(v) >= 0) return 'badge-bullish';
-    if (['BEARISH','SELL','BELOW','WEAK','BLOCKED'].indexOf(v) >= 0) return 'badge-bearish';
-    return 'badge-neutral';
+function setTrafficLight(elId, status, label) {
+    var el = document.getElementById(elId);
+    var dotClass = status === 'pass' ? 'tl-green' : (status === 'warn' ? 'tl-yellow' : 'tl-red');
+    el.innerHTML = '<span class="tl-dot ' + dotClass + '"></span>' + label;
 }
 
 function onExpiryChange() {
@@ -385,11 +484,36 @@ function buildTradeCard(t) {
     var lotVal = t.lot_value || (t.ltp * niftyLotSize);
     var mClass = t.moneyness === 'ATM' ? 'm-atm' : t.moneyness === 'OTM' ? 'm-otm' : 'm-itm';
 
-    var html = '<div class="trade-card">' +
+    var mTagClass = t.moneyness === 'ATM' ? 'mt-recommended' : (t.moneyness === 'OTM' ? 'mt-aggressive' : 'mt-conservative');
+    var mTagIcon = t.moneyness === 'ATM' ? '⭐' : (t.moneyness === 'OTM' ? '⚠️' : '🛡️');
+    var mTagLabel = t.moneyness === 'ATM' ? 'Recommended' : (t.moneyness === 'OTM' ? 'Aggressive' : 'Conservative');
+
+    var blockedClass = isBlocked ? ' trade-blocked' : '';
+    var blockedOverlay = isBlocked ? '<div class="trade-blocked-overlay"><div class="trade-blocked-label"><i class="fas fa-ban"></i>Blocked by Rules</div></div>' : '';
+
+    var reasonsHtml = '';
+    if (t.trade_reasons && t.trade_reasons.length > 0) {
+        reasonsHtml = '<div class="trade-reasons"><div class="trade-reasons-title"><i class="fas fa-lightbulb me-1"></i>Why this trade</div>';
+        t.trade_reasons.forEach(function(r) {
+            reasonsHtml += '<div class="trade-reason-item"><i class="fas fa-check-circle" style="color:#d97706;font-size:9px"></i>' + r + '</div>';
+        });
+        reasonsHtml += '</div>';
+    }
+
+    var buyBtnHtml;
+    if (isBlocked) {
+        buyBtnHtml = '<button class="btn btn-sm btn-secondary flex-fill" disabled title="Trading blocked by rules"><i class="fas fa-ban me-1"></i>Trading Blocked</button>';
+    } else {
+        buyBtnHtml = '<a href="/dashboard/trade-now?symbol=NIFTY&strike=' + t.strike + '&type=' + t.type + '&action=BUY" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-shopping-cart me-1"></i>Buy ' + t.symbol + '</a>';
+    }
+
+    var html = '<div class="trade-card' + blockedClass + '">' +
+        blockedOverlay +
         '<div class="trade-header ' + (isCE ? 'call-header' : 'put-header') + '">' +
             '<div>' +
                 '<div class="trade-symbol">' + t.symbol + '</div>' +
                 '<div style="margin-top:2px"><span class="trade-moneyness ' + mClass + '">' + t.moneyness + '</span>' +
+                '<span class="moneyness-tag ' + mTagClass + '" style="margin-left:6px">' + mTagIcon + ' ' + mTagLabel + '</span>' +
                 (t.expiry ? '<span style="font-size:11px;color:#64748b;margin-left:8px">Exp: ' + t.expiry + '</span>' : '') +
                 (t.dte !== undefined ? '<span style="font-size:10px;color:#94a3b8;margin-left:4px">(' + t.dte + 'd)</span>' : '') +
                 '</div>' +
@@ -421,12 +545,13 @@ function buildTradeCard(t) {
                     '<div class="opt-data-item"><span class="opt-data-lbl">Max Profit/Lot</span><span class="opt-data-val" style="color:#16a34a">₹' + formatINR(Math.round(t.max_profit_per_lot || (t.target_points * niftyLotSize))) + '</span></div>' +
                 '</div>' +
             '</div>' +
+            reasonsHtml +
             '<div style="padding:8px 16px;border-top:1px solid #f1f5f9">' +
                 '<div style="font-size:11px;color:#64748b"><i class="fas fa-user-check me-1"></i>' + t.suggested_for + '</div>' +
             '</div>' +
         '</div>' +
         '<div class="trade-footer">' +
-            '<a href="/dashboard/trade-now?symbol=NIFTY&strike=' + t.strike + '&type=' + t.type + '&action=BUY" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-shopping-cart me-1"></i>Buy ' + t.symbol + '</a>' +
+            buyBtnHtml +
         '</div>' +
     '</div>';
     return html;
@@ -463,37 +588,89 @@ function refreshAnalysis() {
         var d = res.data;
         cachedAnalysis = d;
 
-        var tb = document.getElementById('timeBadge');
-        tb.textContent = d.time_filter.status.toUpperCase();
-        tb.className = 'layer-badge ms-auto me-2 ' + badgeClass(d.time_filter.status);
+        isBlocked = d.is_blocked || false;
+        var finalDecision = d.final_decision || 'NO TRADE';
+
+        var banner = document.getElementById('decisionBanner');
+        banner.style.display = 'block';
+        if (finalDecision === 'TRADE') {
+            banner.className = 'decision-banner decision-trade';
+            document.getElementById('decisionIcon').textContent = '✅';
+            document.getElementById('decisionText').textContent = 'TRADE ACTIVE';
+        } else {
+            banner.className = 'decision-banner decision-notrade';
+            document.getElementById('decisionIcon').textContent = '🚫';
+            document.getElementById('decisionText').textContent = 'NO TRADE';
+        }
+        document.getElementById('decisionDir').textContent = d.trade_direction || '—';
+        document.getElementById('decisionConf').textContent = d.confidence + '%';
+        var statusText = d.entry_mode;
+        if (isBlocked && d.block_reasons && d.block_reasons.length > 0) {
+            statusText = 'BLOCKED';
+        }
+        document.getElementById('decisionStatus').textContent = statusText;
+
+        var brContainer = document.getElementById('blockReasons');
+        if (d.block_reasons && d.block_reasons.length > 0) {
+            brContainer.style.display = 'flex';
+            brContainer.innerHTML = '';
+            d.block_reasons.forEach(function(r) {
+                var el = document.createElement('div');
+                el.className = 'block-reason-item';
+                el.innerHTML = '<i class="fas fa-exclamation-triangle"></i>' + r;
+                brContainer.appendChild(el);
+            });
+        } else {
+            brContainer.style.display = 'none';
+        }
+
+        if (d.momentum) {
+            var mBar = document.getElementById('momentumBar');
+            mBar.style.display = 'block';
+            document.getElementById('momentumPct').textContent = d.momentum.pct + '%';
+            var mLabel = document.getElementById('momentumLabel');
+            mLabel.textContent = d.momentum.label;
+            mLabel.style.color = d.momentum.label === 'STRONG' ? '#16a34a' : (d.momentum.label === 'MODERATE' ? '#d97706' : '#dc2626');
+            var mFill = document.getElementById('momentumFill');
+            mFill.style.width = d.momentum.pct + '%';
+            mFill.className = 'momentum-fill ' + (d.momentum.pct >= 70 ? 'm-strong' : (d.momentum.pct >= 40 ? 'm-moderate' : 'm-weak'));
+        }
+
+        var ls = d.layer_status || {};
+        setTrafficLight('timeTraffic', ls.time || 'fail', d.time_filter.status.toUpperCase());
         document.getElementById('timeReason').textContent = d.time_filter.reason;
 
-        var db2 = document.getElementById('dirBadge');
-        db2.textContent = d.direction.direction;
-        db2.className = 'layer-badge ms-auto me-2 ' + badgeClass(d.direction.direction);
+        setTrafficLight('dirTraffic', ls.direction || 'fail', d.direction.direction);
         document.getElementById('vwapVal').textContent = d.direction.spot_vs_vwap + ' (VWAP: ' + fmt(d.direction.vwap) + ')';
         document.getElementById('stVal').textContent = d.direction.supertrend;
         document.getElementById('stVal').style.color = d.direction.supertrend === 'BUY' ? '#16a34a' : '#dc2626';
         document.getElementById('dmiVal').textContent = '+DI ' + d.direction.dmi_plus + ' / −DI ' + d.direction.dmi_minus;
 
-        var sb = document.getElementById('strBadge');
-        sb.textContent = d.strength.strength;
-        sb.className = 'layer-badge ms-auto me-2 ' + badgeClass(d.strength.strength);
+        setTrafficLight('strTraffic', ls.strength || 'fail', d.strength.strength);
         document.getElementById('adxVal').textContent = d.strength.adx;
         document.getElementById('adxVal').style.color = d.strength.adx > 25 ? '#16a34a' : '#dc2626';
         document.getElementById('adxRising').innerHTML = d.strength.adx_rising ? '<i class="fas fa-arrow-up text-success"></i> Yes' : '<i class="fas fa-arrow-down text-danger"></i> No';
         document.getElementById('atrVal').textContent = d.strength.atr;
         document.getElementById('atrRising').innerHTML = d.strength.atr_rising ? '<i class="fas fa-arrow-up text-success"></i> Yes' : '<i class="fas fa-arrow-down text-danger"></i> No';
 
-        var ob = document.getElementById('oiBadge');
-        ob.textContent = d.oi_analysis.oi_signal;
-        ob.className = 'layer-badge ms-auto me-2 ' + badgeClass(d.oi_analysis.oi_signal);
+        setTrafficLight('oiTraffic', ls.oi || 'fail', d.oi_analysis.oi_signal);
         document.getElementById('oiDiff').textContent = (d.oi_analysis.oi_diff * 100).toFixed(2) + '%';
         document.getElementById('pcrVal').textContent = d.oi_analysis.pcr;
         var totalOi = d.oi_analysis.total_call_oi + d.oi_analysis.total_put_oi;
         if (totalOi > 0) {
             document.getElementById('oiCallBar').style.width = (d.oi_analysis.total_call_oi / totalOi * 100).toFixed(1) + '%';
             document.getElementById('oiPutBar').style.width = (d.oi_analysis.total_put_oi / totalOi * 100).toFixed(1) + '%';
+        }
+
+        var ldRow = document.getElementById('layerDecisionRow');
+        var ldText = document.getElementById('layerDecisionText');
+        if (isBlocked) {
+            ldRow.className = 'layer-decision-row ld-blocked mt-3';
+            var blockSummary = d.block_reasons && d.block_reasons.length > 0 ? d.block_reasons[0] : 'Conditions not met';
+            ldText.innerHTML = '<span style="color:#dc2626">❌ TRADE BLOCKED</span> — ' + blockSummary;
+        } else {
+            ldRow.className = 'layer-decision-row ld-active mt-3';
+            ldText.innerHTML = '<span style="color:#16a34a">✅ TRADE ACTIVE</span> — All layers passed';
         }
 
         document.getElementById('confScore').textContent = d.confidence;
@@ -528,13 +705,38 @@ function refreshAnalysis() {
         document.getElementById('expiryDTEBadge').textContent = (ei.current_dte || 0) + ' days to expiry';
 
         if (d.trades && d.trades.length > 0) {
-            document.getElementById('noTradeArea').style.display = 'none';
             document.getElementById('tradesArea').style.display = 'block';
             renderTrades(d.trades, 'tradesGrid');
+
+            if (isBlocked) {
+                document.getElementById('noTradeArea').style.display = 'block';
+                var ntIntel = document.getElementById('noTradeIntelligence');
+                ntIntel.innerHTML = '';
+                if (d.block_reasons && d.block_reasons.length > 0) {
+                    var reasonsList = '<ul style="margin:0;padding-left:18px">';
+                    d.block_reasons.forEach(function(r) { reasonsList += '<li>' + r + '</li>'; });
+                    reasonsList += '</ul>';
+                    ntIntel.innerHTML = reasonsList;
+                }
+            } else {
+                document.getElementById('noTradeArea').style.display = 'none';
+            }
         } else {
             document.getElementById('tradesArea').style.display = 'none';
             document.getElementById('noTradeArea').style.display = 'block';
-            document.getElementById('noTradeReason').textContent = d.time_filter.pass ? 'Confidence below threshold or no-trade zone active. ADX: ' + d.strength.adx : d.time_filter.reason;
+            var ntIntel = document.getElementById('noTradeIntelligence');
+            var reasons = [];
+            if (d.block_reasons && d.block_reasons.length > 0) {
+                reasons = d.block_reasons;
+            } else if (!d.time_filter.pass) {
+                reasons.push(d.time_filter.reason);
+            } else {
+                reasons.push('Confidence below threshold or no-trade zone active. ADX: ' + d.strength.adx);
+            }
+            var reasonsList = '<ul style="margin:0;padding-left:18px">';
+            reasons.forEach(function(r) { reasonsList += '<li>' + r + '</li>'; });
+            reasonsList += '</ul>';
+            ntIntel.innerHTML = reasonsList;
         }
     }).catch(function(e) {
         document.getElementById('loadingOverlay').classList.remove('show');
