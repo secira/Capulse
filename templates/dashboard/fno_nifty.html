@@ -61,10 +61,29 @@
 .oi-bar{display:flex;height:20px;border-radius:4px;overflow:hidden;margin:6px 0}
 .oi-call{background:#ef4444}.oi-put{background:#22c55e}
 
-.data-src-tag{font-size:10px;background:#e2e8f0;color:#475569;padding:2px 8px;border-radius:4px;font-weight:600}
-
 .spinner-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.7);z-index:999;align-items:center;justify-content:center}
 .spinner-overlay.show{display:flex}
+
+.expiry-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid #e2e8f0}
+.expiry-tab{padding:10px 20px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;background:none;border:none;border-bottom:2px solid transparent}
+.expiry-tab:hover{color:#3b82f6}
+.expiry-tab.active{color:#1e293b;border-bottom-color:#3b82f6}
+.expiry-tab .dte{font-size:10px;font-weight:700;background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:4px;margin-left:6px}
+.expiry-tab.active .dte{background:#dbeafe;color:#2563eb}
+
+.opt-data-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:0 -16px}
+.opt-data-item{display:flex;justify-content:space-between;padding:6px 16px;font-size:12px;border-bottom:1px solid #f8fafc}
+.opt-data-item:nth-child(odd){background:#fafbfc}
+.opt-data-lbl{color:#64748b;font-weight:500}
+.opt-data-val{font-weight:700;color:#1e293b}
+.opt-data-full{grid-column:1/3}
+
+.trade-moneyness{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.5px}
+.m-atm{background:#dbeafe;color:#2563eb}
+.m-otm{background:#fef3c7;color:#d97706}
+.m-itm{background:#dcfce7;color:#16a34a}
+
+.signal-type-tag{font-size:10px;background:#e2e8f0;color:#475569;padding:2px 8px;border-radius:4px;font-weight:600}
 
 .monitor-bar{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .monitor-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
@@ -121,7 +140,6 @@
         <div>Max lots: <span id="maxLots">—</span></div>
     </div>
     <div class="ms-auto d-flex align-items-center gap-2">
-        <span class="data-src-tag" id="dataSrcTag">—</span>
         <button class="btn btn-sm btn-outline-primary" onclick="refreshAnalysis()"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
     </div>
 </div>
@@ -173,7 +191,18 @@
         <h6 class="fw-bold mb-0"><i class="fas fa-list-ol me-2 text-primary"></i>Recommended Trades</h6>
         <span class="text-muted" style="font-size:12px">ATM Strike: <strong id="atmStrike">—</strong> | Spot: <strong id="spotPrice">—</strong></span>
     </div>
-    <div class="row g-3" id="tradesGrid"></div>
+    <div class="expiry-tabs" id="expiryTabs">
+        <button class="expiry-tab active" data-expiry="current" onclick="switchExpiry('current')">
+            <span id="expiryCurrentLabel">Current Week</span>
+            <span class="dte" id="expiryCurrentDTE">—</span>
+        </button>
+        <button class="expiry-tab" id="expiryNextTab" data-expiry="next" onclick="switchExpiry('next')" style="display:none">
+            <span id="expiryNextLabel">Next Week</span>
+            <span class="dte" id="expiryNextDTE">—</span>
+        </button>
+    </div>
+    <div id="currentExpiryTrades"><div class="row g-3" id="tradesGrid"></div></div>
+    <div id="nextExpiryTrades" style="display:none"><div class="row g-3" id="tradesGridNext"></div></div>
 </div>
 
 <!-- BOTTOM: Collapsible Layers + Risk Management -->
@@ -271,6 +300,7 @@
 
 <script>
 var tradingCapital = 100000;
+var cachedAnalysis = null;
 
 function parseCapital(str) {
     return parseInt(str.replace(/[^0-9]/g, ''), 10) || 0;
@@ -313,6 +343,7 @@ document.getElementById('tradingCapital').addEventListener('blur', function() {
 });
 
 function fmt(n) { return n ? n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—'; }
+function fmtOI(n) { if (!n) return '—'; if (n >= 10000000) return (n/10000000).toFixed(2) + ' Cr'; if (n >= 100000) return (n/100000).toFixed(1) + ' L'; if (n >= 1000) return (n/1000).toFixed(1) + ' K'; return n.toString(); }
 
 function setIdx(id, price, change, pct) {
     document.getElementById('idx-'+id).textContent = fmt(price);
@@ -327,6 +358,87 @@ function badgeClass(val) {
     if (['BULLISH','BUY','ABOVE','STRONG','ACTIVE','CONFIRMED'].indexOf(v) >= 0) return 'badge-bullish';
     if (['BEARISH','SELL','BELOW','WEAK','BLOCKED'].indexOf(v) >= 0) return 'badge-bearish';
     return 'badge-neutral';
+}
+
+function switchExpiry(which) {
+    document.querySelectorAll('.expiry-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelector('.expiry-tab[data-expiry="'+which+'"]').classList.add('active');
+    if (which === 'current') {
+        document.getElementById('currentExpiryTrades').style.display = '';
+        document.getElementById('nextExpiryTrades').style.display = 'none';
+    } else {
+        document.getElementById('currentExpiryTrades').style.display = 'none';
+        document.getElementById('nextExpiryTrades').style.display = '';
+    }
+}
+
+function buildTradeCard(t) {
+    var isCE = t.type === 'CE';
+    var risk1 = Math.round(tradingCapital * 0.01);
+    var niftyLotSize = 50;
+    var slPoints = t.sl_points > 0 ? t.sl_points : 10;
+    var maxLossPerLot = slPoints * niftyLotSize;
+    var suggestedLots = Math.floor(risk1 / maxLossPerLot);
+    if (suggestedLots < 1) suggestedLots = 1;
+    var suggestedQty = suggestedLots * niftyLotSize;
+    var lotVal = t.lot_value || (t.ltp * niftyLotSize);
+    var mClass = t.moneyness === 'ATM' ? 'm-atm' : t.moneyness === 'OTM' ? 'm-otm' : 'm-itm';
+
+    var html = '<div class="trade-card">' +
+        '<div class="trade-header ' + (isCE ? 'call-header' : 'put-header') + '">' +
+            '<div>' +
+                '<div class="trade-symbol">' + t.symbol + '</div>' +
+                '<div style="margin-top:2px"><span class="trade-moneyness ' + mClass + '">' + t.moneyness + '</span>' +
+                (t.expiry ? '<span style="font-size:11px;color:#64748b;margin-left:8px">Exp: ' + t.expiry + '</span>' : '') +
+                (t.dte !== undefined ? '<span style="font-size:10px;color:#94a3b8;margin-left:4px">(' + t.dte + 'd)</span>' : '') +
+                '</div>' +
+            '</div>' +
+            '<span class="trade-type ' + (isCE ? 'type-ce' : 'type-pe') + '">' + t.label + '</span>' +
+        '</div>' +
+        '<div class="trade-body" style="padding:0">' +
+            '<div class="opt-data-grid">' +
+                '<div class="opt-data-item"><span class="opt-data-lbl">LTP</span><span class="opt-data-val">₹' + fmt(t.ltp) + '</span></div>' +
+                '<div class="opt-data-item"><span class="opt-data-lbl">Change</span><span class="opt-data-val" style="color:' + (t.change >= 0 ? '#16a34a' : '#dc2626') + '">' + (t.change >= 0 ? '+' : '') + fmt(t.change) + '</span></div>' +
+                '<div class="opt-data-item"><span class="opt-data-lbl">Bid</span><span class="opt-data-val">₹' + fmt(t.bid) + ' <span style="font-size:10px;color:#94a3b8">(' + (t.bid_qty || 0) + ')</span></span></div>' +
+                '<div class="opt-data-item"><span class="opt-data-lbl">Ask</span><span class="opt-data-val">₹' + fmt(t.ask) + ' <span style="font-size:10px;color:#94a3b8">(' + (t.ask_qty || 0) + ')</span></span></div>' +
+                '<div class="opt-data-item"><span class="opt-data-lbl">OI</span><span class="opt-data-val">' + fmtOI(t.oi) + '</span></div>' +
+                '<div class="opt-data-item"><span class="opt-data-lbl">OI Change</span><span class="opt-data-val" style="color:' + (t.oi_change >= 0 ? '#16a34a' : '#dc2626') + '">' + (t.oi_change >= 0 ? '+' : '') + fmtOI(t.oi_change) + '</span></div>' +
+                '<div class="opt-data-item"><span class="opt-data-lbl">Volume</span><span class="opt-data-val">' + fmtOI(t.volume) + '</span></div>' +
+                '<div class="opt-data-item"><span class="opt-data-lbl">IV</span><span class="opt-data-val">' + (t.iv || 0).toFixed(1) + '%</span></div>' +
+            '</div>' +
+            '<div style="padding:10px 16px;border-top:2px solid #e2e8f0;background:#f8fafc">' +
+                '<div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Trade Setup</div>' +
+                '<div class="opt-data-grid" style="margin:0 -16px">' +
+                    '<div class="opt-data-item"><span class="opt-data-lbl">Entry</span><span class="opt-data-val">₹' + fmt(t.entry_price) + '</span></div>' +
+                    '<div class="opt-data-item"><span class="opt-data-lbl">R:R</span><span class="opt-data-val">' + t.risk_reward + '</span></div>' +
+                    '<div class="opt-data-item"><span class="opt-data-lbl">Target</span><span class="opt-data-val" style="color:#16a34a">₹' + fmt(t.target) + ' (+' + t.target_points + ')</span></div>' +
+                    '<div class="opt-data-item"><span class="opt-data-lbl">Stop Loss</span><span class="opt-data-val" style="color:#dc2626">₹' + fmt(t.sl) + ' (−' + t.sl_points + ')</span></div>' +
+                    '<div class="opt-data-item"><span class="opt-data-lbl">Lots × Qty</span><span class="opt-data-val">' + suggestedLots + ' × ' + niftyLotSize + ' = ' + suggestedQty + '</span></div>' +
+                    '<div class="opt-data-item"><span class="opt-data-lbl">Lot Value</span><span class="opt-data-val">₹' + formatINR(Math.round(lotVal)) + '</span></div>' +
+                    '<div class="opt-data-item"><span class="opt-data-lbl">Max Loss/Lot</span><span class="opt-data-val" style="color:#dc2626">₹' + formatINR(Math.round(t.max_loss_per_lot || maxLossPerLot)) + '</span></div>' +
+                    '<div class="opt-data-item"><span class="opt-data-lbl">Max Profit/Lot</span><span class="opt-data-val" style="color:#16a34a">₹' + formatINR(Math.round(t.max_profit_per_lot || (t.target_points * niftyLotSize))) + '</span></div>' +
+                '</div>' +
+            '</div>' +
+            '<div style="padding:8px 16px;border-top:1px solid #f1f5f9">' +
+                '<div style="font-size:11px;color:#64748b"><i class="fas fa-user-check me-1"></i>' + t.suggested_for + '</div>' +
+            '</div>' +
+        '</div>' +
+        '<div class="trade-footer">' +
+            '<a href="/dashboard/trade-now?symbol=NIFTY&strike=' + t.strike + '&type=' + t.type + '" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-exchange-alt me-1"></i>Trade Now</a>' +
+        '</div>' +
+    '</div>';
+    return html;
+}
+
+function renderTrades(trades, gridId) {
+    var grid = document.getElementById(gridId);
+    grid.innerHTML = '';
+    trades.forEach(function(t) {
+        var card = document.createElement('div');
+        card.className = 'col-md-6 col-lg-4';
+        card.innerHTML = buildTradeCard(t);
+        grid.appendChild(card);
+    });
 }
 
 function refreshAnalysis() {
@@ -347,6 +459,7 @@ function refreshAnalysis() {
         document.getElementById('loadingOverlay').classList.remove('show');
         if (!res.success) return;
         var d = res.data;
+        cachedAnalysis = d;
 
         var tb = document.getElementById('timeBadge');
         tb.textContent = d.time_filter.status.toUpperCase();
@@ -391,50 +504,30 @@ function refreshAnalysis() {
         document.getElementById('entryMode').textContent = d.entry_mode;
         document.getElementById('entryMode').style.color = d.entry_mode === 'CONFIRMED' ? '#16a34a' : d.entry_mode === 'EARLY' ? '#d97706' : '#dc2626';
 
-        document.getElementById('dataSrcTag').textContent = 'Source: ' + d.data_source;
         document.getElementById('spotPrice').textContent = fmt(d.spot_price);
         document.getElementById('atmStrike').textContent = d.atm_strike;
+
+        var ei = d.expiry_info || {};
+        document.getElementById('expiryCurrentLabel').textContent = (ei.current_label || 'Weekly') + ' — ' + (ei.current || '');
+        document.getElementById('expiryCurrentDTE').textContent = (ei.current_dte || 0) + 'd';
+
+        var nextTab = document.getElementById('expiryNextTab');
+        if (ei.has_next && d.next_expiry_trades && d.next_expiry_trades.length > 0) {
+            nextTab.style.display = '';
+            document.getElementById('expiryNextLabel').textContent = (ei.next_label || 'Monthly') + ' — ' + (ei.next || '');
+            document.getElementById('expiryNextDTE').textContent = (ei.next_dte || 0) + 'd';
+        } else {
+            nextTab.style.display = 'none';
+        }
 
         if (d.trades && d.trades.length > 0) {
             document.getElementById('noTradeArea').style.display = 'none';
             document.getElementById('tradesArea').style.display = 'block';
-            var grid = document.getElementById('tradesGrid');
-            grid.innerHTML = '';
-            d.trades.forEach(function(t) {
-                var isCE = t.type === 'CE';
-                var card = document.createElement('div');
-                card.className = 'col-md-6 col-lg-4';
-                var risk1 = Math.round(tradingCapital * 0.01);
-                var niftyLotSize = 50;
-                var slPoints = t.sl_points > 0 ? t.sl_points : 10;
-                var maxLossPerLot = slPoints * niftyLotSize;
-                var suggestedLots = Math.floor(risk1 / maxLossPerLot);
-                if (suggestedLots < 1) suggestedLots = 1;
-                var suggestedQty = suggestedLots * niftyLotSize;
-                card.innerHTML = '<div class="trade-card">' +
-                    '<div class="trade-header ' + (isCE ? 'call-header' : 'put-header') + '">' +
-                        '<span class="trade-symbol">' + t.symbol + '</span>' +
-                        '<span class="trade-type ' + (isCE ? 'type-ce' : 'type-pe') + '">' + t.label + '</span>' +
-                    '</div>' +
-                    '<div class="trade-body">' +
-                        '<div class="trade-row"><span class="trade-lbl">LTP</span><span class="trade-val">₹' + fmt(t.ltp) + '</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">Entry</span><span class="trade-val">₹' + fmt(t.entry_price) + '</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">Target</span><span class="trade-val" style="color:#16a34a">₹' + fmt(t.target) + ' (+' + t.target_points + ')</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">Stop Loss</span><span class="trade-val" style="color:#dc2626">₹' + fmt(t.sl) + ' (−' + t.sl_points + ')</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">R:R</span><span class="trade-val">' + t.risk_reward + '</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">Lots (Qty)</span><span class="trade-val">' + suggestedLots + ' lots (' + suggestedQty + ')</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">OI</span><span class="trade-val">' + (t.oi/100000).toFixed(1) + 'L</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">IV</span><span class="trade-val">' + t.iv + '%</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">Mode</span><span class="trade-val">' + t.entry_mode + '</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">Risk</span><span class="trade-val">' + t.risk + '</span></div>' +
-                        '<div class="trade-row"><span class="trade-lbl">For</span><span class="trade-val" style="font-size:11px">' + t.suggested_for + '</span></div>' +
-                    '</div>' +
-                    '<div class="trade-footer">' +
-                        '<a href="/dashboard/trade-now?symbol=NIFTY&strike=' + t.strike + '&type=' + t.type + '" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-exchange-alt me-1"></i>Trade Now</a>' +
-                    '</div>' +
-                '</div>';
-                grid.appendChild(card);
-            });
+            renderTrades(d.trades, 'tradesGrid');
+            if (d.next_expiry_trades && d.next_expiry_trades.length > 0) {
+                renderTrades(d.next_expiry_trades, 'tradesGridNext');
+            }
+            switchExpiry('current');
         } else {
             document.getElementById('tradesArea').style.display = 'none';
             document.getElementById('noTradeArea').style.display = 'block';
@@ -487,7 +580,7 @@ function loadSignalHistory() {
             var dirClass = s.direction === 'BULLISH' ? 'badge-bullish' : s.direction === 'BEARISH' ? 'badge-bearish' : 'badge-neutral';
             html += '<tr>';
             html += '<td>' + s.created_at + '</td>';
-            html += '<td><span class="data-src-tag">' + s.signal_type + '</span></td>';
+            html += '<td><span class="signal-type-tag">' + s.signal_type + '</span></td>';
             html += '<td><span class="layer-badge ' + dirClass + '">' + s.direction + '</span></td>';
             html += '<td><strong>' + s.confidence + '</strong>/100</td>';
             html += '<td>' + s.entry_mode + '</td>';
