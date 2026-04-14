@@ -401,6 +401,9 @@ def ensure_missing_columns(session):
         ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS strategy_name VARCHAR(100) DEFAULT 'Manual Import'",             "manual_trade_imports.strategy_name"),
         ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS exit_reason VARCHAR(20) DEFAULT 'MANUAL'",                       "manual_trade_imports.exit_reason"),
         ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS broker_name VARCHAR(50) DEFAULT 'Manual'",                       "manual_trade_imports.broker_name"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS external_trade_id VARCHAR(100)",                                   "manual_trade_imports.external_trade_id"),
+        ("ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS transaction_type VARCHAR(10)",                                     "manual_trade_imports.transaction_type"),
+        ("CREATE INDEX IF NOT EXISTS ix_manual_trade_imports_external_trade_id ON manual_trade_imports (external_trade_id)",           "manual_trade_imports.ix_external_trade_id"),
     ]
     for ddl, label in cols:
         _col(session, ddl, label)

@@ -264,8 +264,7 @@
                 <input type="hidden" id="thBrokerId">
                 <div class="alert alert-info mb-4" style="font-size:13px;">
                     <i class="fas fa-info-circle me-2"></i>
-                    For <strong>Dhan</strong> this calls the <code>/v2/tradeHistory</code> API with date-range pagination.
-                    Other brokers return their available trade book for the period.
+                    Fetch trades from the broker for any date range, then use <strong>Import</strong> to save them for Behavioural AI analysis. Already-imported trades are marked automatically — duplicates are never created.
                 </div>
                 <div class="row g-3 mb-4">
                     <div class="col-md-5">
@@ -295,14 +294,28 @@
 
                 <!-- Results area -->
                 <div id="thResults" style="display:none;">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <h6 class="mb-0" id="thResultsTitle"></h6>
-                        <span class="badge bg-primary" id="thTradeCount"></span>
+                        <div class="d-flex gap-2 align-items-center flex-wrap">
+                            <span class="badge bg-primary" id="thTradeCount"></span>
+                            <button class="btn btn-sm btn-outline-success" onclick="importSelectedTrades()" id="thImportSelectedBtn">
+                                <i class="fas fa-download me-1"></i>Import Selected
+                            </button>
+                            <button class="btn btn-sm btn-success" onclick="importAllTrades()" id="thImportAllBtn">
+                                <i class="fas fa-file-import me-1"></i>Import All New
+                            </button>
+                        </div>
                     </div>
-                    <div class="table-responsive">
+                    <div id="thImportResult" class="alert mb-3" style="display:none; font-size:13px;"></div>
+                    <div class="table-responsive" style="max-height:360px; overflow-y:auto;">
                         <table class="table table-sm table-hover" style="font-size:13px;">
-                            <thead style="background:#f8fafc; position:sticky; top:0;">
+                            <thead style="background:#f8fafc; position:sticky; top:0; z-index:1;">
                                 <tr>
+                                    <th style="width:36px;">
+                                        <input type="checkbox" id="thSelectAll" title="Select all new trades"
+                                               onchange="toggleSelectAll(this.checked)">
+                                    </th>
+                                    <th>Status</th>
                                     <th>Date</th>
                                     <th>Symbol</th>
                                     <th>Exchange</th>
@@ -318,7 +331,7 @@
                         </table>
                     </div>
                     <p class="text-muted mt-2 mb-0" style="font-size:12px;">
-                        <i class="fas fa-info-circle me-1"></i>Trade data feeds into Behavioural AI and Portfolio analytics automatically when synced.
+                        <i class="fas fa-info-circle me-1"></i>Imported trades feed into Behavioural AI and Portfolio analytics. Duplicates are skipped automatically.
                     </p>
                 </div>
 
@@ -743,6 +756,10 @@ function fetchTradeHistory() {
     document.getElementById('thLoading').style.display = 'block';
     document.getElementById('thFetchBtn').disabled = true;
 
+    // Store fetched trades for import use
+    window._thFetchedTrades = [];
+    window._thAlreadyImportedIds = new Set();
+
     fetch(`/api/broker/trade-history/${brokerId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -765,15 +782,30 @@ function fetchTradeHistory() {
             return;
         }
 
+        window._thFetchedTrades = trades;
+        window._thAlreadyImportedIds = new Set(data.already_imported_ids || []);
+        const newCount = trades.filter(t => !window._thAlreadyImportedIds.has(t.trade_id)).length;
+
         document.getElementById('thResultsTitle').textContent =
             `Trade History: ${data.broker_name}  (${data.from_date} → ${data.to_date})`;
         document.getElementById('thTradeCount').textContent = `${data.trade_count} trades`;
+        document.getElementById('thImportResult').style.display = 'none';
 
         const tbody = document.getElementById('thTableBody');
-        tbody.innerHTML = trades.map(t => {
-            const isBuy = (t.transaction_type || '').toUpperCase() === 'BUY';
-            const val   = (parseFloat(t.trade_value || 0)).toLocaleString('en-IN', {maximumFractionDigits:2});
-            return `<tr>
+        tbody.innerHTML = trades.map((t, idx) => {
+            const isBuy      = (t.transaction_type || '').toUpperCase() === 'BUY';
+            const val        = (parseFloat(t.trade_value || 0)).toLocaleString('en-IN', {maximumFractionDigits:2});
+            const imported   = window._thAlreadyImportedIds.has(t.trade_id);
+            const statusBadge = imported
+                ? `<span class="badge bg-success" style="font-size:10px;"><i class="fas fa-check me-1"></i>Imported</span>`
+                : `<span class="badge bg-light text-secondary border" style="font-size:10px;">New</span>`;
+            return `<tr class="${imported ? 'table-light text-muted' : ''}" id="th-row-${idx}">
+                <td>
+                    <input type="checkbox" class="th-row-check" data-idx="${idx}"
+                           ${imported ? 'disabled' : ''}
+                           ${!imported ? 'checked' : ''}>
+                </td>
+                <td>${statusBadge}</td>
                 <td style="font-size:12px;">${t.trade_date || '—'}</td>
                 <td><strong>${t.trading_symbol || t.symbol || '—'}</strong></td>
                 <td><span class="badge bg-secondary" style="font-size:10px;">${t.exchange || '—'}</span></td>
@@ -786,6 +818,10 @@ function fetchTradeHistory() {
             </tr>`;
         }).join('');
 
+        // Set select-all state based on new count
+        const selAll = document.getElementById('thSelectAll');
+        if (selAll) selAll.checked = newCount > 0;
+
         document.getElementById('thResults').style.display = 'block';
     })
     .catch(err => {
@@ -793,6 +829,86 @@ function fetchTradeHistory() {
         document.getElementById('thFetchBtn').disabled = false;
         document.getElementById('thError').textContent = 'Network error: ' + err.message;
         document.getElementById('thError').style.display    = 'block';
+    });
+}
+
+function toggleSelectAll(checked) {
+    document.querySelectorAll('.th-row-check:not(:disabled)').forEach(cb => cb.checked = checked);
+}
+
+function _getSelectedTrades() {
+    const selected = [];
+    document.querySelectorAll('.th-row-check:checked:not(:disabled)').forEach(cb => {
+        const idx = parseInt(cb.dataset.idx);
+        if (window._thFetchedTrades[idx]) selected.push(window._thFetchedTrades[idx]);
+    });
+    return selected;
+}
+
+function importSelectedTrades() {
+    const trades = _getSelectedTrades();
+    if (!trades.length) { alert('No new trades selected.'); return; }
+    _doImport(trades);
+}
+
+function importAllTrades() {
+    const newTrades = (window._thFetchedTrades || []).filter(t => !window._thAlreadyImportedIds.has(t.trade_id));
+    if (!newTrades.length) { alert('All trades in this fetch are already imported.'); return; }
+    _doImport(newTrades);
+}
+
+function _doImport(trades) {
+    const brokerId = document.getElementById('thBrokerId').value;
+    const resultEl = document.getElementById('thImportResult');
+    resultEl.className = 'alert alert-secondary mb-3';
+    resultEl.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Importing…';
+    resultEl.style.display = 'block';
+
+    ['thImportSelectedBtn','thImportAllBtn'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = true;
+    });
+
+    fetch(`/api/broker/import-trades/${brokerId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trades })
+    })
+    .then(r => r.json())
+    .then(data => {
+        ['thImportSelectedBtn','thImportAllBtn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = false;
+        });
+        if (data.success) {
+            resultEl.className = 'alert alert-success mb-3';
+            resultEl.innerHTML = `<i class="fas fa-check-circle me-2"></i>${data.message}`;
+            // Mark newly imported rows as imported in UI
+            trades.forEach(t => {
+                if (t.trade_id) window._thAlreadyImportedIds.add(t.trade_id);
+            });
+            // Refresh row status visuals
+            (window._thFetchedTrades || []).forEach((t, idx) => {
+                if (!window._thAlreadyImportedIds.has(t.trade_id)) return;
+                const row = document.getElementById(`th-row-${idx}`);
+                const cb  = document.querySelector(`.th-row-check[data-idx="${idx}"]`);
+                if (row) { row.className = 'table-light text-muted'; }
+                if (cb)  { cb.checked = false; cb.disabled = true; }
+                const statusCell = row ? row.cells[1] : null;
+                if (statusCell) statusCell.innerHTML = `<span class="badge bg-success" style="font-size:10px;"><i class="fas fa-check me-1"></i>Imported</span>`;
+            });
+        } else {
+            resultEl.className = 'alert alert-danger mb-3';
+            resultEl.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i>${data.message}`;
+        }
+    })
+    .catch(err => {
+        ['thImportSelectedBtn','thImportAllBtn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = false;
+        });
+        resultEl.className = 'alert alert-danger mb-3';
+        resultEl.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i>Network error: ${err.message}`;
     });
 }
 </script>

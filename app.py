@@ -341,6 +341,9 @@ with app.app_context():
         )''',
         'ALTER TABLE manual_mutual_fund_holdings ADD COLUMN IF NOT EXISTS platform_name VARCHAR(100)',
         'ALTER TABLE manual_commodity_holdings ADD COLUMN IF NOT EXISTS platform_name VARCHAR(100)',
+        'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS external_trade_id VARCHAR(100)',
+        'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS transaction_type VARCHAR(10)',
+        'CREATE INDEX IF NOT EXISTS ix_manual_trade_imports_external_trade_id ON manual_trade_imports (external_trade_id)',
     ]
     try:
         with db.engine.connect() as _conn:

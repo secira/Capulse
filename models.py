@@ -1976,6 +1976,8 @@ class ManualTradeImport(db.Model):
     instrument_detail = db.Column(db.String(100), default='')  # e.g. "NIFTY CE 22700 07APR2026"
     source = db.Column(db.String(20), default='csv_upload')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    external_trade_id = db.Column(db.String(100), nullable=True, index=True)  # broker trade_id for dedup
+    transaction_type = db.Column(db.String(10), nullable=True)  # BUY / SELL
 
     user = db.relationship('User', backref='manual_trade_imports')
 

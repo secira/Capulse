@@ -10,6 +10,7 @@ from models_broker import (
     BrokerType, ConnectionStatus, OrderStatus, TransactionType,
     ProductType, OrderType
 )
+from models import ManualTradeImport
 from services.broker_service import BrokerService, BrokerAPIError
 from datetime import datetime
 import logging
@@ -479,6 +480,16 @@ def api_broker_trade_history(account_id):
                 row['trade_date'] = row['trade_date'].strftime('%d %b %Y %H:%M')
             serialised.append(row)
 
+        # Check which trade_ids are already imported for this user
+        all_ext_ids_in_result = [t.get('trade_id') for t in serialised if t.get('trade_id')]
+        already_imported = set()
+        if all_ext_ids_in_result:
+            rows = ManualTradeImport.query.filter(
+                ManualTradeImport.user_id == current_user.id,
+                ManualTradeImport.external_trade_id.in_(all_ext_ids_in_result),
+            ).with_entities(ManualTradeImport.external_trade_id).all()
+            already_imported = {r.external_trade_id for r in rows}
+
         return jsonify({
             'success': True,
             'broker_name': str(broker_account.broker_name),
@@ -486,6 +497,7 @@ def api_broker_trade_history(account_id):
             'to_date': to_date_str,
             'trade_count': len(serialised),
             'trades': serialised,
+            'already_imported_ids': list(already_imported),
         })
 
     except BrokerAPIError as e:
@@ -494,6 +506,117 @@ def api_broker_trade_history(account_id):
     except Exception as e:
         logger.error(f"Error fetching trade history: {e}", exc_info=True)
         return jsonify({'success': False, 'message': f'Failed to fetch trade history: {str(e)}'}), 500
+
+
+@app.route('/api/broker/import-trades/<int:account_id>', methods=['POST'])
+@login_required
+def api_broker_import_trades(account_id):
+    """Import selected broker trades into ManualTradeImport for Behavioural AI analysis.
+    Trades are deduplicated by external_trade_id per user."""
+    try:
+        broker_account = BrokerAccount.query.filter_by(
+            id=account_id,
+            user_id=current_user.id,
+        ).first()
+        if not broker_account:
+            return jsonify({'success': False, 'message': 'Broker account not found'}), 404
+
+        body = request.get_json() or {}
+        trades = body.get('trades', [])
+        if not trades:
+            return jsonify({'success': False, 'message': 'No trades provided'}), 400
+
+        # Fetch already-imported trade IDs for this user (avoid hitting DB per row)
+        ext_ids_incoming = [t.get('trade_id') for t in trades if t.get('trade_id')]
+        existing_ids = set()
+        if ext_ids_incoming:
+            rows = ManualTradeImport.query.filter(
+                ManualTradeImport.user_id == current_user.id,
+                ManualTradeImport.external_trade_id.in_(ext_ids_incoming),
+            ).with_entities(ManualTradeImport.external_trade_id).all()
+            existing_ids = {r.external_trade_id for r in rows}
+
+        imported_count = 0
+        skipped_count = 0
+        tenant_id = getattr(current_user, 'tenant_id', 'live') or 'live'
+
+        for t in trades:
+            trade_id = t.get('trade_id') or ''
+
+            # Skip duplicates
+            if trade_id and trade_id in existing_ids:
+                skipped_count += 1
+                continue
+
+            # Parse trade date — stored as formatted string from the fetch endpoint
+            raw_date = t.get('trade_date') or ''
+            trade_dt = None
+            for fmt in ('%d %b %Y %H:%M', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d'):
+                try:
+                    trade_dt = datetime.strptime(raw_date, fmt)
+                    break
+                except ValueError:
+                    continue
+            if not trade_dt:
+                trade_dt = datetime.utcnow()
+
+            price = float(t.get('price') or 0.0)
+            qty   = int(float(t.get('quantity') or 0))
+            tx    = (t.get('transaction_type') or '').upper()
+            sym   = (t.get('trading_symbol') or t.get('symbol') or '').strip()
+            exch  = (t.get('exchange') or '').strip()
+            prod  = (t.get('product_type') or '').strip()
+
+            # Determine asset type from exchange / symbol
+            if exch in ('NFO', 'BFO', 'MCX'):
+                asset_type = 'FUTURES' if ('FUT' in sym.upper()) else 'OPTION'
+            elif exch in ('CDS',):
+                asset_type = 'FUTURES'
+            else:
+                asset_type = 'STOCK'
+
+            # For single-leg imports we cannot compute real PnL.
+            # Store with 0 PnL so Behavioural AI can analyse timing / frequency patterns.
+            record = ManualTradeImport(
+                tenant_id=tenant_id,
+                user_id=current_user.id,
+                symbol=sym or 'UNKNOWN',
+                strategy_name='Broker Import',
+                quantity=qty,
+                entry_price=price,
+                exit_price=price,
+                realized_pnl=0.0,
+                pnl_percentage=0.0,
+                holding_period_hours=0.0,
+                trade_result='BREAKEVEN',
+                exit_reason='BROKER',
+                broker_name=str(broker_account.broker_name),
+                total_charges=0.0,
+                net_pnl=0.0,
+                entry_time=trade_dt,
+                exit_time=trade_dt,
+                asset_type=asset_type,
+                instrument_detail=f"{exch} {prod}".strip(),
+                source='broker_import',
+                external_trade_id=trade_id or None,
+                transaction_type=tx or None,
+            )
+            db.session.add(record)
+            imported_count += 1
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'imported': imported_count,
+            'skipped': skipped_count,
+            'message': f'{imported_count} trade(s) imported, {skipped_count} duplicate(s) skipped.',
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error importing trades: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'Import failed: {str(e)}'}), 500
 
 
 @app.route('/api/broker/remove-account/<int:account_id>', methods=['DELETE'])
