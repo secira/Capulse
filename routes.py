@@ -1782,6 +1782,14 @@ def dashboard_trade_now():
     # Only support Equity, Mutual Funds, Futures and Options
     allowed_classes = ['stocks', 'equity', 'mutual_funds', 'futures', 'options', 'index_future', 'index_option']
     assets = [a for a in assets if a.get('asset_class', '').lower() in allowed_classes]
+
+    # Load Research Co-Pilot watchlist for the asset dropdown
+    from models import ResearchList
+    try:
+        research_assets = ResearchList.query.filter_by(is_active=True)\
+            .order_by(ResearchList.symbol).all()
+    except Exception:
+        research_assets = []
     
     # Get available strategies
     try:
@@ -1811,6 +1819,7 @@ def dashboard_trade_now():
                            primary_broker=primary_broker,
                            connected_brokers=connected_brokers,
                            assets=assets,
+                           research_assets=research_assets,
                            strategies=strategies,
                            risk_profile=risk_profile,
                            trade_portfolio_summary=trade_portfolio_summary,

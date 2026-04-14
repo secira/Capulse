@@ -107,22 +107,29 @@
                 <form id="tradeRecommendationForm">
                     <div class="row g-3">
                         <!-- Asset Selection -->
-                        <div class="col-md-6">
+                        <div class="col-12">
                             <label class="form-label fw-bold">Select Asset</label>
                             <select class="form-select" id="assetSelect" name="symbol" required>
-                                <option value="">Choose Asset...</option>
+                                <option value="">Search or choose an asset…</option>
+                                {% for r in research_assets %}
+                                <option value="{{ r.symbol }}"
+                                        data-asset-class="{{ r.asset_type }}"
+                                        data-price="{{ r.current_price or '' }}"
+                                        data-company="{{ r.company_name or r.symbol }}"
+                                        data-sector="{{ r.sector or '' }}"
+                                        data-iscore="{{ r.i_score or '' }}"
+                                        data-rec="{{ r.recommendation or '' }}">
+                                    {{ r.symbol }}{% if r.company_name %} — {{ r.company_name }}{% endif %}{% if r.recommendation %} ({{ r.recommendation | replace('_', ' ') }}){% endif %}
+                                </option>
+                                {% endfor %}
+                                {% if not research_assets %}
                                 {% for asset in assets %}
                                 <option value="{{ asset.symbol }}" data-asset-class="{{ asset.asset_class }}" data-price="{{ asset.current_price }}">
                                     {{ asset.symbol }} - {{ asset.company_name }} ({{ asset.asset_class.title() }})
                                 </option>
                                 {% endfor %}
+                                {% endif %}
                             </select>
-                        </div>
-                        
-                        <!-- Signal Source Information (Previously Strategy) -->
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Signal Source</label>
-                            <input type="text" class="form-control bg-light" id="signalSourceDisplay" readonly value="Manual Entry">
                             <input type="hidden" id="strategySelect" name="strategy_id" value="1">
                         </div>
                         
@@ -514,11 +521,22 @@ function prePopulateForm(urlParams) {
     const target    = urlParams.get('target');       // explicit target from a trading signal
     const target2   = urlParams.get('target_2');
     const target3   = urlParams.get('target_3');
-    const riskLevel = urlParams.get('risk_level');
-    const signalId  = urlParams.get('signal_id');
+    const riskLevel    = urlParams.get('risk_level');
+    const signalId     = urlParams.get('signal_id');
+    const productType  = urlParams.get('product_type');   // e.g. CNC from Equities page
 
     // ── 0. Show direction (BUY / SELL) banner ────────────────────────────────
     if (action) showActionDirectionBanner(action, script || symbol);
+
+    // ── 0a. Apply product type from URL (e.g. CNC when coming from Equities) ──
+    if (productType) {
+        const ptSel = document.querySelector('select[name="product_type"]');
+        if (ptSel) {
+            for (let opt of ptSel.options) {
+                if (opt.value === productType.toUpperCase()) { opt.selected = true; break; }
+            }
+        }
+    }
 
     // ── 0b. Market Order → zero out Target Price immediately ─────────────────
     handleOrderTypeChange(document.getElementById('orderTypeSelect')?.value || 'MARKET');
@@ -526,9 +544,11 @@ function prePopulateForm(urlParams) {
     // ── 1. Select the asset in the dropdown ──────────────────────────────────
     const assetSelect = document.getElementById('assetSelect');
     let dropdownPrice = null;
+    let found = false;
     for (let option of assetSelect.options) {
         if (option.value === symbol) {
             option.selected = true;
+            found = true;
             // Read the price stored on the option before firing change
             if (option.dataset.price && parseFloat(option.dataset.price) > 0) {
                 dropdownPrice = parseFloat(option.dataset.price);
@@ -536,6 +556,16 @@ function prePopulateForm(urlParams) {
             assetSelect.dispatchEvent(new Event('change'));
             break;
         }
+    }
+    // If symbol not in the list (e.g. came from Equities or Signals), inject it
+    if (!found && symbol) {
+        const opt = document.createElement('option');
+        opt.value = symbol;
+        opt.text  = symbol + (script && script !== symbol ? ' — ' + script : '');
+        opt.dataset.price = price || '';
+        opt.selected = true;
+        assetSelect.insertBefore(opt, assetSelect.options[1]);
+        assetSelect.dispatchEvent(new Event('change'));
     }
 
     // ── 2. Signal-provided entry price (from source screen) ──────────────────
