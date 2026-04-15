@@ -179,7 +179,16 @@ def run_scan(app):
             analysis = engine.generate_analysis()
 
         if not analysis:
+            logger.warning("F&O scan: engine returned no analysis")
             return
+
+        logger.info(
+            f"F&O scan: spot={analysis.get('spot_price', 0):.2f} "
+            f"dir={analysis.get('trade_direction', 'N/A')} "
+            f"conf={analysis.get('confidence', 0)} "
+            f"mode={analysis.get('entry_mode', 'N/A')} "
+            f"src={analysis.get('data_source', 'N/A')}"
+        )
 
         analysis['signal_type'] = 'SCAN'
         alert_sent = False
@@ -196,10 +205,7 @@ def run_scan(app):
                     logger.info(f"F&O alert #{_daily_signal_count} sent: {analysis.get('trade_direction')} conf={analysis.get('confidence')}")
 
         analysis['alert_sent'] = alert_sent
-
-        confidence = analysis.get('confidence', 0)
-        if confidence >= 60 or alert_sent:
-            _save_signal_to_db(app, analysis)
+        _save_signal_to_db(app, analysis)
 
     except Exception as e:
         logger.error(f"F&O monitor scan error: {e}")
