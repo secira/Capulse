@@ -5372,25 +5372,30 @@ def api_trade_execute_signal():
             err_str = str(broker_error)
             logger.error(f"Broker execution error: {err_str}")
 
-            # Detect Dhan "Invalid IP" — token was generated before IP whitelist was saved
-            if 'Invalid IP' in err_str or 'invalid ip' in err_str.lower():
+            if 'Invalid IP' in err_str or 'invalid ip' in err_str.lower() or 'DH-905' in err_str:
                 import requests as _req
                 try:
                     server_ip = _req.get('https://api.ipify.org', timeout=3).text.strip()
                 except Exception:
-                    server_ip = '34.23.50.247'
+                    server_ip = 'unknown'
                 return jsonify({
                     'success': False,
                     'error': (
                         f'Dhan Order API rejected: Invalid IP (DH-905)\n\n'
-                        f'Our server IP ({server_ip}) is whitelisted in Dhan, '
-                        f'but your stored Access Token was generated BEFORE the whitelist was saved — '
-                        f'Dhan embeds the IP permission into the token at generation time.\n\n'
-                        f'Fix (takes 1 minute):\n'
-                        f'1. Go to Dhan → DhanHQ APIs → click "Generate" next to your app\n'
-                        f'2. Copy the new Access Token\n'
-                        f'3. Update it in Target Capital → Broker Settings → Edit Dhan\n\n'
-                        f'Then try your trade again.'
+                        f'Server IP detected: {server_ip}\n\n'
+                        f'Dhan embeds allowed IPs into the Access Token at generation time. '
+                        f'To fix this:\n\n'
+                        f'1. Go to Dhan → DhanHQ APIs → your app settings\n'
+                        f'2. In the IP Whitelist, add ALL of these IPs:\n'
+                        f'   {server_ip}\n'
+                        f'   35.231.251.64\n'
+                        f'   34.23.50.247\n'
+                        f'   (Replit may use any of these for outbound calls)\n'
+                        f'3. Save the whitelist\n'
+                        f'4. Click "Generate" to create a NEW Access Token\n'
+                        f'   (token must be generated AFTER saving the whitelist)\n'
+                        f'5. Copy the new token → Target Capital → Broker Settings → Edit Dhan\n\n'
+                        f'Important: The token must be generated AFTER all IPs are whitelisted.'
                     ),
                     'broker_settings_url': '/dashboard/broker-accounts'
                 }), 403

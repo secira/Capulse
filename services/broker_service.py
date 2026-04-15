@@ -234,12 +234,32 @@ class DhanBrokerClient(BaseBrokerClient):
             raise BrokerAPIError("Not connected to Dhan")
         
         try:
-            # Convert our order format to Dhan format
             dhan_order = self._convert_to_dhan_order(order_data)
             logger.info(f"Dhan place_order payload: {dhan_order}")
+
+            import requests as _req
+            try:
+                outbound_ip = _req.get('https://api.ipify.org', timeout=3).text.strip()
+            except Exception:
+                outbound_ip = 'unknown'
+            logger.info(f"Dhan order outbound IP at execution time: {outbound_ip}")
+
             result = self._client.place_order(**dhan_order)
             logger.info(f"Dhan place_order response: {result}")
+
+            if isinstance(result, dict) and result.get('status') == 'failure':
+                error_msg = result.get('remarks', {})
+                error_code = result.get('errorCode', '')
+                if 'Invalid IP' in str(error_msg) or 'Invalid IP' in str(error_code) or error_code == 'DH-905':
+                    raise BrokerAPIError(
+                        f"Invalid IP (DH-905). Outbound IP: {outbound_ip}. "
+                        f"Dhan response: {result}"
+                    )
+                raise BrokerAPIError(f"Dhan order failed: {error_msg} (code: {error_code})")
+
             return self._normalize_order_response(result)
+        except BrokerAPIError:
+            raise
         except Exception as e:
             logger.error(f"Error placing Dhan order: {e}")
             raise BrokerAPIError(f"Failed to place order: {e}")
