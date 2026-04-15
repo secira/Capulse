@@ -15,11 +15,18 @@
 
 {% block dashboard_content %}
 
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div></div>
+    <a href="{{ url_for('dashboard_data_api_broker') }}" class="btn btn-info">
+        <i class="fas fa-database me-2"></i>Data API Broker
+    </a>
+</div>
+
 <!-- All Brokers List -->
 <div class="card shadow-sm">
     <div class="card-header bg-white border-bottom">
         <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="fas fa-building me-2"></i>All Supported Brokers</h5>
+            <h5 class="mb-0"><i class="fas fa-building me-2"></i>Trading Brokers</h5>
             <small class="text-muted">
                 <span class="badge bg-success">8 Active</span>
             </small>
@@ -30,11 +37,10 @@
             <table class="table table-hover mb-0 broker-table">
                 <thead class="table-light">
                     <tr>
-                        <th width="30%">Broker</th>
-                        <th width="12%" class="text-center">Status</th>
-                        <th width="12%" class="text-center">Connection</th>
-                        <th width="18%" class="text-center">Role</th>
-                        <th width="28%" class="text-end">Actions</th>
+                        <th width="40%">Broker</th>
+                        <th width="15%" class="text-center">Status</th>
+                        <th width="15%" class="text-center">Connection</th>
+                        <th width="30%" class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -83,37 +89,6 @@
                             <span class="badge bg-light text-dark">
                                 <i class="fas fa-minus-circle me-1"></i>Not Added
                             </span>
-                            {% endif %}
-                        </td>
-                        
-                        <td class="text-center">
-                            {% if broker.account and broker.account.connection_status == 'connected' %}
-                                <div class="d-flex flex-column gap-1 align-items-center">
-                                    {% if broker.account.is_primary %}
-                                        <span class="badge bg-primary w-100" style="max-width:120px;">
-                                            <i class="fas fa-star me-1"></i>Primary
-                                        </span>
-                                    {% else %}
-                                        <button class="btn btn-outline-primary btn-sm w-100" style="max-width:120px; font-size:0.75rem;"
-                                                onclick="setPrimaryBroker({{ broker.account.id }})">
-                                            <i class="fas fa-star me-1"></i>Set Primary
-                                        </button>
-                                    {% endif %}
-                                    {% if broker.account.is_data_broker %}
-                                        <span class="badge bg-info w-100" style="max-width:120px;">
-                                            <i class="fas fa-database me-1"></i>Data API ✓
-                                        </span>
-                                    {% else %}
-                                        <button class="btn btn-outline-info btn-sm w-100" style="max-width:120px; font-size:0.75rem;"
-                                                onclick="setDataBroker({{ broker.account.id }})">
-                                            <i class="fas fa-database me-1"></i>Set Data API
-                                        </button>
-                                    {% endif %}
-                                </div>
-                            {% elif broker.account %}
-                                <span class="text-muted small">Connect first</span>
-                            {% else %}
-                                <span class="text-muted small">—</span>
                             {% endif %}
                         </td>
                         

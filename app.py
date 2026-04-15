@@ -378,6 +378,20 @@ with app.app_context():
             created_at TIMESTAMP DEFAULT NOW()
         )''',
         'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS is_data_broker BOOLEAN DEFAULT FALSE',
+        '''CREATE TABLE IF NOT EXISTS data_api_broker (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES "user"(id),
+            broker_type VARCHAR(50) NOT NULL,
+            broker_name VARCHAR(100) NOT NULL,
+            api_key TEXT,
+            access_token TEXT,
+            api_secret TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            connection_status VARCHAR(20) DEFAULT 'disconnected',
+            last_connected TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )''',
     ]
     try:
         with db.engine.connect() as _conn:

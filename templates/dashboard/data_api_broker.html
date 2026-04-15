@@ -1,0 +1,255 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block title %}Data API Broker - Target Capital{% endblock %}
+{% block dashboard_title %}Data API Broker{% endblock %}
+{% block dashboard_subtitle %}Configure a broker for live market data (option chain, prices). This is separate from your trading brokers.{% endblock %}
+
+{% block dashboard_content %}
+<div class="container-fluid px-0">
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+
+            {% if data_broker %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-database me-2 text-info"></i>Active Data API Broker</h5>
+                        <span class="badge bg-{{ 'success' if data_broker.connection_status == 'connected' else 'warning' }}">
+                            {{ data_broker.connection_status | title }}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                                     style="width:48px;height:48px;background:#0f766e;font-size:1.1rem;">
+                                    {{ data_broker.broker_name[0] }}
+                                </div>
+                                <div>
+                                    <h5 class="mb-0 fw-bold">{{ data_broker.broker_name }}</h5>
+                                    <small class="text-muted">
+                                        Client ID: {{ masked_creds.client_id if masked_creds else '***' }}
+                                        &middot;
+                                        Token: {% if masked_creds and masked_creds.has_access_token %}✓{% else %}✗{% endif %}
+                                        {% if masked_creds and masked_creds.has_api_secret %}
+                                        &middot; Secret: ✓
+                                        {% endif %}
+                                    </small>
+                                    {% if data_broker.last_connected %}
+                                    <br><small class="text-muted">Last connected: {{ data_broker.last_connected.strftime('%d %b %Y, %I:%M %p') }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-md-end mt-3 mt-md-0">
+                            <button class="btn btn-outline-success btn-sm me-2" onclick="testConnection()">
+                                <i class="fas fa-plug me-1"></i>Test Connection
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm me-2" onclick="showChangeForm()">
+                                <i class="fas fa-edit me-1"></i>Update
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="removeDataBroker()">
+                                <i class="fas fa-trash me-1"></i>Remove
+                            </button>
+                        </div>
+                    </div>
+                    <div id="testResult" class="mt-3" style="display:none;"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card shadow-sm" id="setupCard" {% if data_broker %}style="display:none;"{% endif %}>
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0"><i class="fas fa-plus-circle me-2 text-primary"></i>
+                        {% if data_broker %}Update Data API Broker{% else %}Set Up Data API Broker{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Select Broker</label>
+                        <div class="row g-2">
+                            {% for b in supported_brokers %}
+                            <div class="col-6 col-md-3">
+                                <div class="broker-select-card p-3 rounded-3 border text-center"
+                                     style="cursor:pointer;transition:all 0.2s;"
+                                     onclick="selectBroker('{{ b.key }}', '{{ b.name }}')"
+                                     id="broker-card-{{ b.key }}">
+                                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center text-white fw-bold mb-2"
+                                         style="width:40px;height:40px;background:{{ b.color }};">
+                                        {{ b.name[0] }}
+                                    </div>
+                                    <div class="small fw-semibold">{{ b.name }}</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div id="credentialFields" style="display:none;">
+                        <h6 class="fw-semibold mb-3" id="selectedBrokerLabel">Enter Credentials</h6>
+                        <div id="dynamicFields"></div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-primary" onclick="saveDataBroker()">
+                                <i class="fas fa-save me-1"></i>Save Data API Broker
+                            </button>
+                            {% if data_broker %}
+                            <button class="btn btn-outline-secondary" onclick="hideChangeForm()">Cancel</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2 text-info"></i>How it works</h6>
+                </div>
+                <div class="card-body">
+                    <div class="small">
+                        <p><strong>Data API Broker</strong> is used only for fetching live market data — option chain, spot prices, and quotes.</p>
+                        <p>This is completely separate from your <strong>Trading Brokers</strong> which handle order placement and portfolio sync.</p>
+                        <hr>
+                        <p class="mb-2"><i class="fas fa-check text-success me-2"></i>One data broker for market data</p>
+                        <p class="mb-2"><i class="fas fa-check text-success me-2"></i>Multiple trading brokers for orders</p>
+                        <p class="mb-2"><i class="fas fa-check text-success me-2"></i>Credentials are encrypted</p>
+                        <p class="mb-0"><i class="fas fa-check text-success me-2"></i>F&O engine uses this automatically</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0"><i class="fas fa-star me-2 text-warning"></i>Recommended Brokers</h6>
+                </div>
+                <div class="card-body">
+                    <div class="small">
+                        <p class="mb-2"><strong>Dhan</strong> — Best option chain API. Fast and reliable.</p>
+                        <p class="mb-2"><strong>Fyers</strong> — Good data API with direct chain support.</p>
+                        <p class="mb-2"><strong>Upstox</strong> — Full option chain with greeks.</p>
+                        <p class="mb-0"><strong>Angel One</strong> — Wide market data coverage.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.broker-select-card:hover {
+    border-color: #0d6efd !important;
+    background: #f0f7ff;
+}
+.broker-select-card.selected {
+    border-color: #0d6efd !important;
+    background: #e7f1ff;
+    box-shadow: 0 0 0 2px #0d6efd;
+}
+</style>
+
+<script>
+var selectedBrokerKey = '';
+var brokerFields = {{ supported_brokers | tojson }};
+
+function selectBroker(key, name) {
+    selectedBrokerKey = key;
+    document.querySelectorAll('.broker-select-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById('broker-card-' + key).classList.add('selected');
+    document.getElementById('selectedBrokerLabel').textContent = name + ' — Enter Credentials';
+
+    var broker = brokerFields.find(b => b.key === key);
+    var html = '';
+    if (broker) {
+        broker.fields.forEach(function(f) {
+            html += '<div class="mb-3">';
+            html += '<label class="form-label small fw-semibold">' + f.label + '</label>';
+            html += '<input type="password" class="form-control" id="field-' + f.id + '" placeholder="' + f.placeholder + '">';
+            html += '</div>';
+        });
+    }
+    document.getElementById('dynamicFields').innerHTML = html;
+    document.getElementById('credentialFields').style.display = 'block';
+}
+
+function saveDataBroker() {
+    if (!selectedBrokerKey) {
+        alert('Please select a broker first.');
+        return;
+    }
+    var payload = { broker_type: selectedBrokerKey };
+    var broker = brokerFields.find(b => b.key === selectedBrokerKey);
+    broker.fields.forEach(function(f) {
+        var val = document.getElementById('field-' + f.id).value.trim();
+        payload[f.id] = val;
+    });
+
+    if (!payload.client_id || !payload.access_token) {
+        alert('Client ID and Access Token are required.');
+        return;
+    }
+
+    fetch('/api/data-api-broker/save', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(err => alert('Failed to save: ' + err));
+}
+
+function testConnection() {
+    var resultDiv = document.getElementById('testResult');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div class="alert alert-info mb-0"><i class="fas fa-spinner fa-spin me-2"></i>Testing connection...</div>';
+
+    fetch('/api/data-api-broker/test', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.innerHTML = '<div class="alert alert-success mb-0"><i class="fas fa-check-circle me-2"></i>' + data.message + '</div>';
+        } else {
+            resultDiv.innerHTML = '<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-2"></i>' + data.message + '</div>';
+        }
+    })
+    .catch(err => {
+        resultDiv.innerHTML = '<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-2"></i>Connection test failed.</div>';
+    });
+}
+
+function showChangeForm() {
+    document.getElementById('setupCard').style.display = 'block';
+    document.getElementById('setupCard').scrollIntoView({behavior: 'smooth'});
+}
+
+function hideChangeForm() {
+    document.getElementById('setupCard').style.display = 'none';
+}
+
+function removeDataBroker() {
+    if (!confirm('Remove your Data API broker? F&O engine will fall back to estimated data.')) return;
+    fetch('/api/data-api-broker/remove', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(err => alert('Failed to remove: ' + err));
+}
+</script>
+{% endblock %}

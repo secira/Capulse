@@ -172,7 +172,7 @@ def _get_data_broker_user_id():
     try:
         from app import db
         result = db.session.execute(
-            db.text("SELECT user_id FROM broker_accounts WHERE is_data_broker = true AND connection_status = 'connected' LIMIT 1")
+            db.text("SELECT user_id FROM data_api_broker WHERE is_active = true AND connection_status = 'connected' LIMIT 1")
         ).fetchone()
         if result:
             return result[0]

@@ -24,7 +24,10 @@
     <span>We use official broker OAuth APIs — <strong>your password is never stored.</strong> Read-only access unless you explicitly place a trade.</span>
   </div>
 
-  <div class="d-flex justify-content-end mb-3">
+  <div class="d-flex justify-content-end gap-2 mb-3">
+    <a href="{{ url_for('dashboard_data_api_broker') }}" class="btn btn-info">
+      <i class="fas fa-database me-2"></i>Data API Broker
+    </a>
     <a href="{{ url_for('dashboard_broker_accounts') }}" class="btn btn-outline-primary">
       <i class="fas fa-cogs me-2"></i>Broker Management
     </a>

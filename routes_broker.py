@@ -8,7 +8,7 @@ from app import app, db, csrf
 from models_broker import (
     BrokerAccount, BrokerHolding, BrokerPosition, BrokerOrder,
     BrokerType, ConnectionStatus, OrderStatus, TransactionType,
-    ProductType, OrderType
+    ProductType, OrderType, DataApiBroker
 )
 from models import ManualTradeImport
 from services.broker_service import BrokerService, BrokerAPIError
@@ -765,6 +765,185 @@ def api_set_data_broker(account_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error setting data broker: {e}")
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
+
+@app.route('/dashboard/data-api-broker')
+@login_required
+def dashboard_data_api_broker():
+    data_broker = DataApiBroker.query.filter_by(
+        user_id=current_user.id, is_active=True
+    ).first()
+
+    supported_brokers = [
+        {'key': 'dhan', 'name': 'Dhan', 'color': '#0f766e',
+         'fields': [
+             {'id': 'client_id', 'label': 'Client ID', 'placeholder': 'Your Dhan Client ID'},
+             {'id': 'access_token', 'label': 'Access Token', 'placeholder': 'Your Dhan Access Token'},
+         ]},
+        {'key': 'fyers', 'name': 'Fyers', 'color': '#2563eb',
+         'fields': [
+             {'id': 'client_id', 'label': 'App ID', 'placeholder': 'Your Fyers App ID'},
+             {'id': 'access_token', 'label': 'Access Token', 'placeholder': 'Your Fyers Access Token'},
+         ]},
+        {'key': 'upstox', 'name': 'Upstox', 'color': '#5a3fc0',
+         'fields': [
+             {'id': 'client_id', 'label': 'API Key', 'placeholder': 'Your Upstox API Key'},
+             {'id': 'access_token', 'label': 'Access Token', 'placeholder': 'Your Upstox Access Token'},
+             {'id': 'api_secret', 'label': 'API Secret', 'placeholder': 'Your Upstox API Secret'},
+         ]},
+        {'key': 'angel_broking', 'name': 'Angel One', 'color': '#e03c31',
+         'fields': [
+             {'id': 'client_id', 'label': 'Client ID', 'placeholder': 'Your Angel One Client ID'},
+             {'id': 'access_token', 'label': 'JWT Token', 'placeholder': 'Your Angel One JWT Token'},
+             {'id': 'api_secret', 'label': 'API Key', 'placeholder': 'Your Angel One API Key'},
+         ]},
+        {'key': '5paisa', 'name': '5 Paisa', 'color': '#e65100',
+         'fields': [
+             {'id': 'client_id', 'label': 'Client Code', 'placeholder': 'Your 5 Paisa Client Code'},
+             {'id': 'access_token', 'label': 'Access Token', 'placeholder': 'Your 5 Paisa Access Token'},
+             {'id': 'api_secret', 'label': 'Encryption Key', 'placeholder': 'Your 5 Paisa Encryption Key'},
+         ]},
+        {'key': 'zerodha', 'name': 'Zerodha', 'color': '#387ed1',
+         'fields': [
+             {'id': 'client_id', 'label': 'API Key', 'placeholder': 'Your Zerodha API Key'},
+             {'id': 'access_token', 'label': 'Access Token', 'placeholder': 'Your Zerodha Access Token'},
+             {'id': 'api_secret', 'label': 'API Secret', 'placeholder': 'Your Zerodha API Secret'},
+         ]},
+        {'key': 'shoonya', 'name': 'Shoonya (Finvasia)', 'color': '#16a34a',
+         'fields': [
+             {'id': 'client_id', 'label': 'User ID', 'placeholder': 'Your Shoonya User ID'},
+             {'id': 'access_token', 'label': 'SUSERTOKEN', 'placeholder': 'Your Shoonya Session Token'},
+             {'id': 'api_secret', 'label': 'Vendor Code', 'placeholder': 'Your Shoonya Vendor Code'},
+         ]},
+        {'key': 'alice_blue', 'name': 'Alice Blue', 'color': '#1e3a8a',
+         'fields': [
+             {'id': 'client_id', 'label': 'User ID', 'placeholder': 'Your Alice Blue User ID'},
+             {'id': 'access_token', 'label': 'API Key', 'placeholder': 'Your Alice Blue API Key'},
+             {'id': 'api_secret', 'label': 'API Secret', 'placeholder': 'Your Alice Blue API Secret'},
+         ]},
+    ]
+
+    masked_creds = None
+    if data_broker:
+        creds = data_broker.get_credentials()
+        cid = creds.get('client_id') or ''
+        masked_creds = {
+            'client_id': cid[:3] + '***' + cid[-2:] if len(cid) > 5 else '***',
+            'has_access_token': bool(creds.get('access_token')),
+            'has_api_secret': bool(creds.get('api_secret')),
+        }
+
+    return render_template('dashboard/data_api_broker.html',
+                           data_broker=data_broker,
+                           supported_brokers=supported_brokers,
+                           masked_creds=masked_creds)
+
+
+@app.route('/api/data-api-broker/save', methods=['POST'])
+@login_required
+def api_save_data_api_broker():
+    try:
+        data = request.get_json()
+        broker_type = data.get('broker_type', '').strip()
+        client_id = data.get('client_id', '').strip()
+        access_token = data.get('access_token', '').strip()
+        api_secret = data.get('api_secret', '').strip()
+
+        if not broker_type or not client_id or not access_token:
+            return jsonify({'success': False, 'message': 'Broker type, Client ID, and Access Token are required'}), 400
+
+        broker_names = {
+            'dhan': 'Dhan', 'fyers': 'Fyers', 'upstox': 'Upstox',
+            'angel_broking': 'Angel One', '5paisa': '5 Paisa',
+            'zerodha': 'Zerodha', 'shoonya': 'Shoonya', 'alice_blue': 'Alice Blue',
+        }
+        broker_name = broker_names.get(broker_type, broker_type.title())
+
+        existing = DataApiBroker.query.filter_by(user_id=current_user.id, is_active=True).first()
+        if existing:
+            existing.broker_type = broker_type
+            existing.broker_name = broker_name
+            existing.set_credentials(client_id, access_token, api_secret if api_secret else None)
+            existing.connection_status = 'connected'
+            existing.last_connected = datetime.utcnow()
+            db.session.commit()
+            return jsonify({'success': True, 'message': f'{broker_name} saved as Data API broker'})
+        else:
+            new_broker = DataApiBroker(
+                user_id=current_user.id,
+                broker_type=broker_type,
+                broker_name=broker_name,
+                is_active=True,
+                connection_status='connected',
+                last_connected=datetime.utcnow(),
+            )
+            new_broker.set_credentials(client_id, access_token, api_secret if api_secret else None)
+            db.session.add(new_broker)
+            db.session.commit()
+            return jsonify({'success': True, 'message': f'{broker_name} saved as Data API broker'})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error saving data API broker: {e}")
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
+
+@app.route('/api/data-api-broker/test', methods=['POST'])
+@login_required
+def api_test_data_api_broker():
+    try:
+        data_broker = DataApiBroker.query.filter_by(
+            user_id=current_user.id, is_active=True
+        ).first()
+        if not data_broker:
+            return jsonify({'success': False, 'message': 'No Data API broker configured'})
+
+        from services.broker_factory import get_broker
+        creds = data_broker.get_credentials()
+        broker = get_broker(data_broker.broker_type, creds)
+        if not broker:
+            return jsonify({'success': False, 'message': f'Failed to initialize {data_broker.broker_name} adapter'})
+
+        if not broker.connect():
+            data_broker.connection_status = 'disconnected'
+            db.session.commit()
+            return jsonify({'success': False, 'message': f'{data_broker.broker_name} connection failed. Check credentials.'})
+
+        spot = broker.get_price("NIFTY")
+        if spot and spot > 0:
+            data_broker.connection_status = 'connected'
+            data_broker.last_connected = datetime.utcnow()
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'message': f'{data_broker.broker_name} connected! NIFTY spot: ₹{spot:,.2f}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'{data_broker.broker_name} connected but could not fetch NIFTY price. Data API may require additional permissions.'
+            })
+
+    except Exception as e:
+        logger.error(f"Data API broker test error: {e}")
+        return jsonify({'success': False, 'message': f'Test failed: {str(e)}'}), 500
+
+
+@app.route('/api/data-api-broker/remove', methods=['POST'])
+@login_required
+def api_remove_data_api_broker():
+    try:
+        existing = DataApiBroker.query.filter_by(user_id=current_user.id, is_active=True).first()
+        if existing:
+            existing.is_active = False
+            existing.connection_status = 'disconnected'
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Data API broker removed'})
+        return jsonify({'success': False, 'message': 'No Data API broker configured'}), 404
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error removing data API broker: {e}")
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 

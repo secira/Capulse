@@ -41,20 +41,12 @@ def get_broker(broker_name: str, credentials: Dict[str, str]) -> Optional[Broker
 def get_data_broker_for_user(user_id: int) -> Optional[BrokerBase]:
     try:
         from app import db
-        from models_broker import BrokerAccount
-        account = BrokerAccount.query.filter_by(
+        from models_broker import DataApiBroker
+        account = DataApiBroker.query.filter_by(
             user_id=user_id,
-            is_data_broker=True,
-            connection_status='connected',
             is_active=True,
+            connection_status='connected',
         ).first()
-
-        if not account:
-            account = BrokerAccount.query.filter_by(
-                user_id=user_id,
-                connection_status='connected',
-                is_active=True,
-            ).first()
 
         if not account:
             return None
@@ -62,7 +54,7 @@ def get_data_broker_for_user(user_id: int) -> Optional[BrokerBase]:
         creds = account.get_credentials()
         broker = get_broker(account.broker_type, creds)
         if broker:
-            logger.info(f"Data broker for user {user_id}: {account.broker_name} (id={account.id})")
+            logger.info(f"Data API broker for user {user_id}: {account.broker_name} (id={account.id})")
         return broker
     except Exception as e:
         logger.error(f"Failed to get data broker for user {user_id}: {e}")
