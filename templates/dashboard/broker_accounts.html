@@ -30,10 +30,11 @@
             <table class="table table-hover mb-0 broker-table">
                 <thead class="table-light">
                     <tr>
-                        <th width="40%">Broker</th>
-                        <th width="15%" class="text-center">Status</th>
-                        <th width="15%" class="text-center">Connection</th>
-                        <th width="30%" class="text-end">Actions</th>
+                        <th width="30%">Broker</th>
+                        <th width="12%" class="text-center">Status</th>
+                        <th width="12%" class="text-center">Connection</th>
+                        <th width="18%" class="text-center">Role</th>
+                        <th width="28%" class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -85,6 +86,37 @@
                             {% endif %}
                         </td>
                         
+                        <td class="text-center">
+                            {% if broker.account and broker.account.connection_status == 'connected' %}
+                                <div class="d-flex flex-column gap-1 align-items-center">
+                                    {% if broker.account.is_primary %}
+                                        <span class="badge bg-primary w-100" style="max-width:120px;">
+                                            <i class="fas fa-star me-1"></i>Primary
+                                        </span>
+                                    {% else %}
+                                        <button class="btn btn-outline-primary btn-sm w-100" style="max-width:120px; font-size:0.75rem;"
+                                                onclick="setPrimaryBroker({{ broker.account.id }})">
+                                            <i class="fas fa-star me-1"></i>Set Primary
+                                        </button>
+                                    {% endif %}
+                                    {% if broker.account.is_data_broker %}
+                                        <span class="badge bg-info w-100" style="max-width:120px;">
+                                            <i class="fas fa-database me-1"></i>Data API ✓
+                                        </span>
+                                    {% else %}
+                                        <button class="btn btn-outline-info btn-sm w-100" style="max-width:120px; font-size:0.75rem;"
+                                                onclick="setDataBroker({{ broker.account.id }})">
+                                            <i class="fas fa-database me-1"></i>Set Data API
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            {% elif broker.account %}
+                                <span class="text-muted small">Connect first</span>
+                            {% else %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                        
                         <!-- Action Buttons -->
                         <td class="text-end">
                             <div class="btn-group btn-group-sm" role="group">
@@ -117,20 +149,7 @@
                                         </button>
                                         {% endif %}
                                         
-                                        {% if broker.account.connection_status == 'connected' and not broker.account.is_primary %}
-                                        <button class="btn btn-outline-primary" 
-                                                onclick="setPrimaryBroker({{ broker.account.id }})"
-                                                title="Set as Primary for Trading">
-                                            <i class="fas fa-star"></i> Primary
-                                        </button>
-                                        {% endif %}
-                                        {% if broker.account.connection_status == 'connected' %}
-                                        <button class="btn {% if broker.account.is_data_broker %}btn-info{% else %}btn-outline-info{% endif %} btn-sm" 
-                                                onclick="setDataBroker({{ broker.account.id }})"
-                                                title="Use this broker's Data API for market data">
-                                            <i class="fas fa-database"></i> {% if broker.account.is_data_broker %}Data API ✓{% else %}Data API{% endif %}
-                                        </button>
-                                        {% endif %}
+                                        
                                     {% else %}
                                         <!-- Add button for brokers not yet added -->
                                         <button class="btn btn-outline-primary" 
