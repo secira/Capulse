@@ -31,6 +31,76 @@ class NiftyOptionsEngine:
         self.user_id = user_id
         self._broker_adapter = None
 
+    def _get_admin_data_plan(self) -> str:
+        try:
+            from app import db
+            result = db.session.execute(
+                db.text("SELECT plan_type FROM data_api_plan WHERE is_active = true LIMIT 1")
+            ).fetchone()
+            return result[0] if result else 'user_data'
+        except Exception:
+            return 'user_data'
+
+    def _get_truedata(self) -> tuple:
+        try:
+            from app import db
+            row = db.session.execute(
+                db.text("SELECT truedata_api_key, truedata_api_secret FROM data_api_plan WHERE is_active = true AND plan_type = 'nse_truedata' LIMIT 1")
+            ).fetchone()
+            if not row or not row[0]:
+                return None, None, None
+
+            api_key = row[0]
+            import requests
+            headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
+            spot_resp = requests.get(
+                'https://api.truedata.in/v1/getltp',
+                params={'symbol': 'NIFTY 50'},
+                headers=headers, timeout=10
+            )
+            if spot_resp.status_code != 200:
+                logger.warning(f"TrueData spot API returned {spot_resp.status_code}")
+                return None, None, None
+
+            spot_data = spot_resp.json()
+            spot = float(spot_data.get('ltp', 0) or spot_data.get('data', {}).get('ltp', 0))
+            if not spot or spot <= 0:
+                logger.warning("TrueData returned no spot price")
+                return None, None, None
+
+            chain_resp = requests.get(
+                'https://api.truedata.in/v1/optionchain',
+                params={'symbol': 'NIFTY'},
+                headers=headers, timeout=15
+            )
+            if chain_resp.status_code == 200:
+                chain_data = chain_resp.json()
+                records = chain_data.get('data', chain_data.get('optionchain', []))
+                if records:
+                    normalized = []
+                    for rec in records:
+                        normalized.append({
+                            'strike': rec.get('strike', rec.get('strikePrice', 0)),
+                            'call_ltp': rec.get('call_ltp', rec.get('CE', {}).get('ltp', 0)),
+                            'call_oi': rec.get('call_oi', rec.get('CE', {}).get('oi', 0)),
+                            'call_iv': rec.get('call_iv', rec.get('CE', {}).get('iv', 0)),
+                            'call_volume': rec.get('call_volume', rec.get('CE', {}).get('volume', 0)),
+                            'put_ltp': rec.get('put_ltp', rec.get('PE', {}).get('ltp', 0)),
+                            'put_oi': rec.get('put_oi', rec.get('PE', {}).get('oi', 0)),
+                            'put_iv': rec.get('put_iv', rec.get('PE', {}).get('iv', 0)),
+                            'put_volume': rec.get('put_volume', rec.get('PE', {}).get('volume', 0)),
+                        })
+                    from services.option_chain_builder import chain_to_engine_format
+                    engine_chain = chain_to_engine_format(normalized, spot)
+                    logger.info(f"✅ TrueData API: spot={spot:.2f}, chain_strikes={len(normalized)}")
+                    return float(spot), engine_chain, 'TrueData'
+
+            logger.warning("TrueData option chain empty or failed")
+            return None, None, None
+        except Exception as e:
+            logger.error(f"TrueData API error: {e}")
+            return None, None, None
+
     def _get_broker_data(self) -> tuple:
         if not self.user_id:
             return None, None, None
@@ -593,13 +663,24 @@ class NiftyOptionsEngine:
         next_chain = {}
         spot = None
 
-        broker_spot, broker_chain, broker_name = self._get_broker_data()
-        if broker_spot and broker_chain:
-            data_source = f'broker:{broker_name}'
-            spot = broker_spot
-            current_chain = broker_chain
-            next_chain = {}
-        else:
+        admin_plan = self._get_admin_data_plan()
+
+        if admin_plan == 'nse_truedata':
+            td_spot, td_chain, td_name = self._get_truedata()
+            if td_spot and td_chain:
+                data_source = f'broker:{td_name}'
+                spot = td_spot
+                current_chain = td_chain
+                next_chain = {}
+        elif admin_plan == 'user_data':
+            broker_spot, broker_chain, broker_name = self._get_broker_data()
+            if broker_spot and broker_chain:
+                data_source = f'broker:{broker_name}'
+                spot = broker_spot
+                current_chain = broker_chain
+                next_chain = {}
+
+        if not current_chain:
             raw_nse = self._get_nse_option_chain_raw()
             expiry_dates = self._parse_expiry_dates(raw_nse)
             expiry_picks = self._pick_expiries(expiry_dates)
@@ -612,21 +693,22 @@ class NiftyOptionsEngine:
                 spot = float(spot_val)
                 current_chain = self._build_chain_for_expiry(raw_nse, expiry_picks['current'], spot)
                 next_chain = self._build_chain_for_expiry(raw_nse, expiry_picks['next'], spot) if expiry_picks.get('next') else {}
-            else:
-                data_source = 'estimated'
-                try:
-                    import yfinance as yf
-                    ticker = yf.Ticker("^NSEI")
-                    hist = ticker.history(period="1d")
-                    if not hist.empty:
-                        spot = float(hist['Close'].iloc[-1])
-                    else:
-                        spot = 23500
-                except Exception:
+
+        if not current_chain:
+            data_source = 'estimated'
+            try:
+                import yfinance as yf
+                ticker = yf.Ticker("^NSEI")
+                hist = ticker.history(period="1d")
+                if not hist.empty:
+                    spot = float(hist['Close'].iloc[-1])
+                else:
                     spot = 23500
-                logger.warning(f"NSE option chain unavailable — using estimated data. Spot: {spot}")
-                current_chain = self._get_sample_chain(spot)
-                next_chain = {}
+            except Exception:
+                spot = 23500
+            logger.warning(f"All data sources unavailable — using estimated data. Spot: {spot}")
+            current_chain = self._get_sample_chain(spot)
+            next_chain = {}
 
         atm = int(round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL)
 

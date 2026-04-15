@@ -392,6 +392,17 @@ with app.app_context():
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         )''',
+        '''CREATE TABLE IF NOT EXISTS data_api_plan (
+            id SERIAL PRIMARY KEY,
+            plan_type VARCHAR(30) NOT NULL DEFAULT 'user_data',
+            truedata_api_key TEXT,
+            truedata_api_secret TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            updated_by VARCHAR(100)
+        )''',
+        '''INSERT INTO data_api_plan (plan_type, is_active) SELECT 'user_data', true
+            WHERE NOT EXISTS (SELECT 1 FROM data_api_plan)''',
     ]
     try:
         with db.engine.connect() as _conn:

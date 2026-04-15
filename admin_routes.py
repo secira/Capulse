@@ -1465,3 +1465,93 @@ def set_data_source():
         db.session.rollback()
         flash(f'Error switching data source: {e}', 'error')
     return redirect(url_for('admin.data_sources'))
+
+
+@admin_bp.route('/data-api-plan')
+@admin_required
+def data_api_plan():
+    try:
+        row = db.session.execute(db.text(
+            "SELECT id, plan_type, truedata_api_key, truedata_api_secret, updated_at, updated_by FROM data_api_plan WHERE is_active = true LIMIT 1"
+        )).fetchone()
+        if row:
+            plan = {
+                'id': row[0], 'plan_type': row[1],
+                'has_truedata_key': bool(row[2]),
+                'has_truedata_secret': bool(row[3]),
+                'updated_at': row[4], 'updated_by': row[5],
+            }
+        else:
+            plan = {'plan_type': 'user_data', 'has_truedata_key': False, 'has_truedata_secret': False}
+    except Exception:
+        plan = {'plan_type': 'user_data', 'has_truedata_key': False, 'has_truedata_secret': False}
+
+    user_data_broker_count = 0
+    try:
+        result = db.session.execute(db.text(
+            "SELECT COUNT(*) FROM data_api_broker WHERE is_active = true AND connection_status = 'connected'"
+        )).fetchone()
+        user_data_broker_count = result[0] if result else 0
+    except Exception:
+        pass
+
+    return render_template('admin/data_api_plan.html', plan=plan, user_data_broker_count=user_data_broker_count)
+
+
+@admin_bp.route('/data-api-plan/set', methods=['POST'])
+@admin_required
+def set_data_api_plan():
+    plan_type = request.form.get('plan_type', 'user_data')
+    truedata_key = request.form.get('truedata_api_key', '').strip()
+    truedata_secret = request.form.get('truedata_api_secret', '').strip()
+
+    if plan_type not in ('user_data', 'nse_truedata'):
+        flash('Invalid plan type.', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+
+    try:
+        existing = db.session.execute(db.text(
+            "SELECT id FROM data_api_plan WHERE is_active = true LIMIT 1"
+        )).fetchone()
+
+        if plan_type == 'nse_truedata' and not truedata_key:
+            has_key = db.session.execute(db.text(
+                "SELECT truedata_api_key FROM data_api_plan WHERE is_active = true AND truedata_api_key IS NOT NULL LIMIT 1"
+            )).fetchone()
+            if not has_key or not has_key[0]:
+                flash('TrueData API Key is required for NSE+TrueData plan.', 'error')
+                return redirect(url_for('admin.data_api_plan'))
+
+        admin_name = 'admin'
+        try:
+            from flask import session as flask_session
+            admin_name = flask_session.get('admin_username', 'admin')
+        except Exception:
+            pass
+
+        if existing:
+            updates = ["plan_type = :plan_type", "updated_at = NOW()", "updated_by = :admin"]
+            params = {'plan_type': plan_type, 'admin': admin_name, 'id': existing[0]}
+            if truedata_key:
+                updates.append("truedata_api_key = :key")
+                params['key'] = truedata_key
+            if truedata_secret:
+                updates.append("truedata_api_secret = :secret")
+                params['secret'] = truedata_secret
+            db.session.execute(db.text(
+                f"UPDATE data_api_plan SET {', '.join(updates)} WHERE id = :id"
+            ), params)
+        else:
+            db.session.execute(db.text(
+                "INSERT INTO data_api_plan (plan_type, truedata_api_key, truedata_api_secret, updated_by) VALUES (:pt, :key, :secret, :admin)"
+            ), {'pt': plan_type, 'key': truedata_key or None, 'secret': truedata_secret or None, 'admin': admin_name})
+
+        db.session.commit()
+
+        plan_label = 'User Data API' if plan_type == 'user_data' else 'NSE + TrueData'
+        flash(f'Data API Plan switched to: {plan_label}', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating Data API Plan: {e}', 'error')
+
+    return redirect(url_for('admin.data_api_plan'))
