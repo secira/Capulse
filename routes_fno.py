@@ -35,11 +35,6 @@ def fno_analysis_api():
         engine = NiftyOptionsEngine()
         analysis = engine.generate_analysis()
 
-        from services.fno_monitor import _save_signal_to_db
-        from flask import current_app
-        analysis['signal_type'] = 'MANUAL'
-        _save_signal_to_db(current_app._get_current_object(), analysis)
-
         return jsonify({'success': True, 'data': analysis})
     except Exception as e:
         logger.error(f"F&O analysis error: {e}")
@@ -77,14 +72,19 @@ def fno_signal_history():
     try:
         from app import db
         limit = request.args.get('limit', 20, type=int)
+        from datetime import datetime, timedelta
+        ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+        ist_today_start = ist_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        utc_today_start = ist_today_start - timedelta(hours=5, minutes=30)
         rows = db.session.execute(db.text("""
             SELECT id, signal_type, direction, confidence, confidence_grade,
                    entry_mode, spot_price, atm_strike, alert_sent, data_source,
                    created_at
             FROM fno_signal_history
+            WHERE created_at >= :today_start
             ORDER BY created_at DESC
             LIMIT :limit
-        """), {'limit': min(limit, 50)}).fetchall()
+        """), {'today_start': utc_today_start, 'limit': min(limit, 50)}).fetchall()
 
         signals = []
         for r in rows:
