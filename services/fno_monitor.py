@@ -168,6 +168,19 @@ def _should_send_alert(signal_data):
     return True
 
 
+def _get_data_broker_user_id():
+    try:
+        from app import db
+        result = db.session.execute(
+            db.text("SELECT user_id FROM broker_accounts WHERE is_data_broker = true AND connection_status = 'connected' LIMIT 1")
+        ).fetchone()
+        if result:
+            return result[0]
+    except Exception as e:
+        logger.debug(f"No data broker user found: {e}")
+    return None
+
+
 def run_scan(app):
     if not _is_market_hours():
         return
@@ -175,7 +188,8 @@ def run_scan(app):
     try:
         with app.app_context():
             from services.nifty_options_engine import NiftyOptionsEngine
-            engine = NiftyOptionsEngine()
+            data_broker_user_id = _get_data_broker_user_id()
+            engine = NiftyOptionsEngine(user_id=data_broker_user_id)
             analysis = engine.generate_analysis()
 
         if not analysis:

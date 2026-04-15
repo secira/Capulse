@@ -117,12 +117,18 @@
                                         </button>
                                         {% endif %}
                                         
-                                        <!-- Set Primary (only for connected non-primary) -->
                                         {% if broker.account.connection_status == 'connected' and not broker.account.is_primary %}
                                         <button class="btn btn-outline-primary" 
                                                 onclick="setPrimaryBroker({{ broker.account.id }})"
-                                                title="Set as Primary">
+                                                title="Set as Primary for Trading">
                                             <i class="fas fa-star"></i> Primary
+                                        </button>
+                                        {% endif %}
+                                        {% if broker.account.connection_status == 'connected' %}
+                                        <button class="btn {% if broker.account.is_data_broker %}btn-info{% else %}btn-outline-info{% endif %} btn-sm" 
+                                                onclick="setDataBroker({{ broker.account.id }})"
+                                                title="Use this broker's Data API for market data">
+                                            <i class="fas fa-database"></i> {% if broker.account.is_data_broker %}Data API ✓{% else %}Data API{% endif %}
                                         </button>
                                         {% endif %}
                                     {% else %}
@@ -640,6 +646,27 @@ async function syncBroker(accountId) {
 }
 
 // Set Primary Broker
+async function setDataBroker(accountId) {
+    if (!confirm('Use this broker\'s Data API for live market data (option chain, prices)?')) return;
+
+    fetch(`/api/broker/set-data-broker/${accountId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to set data broker.');
+    });
+}
+
 async function setPrimaryBroker(accountId) {
     if (!await confirm('Set this as your primary broker for trading?')) return;
     

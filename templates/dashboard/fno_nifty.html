@@ -597,6 +597,13 @@ function refreshAnalysis() {
         var dsWarn = document.getElementById('dataSourceWarning');
         if (d.data_source === 'estimated') {
             dsWarn.style.display = 'block';
+            dsWarn.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i><strong>Estimated Data:</strong> No broker Data API or NSE live feed available. Prices are estimated. Connect a broker and set it as Data API source in Broker Settings.';
+        } else if (d.data_source && d.data_source.startsWith('broker:')) {
+            dsWarn.style.display = 'block';
+            dsWarn.style.background = '#d1fae5';
+            dsWarn.style.borderColor = '#10b981';
+            dsWarn.style.color = '#065f46';
+            dsWarn.innerHTML = '<i class="fas fa-check-circle me-2"></i><strong>Live Data:</strong> Using ' + d.data_source.replace('broker:', '') + ' Data API for real-time prices.';
         } else {
             dsWarn.style.display = 'none';
         }

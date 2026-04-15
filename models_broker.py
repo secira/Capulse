@@ -12,12 +12,13 @@ class BrokerType(Enum):
     ZERODHA = "zerodha"
     ANGEL_BROKING = "angel_broking"
     UPSTOX = "upstox"
-    GROWW = "groww"
-    ICICIDIRECT = "icicidirect"
     FIVE_PAISA = "5paisa"
     ALICE_BLUE = "alice_blue"
-    # Legacy values kept so existing DB rows are not broken
     FYERS = "fyers"
+    SHOONYA = "shoonya"
+    # Legacy values kept so existing DB rows are not broken
+    GROWW = "groww"
+    ICICIDIRECT = "icicidirect"
     HDFC_SECURITIES = "hdfc_securities"
     KOTAK_SECURITIES = "kotak_securities"
     CHOICE_INDIA = "choice_india"
@@ -70,6 +71,7 @@ class BrokerAccount(db.Model):
     # Connection details (match existing table structure)
     connection_status = db.Column(db.String(20), default='disconnected', index=True)
     is_primary = db.Column(db.Boolean, default=False, index=True)  # Primary broker for trading
+    is_data_broker = db.Column(db.Boolean, default=False, index=True)  # Use this broker's Data API for market data
     last_connected = db.Column(db.DateTime, nullable=True)
     
     # Account information

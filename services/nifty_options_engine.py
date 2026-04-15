@@ -26,8 +26,46 @@ STRIKE_INTERVAL = 50
 
 class NiftyOptionsEngine:
 
-    def __init__(self):
+    def __init__(self, user_id: int = None):
         self.data_source = self._get_active_data_source()
+        self.user_id = user_id
+        self._broker_adapter = None
+
+    def _get_broker_data(self) -> tuple:
+        if not self.user_id:
+            return None, None, None
+        try:
+            from services.broker_factory import get_data_broker_for_user
+            broker = get_data_broker_for_user(self.user_id)
+            if not broker:
+                logger.info(f"No data broker configured for user {self.user_id}")
+                return None, None, None
+
+            if not broker.connect():
+                logger.warning(f"Data broker {broker.BROKER_NAME} failed to connect")
+                return None, None, None
+
+            self._broker_adapter = broker
+            spot = broker.get_price("NIFTY")
+            if not spot or spot <= 0:
+                logger.warning(f"Data broker {broker.BROKER_NAME} returned no spot price")
+                return None, None, None
+
+            chain_raw = broker.get_option_chain("NIFTY")
+            if chain_raw:
+                from services.option_chain_builder import chain_to_engine_format
+                engine_chain = chain_to_engine_format(chain_raw, spot)
+                logger.info(
+                    f"✅ Broker Data API ({broker.BROKER_NAME}): "
+                    f"spot={spot:.2f}, chain_strikes={len(chain_raw)}"
+                )
+                return float(spot), engine_chain, broker.BROKER_NAME
+            else:
+                logger.warning(f"Data broker {broker.BROKER_NAME} returned empty chain")
+                return None, None, None
+        except Exception as e:
+            logger.error(f"Broker data API error: {e}")
+            return None, None, None
 
     def _get_active_data_source(self) -> str:
         try:
@@ -550,33 +588,45 @@ class NiftyOptionsEngine:
         now = datetime.now(IST)
         time_check = self._time_filter()
 
-        raw_nse = self._get_nse_option_chain_raw()
-        expiry_dates = self._parse_expiry_dates(raw_nse)
-        expiry_picks = self._pick_expiries(expiry_dates)
+        data_source = 'estimated'
+        current_chain = None
+        next_chain = {}
+        spot = None
 
-        data_source = 'live'
-        if raw_nse and expiry_picks.get('current'):
-            spot_val = raw_nse.get('records', {}).get('underlyingValue', 0) or raw_nse.get('filtered', {}).get('data', [{}])[0].get('PE', {}).get('underlyingValue', 0) if raw_nse.get('filtered', {}).get('data') else 0
-            if not spot_val:
-                spot_val = 23500
-            spot = float(spot_val)
-            current_chain = self._build_chain_for_expiry(raw_nse, expiry_picks['current'], spot)
-            next_chain = self._build_chain_for_expiry(raw_nse, expiry_picks['next'], spot) if expiry_picks.get('next') else {}
-        else:
-            data_source = 'estimated'
-            try:
-                import yfinance as yf
-                ticker = yf.Ticker("^NSEI")
-                hist = ticker.history(period="1d")
-                if not hist.empty:
-                    spot = float(hist['Close'].iloc[-1])
-                else:
-                    spot = 23500
-            except Exception:
-                spot = 23500
-            logger.warning(f"NSE option chain unavailable — using estimated data. Spot: {spot}")
-            current_chain = self._get_sample_chain(spot)
+        broker_spot, broker_chain, broker_name = self._get_broker_data()
+        if broker_spot and broker_chain:
+            data_source = f'broker:{broker_name}'
+            spot = broker_spot
+            current_chain = broker_chain
             next_chain = {}
+        else:
+            raw_nse = self._get_nse_option_chain_raw()
+            expiry_dates = self._parse_expiry_dates(raw_nse)
+            expiry_picks = self._pick_expiries(expiry_dates)
+
+            if raw_nse and expiry_picks.get('current'):
+                data_source = 'live'
+                spot_val = raw_nse.get('records', {}).get('underlyingValue', 0) or raw_nse.get('filtered', {}).get('data', [{}])[0].get('PE', {}).get('underlyingValue', 0) if raw_nse.get('filtered', {}).get('data') else 0
+                if not spot_val:
+                    spot_val = 23500
+                spot = float(spot_val)
+                current_chain = self._build_chain_for_expiry(raw_nse, expiry_picks['current'], spot)
+                next_chain = self._build_chain_for_expiry(raw_nse, expiry_picks['next'], spot) if expiry_picks.get('next') else {}
+            else:
+                data_source = 'estimated'
+                try:
+                    import yfinance as yf
+                    ticker = yf.Ticker("^NSEI")
+                    hist = ticker.history(period="1d")
+                    if not hist.empty:
+                        spot = float(hist['Close'].iloc[-1])
+                    else:
+                        spot = 23500
+                except Exception:
+                    spot = 23500
+                logger.warning(f"NSE option chain unavailable — using estimated data. Spot: {spot}")
+                current_chain = self._get_sample_chain(spot)
+                next_chain = {}
 
         atm = int(round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL)
 

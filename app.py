@@ -377,6 +377,7 @@ with app.app_context():
             data_source VARCHAR(50) DEFAULT 'nse_python',
             created_at TIMESTAMP DEFAULT NOW()
         )''',
+        'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS is_data_broker BOOLEAN DEFAULT FALSE',
     ]
     try:
         with db.engine.connect() as _conn:

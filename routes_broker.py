@@ -20,59 +20,88 @@ logger = logging.getLogger(__name__)
 # Broker Catalog - All supported brokers
 BROKER_CATALOG = [
     {
+        'type': BrokerType.DHAN,
+        'name': 'Dhan',
+        'logo': 'https://dhan.co/logo.png',
+        'status': 'active',
+        'description': 'Best for MVP · Direct option chain + Data API',
+        'fields': ['client_id', 'access_token'],
+        'auth': 'token',
+        'color': '#0f766e',
+        'letter': 'D',
+        'data_api': True,
+    },
+    {
         'type': BrokerType.ZERODHA,
         'name': 'Zerodha',
         'logo': 'https://zerodha.com/static/images/logo.svg',
         'status': 'active',
-        'description': "India's largest broker · KiteConnect OAuth",
+        'description': "India's largest broker · KiteConnect OAuth + Data API",
         'fields': ['client_id', 'access_token', 'api_secret'],
         'auth': 'oauth',
         'color': '#387ed1',
         'letter': 'Z',
+        'data_api': True,
+    },
+    {
+        'type': BrokerType.FYERS,
+        'name': 'Fyers',
+        'logo': 'https://fyers.in/logo.png',
+        'status': 'active',
+        'description': 'Direct option chain + streaming Data API',
+        'fields': ['client_id', 'access_token'],
+        'auth': 'token',
+        'color': '#1a73e8',
+        'letter': 'F',
+        'data_api': True,
+    },
+    {
+        'type': BrokerType.SHOONYA,
+        'name': 'Shoonya (Finvasia)',
+        'logo': 'https://shoonya.com/logo.png',
+        'status': 'active',
+        'description': 'Zero brokerage · NorenOMS Data API',
+        'fields': ['client_id', 'access_token', 'api_secret'],
+        'auth': 'totp',
+        'color': '#6d28d9',
+        'letter': 'S',
+        'data_api': True,
     },
     {
         'type': BrokerType.UPSTOX,
         'name': 'Upstox',
         'logo': 'https://upstox.com/logo.png',
         'status': 'active',
-        'description': 'Tech-first discount broker · v2 OAuth',
+        'description': 'Tech-first discount broker · v2 OAuth + Data API',
         'fields': ['client_id', 'access_token', 'api_secret'],
         'auth': 'oauth',
         'color': '#5a3fc0',
         'letter': 'U',
+        'data_api': True,
     },
     {
         'type': BrokerType.ANGEL_BROKING,
         'name': 'Angel One',
         'logo': 'https://angelone.in/logo.png',
         'status': 'active',
-        'description': 'Full-service broker · TOTP direct connect',
+        'description': 'Full-service broker · SmartAPI Data API',
         'fields': ['client_id', 'access_token', 'totp_secret'],
         'auth': 'totp',
         'color': '#e03c31',
         'letter': 'A',
+        'data_api': True,
     },
     {
-        'type': BrokerType.ICICIDIRECT,
-        'name': 'ICICI Direct',
-        'logo': 'https://icicidirect.com/logo.png',
+        'type': BrokerType.FIVE_PAISA,
+        'name': '5 Paisa',
+        'logo': 'https://5paisa.com/logo.png',
         'status': 'active',
-        'description': 'Full-service broker · Breeze Connect OAuth',
+        'description': 'Affordable brokerage · Direct option chain API',
         'fields': ['client_id', 'access_token', 'api_secret'],
-        'auth': 'oauth',
-        'color': '#c41230',
-        'letter': 'I',
-    },
-    {
-        'type': BrokerType.GROWW,
-        'name': 'Groww',
-        'logo': 'https://groww.in/logo.png',
-        'status': 'active',
-        'description': 'Simple & modern investing platform',
-        'fields': ['access_token'],
-        'auth': 'token',
-        'color': '#00d09c',
-        'letter': 'G',
+        'auth': 'totp',
+        'color': '#e65100',
+        'letter': '5P',
+        'data_api': True,
     },
     {
         'type': BrokerType.ALICE_BLUE,
@@ -80,32 +109,11 @@ BROKER_CATALOG = [
         'logo': 'https://aliceblueonline.com/logo.png',
         'status': 'active',
         'description': 'Discount broker · ANT API v2',
-        'fields': ['client_id', 'api_secret'],
+        'fields': ['client_id', 'access_token', 'api_secret'],
         'auth': 'totp',
         'color': '#1e3a8a',
         'letter': 'AB',
-    },
-    {
-        'type': BrokerType.FIVE_PAISA,
-        'name': '5 Paisa',
-        'logo': 'https://5paisa.com/logo.png',
-        'status': 'active',
-        'description': 'Affordable brokerage · Direct API',
-        'fields': ['client_id', 'access_token', 'api_secret'],
-        'auth': 'totp',
-        'color': '#e65100',
-        'letter': '5P',
-    },
-    {
-        'type': BrokerType.DHAN,
-        'name': 'Dhan',
-        'logo': 'https://dhan.co/logo.png',
-        'status': 'active',
-        'description': 'Low brokerage with advanced trading tools',
-        'fields': ['client_id', 'access_token'],
-        'auth': 'token',
-        'color': '#0f766e',
-        'letter': 'D',
+        'data_api': True,
     },
 ]
 
@@ -732,6 +740,33 @@ def api_set_primary_broker(account_id):
         db.session.rollback()
         logger.error(f"Error setting primary broker: {e}")
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
+@app.route('/api/broker/set-data-broker/<int:account_id>', methods=['POST'])
+@login_required
+def api_set_data_broker(account_id):
+    try:
+        broker_account = BrokerAccount.query.filter_by(
+            id=account_id,
+            user_id=current_user.id
+        ).first()
+
+        if not broker_account:
+            return jsonify({'success': False, 'message': 'Broker account not found'}), 404
+
+        BrokerAccount.query.filter_by(user_id=current_user.id).update({'is_data_broker': False})
+        broker_account.is_data_broker = True
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'{broker_account.broker_name} set as Data API source'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error setting data broker: {e}")
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
 
 @app.route('/dashboard/live-portfolio')
 @login_required

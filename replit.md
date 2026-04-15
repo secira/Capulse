@@ -27,7 +27,9 @@ Target Capital employs a dual AI engine approach:
 
 **Broker Integration Architecture (Multi-Broker Intelligence Model)**:
 -   **No "active/primary broker" for trading**: All connected brokers sync independently. User selects broker per-trade via dropdown.
--   **8 fully implemented brokers**: Dhan, Zerodha, Angel One, Upstox, ICICI Direct, Groww, Alice Blue, 5 Paisa, all integrating via SDKs or REST APIs.
+-   **8 fully implemented brokers**: Dhan, Zerodha, Angel One, Upstox, Fyers, Shoonya (Finvasia), Alice Blue, 5 Paisa, all integrating via SDKs or REST APIs.
+-   **Broker Data API Layer** (`brokers/` package): Separate adapter layer for market data (option chain, prices). Each adapter implements `BrokerBase` (get_price, get_option_chain, get_quotes). Factory in `services/broker_factory.py` with `get_data_broker_for_user()`. User sets one broker as "Data API source" via `is_data_broker` flag on `BrokerAccount`.
+-   **Data Fallback Chain**: F&O engine tries: User's data broker API → NSE API → estimated (yfinance) data. Data source shown in UI banner (green for broker, yellow for estimated).
 -   **`BaseBrokerClient`**: An abstract interface ensuring consistent functionality across all brokers for operations like `connect()`, `get_holdings()`, and `place_order()`.
 -   **OAuth + Auth flows**: Implemented for various brokers, handling connection and authentication securely.
 -   **Broker Data Sync**: `BrokerService.sync_broker_data()` synchronizes holdings, positions, orders, and trade history per broker. Each `BrokerAccount` tracks `sync_status` (success/failed/pending/syncing) and `last_sync` timestamp. "Sync All" button triggers all connected brokers.

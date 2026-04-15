@@ -32,7 +32,7 @@ def fno_nifty():
 def fno_analysis_api():
     try:
         from services.nifty_options_engine import NiftyOptionsEngine
-        engine = NiftyOptionsEngine()
+        engine = NiftyOptionsEngine(user_id=current_user.id)
         analysis = engine.generate_analysis()
 
         return jsonify({'success': True, 'data': analysis})
