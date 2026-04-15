@@ -520,6 +520,91 @@ def auth_fivepaisa():
 
 
 # ---------------------------------------------------------------------------
+# Fyers  (token-based direct connect)
+# ---------------------------------------------------------------------------
+
+@broker_oauth.route('/broker/auth/fyers', methods=['POST'])
+@login_required
+def auth_fyers():
+    client_id = request.form.get('client_id', '').strip()
+    access_token = request.form.get('access_token', '').strip()
+    if not client_id or not access_token:
+        flash('Client ID and Access Token are required for Fyers.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    try:
+        account = BrokerAccount.query.filter_by(
+            user_id=current_user.id, broker_type='fyers', is_active=True,
+        ).first()
+        if not account:
+            account = BrokerAccount(
+                user_id=current_user.id,
+                broker_type='fyers',
+                broker_name='Fyers',
+                is_active=True,
+            )
+            db.session.add(account)
+        account.set_credentials(client_id=client_id, access_token=access_token, api_secret='')
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+        flash('Fyers connected successfully!', 'success')
+        logger.info(f"Fyers connected for user {current_user.id}")
+    except Exception as e:
+        logger.error(f"Fyers connect failed: {e}")
+        flash(f'Fyers connection failed: {str(e)}', 'error')
+
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
+# ---------------------------------------------------------------------------
+# Shoonya / Finvasia  (NorenOMS TOTP-based)
+# ---------------------------------------------------------------------------
+
+@broker_oauth.route('/broker/auth/shoonya', methods=['POST'])
+@login_required
+def auth_shoonya():
+    user_id_field = request.form.get('user_id', '').strip()
+    password = request.form.get('password', '').strip()
+    totp_secret = request.form.get('totp_secret', '').strip()
+    vendor_code = request.form.get('vendor_code', '').strip()
+    api_secret = request.form.get('api_secret', '').strip()
+
+    if not all([user_id_field, password, api_secret]):
+        flash('User ID, Password and API Secret are required for Shoonya.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    try:
+        account = BrokerAccount.query.filter_by(
+            user_id=current_user.id, broker_type='shoonya', is_active=True,
+        ).first()
+        if not account:
+            account = BrokerAccount(
+                user_id=current_user.id,
+                broker_type='shoonya',
+                broker_name='Shoonya (Finvasia)',
+                is_active=True,
+            )
+            db.session.add(account)
+        # Store credentials; access_token will be refreshed when first trade is placed
+        account.set_credentials(
+            client_id=user_id_field,
+            access_token=password,  # password stored as access_token for login
+            api_secret=f"{api_secret}:{vendor_code}:{totp_secret}",
+        )
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+        flash('Shoonya (Finvasia) connected successfully!', 'success')
+        logger.info(f"Shoonya connected for user {current_user.id}")
+    except Exception as e:
+        logger.error(f"Shoonya connect failed: {e}")
+        flash(f'Shoonya connection failed: {str(e)}', 'error')
+
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
+# ---------------------------------------------------------------------------
 # Dhan  (token-based direct connect)
 # ---------------------------------------------------------------------------
 

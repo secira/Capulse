@@ -80,13 +80,13 @@
   <div class="row g-3 mb-4">
 
     {% set other_brokers = [
-      ('upstox',        'Upstox',      '#5a3fc0', 'U',  'modal-upstox',    'oauth'),
-      ('angel_broking', 'Angel One',   '#e03c31', 'A',  'modal-angel',     'totp'),
-      ('icicidirect',   'ICICI Direct','#c41230', 'I',  'modal-icici',     'oauth'),
-      ('groww',         'Groww',       '#00d09c', 'G',  'modal-groww',     'token'),
-      ('alice_blue',    'Alice Blue',  '#1e3a8a', 'AB', 'modal-alice',     'direct'),
-      ('5paisa',        '5 Paisa',     '#e65100', '5P', 'modal-fivepaisa', 'direct'),
-      ('dhan',          'Dhan',        '#0f766e', 'D',  'modal-dhan',      'token'),
+      ('upstox',        'Upstox',            '#5a3fc0', 'U',  'modal-upstox',    'oauth'),
+      ('angel_broking', 'Angel One',         '#e03c31', 'A',  'modal-angel',     'totp'),
+      ('fyers',         'Fyers',             '#1a73e8', 'F',  'modal-fyers',     'token'),
+      ('shoonya',       'Shoonya (Finvasia)','#6d28d9', 'S',  'modal-shoonya',   'totp'),
+      ('alice_blue',    'Alice Blue',        '#1e3a8a', 'AB', 'modal-alice',     'direct'),
+      ('5paisa',        '5 Paisa',           '#e65100', '5P', 'modal-fivepaisa', 'direct'),
+      ('dhan',          'Dhan',              '#0f766e', 'D',  'modal-dhan',      'token'),
     ] %}
 
     {% for slug, bname, bcolor, letter, modal_id, bauth in other_brokers %}
@@ -344,65 +344,84 @@
   </div>
 </div>
 
-<!-- ICICI Direct -->
-<div class="modal fade" id="modal-icici" tabindex="-1">
+<!-- Fyers -->
+<div class="modal fade" id="modal-fyers" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0">
         <div class="d-flex align-items-center gap-2">
-          <div class="broker-avatar-sm" style="background:#c41230;">I</div>
-          <div><h5 class="mb-0">Connect ICICI Direct</h5><small class="text-muted">Breeze Connect OAuth</small></div>
+          <div class="broker-avatar-sm" style="background:#1a73e8;">F</div>
+          <div><h5 class="mb-0">Connect Fyers</h5><small class="text-muted">Fyers API v3 · Access Token</small></div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <form method="POST" action="{{ url_for('broker_oauth.auth_icici') }}">
+      <form method="POST" action="{{ url_for('broker_oauth.auth_fyers') }}">
         <div class="modal-body">
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-            Register at <a href="https://api.icicidirect.com" target="_blank">api.icicidirect.com</a>.
-            Add redirect URI: <code>{{ request.host_url.rstrip('/') }}/broker/callback/icici</code>
+            Create an app at <a href="https://myapi.fyers.in" target="_blank">myapi.fyers.in</a> and generate an access token using your App ID.
           </div>
           <div class="mb-3">
-            <label class="form-label fw-semibold">App Key <span class="text-danger">*</span></label>
-            <input type="text" name="api_key" class="form-control" placeholder="Breeze App Key" required autocomplete="off">
+            <label class="form-label fw-semibold">Client ID (App ID) <span class="text-danger">*</span></label>
+            <input type="text" name="client_id" class="form-control" placeholder="e.g. XJ12345-100" required autocomplete="off">
           </div>
           <div class="mb-2">
-            <label class="form-label fw-semibold">App Secret <span class="text-danger">*</span></label>
-            <input type="password" name="api_secret" class="form-control" placeholder="Breeze App Secret" required autocomplete="off">
+            <label class="form-label fw-semibold">Access Token <span class="text-danger">*</span></label>
+            <input type="password" name="access_token" class="form-control" placeholder="Fyers daily access token" required autocomplete="off">
           </div>
+          <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>Credentials are encrypted and stored securely.</p>
         </div>
         <div class="modal-footer border-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-sign-in-alt me-2"></i>Continue to ICICI</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect Fyers</button>
         </div>
       </form>
     </div>
   </div>
 </div>
 
-<!-- Groww -->
-<div class="modal fade" id="modal-groww" tabindex="-1">
+<!-- Shoonya (Finvasia) -->
+<div class="modal fade" id="modal-shoonya" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0">
         <div class="d-flex align-items-center gap-2">
-          <div class="broker-avatar-sm" style="background:#00d09c;">G</div>
-          <div><h5 class="mb-0">Connect Groww</h5><small class="text-muted">Partner API · Access Token</small></div>
+          <div class="broker-avatar-sm" style="background:#6d28d9;">S</div>
+          <div><h5 class="mb-0">Connect Shoonya</h5><small class="text-muted">NorenOMS · TOTP Auth</small></div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <form method="POST" action="{{ url_for('broker_oauth.auth_groww') }}">
+      <form method="POST" action="{{ url_for('broker_oauth.auth_shoonya') }}">
         <div class="modal-body">
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-            Obtain your Partner API Access Token from the <a href="https://developer.groww.in" target="_blank">Groww Developer Portal</a>. Partner access is required.
+            Get your API credentials from <a href="https://shoonya.com/openapi" target="_blank">shoonya.com/openapi</a>. TOTP must be enabled on your account.
           </div>
-          <div class="mb-2">
-            <label class="form-label fw-semibold">Access Token <span class="text-danger">*</span></label>
-            <input type="text" name="access_token" class="form-control" placeholder="Groww Partner API access token" required autocomplete="off">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label fw-semibold">User ID <span class="text-danger">*</span></label>
+              <input type="text" name="user_id" class="form-control" placeholder="Shoonya User ID" required autocomplete="off">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
+              <input type="password" name="password" class="form-control" placeholder="Trading password" required autocomplete="off">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">API Secret <span class="text-danger">*</span></label>
+              <input type="text" name="api_secret" class="form-control" placeholder="API Secret key" required autocomplete="off">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Vendor Code</label>
+              <input type="text" name="vendor_code" class="form-control" placeholder="Optional vendor code" autocomplete="off">
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">TOTP Secret</label>
+              <input type="text" name="totp_secret" class="form-control" placeholder="Base32 TOTP secret (optional)" autocomplete="off">
+            </div>
           </div>
+          <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>Credentials are encrypted and stored securely.</p>
         </div>
         <div class="modal-footer border-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect Groww</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect Shoonya</button>
         </div>
       </form>
     </div>
