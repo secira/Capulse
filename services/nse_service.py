@@ -675,18 +675,18 @@ class NSEService:
         Returns:
             Dictionary with hardcoded data
         """
-        # Last-resort hardcoded prices (updated 27 Dec 2025)
+        # Last-resort hardcoded prices (updated Apr 2026)
         fallback_data = {
             'RELIANCE': {
                 'company_name': 'Reliance Industries Limited',
-                'current_price': 1559.20,
-                'previous_close': 1558.25,
-                'day_high': 1565.85,
-                'day_low': 1552.40,
-                'week_52_high': 1654.30,
-                'week_52_low': 1385.75,
+                'current_price': 1270.00,
+                'previous_close': 1268.00,
+                'day_high': 1278.00,
+                'day_low': 1262.00,
+                'week_52_high': 1608.95,
+                'week_52_low': 1156.00,
                 'volume': 12500000,
-                'pe_ratio': 25.8
+                'pe_ratio': 22.5
             },
             'TCS': {
                 'company_name': 'Tata Consultancy Services Limited',

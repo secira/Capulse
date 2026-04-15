@@ -95,13 +95,10 @@ class NSERealTimeService:
     def get_stock_data(self, symbol: str) -> Dict:
         """Fetch real-time stock data for a given symbol"""
         try:
-            # NSE API for individual stock data
             url = f"https://www.nseindia.com/api/quote-equity?symbol={symbol}"
-            
             response = self.session.get(url, timeout=10)
             if response.status_code == 200:
                 data = response.json()
-                
                 if 'priceInfo' in data:
                     price_info = data['priceInfo']
                     return {
@@ -111,55 +108,49 @@ class NSERealTimeService:
                         'change': float(price_info['change']),
                         'change_percent': float(price_info['pChange']),
                         'volume': int(price_info.get('totalTradedVolume', 0)),
+                        'source': 'nse',
                         'timestamp': datetime.now(timezone.utc).isoformat()
                     }
-                    
         except Exception as e:
-            logger.warning(f"Failed to fetch {symbol} data: {e}")
-            
-        # Fallback with sample data for popular NSE stocks
-        return self.get_fallback_stock_data(symbol)
-    
-    def get_fallback_stock_data(self, symbol: str) -> Dict:
-        """Fallback stock data with realistic values"""
-        # Current approximate values for popular NSE stocks
-        stock_data = {
-            'RELIANCE': {'price': 2845.50, 'base_change': 1.2},
-            'TCS': {'price': 4123.75, 'base_change': 0.8},
-            'HDFCBANK': {'price': 1678.90, 'base_change': -0.3},
-            'INFY': {'price': 1456.25, 'base_change': 2.1},
-            'ICICIBANK': {'price': 892.35, 'base_change': -0.5},
-            'SBIN': {'price': 734.20, 'base_change': 1.5},
-            'HINDUNILVR': {'price': 2567.80, 'base_change': 0.6},
-            'ITC': {'price': 456.30, 'base_change': -1.2},
-            'BHARTIARTL': {'price': 1234.50, 'base_change': 0.9},
-            'KOTAKBANK': {'price': 1789.25, 'base_change': 1.1}
-        }
-        
-        if symbol in stock_data:
-            data = stock_data[symbol]
-            # Add time-based variation
-            time_factor = (time.time() % 300 / 300 - 0.5) * 0.02  # 2% max variation
-            current_price = data['price'] * (1 + time_factor)
-            change = current_price - data['price']
-            change_percent = (change / data['price']) * 100
-            
-            return {
-                'success': True,
-                'symbol': symbol,
-                'price': round(current_price, 2),
-                'change': round(change, 2),
-                'change_percent': round(change_percent, 2),
-                'volume': int(1000000 + (time.time() % 1000) * 1000),  # Simulated volume
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            }
-        
-        # Default fallback for unknown symbols
+            logger.warning(f"NSE API failed for {symbol}: {e}")
+
+        return self._yfinance_fallback(symbol)
+
+    def _yfinance_fallback(self, symbol: str) -> Dict:
+        """Use yfinance as fallback to get real NSE prices"""
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(f"{symbol}.NS")
+            hist = ticker.history(period="5d")
+            if not hist.empty:
+                latest = hist.iloc[-1]
+                current_price = float(latest['Close'])
+                prev_close = float(hist.iloc[-2]['Close']) if len(hist) >= 2 else current_price
+                change = current_price - prev_close
+                change_pct = (change / prev_close * 100) if prev_close else 0
+                logger.info(f"yfinance fallback for {symbol}: ₹{current_price:.2f}")
+                return {
+                    'success': True,
+                    'symbol': symbol,
+                    'price': round(current_price, 2),
+                    'change': round(change, 2),
+                    'change_percent': round(change_pct, 2),
+                    'volume': int(latest.get('Volume', 0)),
+                    'source': 'yfinance',
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                }
+        except Exception as e:
+            logger.warning(f"yfinance fallback failed for {symbol}: {e}")
+
         return {
             'success': False,
             'error': f'No data available for {symbol}',
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
+
+    def get_fallback_stock_data(self, symbol: str) -> Dict:
+        """Kept for backwards compatibility — delegates to yfinance fallback"""
+        return self._yfinance_fallback(symbol)
 
 # Global service instance
 nse_service = NSERealTimeService()

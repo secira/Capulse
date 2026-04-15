@@ -73,12 +73,12 @@ class StockPriceService:
         # FALLBACK: Demo data
         self.logger.warning(f"{symbol}: All price sources failed, using fallback")
         fallback_prices = {
-            'RELIANCE': 2450.75,
-            'TCS': 3890.40,
-            'HDFCBANK': 1678.90,
-            'INFY': 1456.30,
-            'ICICIBANK': 1089.75,
-            'SBIN': 542.85
+            'RELIANCE': 1270.00,
+            'TCS': 3200.00,
+            'HDFCBANK': 1750.00,
+            'INFY': 1450.00,
+            'ICICIBANK': 1310.00,
+            'SBIN': 780.00
         }
         
         return {
