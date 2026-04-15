@@ -4,7 +4,11 @@ F&O Analysis Routes — NIFTY Options Engine
 
 from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
+from datetime import timezone
 import logging
+import pytz
+
+IST = pytz.timezone('Asia/Kolkata')
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +99,7 @@ def fno_signal_history():
                 'atm_strike': r.atm_strike,
                 'alert_sent': r.alert_sent,
                 'data_source': r.data_source,
-                'created_at': r.created_at.strftime('%d/%m %I:%M %p') if r.created_at else '',
+                'created_at': r.created_at.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%d/%m %I:%M %p IST') if r.created_at else '',
             })
         return jsonify({'success': True, 'data': signals})
     except Exception as e:
