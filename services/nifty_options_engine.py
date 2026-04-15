@@ -93,10 +93,41 @@ class NiftyOptionsEngine:
         try:
             from nsepython import option_chain as nse_oc
             raw = nse_oc("NIFTY")
-            if raw and isinstance(raw, dict):
+            if raw and isinstance(raw, dict) and raw.get('records', {}).get('data'):
+                logger.info(f"NSE option chain via nsepython: {len(raw['records']['data'])} entries")
                 return raw
+            else:
+                logger.warning("nsepython returned empty/invalid data")
         except Exception as e:
             logger.warning(f"nsepython option_chain error: {e}")
+
+        try:
+            import requests
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Referer': 'https://www.nseindia.com/option-chain',
+            })
+            session.get('https://www.nseindia.com', timeout=10)
+            resp = session.get(
+                'https://www.nseindia.com/api/option-chain-indices?symbol=NIFTY',
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                raw = resp.json()
+                if raw and isinstance(raw, dict) and raw.get('records', {}).get('data'):
+                    logger.info(f"NSE option chain via direct API: {len(raw['records']['data'])} entries")
+                    return raw
+                else:
+                    logger.warning("NSE direct API returned empty data (likely geo-blocked)")
+            else:
+                logger.warning(f"NSE direct API status: {resp.status_code}")
+        except Exception as e:
+            logger.warning(f"NSE direct API error: {e}")
+
         return {}
 
     def _parse_expiry_dates(self, raw: dict) -> List[str]:
@@ -232,28 +263,40 @@ class NiftyOptionsEngine:
     def _get_sample_chain(self, spot: float) -> dict:
         atm = round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL
         chain = {}
+        base_iv = 13.0
+        days_to_expiry = 4
+        time_val = (base_iv / 100) * spot * (days_to_expiry / 365) ** 0.5 * 0.4
+
         for i in range(-6, 7):
             strike = atm + i * STRIKE_INTERVAL
+            diff = spot - strike
+            ce_intrinsic = max(0, diff)
+            pe_intrinsic = max(0, -diff)
+            dist_factor = max(0.15, 1.0 - abs(i) * 0.12)
+            ce_ltp = round(ce_intrinsic + time_val * dist_factor, 2)
+            pe_ltp = round(pe_intrinsic + time_val * dist_factor, 2)
+            ce_ltp = max(2.0, ce_ltp)
+            pe_ltp = max(2.0, pe_ltp)
+
             ce_oi = max(500000, 5000000 - abs(i) * 600000 + (300000 if i < 0 else -200000))
             pe_oi = max(500000, 5000000 - abs(i) * 600000 + (300000 if i > 0 else -200000))
-            ce_ltp = max(5, (atm - strike) + 150 - abs(i) * 20) if strike <= atm + 300 else max(2, 80 - i * 15)
-            pe_ltp = max(5, (strike - atm) + 150 - abs(i) * 20) if strike >= atm - 300 else max(2, 80 + i * 15)
             ce_vol = int(ce_oi * 0.4)
             pe_vol = int(pe_oi * 0.4)
+            iv = round(base_iv + abs(i) * 0.6, 1)
             chain[f'{strike}CE'] = {
-                'strike': strike, 'type': 'CE', 'ltp': round(ce_ltp, 2),
+                'strike': strike, 'type': 'CE', 'ltp': ce_ltp,
                 'oi': ce_oi, 'oi_change': int(ce_oi * 0.03), 'volume': ce_vol,
-                'iv': round(12 + abs(i) * 0.5, 1),
-                'bid': round(ce_ltp - 0.5, 2), 'ask': round(ce_ltp + 0.5, 2),
+                'iv': iv,
+                'bid': round(ce_ltp - 1.0, 2), 'ask': round(ce_ltp + 1.0, 2),
                 'bid_qty': 1500, 'ask_qty': 1500,
                 'change': round(ce_ltp * 0.02, 2), 'pct_change': 2.0,
                 'prev_oi': int(ce_oi * 0.97),
             }
             chain[f'{strike}PE'] = {
-                'strike': strike, 'type': 'PE', 'ltp': round(pe_ltp, 2),
+                'strike': strike, 'type': 'PE', 'ltp': pe_ltp,
                 'oi': pe_oi, 'oi_change': int(pe_oi * 0.03), 'volume': pe_vol,
-                'iv': round(12 + abs(i) * 0.5, 1),
-                'bid': round(pe_ltp - 0.5, 2), 'ask': round(pe_ltp + 0.5, 2),
+                'iv': iv,
+                'bid': round(pe_ltp - 1.0, 2), 'ask': round(pe_ltp + 1.0, 2),
                 'bid_qty': 1500, 'ask_qty': 1500,
                 'change': round(pe_ltp * 0.02, 2), 'pct_change': 2.0,
                 'prev_oi': int(pe_oi * 0.97),
@@ -261,7 +304,13 @@ class NiftyOptionsEngine:
         return chain
 
     def _get_sample_option_chain(self) -> Dict[str, Any]:
-        spot = 23500
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker("^NSEI")
+            hist = ticker.history(period="1d")
+            spot = float(hist['Close'].iloc[-1]) if not hist.empty else 23500
+        except Exception:
+            spot = 23500
         chain = self._get_sample_chain(spot)
         return {
             'spot_price': spot,
@@ -505,6 +554,7 @@ class NiftyOptionsEngine:
         expiry_dates = self._parse_expiry_dates(raw_nse)
         expiry_picks = self._pick_expiries(expiry_dates)
 
+        data_source = 'live'
         if raw_nse and expiry_picks.get('current'):
             spot_val = raw_nse.get('records', {}).get('underlyingValue', 0) or raw_nse.get('filtered', {}).get('data', [{}])[0].get('PE', {}).get('underlyingValue', 0) if raw_nse.get('filtered', {}).get('data') else 0
             if not spot_val:
@@ -513,9 +563,19 @@ class NiftyOptionsEngine:
             current_chain = self._build_chain_for_expiry(raw_nse, expiry_picks['current'], spot)
             next_chain = self._build_chain_for_expiry(raw_nse, expiry_picks['next'], spot) if expiry_picks.get('next') else {}
         else:
-            oc_data = self._get_option_chain_data()
-            spot = float(oc_data.get('spot_price', 23500))
-            current_chain = oc_data.get('option_chain', {})
+            data_source = 'estimated'
+            try:
+                import yfinance as yf
+                ticker = yf.Ticker("^NSEI")
+                hist = ticker.history(period="1d")
+                if not hist.empty:
+                    spot = float(hist['Close'].iloc[-1])
+                else:
+                    spot = 23500
+            except Exception:
+                spot = 23500
+            logger.warning(f"NSE option chain unavailable — using estimated data. Spot: {spot}")
+            current_chain = self._get_sample_chain(spot)
             next_chain = {}
 
         atm = int(round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL)
@@ -598,6 +658,7 @@ class NiftyOptionsEngine:
 
         return {
             'timestamp': now.strftime('%Y-%m-%d %H:%M:%S IST'),
+            'data_source': data_source,
             'spot_price': spot,
             'atm_strike': atm,
             'time_filter': time_check,
@@ -636,5 +697,5 @@ class NiftyOptionsEngine:
                 'daily_loss_limit': '3%',
                 'risk_per_trade': '1% of capital',
             },
-            'data_source': self.data_source,
+            'configured_source': self.data_source,
         }

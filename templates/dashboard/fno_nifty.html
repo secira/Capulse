@@ -172,6 +172,12 @@
     <div class="idx-card"><div class="idx-label">BNIFTY FUT</div><div class="idx-price" id="idx-bankniftyfut">—</div><div class="idx-change idx-flat" id="idx-bankniftyfut-chg">—</div></div>
 </div>
 
+<!-- DATA SOURCE WARNING -->
+<div id="dataSourceWarning" style="display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:13px;color:#92400e;display:none">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>Estimated Data:</strong> NSE live option chain is unavailable. Prices shown are estimated from the spot price. Deploy on an Indian server for live NSE data.
+</div>
+
 <!-- FINAL DECISION BANNER -->
 <div class="decision-banner decision-notrade" id="decisionBanner" style="display:none">
     <div class="decision-icon" id="decisionIcon">🚫</div>
@@ -587,6 +593,13 @@ function refreshAnalysis() {
         if (!res.success) return;
         var d = res.data;
         cachedAnalysis = d;
+
+        var dsWarn = document.getElementById('dataSourceWarning');
+        if (d.data_source === 'estimated') {
+            dsWarn.style.display = 'block';
+        } else {
+            dsWarn.style.display = 'none';
+        }
 
         isBlocked = d.is_blocked || false;
         var finalDecision = d.final_decision || 'NO TRADE';
