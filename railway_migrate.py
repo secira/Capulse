@@ -85,6 +85,31 @@ def ensure_raw_tables(session):
             data_source VARCHAR(50) DEFAULT 'nse_python',
             created_at TIMESTAMP DEFAULT NOW()
         )""", "fno_signal_history"),
+
+        ("""CREATE TABLE IF NOT EXISTS data_api_broker (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            broker_type VARCHAR(50) NOT NULL,
+            broker_name VARCHAR(100) NOT NULL,
+            api_key TEXT,
+            access_token TEXT,
+            api_secret TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            connection_status VARCHAR(20) DEFAULT 'disconnected',
+            last_connected TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )""", "data_api_broker"),
+
+        ("""CREATE TABLE IF NOT EXISTS data_api_plan (
+            id SERIAL PRIMARY KEY,
+            plan_type VARCHAR(30) NOT NULL DEFAULT 'user_data',
+            truedata_api_key TEXT,
+            truedata_api_secret TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            updated_by VARCHAR(100)
+        )""", "data_api_plan"),
     ]
 
     for ddl, label in raw_tables:
@@ -109,6 +134,18 @@ def ensure_raw_tables(session):
     ]
     for ddl, label in seed_data_sources:
         _col(session, ddl, label)
+
+    try:
+        session.execute(text(
+            "INSERT INTO data_api_plan (plan_type, is_active) "
+            "SELECT 'user_data', true "
+            "WHERE NOT EXISTS (SELECT 1 FROM data_api_plan)"
+        ))
+        session.commit()
+        logger.info("  Seeded default data_api_plan.")
+    except Exception as exc:
+        session.rollback()
+        logger.warning("  [skip] seed data_api_plan: %s", exc)
 
     logger.info("Raw table creation complete.")
 
