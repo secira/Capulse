@@ -743,62 +743,107 @@ class LangGraphIScoreEngine:
         """Node: Market Context (5% weight) — VIX, PCR, Nifty direction"""
         logger.info(f"I-Score Market Context Node for {state['symbol']}")
 
+        # ---- helpers ----
+        def _vix_score_regime(v):
+            if v < 15:
+                return 75, 'calm'
+            elif v > 25:
+                return 25, 'fearful'
+            else:
+                return 50 - (v - 15) * 2.5, 'cautious'
+
+        def _pcr_score(p):
+            if p > 1.3:
+                return 70
+            elif p < 0.7:
+                return 35
+            return 50 + (p - 1.0) * 20
+
+        def _mkt_score(c):
+            if c > 0.5:
+                return 70
+            elif c < -0.5:
+                return 30
+            return 50 + c * 15
+
+        # Defaults (used when a data source fails)
+        vix, vix_score, vix_regime = 15.0, 75.0, 'calm'
+        pcr, pcr_score_val = 0.85, 47.0
+        mkt_chg, mkt_score_val = 0.0, 50.0
+        confidence = 0.30
+        data_sources = []
+
+        # ---- 1. Try India VIX via yfinance (^INDIAVIX) — works outside India ----
+        try:
+            import yfinance as yf
+            vix_ticker = yf.Ticker('^INDIAVIX')
+            vix_info = vix_ticker.history(period='2d')
+            if not vix_info.empty:
+                vix = float(vix_info['Close'].iloc[-1])
+                vix_score, vix_regime = _vix_score_regime(vix)
+                data_sources.append('yfinance-VIX')
+                confidence = max(confidence, 0.60)
+        except Exception as e:
+            logger.debug(f"yfinance VIX fetch failed: {e}")
+
+        # ---- 2. Try Nifty 50 change via yfinance ----
+        try:
+            import yfinance as yf
+            nifty_ticker = yf.Ticker('^NSEI')
+            nifty_hist = nifty_ticker.history(period='2d')
+            if len(nifty_hist) >= 2:
+                prev_close = float(nifty_hist['Close'].iloc[-2])
+                last_close = float(nifty_hist['Close'].iloc[-1])
+                mkt_chg = round((last_close - prev_close) / prev_close * 100, 2) if prev_close else 0.0
+                mkt_score_val = _mkt_score(mkt_chg)
+                data_sources.append('yfinance-NIFTY')
+                confidence = max(confidence, 0.60)
+        except Exception as e:
+            logger.debug(f"yfinance Nifty fetch failed: {e}")
+
+        # ---- 3. Try NSE service for PCR (may fail when geo-blocked) ----
         try:
             from services.nse_service import NSEService
             nse = NSEService()
-
-            vix_data = nse.get_india_vix()
-            vix = vix_data.get('vix_value', 15.0)
-            if vix < 15:
-                vix_score = 75
-                vix_regime = 'calm'
-            elif vix > 25:
-                vix_score = 25
-                vix_regime = 'fearful'
-            else:
-                vix_score = 50 - (vix - 15) * 2.5
-                vix_regime = 'cautious'
-
             pcr_data = nse.get_pcr('NIFTY')
-            pcr = pcr_data.get('pcr_value', 0.85)
-            if pcr > 1.3:
-                pcr_score = 70
-            elif pcr < 0.7:
-                pcr_score = 35
-            else:
-                pcr_score = 50 + (pcr - 1.0) * 20
-
-            indices = nse.get_market_indices()
-            nifty = indices.get('nifty_50', {})
-            mkt_chg = nifty.get('change_percent', 0)
-            if mkt_chg > 0.5:
-                mkt_score = 70
-            elif mkt_chg < -0.5:
-                mkt_score = 30
-            else:
-                mkt_score = 50 + mkt_chg * 15
-
-            composite = 0.40 * vix_score + 0.30 * pcr_score + 0.30 * mkt_score
-            reasoning = f"VIX={vix:.1f} ({vix_regime}), PCR={pcr:.2f}, Nifty {mkt_chg:+.1f}%."
-
-            return {
-                'market_context_score': min(100, max(0, composite)),
-                'market_context_details': {
-                    'vix': {'value': round(vix, 2), 'regime': vix_regime, 'score': round(vix_score, 2)},
-                    'pcr': {'value': round(pcr, 2), 'score': round(pcr_score, 2)},
-                    'nifty': {'change_pct': round(mkt_chg, 2), 'score': round(mkt_score, 2)},
-                },
-                'market_context_confidence': 0.70,
-                'step': 'market_context_complete',
-            }
+            pcr_raw = pcr_data.get('pcr_value', 0)
+            if pcr_raw and pcr_raw > 0:
+                pcr = pcr_raw
+                data_sources.append('NSE-PCR')
+                confidence = max(confidence, 0.70)
         except Exception as e:
-            logger.error(f"Market context error: {e}")
-            return {
-                'market_context_score': 50,
-                'market_context_details': {'error': str(e)},
-                'market_context_confidence': 0.30,
-                'step': 'market_context_fallback',
-            }
+            logger.debug(f"NSE PCR fetch failed (geo-blocked?): {e}")
+
+        # ---- 4. Try NSE service for VIX override (only if yfinance already failed) ----
+        if 'yfinance-VIX' not in data_sources:
+            try:
+                from services.nse_service import NSEService
+                nse = NSEService()
+                vix_data = nse.get_india_vix()
+                vix_raw = vix_data.get('vix_value', 0)
+                if vix_raw and vix_raw > 0:
+                    vix = vix_raw
+                    vix_score, vix_regime = _vix_score_regime(vix)
+                    data_sources.append('NSE-VIX')
+                    confidence = max(confidence, 0.70)
+            except Exception as e:
+                logger.debug(f"NSE VIX fetch also failed: {e}")
+
+        pcr_score_val = _pcr_score(pcr)
+        composite = 0.40 * vix_score + 0.30 * pcr_score_val + 0.30 * mkt_score_val
+        reasoning = f"VIX={vix:.1f} ({vix_regime}), PCR={pcr:.2f}, Nifty {mkt_chg:+.1f}%. Sources: {', '.join(data_sources) or 'defaults'}."
+
+        return {
+            'market_context_score': round(min(100, max(0, composite)), 2),
+            'market_context_details': {
+                'vix': {'value': round(vix, 2), 'regime': vix_regime, 'score': round(vix_score, 2)},
+                'pcr': {'value': round(pcr, 2), 'score': round(pcr_score_val, 2)},
+                'nifty': {'change_pct': round(mkt_chg, 2), 'score': round(mkt_score_val, 2)},
+            },
+            'market_context_confidence': confidence,
+            'market_context_reasoning': reasoning,
+            'step': 'market_context_complete',
+        }
 
     # ==================== MUTUAL FUND ANALYSIS METHODS ====================
     

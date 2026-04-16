@@ -1664,75 +1664,202 @@ function renderComponentDetails(componentKey, details) {
                 </div>
             `;
         }
-        if (!isMutualFund && !isBond && details.vix) {
-            const vixSentiment = details.vix.signal === 'low_volatility' ? 'bullish' : details.vix.signal === 'high_volatility' ? 'bearish' : 'neutral';
+        // Stock-specific trend: multi-timeframe EMA (langgraph engine)
+        if (!isMutualFund && !isBond && details.multi_timeframe) {
+            const short  = (details.multi_timeframe.short  || 'neutral').toLowerCase();
+            const medium = (details.multi_timeframe.medium || 'neutral').toLowerCase();
+            const long   = (details.multi_timeframe.long   || 'neutral').toLowerCase();
+            const sent   = s => s === 'bullish' ? 'bullish' : s === 'bearish' ? 'bearish' : 'neutral';
             html += `
-                <div class="detail-item ${vixSentiment}">
+                <div class="detail-item ${sent(long)}">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <strong>India VIX</strong>
-                            <small class="text-muted d-block">Volatility Index</small>
+                            <strong>Multi-Timeframe EMA</strong>
+                            <small class="text-muted d-block">Short / Medium / Long trend alignment</small>
                         </div>
-                        <div class="text-end">
-                            <span class="fs-5 fw-bold">${details.vix.value}</span>
-                            <span class="indicator-badge ${vixSentiment} ms-2">${formatDetailKey(details.vix.signal)}</span>
+                        <div class="text-end d-flex gap-1">
+                            <span class="indicator-badge ${sent(short)}">${formatDetailKey(short)} (S)</span>
+                            <span class="indicator-badge ${sent(medium)}">${formatDetailKey(medium)} (M)</span>
+                            <span class="indicator-badge ${sent(long)}">${formatDetailKey(long)} (L)</span>
                         </div>
                     </div>
                 </div>
             `;
         }
-        if (!isMutualFund && !isBond && details.pcr) {
+        // Stock-specific trend: volume profile (langgraph engine)
+        if (!isMutualFund && !isBond && details.volume) {
+            const ratio   = parseFloat(details.volume.ratio || 1.0);
+            const isSpike = !!details.volume.is_spike;
+            const volSent = (isSpike && ratio > 1.5) ? 'bullish' : (ratio < 0.7 ? 'bearish' : 'neutral');
+            html += `
+                <div class="detail-item ${volSent}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Volume Profile</strong>
+                            <small class="text-muted d-block">vs 20-Day Average Volume</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-6 fw-bold">${ratio.toFixed(1)}x</span>
+                            ${isSpike
+                                ? '<span class="indicator-badge bullish ms-2">Volume Spike</span>'
+                                : '<span class="badge bg-light text-dark border ms-2">Normal</span>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        // Legacy workflow-engine fields (kept for backward compatibility)
+        if (!isMutualFund && !isBond && details.vix && details.vix.signal) {
+            const vixSentiment = details.vix.signal === 'low_volatility' ? 'bullish' : details.vix.signal === 'high_volatility' ? 'bearish' : 'neutral';
+            html += `
+                <div class="detail-item ${vixSentiment}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div><strong>India VIX</strong><small class="text-muted d-block">Volatility Index</small></div>
+                        <div class="text-end">
+                            <span class="fs-5 fw-bold">${details.vix.value}</span>
+                            <span class="indicator-badge ${vixSentiment} ms-2">${formatDetailKey(details.vix.signal)}</span>
+                        </div>
+                    </div>
+                </div>`;
+        }
+        if (!isMutualFund && !isBond && details.pcr && details.pcr.signal) {
             const pcrSentiment = details.pcr.signal === 'bullish' ? 'bullish' : details.pcr.signal === 'bearish' ? 'bearish' : 'neutral';
             html += `
                 <div class="detail-item ${pcrSentiment}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div><strong>Put-Call Ratio (PCR)</strong><small class="text-muted d-block">Options Market Sentiment</small></div>
+                        <div class="text-end">
+                            <span class="fs-5 fw-bold">${details.pcr.value}</span>
+                            <span class="indicator-badge ${pcrSentiment} ms-2">${formatDetailKey(details.pcr.signal)}</span>
+                        </div>
+                    </div>
+                </div>`;
+        }
+    }
+
+    else if (componentKey === 'risk') {
+        if (details.atr_pct !== undefined && details.atr_pct !== null) {
+            const volLabel = (details.volatility_label || 'medium').toLowerCase();
+            const volSent  = volLabel === 'low' ? 'bullish' : volLabel === 'high' ? 'bearish' : 'neutral';
+            html += `
+                <div class="detail-item ${volSent}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>ATR Volatility</strong>
+                            <small class="text-muted d-block">Average True Range as % of price</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-5 fw-bold">${parseFloat(details.atr_pct).toFixed(1)}%</span>
+                            <span class="indicator-badge ${volSent} ms-2">${formatDetailKey(volLabel)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        if (details.max_drawdown !== undefined && details.max_drawdown !== null) {
+            const dd     = parseFloat(details.max_drawdown || 0);
+            const ddSent = dd < 15 ? 'bullish' : dd < 30 ? 'neutral' : 'bearish';
+            html += `
+                <div class="detail-item ${ddSent}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Max Drawdown</strong>
+                            <small class="text-muted d-block">Peak-to-Trough Decline (120 days)</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-5 fw-bold text-danger">-${dd.toFixed(1)}%</span>
+                            <span class="indicator-badge ${ddSent} ms-2">${dd < 15 ? 'Low' : dd < 30 ? 'Moderate' : 'High'}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        if (details.beta !== undefined && details.beta !== null) {
+            const beta    = parseFloat(details.beta || 1.0);
+            const betaSent = beta < 0.8 ? 'bullish' : beta > 1.5 ? 'bearish' : 'neutral';
+            const betaLabel = beta < 0.8 ? 'Low Risk' : beta > 1.5 ? 'High Risk' : 'Market Rate';
+            html += `
+                <div class="detail-item ${betaSent}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Beta vs Nifty 50</strong>
+                            <small class="text-muted d-block">Market Sensitivity (1.0 = in-line)</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-5 fw-bold">${beta.toFixed(2)}</span>
+                            <span class="indicator-badge ${betaSent} ms-2">${betaLabel}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        if (details.error && !html) {
+            html += `<p class="text-muted small">${details.error}</p>`;
+        }
+    }
+
+    else if (componentKey === 'market_context') {
+        if (details.vix) {
+            const vixVal  = parseFloat(details.vix.value || 15);
+            const regime  = (details.vix.regime || details.vix.signal || 'cautious').toLowerCase();
+            const vixSent = (regime === 'calm' || regime === 'low_volatility') ? 'bullish'
+                          : (regime === 'fearful' || regime === 'high_volatility') ? 'bearish' : 'neutral';
+            html += `
+                <div class="detail-item ${vixSent}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>India VIX</strong>
+                            <small class="text-muted d-block">Volatility Index — Market Fear Gauge</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-5 fw-bold">${vixVal.toFixed(1)}</span>
+                            <span class="indicator-badge ${vixSent} ms-2">${formatDetailKey(regime)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        if (details.pcr) {
+            const pcrVal  = parseFloat(details.pcr.value || 0.85);
+            const pcrSent = pcrVal > 1.3 ? 'bullish' : pcrVal < 0.7 ? 'bearish' : 'neutral';
+            const pcrLbl  = pcrVal > 1.3 ? 'Bullish (Oversold Puts)' : pcrVal < 0.7 ? 'Bearish (Calls Dominant)' : 'Neutral';
+            html += `
+                <div class="detail-item ${pcrSent}">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <strong>Put-Call Ratio (PCR)</strong>
                             <small class="text-muted d-block">Options Market Sentiment</small>
                         </div>
                         <div class="text-end">
-                            <span class="fs-5 fw-bold">${details.pcr.value}</span>
-                            <span class="indicator-badge ${pcrSentiment} ms-2">${formatDetailKey(details.pcr.signal)}</span>
+                            <span class="fs-5 fw-bold">${pcrVal.toFixed(2)}</span>
+                            <span class="indicator-badge ${pcrSent} ms-2">${pcrLbl}</span>
                         </div>
                     </div>
                 </div>
             `;
         }
-        if (!isMutualFund && !isBond && details.open_interest) {
-            const oiSentiment = details.open_interest.signal === 'significant_buildup' ? 'bullish' : details.open_interest.signal === 'unwinding' ? 'bearish' : 'neutral';
+        if (details.nifty) {
+            const niftyChg  = parseFloat(details.nifty.change_pct || details.nifty.change_percent || 0);
+            const niftySent = niftyChg > 0.5 ? 'bullish' : niftyChg < -0.5 ? 'bearish' : 'neutral';
             html += `
-                <div class="detail-item ${oiSentiment}">
+                <div class="detail-item ${niftySent}">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <strong>Open Interest</strong>
-                            <small class="text-muted d-block">F&O Position Buildup</small>
+                            <strong>NIFTY 50 Direction</strong>
+                            <small class="text-muted d-block">Broader Market Trend (Today)</small>
                         </div>
                         <div class="text-end">
-                            <span class="fs-6">${details.open_interest.change_pct > 0 ? '+' : ''}${details.open_interest.change_pct}%</span>
-                            <span class="indicator-badge ${oiSentiment} ms-2">${formatDetailKey(details.open_interest.signal)}</span>
+                            <span class="indicator-badge ${niftySent}">${niftyChg > 0 ? '+' : ''}${niftyChg.toFixed(2)}%</span>
                         </div>
                     </div>
                 </div>
             `;
         }
-        if (!isMutualFund && details.market_trend) {
-            const marketSentiment = details.market_trend.nifty_change > 0 ? 'bullish' : details.market_trend.nifty_change < 0 ? 'bearish' : 'neutral';
-            html += `
-                <div class="detail-item ${marketSentiment}">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>NIFTY 50 Trend</strong>
-                            <small class="text-muted d-block">Broader Market Direction</small>
-                        </div>
-                        <div class="text-end">
-                            <span class="indicator-badge ${marketSentiment}">${details.market_trend.nifty_change > 0 ? '+' : ''}${details.market_trend.nifty_change?.toFixed(2) || 0}%</span>
-                        </div>
-                    </div>
-                </div>
-            `;
+        if (details.error && !html) {
+            html += `<p class="text-muted small">${details.error}</p>`;
         }
     }
-    
+
     return html || '<p class="text-muted">No detailed data available for this component.</p>';
 }
 
