@@ -73,7 +73,7 @@ def get_index_quotes(user_id: Optional[int] = None) -> Dict[str, Dict]:
     if broker is None:
         return {}
     try:
-        symbols = ["NIFTY", "BANKNIFTY", "FINNIFTY"]
+        symbols = ["NIFTY", "BANKNIFTY", "FINNIFTY", "SENSEX", "INDIA VIX"]
         data = broker.get_index_ohlc(symbols)
         logger.info(f"DhanDataService.get_index_quotes: received {list(data.keys())}")
         return data
