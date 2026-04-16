@@ -1,6 +1,12 @@
 """
 Dhan Broker Adapter — uses the official dhanhq Python SDK.
 Covers: LTP, OHLC, Option Chain, Expiry List, Quotes, Order Placement.
+
+Response Parsing Note:
+  The dhanhq SDK's _parse_response wraps the raw Dhan API JSON under the
+  'data' key:  resp = {"status": "success", "data": <raw_api_json>}
+  So the actual payload is always at resp["data"]["data"] (one extra level
+  compared to what the raw Dhan API docs show).
 """
 import logging
 from typing import Dict, List, Any, Optional
@@ -18,10 +24,36 @@ INDEX_SECURITY_IDS = {
     "FINNIFTY":   27,
     "FIN NIFTY":  27,
     "MIDCPNIFTY": 11,
-    "SENSEX":     51,  # IDX_I segment for SENSEX on Dhan
+    "SENSEX":     51,
     "INDIA VIX":  26000,
     "VIX":        26000,
 }
+
+
+def _unwrap(resp: dict, segment: str = None) -> Any:
+    """
+    Unwrap the dhanhq SDK response.
+
+    The SDK returns:
+        {"status": "success", "data": <raw_api_json>}
+    where <raw_api_json> is the full JSON body from Dhan, typically:
+        {"status": "success", "data": <actual_payload>}
+
+    Pass segment="IDX_I" to return resp["data"]["data"]["IDX_I"].
+    Pass segment=None to return resp["data"]["data"] (the payload dict).
+    """
+    outer = resp.get("data", {})
+    # outer might be a string "" when status != success
+    if not isinstance(outer, dict):
+        return {} if segment is None else []
+    payload = outer.get("data", outer)   # graceful: if no nested 'data', use outer
+    if segment is None:
+        return payload if isinstance(payload, dict) else {}
+    if isinstance(payload, dict):
+        return payload.get(segment, [])
+    if isinstance(payload, list):
+        return payload  # some endpoints return a top-level list
+    return []
 
 
 class DhanBroker(BrokerBase):
@@ -61,21 +93,32 @@ class DhanBroker(BrokerBase):
             return False
 
     def get_price(self, symbol: str) -> float:
-        """Return LTP for an index symbol (e.g. 'NIFTY', 'BANKNIFTY')."""
+        """
+        Return LTP for an index symbol via /v2/marketfeed/ohlc (IDX_I segment).
+        Using ohlc_data instead of ticker_data because the LTP endpoint does
+        not reliably return index prices in the IDX_I segment.
+        """
         try:
             sec_id = INDEX_SECURITY_IDS.get(symbol.upper())
             if sec_id is None:
                 logger.warning(f"Unknown index symbol for Dhan: {symbol}")
                 return 0.0
-            resp = self._get_sdk().ticker_data({"IDX_I": [sec_id]})
+            resp = self._get_sdk().ohlc_data({"IDX_I": [sec_id]})
             if resp.get("status") == "success":
-                items = resp.get("data", {}).get("IDX_I", [])
-                for item in items:
-                    if int(item.get("security_id", -1)) == sec_id:
-                        return float(item.get("last_price", 0))
-                # flat list fallback
+                items = _unwrap(resp, "IDX_I")
+                logger.debug(f"Dhan get_price({symbol}) ohlc items: {items}")
+                for item in (items if isinstance(items, list) else []):
+                    sid = str(item.get("security_id", ""))
+                    if sid == str(sec_id):
+                        ltp = float(item.get("ltp", item.get("last_price", 0)))
+                        if ltp > 0:
+                            return ltp
+                # fallback: first item
                 if isinstance(items, list) and items:
-                    return float(items[0].get("last_price", 0))
+                    ltp = float(items[0].get("ltp", items[0].get("last_price", 0)))
+                    if ltp > 0:
+                        return ltp
+            logger.warning(f"Dhan get_price({symbol}): no LTP in response, resp={resp.get('remarks','')}")
             return 0.0
         except Exception as e:
             logger.error(f"Dhan get_price({symbol}) error: {e}")
@@ -90,17 +133,19 @@ class DhanBroker(BrokerBase):
             resp = self._get_sdk().ohlc_data({"IDX_I": list(sec_map.keys())})
             result = {}
             if resp.get("status") == "success":
-                items = resp.get("data", {}).get("IDX_I", [])
-                for item in items:
+                items = _unwrap(resp, "IDX_I")
+                logger.debug(f"Dhan get_index_ohlc items: {items}")
+                for item in (items if isinstance(items, list) else []):
                     sid = int(item.get("security_id", -1))
                     sym = sec_map.get(sid, str(sid))
+                    ltp = float(item.get("ltp", item.get("last_price", 0)))
                     result[sym] = {
-                        "ltp":        float(item.get("last_price", 0)),
+                        "ltp":        ltp,
                         "open":       float(item.get("open", 0)),
                         "high":       float(item.get("high", 0)),
                         "low":        float(item.get("low", 0)),
                         "close":      float(item.get("previous_close", item.get("close", 0))),
-                        "change":     float(item.get("net_change", 0)),
+                        "change":     float(item.get("net_change", item.get("change", 0))),
                         "pct_change": float(item.get("percent_change", 0)),
                     }
             return result
@@ -113,9 +158,23 @@ class DhanBroker(BrokerBase):
         try:
             sec_id = INDEX_SECURITY_IDS.get(symbol.upper(), 13)
             resp = self._get_sdk().expiry_list(sec_id, "IDX_I")
+            logger.debug(f"Dhan expiry_list raw resp status={resp.get('status')} data_type={type(resp.get('data'))}")
             if resp.get("status") == "success":
-                dates = resp.get("data", [])
-                return sorted(dates)
+                # The SDK wraps the API response: resp["data"] = <api_json>
+                # Dhan API returns {"status":"success","data":["YYYY-MM-DD",...]}
+                # So resp["data"]["data"] = the list of dates
+                payload = _unwrap(resp)  # resp["data"]["data"]
+                if isinstance(payload, list):
+                    dates = payload
+                else:
+                    # payload might itself be the outer api dict with a "data" key
+                    outer_data = resp.get("data", {})
+                    if isinstance(outer_data, dict):
+                        dates = outer_data.get("data", [])
+                    else:
+                        dates = []
+                logger.info(f"Dhan expiry_list for {symbol}: {dates[:5]}...")
+                return sorted([d for d in dates if isinstance(d, str) and len(d) >= 8])
             logger.warning(f"Dhan expiry_list failed: {resp.get('remarks', '')}")
             return []
         except Exception as e:
@@ -145,12 +204,21 @@ class DhanBroker(BrokerBase):
             # Step 2: fetch option chain
             resp = self._get_sdk().option_chain(sec_id, "IDX_I", expiry)
             if resp.get("status") != "success":
-                logger.warning(f"Dhan option chain failed: {resp.get('remarks', '')}")
+                logger.warning(f"Dhan option chain failed (HTTP!=200): {resp.get('remarks', '')}")
                 return []
 
-            oc_data = resp.get("data", {})
+            # SDK wraps: resp["data"] = <api_json>
+            # Dhan API: {"status":"success","data":{"last_price":...,"oc":{...}}}
+            # So actual payload is resp["data"]["data"]
+            oc_data = _unwrap(resp)   # resp["data"]["data"] = {"last_price":..,"oc":{..}}
+            logger.debug(f"Dhan option chain oc_data keys: {list(oc_data.keys()) if isinstance(oc_data, dict) else type(oc_data)}")
+
             oc = oc_data.get("oc", {})
             spot = float(oc_data.get("last_price", 0))
+
+            if not oc:
+                logger.warning(f"Dhan option chain: empty 'oc' in response for {symbol} expiry={expiry}")
+                return []
 
             chain = []
             for strike_str, options in oc.items():
@@ -161,25 +229,25 @@ class DhanBroker(BrokerBase):
                     call_od = options.get("call_options", {}).get("option_data", {})
                     put_od  = options.get("put_options",  {}).get("option_data", {})
                     chain.append({
-                        "strike":          strike,
-                        "call_ltp":        float(call_md.get("ltp", 0)),
-                        "put_ltp":         float(put_md.get("ltp", 0)),
-                        "call_oi":         int(call_md.get("open_interest", 0)),
-                        "put_oi":          int(put_md.get("open_interest", 0)),
-                        "call_iv":         float(call_md.get("iv", 0)),
-                        "put_iv":          float(put_md.get("iv", 0)),
-                        "call_volume":     int(call_md.get("volume", 0)),
-                        "put_volume":      int(put_md.get("volume", 0)),
-                        "call_bid":        float(call_md.get("best_bid_price", 0)),
-                        "call_ask":        float(call_md.get("best_ask_price", 0)),
-                        "put_bid":         float(put_md.get("best_bid_price", 0)),
-                        "put_ask":         float(put_md.get("best_ask_price", 0)),
-                        "call_oi_change":  0,
-                        "put_oi_change":   0,
+                        "strike":           strike,
+                        "call_ltp":         float(call_md.get("ltp", 0)),
+                        "put_ltp":          float(put_md.get("ltp", 0)),
+                        "call_oi":          int(call_md.get("open_interest", 0)),
+                        "put_oi":           int(put_md.get("open_interest", 0)),
+                        "call_iv":          float(call_md.get("iv", 0)),
+                        "put_iv":           float(put_md.get("iv", 0)),
+                        "call_volume":      int(call_md.get("volume", 0)),
+                        "put_volume":       int(put_md.get("volume", 0)),
+                        "call_bid":         float(call_md.get("best_bid_price", 0)),
+                        "call_ask":         float(call_md.get("best_ask_price", 0)),
+                        "put_bid":          float(put_md.get("best_bid_price", 0)),
+                        "put_ask":          float(put_md.get("best_ask_price", 0)),
+                        "call_oi_change":   0,
+                        "put_oi_change":    0,
                         "call_security_id": call_od.get("security_id"),
                         "put_security_id":  put_od.get("security_id"),
-                        "spot":            spot,
-                        "expiry":          expiry,
+                        "spot":             spot,
+                        "expiry":           expiry,
                     })
                 except (ValueError, TypeError) as exc:
                     logger.debug(f"Skipping strike {strike_str}: {exc}")
@@ -201,13 +269,13 @@ class DhanBroker(BrokerBase):
             int_tokens = [int(t) for t in tokens if t]
             resp = self._get_sdk().quote_data({"NSE_FNO": int_tokens})
             if resp.get("status") == "success":
-                items = resp.get("data", {}).get("NSE_FNO", [])
+                items = _unwrap(resp, "NSE_FNO")
                 result = {}
-                for item in items:
+                for item in (items if isinstance(items, list) else []):
                     tid = str(item.get("security_id", ""))
                     result[tid] = {
-                        "ltp":    float(item.get("last_price", 0)),
-                        "oi":     int(item.get("oi", 0)),
+                        "ltp":    float(item.get("ltp", item.get("last_price", 0))),
+                        "oi":     int(item.get("oi", item.get("open_interest", 0))),
                         "volume": int(item.get("volume", 0)),
                         "bid":    float(item.get("best_bid_price", 0)),
                         "ask":    float(item.get("best_ask_price", 0)),
@@ -226,16 +294,16 @@ class DhanBroker(BrokerBase):
             resp = self._get_sdk().ohlc_data({"NSE_EQ": security_ids})
             result = {}
             if resp.get("status") == "success":
-                items = resp.get("data", {}).get("NSE_EQ", [])
-                for item in items:
+                items = _unwrap(resp, "NSE_EQ")
+                for item in (items if isinstance(items, list) else []):
                     sid = str(item.get("security_id", ""))
                     result[sid] = {
-                        "ltp":        float(item.get("last_price", 0)),
+                        "ltp":        float(item.get("ltp", item.get("last_price", 0))),
                         "open":       float(item.get("open", 0)),
                         "high":       float(item.get("high", 0)),
                         "low":        float(item.get("low", 0)),
                         "close":      float(item.get("previous_close", 0)),
-                        "change":     float(item.get("net_change", 0)),
+                        "change":     float(item.get("net_change", item.get("change", 0))),
                         "pct_change": float(item.get("percent_change", 0)),
                     }
             return result
