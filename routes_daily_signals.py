@@ -214,7 +214,30 @@ def dashboard_daily_signals():
 
         result = {}
 
-        # Primary: yfinance individual Ticker calls (parallel) for real index values
+        # ── Priority 1: Dhan DataApiBroker (most accurate, direct market data) ──
+        try:
+            from services.dhan_service import get_index_quotes
+            user_id = current_user.id if current_user.is_authenticated else None
+            dhan_data = get_index_quotes(user_id)
+            DHAN_KEY_MAP = {
+                'NIFTY':     'nifty_50',
+                'BANKNIFTY': 'nifty_bank',
+            }
+            for dhan_sym, key in DHAN_KEY_MAP.items():
+                if dhan_sym in dhan_data and dhan_data[dhan_sym].get('ltp', 0) > 0:
+                    d = dhan_data[dhan_sym]
+                    ltp   = float(d['ltp'])
+                    close = float(d.get('close') or d.get('ltp'))
+                    chg   = float(d.get('pct_change', 0))
+                    if not chg and close:
+                        chg = round((ltp - close) / close * 100, 2) if close else 0.0
+                    result[key] = {'value': round(ltp, 2), 'change_percent': chg, 'live': True, 'source': 'Dhan'}
+            if result:
+                logger.info(f"Dhan index data: {list(result.keys())}")
+        except Exception as e:
+            logger.warning(f"Dhan index fetch failed: {e}")
+
+        # ── Priority 2: yfinance for indices still missing (SENSEX, VIX, IT) ──
         INDEX_MAP = {
             '^NSEI':     'nifty_50',
             '^NSEBANK':  'nifty_bank',
@@ -222,6 +245,7 @@ def dashboard_daily_signals():
             '^CNXIT':    'nifty_it',
             '^INDIAVIX': 'india_vix',
         }
+        missing_yf = {sym: key for sym, key in INDEX_MAP.items() if key not in result}
 
         def _yf_index(yf_sym):
             try:
@@ -256,13 +280,14 @@ def dashboard_daily_signals():
             except Exception:
                 return yf_sym, None
 
-        try:
-            with ThreadPoolExecutor(max_workers=5) as idx_pool:
-                for sym, data in idx_pool.map(_yf_index, INDEX_MAP.keys()):
-                    if data:
-                        result[INDEX_MAP[sym]] = data
-        except Exception as e:
-            logger.warning(f"yfinance index fetch failed: {e}")
+        if missing_yf:
+            try:
+                with ThreadPoolExecutor(max_workers=5) as idx_pool:
+                    for sym, data in idx_pool.map(_yf_index, missing_yf.keys()):
+                        if data:
+                            result[missing_yf[sym]] = data
+            except Exception as e:
+                logger.warning(f"yfinance index fetch failed: {e}")
 
         # Fallback: NSE service (may have stale values if NSE API is blocked)
         if not result:

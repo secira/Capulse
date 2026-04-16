@@ -102,40 +102,62 @@ class NiftyOptionsEngine:
             return None, None, None
 
     def _get_broker_data(self) -> tuple:
+        """Returns (spot, engine_chain, broker_name, expiry_list) or (None, None, None, [])."""
         if not self.user_id:
-            return None, None, None
+            return None, None, None, []
         try:
             from services.broker_factory import get_data_broker_for_user
             broker = get_data_broker_for_user(self.user_id)
             if not broker:
                 logger.info(f"No data broker configured for user {self.user_id}")
-                return None, None, None
+                return None, None, None, []
 
             if not broker.connect():
                 logger.warning(f"Data broker {broker.BROKER_NAME} failed to connect")
-                return None, None, None
+                return None, None, None, []
 
             self._broker_adapter = broker
-            spot = broker.get_price("NIFTY")
+
+            # Expiry list — only Dhan supports this directly; others return []
+            broker_expiries = []
+            if hasattr(broker, 'get_expiry_list'):
+                try:
+                    broker_expiries = broker.get_expiry_list("NIFTY") or []
+                except Exception:
+                    pass
+
+            # For brokers that return a direct option chain (Dhan), we use the
+            # first available expiry so that spot+chain are always consistent.
+            if broker_expiries:
+                nearest_expiry = broker_expiries[0]
+                chain_raw = broker.get_option_chain("NIFTY", nearest_expiry)
+                # Spot is embedded in each chain row
+                spot = float(chain_raw[0].get("spot", 0)) if chain_raw else 0.0
+                if not spot or spot <= 0:
+                    # Fall back to separate price call
+                    spot = broker.get_price("NIFTY")
+            else:
+                spot = broker.get_price("NIFTY")
+                chain_raw = broker.get_option_chain("NIFTY") if spot and spot > 0 else []
+
             if not spot or spot <= 0:
                 logger.warning(f"Data broker {broker.BROKER_NAME} returned no spot price")
-                return None, None, None
+                return None, None, None, []
 
-            chain_raw = broker.get_option_chain("NIFTY")
             if chain_raw:
                 from services.option_chain_builder import chain_to_engine_format
                 engine_chain = chain_to_engine_format(chain_raw, spot)
                 logger.info(
                     f"✅ Broker Data API ({broker.BROKER_NAME}): "
-                    f"spot={spot:.2f}, chain_strikes={len(chain_raw)}"
+                    f"spot={spot:.2f}, chain_strikes={len(chain_raw)}, expiries={len(broker_expiries)}"
                 )
-                return float(spot), engine_chain, broker.BROKER_NAME
+                return float(spot), engine_chain, broker.BROKER_NAME, broker_expiries
             else:
                 logger.warning(f"Data broker {broker.BROKER_NAME} returned empty chain")
-                return None, None, None
+                return None, None, None, []
         except Exception as e:
             logger.error(f"Broker data API error: {e}")
-            return None, None, None
+            return None, None, None, []
 
     def _get_active_data_source(self) -> str:
         try:
@@ -150,51 +172,55 @@ class NiftyOptionsEngine:
         return 'nse_python'
 
     def get_market_indices(self) -> Dict[str, Any]:
+        nifty_price = 0.0
+        nifty_change = 0.0
+        nifty_pct = 0.0
+        bn_price = 0.0
+        sensex_price = 0.0
+        vix_price = 0.0
+
+        # ── Priority 1: Dhan DataApiBroker ──
         try:
-            from services.nse_service import NSEService
-            nse = NSEService()
-            nifty = nse.get_nifty_data() or {}
-            banknifty = nse.get_banknifty_data() if hasattr(nse, 'get_banknifty_data') else {}
+            from services.dhan_service import get_index_quotes
+            dhan_data = get_index_quotes(self.user_id)
+            if dhan_data.get('NIFTY', {}).get('ltp', 0) > 0:
+                d = dhan_data['NIFTY']
+                nifty_price  = float(d['ltp'])
+                nifty_change = float(d.get('change', 0))
+                nifty_pct    = float(d.get('pct_change', 0))
+            if dhan_data.get('BANKNIFTY', {}).get('ltp', 0) > 0:
+                bn_price = float(dhan_data['BANKNIFTY']['ltp'])
+            logger.info(f"Dhan market indices: NIFTY={nifty_price}, BankNIFTY={bn_price}")
         except Exception as e:
-            logger.warning(f"NSE service error: {e}")
-            nifty = {}
-            banknifty = {}
+            logger.warning(f"Dhan market indices error: {e}")
 
-        try:
-            import yfinance as yf
-            nifty_yf = yf.Ticker("^NSEI")
-            nifty_info = nifty_yf.fast_info if hasattr(nifty_yf, 'fast_info') else {}
-            nifty_price = getattr(nifty_info, 'last_price', None) or nifty.get('last_price', 0)
-            nifty_change = nifty.get('change', 0)
-            nifty_pct = nifty.get('pChange', 0)
-
-            banknifty_yf = yf.Ticker("^NSEBANK")
-            bn_info = banknifty_yf.fast_info if hasattr(banknifty_yf, 'fast_info') else {}
-            bn_price = getattr(bn_info, 'last_price', None) or banknifty.get('last_price', 0)
-
-            sensex_yf = yf.Ticker("^BSESN")
-            sensex_info = sensex_yf.fast_info if hasattr(sensex_yf, 'fast_info') else {}
-            sensex_price = getattr(sensex_info, 'last_price', None) or 0
-
-            vix_yf = yf.Ticker("^INDIAVIX")
-            vix_info = vix_yf.fast_info if hasattr(vix_yf, 'fast_info') else {}
-            vix_price = getattr(vix_info, 'last_price', None) or 0
-        except Exception as e:
-            logger.warning(f"yfinance fallback error: {e}")
-            nifty_price = nifty.get('last_price', 23500)
-            nifty_change = nifty.get('change', 0)
-            nifty_pct = nifty.get('pChange', 0)
-            bn_price = banknifty.get('last_price', 50200)
-            sensex_price = 77500
-            vix_price = 13.5
+        # ── Priority 2: yfinance for any missing values ──
+        if not nifty_price or not bn_price or not sensex_price:
+            try:
+                import yfinance as yf
+                if not nifty_price:
+                    ni = yf.Ticker("^NSEI").fast_info
+                    nifty_price  = float(getattr(ni, 'last_price', 0) or 0)
+                    prev = float(getattr(ni, 'previous_close', 0) or 0)
+                    if nifty_price and prev:
+                        nifty_pct = round((nifty_price - prev) / prev * 100, 2)
+                        nifty_change = round(nifty_price - prev, 2)
+                if not bn_price:
+                    bn_price = float(getattr(yf.Ticker("^NSEBANK").fast_info, 'last_price', 0) or 0)
+                if not sensex_price:
+                    sensex_price = float(getattr(yf.Ticker("^BSESN").fast_info, 'last_price', 0) or 0)
+                if not vix_price:
+                    vix_price = float(getattr(yf.Ticker("^INDIAVIX").fast_info, 'last_price', 0) or 0)
+            except Exception as e:
+                logger.warning(f"yfinance fallback error: {e}")
 
         return {
-            'nifty': {'price': round(float(nifty_price or 23500), 2), 'change': round(float(nifty_change), 2), 'pct': round(float(nifty_pct), 2)},
-            'sensex': {'price': round(float(sensex_price or 77500), 2), 'change': 0, 'pct': 0},
-            'banknifty': {'price': round(float(bn_price or 50200), 2), 'change': 0, 'pct': 0},
-            'vix': {'price': round(float(vix_price or 13.5), 2), 'change': 0, 'pct': 0},
-            'nifty_fut': {'price': round(float(nifty_price or 23500) + 15, 2), 'change': 0, 'pct': 0},
-            'banknifty_fut': {'price': round(float(bn_price or 50200) + 25, 2), 'change': 0, 'pct': 0},
+            'nifty':       {'price': round(float(nifty_price or 23500), 2),  'change': round(float(nifty_change), 2), 'pct': round(float(nifty_pct), 2)},
+            'sensex':      {'price': round(float(sensex_price or 77500), 2), 'change': 0, 'pct': 0},
+            'banknifty':   {'price': round(float(bn_price or 50200), 2),     'change': 0, 'pct': 0},
+            'vix':         {'price': round(float(vix_price or 13.5), 2),     'change': 0, 'pct': 0},
+            'nifty_fut':   {'price': round(float(nifty_price or 23500) + 15, 2), 'change': 0, 'pct': 0},
+            'banknifty_fut':{'price': round(float(bn_price or 50200) + 25, 2),   'change': 0, 'pct': 0},
         }
 
     def _get_nse_option_chain_raw(self) -> dict:
@@ -662,6 +688,15 @@ class NiftyOptionsEngine:
         current_chain = None
         next_chain = {}
         spot = None
+        broker_expiry_list: List[str] = []
+
+        # Default expiry_picks — overwritten below once real data is available
+        expiry_picks: Dict[str, Any] = {
+            'current': None, 'next': None,
+            'current_label': 'Weekly', 'next_label': 'Monthly',
+            'current_date': '', 'next_date': '',
+            'current_dte': 0, 'next_dte': 0,
+        }
 
         admin_plan = self._get_admin_data_plan()
 
@@ -673,12 +708,15 @@ class NiftyOptionsEngine:
                 current_chain = td_chain
                 next_chain = {}
         elif admin_plan == 'user_data':
-            broker_spot, broker_chain, broker_name = self._get_broker_data()
+            broker_spot, broker_chain, broker_name, broker_expiry_list = self._get_broker_data()
             if broker_spot and broker_chain:
                 data_source = f'broker:{broker_name}'
                 spot = broker_spot
                 current_chain = broker_chain
                 next_chain = {}
+                # Build expiry_picks from the broker's expiry list
+                if broker_expiry_list:
+                    expiry_picks = self._pick_expiries(broker_expiry_list)
 
         if not current_chain:
             raw_nse = self._get_nse_option_chain_raw()
