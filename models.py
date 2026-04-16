@@ -372,30 +372,42 @@ class User(UserMixin, db.Model):
     
     def can_access_menu(self, menu_item):
         """Check if user can access specific menu item based on pricing plan"""
-        # Free users can access Dashboard, AI Advisor, and Trading Signals (view-only)
         if self.pricing_plan == PricingPlan.FREE:
-            return menu_item in ['dashboard', 'ai_advisor', 'dashboard_trading_signals']
-        
-        # Target Plus users can access Portfolio Hub but NOT Trade Assist (Trade Now)
-        elif self.pricing_plan == PricingPlan.TARGET_PLUS:
-            return menu_item not in ['dashboard_trade_now', 'trade_assist']
-        
-        # Target Pro and HNI users can access everything
-        elif self.pricing_plan in [PricingPlan.TARGET_PRO, PricingPlan.HNI]:
-            return True
-            
-        return False
-    
+            # Starter Plan: Dashboard, Live Market Pulse, Portfolio Analysis + Portfolio Hub (manual only)
+            return menu_item in ['dashboard', 'dashboard_daily_signals', 'dashboard_my_portfolio', 'portfolio_hub']
+        # Growth, Pro, Elite: full access
+        return True
+
+    def get_max_broker_connections(self):
+        """Return max number of broker connections allowed for the user's plan"""
+        limits = {
+            PricingPlan.FREE: 0,
+            PricingPlan.TARGET_PLUS: 1,
+            PricingPlan.TARGET_PRO: 3,
+            PricingPlan.HNI: 3,
+        }
+        return limits.get(self.pricing_plan, 0)
+
     def get_plan_display_name(self):
         """Get human-readable plan name"""
         plan_names = {
-            PricingPlan.FREE: "Free User",
-            PricingPlan.TARGET_PLUS: "Target Plus",
-            PricingPlan.TARGET_PRO: "Target Pro",
-            PricingPlan.HNI: "HNI Account"
+            PricingPlan.FREE: "Starter Plan",
+            PricingPlan.TARGET_PLUS: "Growth Plan",
+            PricingPlan.TARGET_PRO: "Pro Plan",
+            PricingPlan.HNI: "Elite Plan"
         }
         return plan_names.get(self.pricing_plan, "Unknown")
-    
+
+    def get_plan_tagline(self):
+        """Get short tagline for the user's plan"""
+        taglines = {
+            PricingPlan.FREE: "Start your journey",
+            PricingPlan.TARGET_PLUS: "Build consistency",
+            PricingPlan.TARGET_PRO: "Scale capital safely",
+            PricingPlan.HNI: "Active decision-making"
+        }
+        return taglines.get(self.pricing_plan, "")
+
     def get_plan_price(self):
         """Get monthly price for the current plan"""
         prices = {

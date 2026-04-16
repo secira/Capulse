@@ -187,14 +187,21 @@ def api_add_broker_account():
                 'message': 'User can create only connection with each broker'
             }), 400
         
-        # Check broker limits — all plans allow up to 3 broker connections
-        from models import PricingPlan
+        # Check broker limits based on user's pricing plan
+        max_brokers = current_user.get_max_broker_connections()
         existing_brokers_count = BrokerAccount.query.filter_by(user_id=current_user.id).count()
-        
-        if existing_brokers_count >= 3:
+
+        if max_brokers == 0:
             return jsonify({
                 'success': False,
-                'message': 'You can connect up to 3 brokers. Please remove an existing broker before adding a new one.'
+                'message': 'Broker connections are not available on the Starter Plan. Upgrade to Growth Plan or higher to connect a broker.'
+            }), 403
+
+        if existing_brokers_count >= max_brokers:
+            plan_name = current_user.get_plan_display_name()
+            return jsonify({
+                'success': False,
+                'message': f'Your {plan_name} allows up to {max_brokers} broker connection(s). Remove an existing broker or upgrade your plan.'
             }), 400
         
         # Step 1: Save broker credentials (DO NOT CONNECT YET)

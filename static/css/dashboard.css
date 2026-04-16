@@ -268,9 +268,23 @@ body:has(.dashboard-app) {
     color: var(--tc-muted-fg);
 }
 .sidebar-plan-chip.free         { background: var(--tc-muted);  color: var(--tc-muted-fg); }
-.sidebar-plan-chip.target_plus  { background: #dbeafe; color: #2563eb; }
+.sidebar-plan-chip.target_plus  { background: #dcfce7; color: #16a34a; }
 .sidebar-plan-chip.target_pro   { background: #ede9fe; color: #7c3aed; }
 .sidebar-plan-chip.hni          { background: #fef3c7; color: #d97706; }
+
+/* Locked nav items for Starter Plan users */
+.nav-locked {
+    opacity: 0.45;
+    pointer-events: auto !important;
+    cursor: pointer;
+}
+.nav-locked:hover { opacity: 0.65; }
+.nav-lock-icon {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--tc-muted-fg);
+    flex-shrink: 0;
+}
 
 .sidebar-user-row {
     display: flex;

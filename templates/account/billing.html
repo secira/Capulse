@@ -17,23 +17,25 @@
                             </div>
                             <div>
                                 <h4 class="mb-1">{{ current_user.get_plan_display_name() }}</h4>
+                                <p class="text-muted mb-1" style="font-size:13px;">{{ current_user.get_plan_tagline() }}</p>
                                 {% if current_user.pricing_plan == PricingPlan.FREE %}
-                                <p class="text-muted mb-0">Free plan with access to AI Advisor only</p>
-                                {% elif current_user.pricing_plan == PricingPlan.HNI %}
-                                <p class="text-muted mb-0">₹4999/month - HNI Account with dedicated support</p>
+                                <p class="text-muted mb-0 small">Free plan — Dashboard, Live Market Pulse & Portfolio Analysis</p>
                                 {% else %}
-                                <p class="text-muted mb-0">₹{{ current_user.get_plan_price() }}/month</p>
+                                <p class="text-muted mb-0 small">₹{{ current_user.get_plan_price() }}/month</p>
                                 {% endif %}
-                                
+
                                 {% if current_user.pricing_plan != PricingPlan.FREE %}
-                                <div class="mt-2">
+                                <div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
                                     {% if current_user.is_subscription_active() %}
-                                    <span class="badge bg-success me-2">Active</span>
+                                    <span class="badge bg-success">Active</span>
                                     {% if current_user.subscription_end_date %}
-                                    <small class="text-muted">Renews on {{ current_user.subscription_end_date.strftime('%B %d, %Y') }}</small>
+                                    <span class="badge bg-light text-dark border" style="font-size:12px;">
+                                        <i class="fas fa-calendar-alt me-1 text-primary"></i>
+                                        Valid until {{ current_user.subscription_end_date.strftime('%d %b %Y') }}
+                                    </span>
                                     {% endif %}
                                     {% else %}
-                                    <span class="badge bg-warning">Inactive</span>
+                                    <span class="badge bg-warning text-dark">Inactive</span>
                                     {% endif %}
                                 </div>
                                 {% endif %}
@@ -74,114 +76,104 @@
         </div>
         
         <div class="row g-4">
-            <!-- Target Plus Plan -->
+            <!-- Growth Plan -->
             <div class="col-lg-4">
                 <div class="card border-0 shadow-sm h-100 {% if current_user.pricing_plan == PricingPlan.TARGET_PLUS %}border-primary border-2{% endif %}" style="border-radius: 16px;">
-                    <div class="card-body p-5">
+                    <div class="card-body p-4">
                         <div class="text-center mb-4">
-                            <h4 class="fw-bold text-dark mb-2">Target Plus</h4>
-                            <p class="text-muted mb-4">Great for portfolio analysis</p>
-                            
-                            <div class="pricing-display d-flex align-items-baseline justify-content-center">
-                                <h2 class="display-4 fw-bold text-primary mb-0 me-2">1499</h2>
+                            <span class="badge bg-success rounded-pill px-3 py-1 mb-2" style="background:#16a34a!important;font-size:11px;">Growth</span>
+                            <h4 class="fw-bold text-dark mb-1">Growth Plan</h4>
+                            <p class="text-muted small mb-4">Build consistency</p>
+                            <div class="d-flex align-items-baseline justify-content-center">
+                                <h2 class="display-5 fw-bold text-primary mb-0 me-1">₹1,499</h2>
                                 <small class="text-muted">/month</small>
                             </div>
                         </div>
-                        
                         <div class="features-list mb-4">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>AI stock analysis</li>
+                            <ul class="list-unstyled" style="font-size:14px;">
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>1 broker connection</strong></li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>AI Research Co-Pilot</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>F&O Analysis Engine</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Behavioural AI Engine</li>
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Daily Trading Signals</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>NSE India real-time data</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Portfolio tracking</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>3 Broker Connections</li>
-                                <li class="mb-2"><i class="fas fa-times text-muted me-2"></i>No Trade Now</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Trade Now with guardrails</li>
                             </ul>
                         </div>
-                        
                         {% if current_user.pricing_plan == PricingPlan.TARGET_PLUS %}
-                            <span class="btn btn-success w-100 py-3 rounded-pill fw-semibold disabled">Current Plan</span>
+                            <span class="btn btn-success w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
+                        {% elif current_user.pricing_plan.value in ['TARGET_PRO', 'HNI'] %}
+                            <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Included in Plan</span>
                         {% else %}
-                            <button class="btn btn-primary w-100 py-3 rounded-pill fw-semibold" onclick="upgradeToPlan('target_plus')">
-                                {% if current_user.pricing_plan == PricingPlan.FREE %}Upgrade Now{% else %}Switch Plan{% endif %}
-                            </button>
+                            <button class="btn btn-primary w-100 py-2 rounded-pill fw-semibold" onclick="upgradeToPlan('target_plus')">Upgrade Now</button>
                         {% endif %}
                     </div>
                 </div>
             </div>
-            
-            <!-- Target Pro Plan (Popular) -->
+
+            <!-- Pro Plan (Popular) -->
             <div class="col-lg-4">
                 <div class="card border-0 shadow-lg h-100 position-relative {% if current_user.pricing_plan == PricingPlan.TARGET_PRO %}border-primary border-2{% endif %}" style="border-radius: 16px;">
-                    <!-- Popular Badge -->
                     <div class="position-absolute top-0 start-50 translate-middle">
                         <span class="badge bg-primary px-3 py-2 rounded-pill">Most Popular</span>
                     </div>
-                    
-                    <div class="card-body p-5">
+                    <div class="card-body p-4">
                         <div class="text-center mb-4">
-                            <h4 class="fw-bold text-dark mb-2">Target Pro</h4>
-                            <p class="text-muted mb-4">Great for traders who want to execute orders</p>
-                            
-                            <div class="pricing-display d-flex align-items-baseline justify-content-center">
-                                <h2 class="display-4 fw-bold text-primary mb-0 me-2">2499</h2>
+                            <span class="badge rounded-pill px-3 py-1 mb-2" style="background:#ede9fe;color:#7c3aed;font-size:11px;">Pro</span>
+                            <h4 class="fw-bold text-dark mb-1">Pro Plan</h4>
+                            <p class="text-muted small mb-4">Scale capital safely</p>
+                            <div class="d-flex align-items-baseline justify-content-center">
+                                <h2 class="display-5 fw-bold text-primary mb-0 me-1">₹2,499</h2>
                                 <small class="text-muted">/month</small>
                             </div>
                         </div>
-                        
                         <div class="features-list mb-4">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>AI stock analysis</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Daily Trading Signals</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>NSE India real-time data</li>
+                            <ul class="list-unstyled" style="font-size:14px;">
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>3 broker connections</strong></li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>1 data API broker</strong></li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>All Growth Plan features</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Multi-broker Trade Now</li>
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Portfolio optimization</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>3 Broker Connections</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Trade Now (select broker per trade)</li>
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Priority email support</li>
                             </ul>
                         </div>
-                        
                         {% if current_user.pricing_plan == PricingPlan.TARGET_PRO %}
-                            <span class="btn btn-success w-100 py-3 rounded-pill fw-semibold disabled">Current Plan</span>
+                            <span class="btn btn-success w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
+                        {% elif current_user.pricing_plan == PricingPlan.HNI %}
+                            <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Included in Plan</span>
                         {% else %}
-                            <button class="btn btn-primary w-100 py-3 rounded-pill fw-semibold" onclick="upgradeToPlan('target_pro')">
-                                {% if current_user.pricing_plan == PricingPlan.FREE %}Upgrade Now{% else %}Switch Plan{% endif %}
-                            </button>
+                            <button class="btn btn-primary w-100 py-2 rounded-pill fw-semibold" onclick="upgradeToPlan('target_pro')">Upgrade Now</button>
                         {% endif %}
                     </div>
                 </div>
             </div>
-            
-            <!-- HNI Account -->
+
+            <!-- Elite Plan -->
             <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100 {% if current_user.pricing_plan == PricingPlan.HNI %}border-warning border-2{% endif %}" style="border-radius: 16px;">
-                    <div class="card-body p-5">
+                <div class="card border-0 shadow-sm h-100 {% if current_user.pricing_plan == PricingPlan.HNI %}border-warning border-2{% endif %}" style="border-radius: 16px; border: 1px solid #fde68a !important;">
+                    <div class="card-body p-4">
                         <div class="text-center mb-4">
-                            <h4 class="fw-bold text-dark mb-2">HNI Account</h4>
-                            <p class="text-muted mb-4">For HNI with busy schedule</p>
-                            
-                            <div class="pricing-display d-flex align-items-baseline justify-content-center">
-                                <h2 class="display-4 fw-bold text-primary mb-0 me-2">4999</h2>
+                            <span class="badge rounded-pill px-3 py-1 mb-2" style="background:#fef3c7;color:#d97706;font-size:11px;">Elite</span>
+                            <h4 class="fw-bold text-dark mb-1">Elite Plan</h4>
+                            <p class="text-muted small mb-4">Active decision-making</p>
+                            <div class="d-flex align-items-baseline justify-content-center">
+                                <h2 class="display-5 fw-bold text-primary mb-0 me-1">₹4,999</h2>
                                 <small class="text-muted">/month</small>
                             </div>
                         </div>
-                        
                         <div class="features-list mb-4">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>All Benefits of Target Pro</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>3 Broker Connections</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Trade Now (select broker per trade)</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Dedicated account manager</li>
+                            <ul class="list-unstyled" style="font-size:14px;">
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>3 broker connections</strong></li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>1 data API broker</strong></li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>All Pro Plan features</li>
+                                <li class="mb-2"><i class="fas fa-star text-warning me-2"></i><strong>Dedicated account manager</strong></li>
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Premium 24/7 support</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Priority onboarding</li>
                             </ul>
                         </div>
-                        
                         {% if current_user.pricing_plan == PricingPlan.HNI %}
-                            <span class="btn btn-warning w-100 py-3 rounded-pill fw-semibold disabled text-dark">Current Plan</span>
+                            <span class="btn btn-warning w-100 py-2 rounded-pill fw-semibold disabled text-dark">Current Plan</span>
                         {% else %}
-                            <a href="{{ url_for('contact') }}" class="btn btn-outline-primary w-100 py-3 rounded-pill fw-semibold">
-                                Contact Sales
-                            </a>
+                            <button class="btn btn-warning w-100 py-2 rounded-pill fw-semibold text-dark" onclick="upgradeToPlan('hni')">Upgrade to Elite</button>
                         {% endif %}
                     </div>
                 </div>

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Pricing — AI Trading Plans for Every Trader | Target Capital{% endblock %}
-{% block description %}Start free. Target Plus ₹1,499/mo, Target Pro ₹2,999/mo, or HNI for full access to I-Score signals, Behavioural AI, multi-broker Trade Now, Live Market Pulse, and daily F&O signals. No hidden fees.{% endblock %}
-{% block keywords %}Target Capital pricing, AI trading subscription India, portfolio management cost, Target Plus Target Pro HNI, F&O signals subscription, trading platform India pricing, Scentric AI plans{% endblock %}
+{% block description %}Start free. Growth Plan ₹1,499/mo, Pro Plan ₹2,499/mo, or Elite Plan ₹4,999/mo for full access to I-Score signals, Behavioural AI, multi-broker Trade Now, Live Market Pulse, and daily F&O signals. No hidden fees.{% endblock %}
+{% block keywords %}Target Capital pricing, AI trading subscription India, Growth Plan Pro Plan Elite Plan, F&O signals subscription, trading platform India pricing, Scentric AI plans{% endblock %}
 {% block og_title %}Pricing — AI Trading Plans | Target Capital{% endblock %}
-{% block og_description %}Free plan + Target Plus ₹1,499, Target Pro ₹2,999, HNI. Full I-Score, Behavioural AI, 8-broker Trade Now. No hidden fees.{% endblock %}
+{% block og_description %}Free Starter Plan + Growth ₹1,499, Pro ₹2,499, Elite ₹4,999. Full I-Score, Behavioural AI, multi-broker Trade Now. No hidden fees.{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -44,136 +44,160 @@
 <!-- Pricing Cards -->
 <section class="bg-light" style="padding: 60px 0;">
     <div class="container">
-        <div class="row g-4">
-            <!-- Target Plus -->
-            <div class="col-lg-4">
+        <div class="row g-4 justify-content-center">
+
+            <!-- Starter Plan (Free) -->
+            <div class="col-lg-3 col-md-6">
                 <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
-                    <div class="card-body p-5">
+                    <div class="card-body p-4">
                         <div class="text-center mb-4">
-                            <h4 class="fw-bold text-dark mb-2">Target Plus</h4>
-                            <p class="text-muted mb-4">For portfolio analysis</p>
-                            
-                            <div class="pricing-display d-flex align-items-baseline justify-content-center"
-                                 data-monthly="1499" data-annual="14390">
-                                <h2 class="display-4 fw-bold text-primary mb-0 me-2">
-                                    <span class="current-price">1499</span>
-                                </h2>
-                                <small class="text-muted billing-period">/month</small>
+                            <span class="badge bg-secondary rounded-pill px-3 py-2 mb-3">Free Forever</span>
+                            <h4 class="fw-bold text-dark mb-1">Starter Plan</h4>
+                            <p class="text-muted small mb-4">Start your journey</p>
+                            <div class="d-flex align-items-baseline justify-content-center">
+                                <h2 class="display-5 fw-bold text-dark mb-0 me-1">₹0</h2>
+                                <small class="text-muted">/month</small>
                             </div>
                         </div>
-                        
                         <div class="features-list mb-4">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>I-Score & AI analysis</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Daily trading signals</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>AI Workflow Hub</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Portfolio tracking</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>3 broker connections</li>
-                                <li class="mb-2"><i class="fas fa-times text-muted me-2"></i>No Trade Now</li>
+                            <ul class="list-unstyled" style="font-size:14px;">
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Dashboard access</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Live Market Pulse</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Portfolio Analysis</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Manual upload: Equity, MF & Gold</li>
+                                <li class="mb-2"><i class="fas fa-times text-muted me-2"></i>No broker connection</li>
+                                <li class="mb-2"><i class="fas fa-times text-muted me-2"></i>No Research Co-Pilot</li>
                             </ul>
                         </div>
-                        
                         {% if current_user.is_authenticated %}
-                            {% if current_subscription and current_subscription.plan == 'TARGET_PLUS' %}
-                                <span class="btn btn-success w-100 py-3 rounded-pill fw-semibold disabled">Current Plan</span>
-                            {% elif current_subscription and current_subscription.plan in ['TARGET_PRO', 'HNI'] %}
-                                <span class="btn btn-outline-secondary w-100 py-3 rounded-pill fw-semibold disabled">Included in Plan</span>
+                            {% if current_user.pricing_plan.value == 'FREE' %}
+                                <span class="btn btn-secondary w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
                             {% else %}
-                                <a href="{{ url_for('subscribe', plan_type='target_plus') }}" class="btn btn-primary w-100 py-3 rounded-pill fw-semibold">Upgrade Now</a>
+                                <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Downgrade unavailable</span>
                             {% endif %}
                         {% else %}
-                            <a href="{{ url_for('register') }}" class="btn btn-outline-primary w-100 py-3 rounded-pill fw-semibold">Get Started</a>
+                            <a href="{{ url_for('register') }}" class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold">Start Free</a>
                         {% endif %}
                     </div>
                 </div>
             </div>
-            
-            <!-- Target Pro -->
-            <div class="col-lg-4">
+
+            <!-- Growth Plan -->
+            <div class="col-lg-3 col-md-6">
+                <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
+                    <div class="card-body p-4">
+                        <div class="text-center mb-4">
+                            <span class="badge bg-success rounded-pill px-3 py-2 mb-3" style="background:#16a34a!important">Growth</span>
+                            <h4 class="fw-bold text-dark mb-1">Growth Plan</h4>
+                            <p class="text-muted small mb-4">Build consistency</p>
+                            <div class="pricing-display d-flex align-items-baseline justify-content-center"
+                                 data-monthly="1499" data-annual="14390">
+                                <span style="font-size:1.2rem;font-weight:700;color:#1e293b">₹</span>
+                                <h2 class="display-5 fw-bold text-primary mb-0 mx-1"><span class="current-price">1,499</span></h2>
+                                <small class="text-muted billing-period">/month</small>
+                            </div>
+                        </div>
+                        <div class="features-list mb-4">
+                            <ul class="list-unstyled" style="font-size:14px;">
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>1 broker connection</strong> (trading + data API)</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>AI Research Co-Pilot</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>F&O Analysis Engine</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Behavioural AI Engine</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Daily Trading Signals</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Trade Now with guardrails</li>
+                            </ul>
+                        </div>
+                        {% if current_user.is_authenticated %}
+                            {% if current_user.pricing_plan.value == 'TARGET_PLUS' %}
+                                <span class="btn btn-success w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
+                            {% elif current_user.pricing_plan.value in ['TARGET_PRO', 'HNI'] %}
+                                <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Included in Plan</span>
+                            {% else %}
+                                <a href="{{ url_for('subscribe', plan_type='target_plus') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Upgrade Now</a>
+                            {% endif %}
+                        {% else %}
+                            <a href="{{ url_for('register') }}" class="btn btn-outline-primary w-100 py-2 rounded-pill fw-semibold">Get Started</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pro Plan (Popular) -->
+            <div class="col-lg-3 col-md-6">
                 <div class="card border-0 shadow-lg h-100 position-relative popular-card" style="border-radius: 16px;">
                     <div class="position-absolute top-0 start-50 translate-middle">
                         <span class="badge bg-primary px-3 py-2 rounded-pill">Most Popular</span>
                     </div>
-                    
-                    <div class="card-body p-5">
+                    <div class="card-body p-4">
                         <div class="text-center mb-4">
-                            <h4 class="fw-bold text-dark mb-2">Target Pro</h4>
-                            <p class="text-muted mb-4">For active traders</p>
-                            
+                            <span class="badge rounded-pill px-3 py-2 mb-3" style="background:#ede9fe;color:#7c3aed;">Pro</span>
+                            <h4 class="fw-bold text-dark mb-1">Pro Plan</h4>
+                            <p class="text-muted small mb-4">Scale capital safely</p>
                             <div class="pricing-display d-flex align-items-baseline justify-content-center"
                                  data-monthly="2499" data-annual="23990">
-                                <h2 class="display-4 fw-bold text-primary mb-0 me-2">
-                                    <span class="current-price">2499</span>
-                                </h2>
+                                <span style="font-size:1.2rem;font-weight:700;color:#1e293b">₹</span>
+                                <h2 class="display-5 fw-bold text-primary mb-0 mx-1"><span class="current-price">2,499</span></h2>
                                 <small class="text-muted billing-period">/month</small>
                             </div>
                         </div>
-                        
                         <div class="features-list mb-4">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>All Plus features</li>
+                            <ul class="list-unstyled" style="font-size:14px;">
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>3 broker connections</strong> (trading)</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>1 data API broker</strong></li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>All Growth Plan features</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Multi-broker Trade Now</li>
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Portfolio optimization</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>3 broker connections</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Trade Now with Guardrails</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Scentric Risk Engine</li>
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Priority email support</li>
                             </ul>
                         </div>
-                        
                         {% if current_user.is_authenticated %}
-                            {% if current_subscription and current_subscription.plan == 'TARGET_PRO' %}
-                                <span class="btn btn-success w-100 py-3 rounded-pill fw-semibold disabled">Current Plan</span>
-                            {% elif current_subscription and current_subscription.plan == 'HNI' %}
-                                <span class="btn btn-outline-secondary w-100 py-3 rounded-pill fw-semibold disabled">Included in Plan</span>
+                            {% if current_user.pricing_plan.value == 'TARGET_PRO' %}
+                                <span class="btn btn-success w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
+                            {% elif current_user.pricing_plan.value == 'HNI' %}
+                                <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Included in Plan</span>
                             {% else %}
-                                <a href="{{ url_for('subscribe', plan_type='target_pro') }}" class="btn btn-primary w-100 py-3 rounded-pill fw-semibold">Upgrade Now</a>
+                                <a href="{{ url_for('subscribe', plan_type='target_pro') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Upgrade Now</a>
                             {% endif %}
                         {% else %}
-                            <a href="{{ url_for('register') }}" class="btn btn-primary w-100 py-3 rounded-pill fw-semibold">Get Started</a>
+                            <a href="{{ url_for('register') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Get Started</a>
                         {% endif %}
                     </div>
                 </div>
             </div>
-            
-            <!-- HNI Account -->
-            <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
-                    <div class="card-body p-5">
+
+            <!-- Elite Plan -->
+            <div class="col-lg-3 col-md-6">
+                <div class="card border-0 shadow-sm h-100" style="border-radius: 16px; border: 1px solid #fde68a !important;">
+                    <div class="card-body p-4">
                         <div class="text-center mb-4">
-                            <h4 class="fw-bold text-dark mb-2">HNI Account</h4>
-                            <p class="text-muted mb-4">For busy HNI investors</p>
-                            
+                            <span class="badge rounded-pill px-3 py-2 mb-3" style="background:#fef3c7;color:#d97706;">Elite</span>
+                            <h4 class="fw-bold text-dark mb-1">Elite Plan</h4>
+                            <p class="text-muted small mb-4">Active decision-making</p>
                             <div class="pricing-display d-flex align-items-baseline justify-content-center"
                                  data-monthly="4999" data-annual="47990">
-                                <h2 class="display-4 fw-bold text-primary mb-0 me-2">
-                                    <span class="current-price">4999</span>
-                                </h2>
+                                <span style="font-size:1.2rem;font-weight:700;color:#1e293b">₹</span>
+                                <h2 class="display-5 fw-bold text-primary mb-0 mx-1"><span class="current-price">4,999</span></h2>
                                 <small class="text-muted billing-period">/month</small>
                             </div>
                         </div>
-                        
                         <div class="features-list mb-4">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>All Pro features</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>3 broker connections</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Trade Now with Guardrails</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Dedicated account manager</li>
+                            <ul class="list-unstyled" style="font-size:14px;">
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>3 broker connections</strong> (trading)</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>1 data API broker</strong></li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>All Pro Plan features</li>
+                                <li class="mb-2"><i class="fas fa-star text-warning me-2"></i><strong>Dedicated account manager</strong></li>
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Premium 24/7 support</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Priority onboarding</li>
                             </ul>
                         </div>
-                        
                         {% if current_user.is_authenticated %}
-                            {% if current_subscription and current_subscription.plan == 'HNI' %}
-                                <span class="btn btn-success w-100 py-3 rounded-pill fw-semibold disabled">Current Plan</span>
+                            {% if current_user.pricing_plan.value == 'HNI' %}
+                                <span class="btn btn-warning w-100 py-2 rounded-pill fw-semibold disabled text-dark">Current Plan</span>
                             {% else %}
-                                <a href="{{ url_for('contact') }}" class="btn btn-outline-primary w-100 py-3 rounded-pill fw-semibold">
-                                    Contact Sales
-                                </a>
+                                <a href="{{ url_for('subscribe', plan_type='hni') }}" class="btn btn-warning w-100 py-2 rounded-pill fw-semibold text-dark">Upgrade to Elite</a>
                             {% endif %}
                         {% else %}
-                            <a href="{{ url_for('contact') }}" class="btn btn-outline-primary w-100 py-3 rounded-pill fw-semibold">
-                                Contact Sales
-                            </a>
+                            <a href="{{ url_for('register') }}" class="btn btn-outline-warning w-100 py-2 rounded-pill fw-semibold text-dark">Get Started</a>
                         {% endif %}
                     </div>
                 </div>
@@ -188,42 +212,34 @@
         <div class="row">
             <div class="col-12 text-center mb-5">
                 <h2 class="fw-bold text-dark mb-3">Compare Plans</h2>
+                <p class="text-muted">Find the right plan for your trading goals</p>
             </div>
         </div>
-        
+
         <div class="row">
             <div class="col-12">
                 <div class="table-responsive">
                     <table class="table table-borderless">
                         <thead class="bg-light">
                             <tr>
-                                <th class="py-4 fw-semibold" style="width: 40%;">Features</th>
-                                <th class="py-4 text-center fw-semibold">Target Plus</th>
-                                <th class="py-4 text-center fw-semibold">Target Pro</th>
-                                <th class="py-4 text-center fw-semibold">HNI</th>
+                                <th class="py-4 fw-semibold" style="width: 34%;">Features</th>
+                                <th class="py-4 text-center fw-semibold">Starter<br><small class="fw-normal text-muted">Free</small></th>
+                                <th class="py-4 text-center fw-semibold">Growth<br><small class="fw-normal text-muted">₹1,499/mo</small></th>
+                                <th class="py-4 text-center fw-semibold" style="background:#f0f4ff;">Pro<br><small class="fw-normal text-muted">₹2,499/mo</small></th>
+                                <th class="py-4 text-center fw-semibold">Elite<br><small class="fw-normal text-muted">₹4,999/mo</small></th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="py-3">AI Advisor Queries</td>
-                                <td class="py-3 text-center">Up to 10</td>
-                                <td class="py-3 text-center">Unlimited</td>
-                                <td class="py-3 text-center">Unlimited</td>
-                            </tr>
-                            <tr class="bg-light">
-                                <td class="py-3">Trading Signals</td>
+                                <td class="py-3">Dashboard</td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
-                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
-                            </tr>
-                            <tr>
-                                <td class="py-3">I-Score Investment Rating</td>
-                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
-                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="py-3 text-center" style="background:#f8faff;"><i class="fas fa-check text-success"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                             </tr>
                             <tr class="bg-light">
-                                <td class="py-3">AI Workflow Hub</td>
+                                <td class="py-3">Live Market Pulse</td>
+                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
@@ -232,49 +248,78 @@
                                 <td class="py-3">Portfolio Analysis</td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="py-3 text-center" style="background:#f8faff;"><i class="fas fa-check text-success"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                             </tr>
                             <tr class="bg-light">
-                                <td class="py-3">Scentric Risk Engine</td>
-                                <td class="py-3 text-center">Basic</td>
+                                <td class="py-3">Broker Connections</td>
+                                <td class="py-3 text-center text-muted">None</td>
+                                <td class="py-3 text-center fw-semibold">1</td>
+                                <td class="py-3 text-center fw-semibold">3</td>
+                                <td class="py-3 text-center fw-semibold">3</td>
+                            </tr>
+                            <tr>
+                                <td class="py-3">Data API Broker</td>
+                                <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
+                                <td class="py-3 text-center">Same broker</td>
+                                <td class="py-3 text-center" style="background:#f8faff;">1 broker</td>
+                                <td class="py-3 text-center">1 broker</td>
+                            </tr>
+                            <tr class="bg-light">
+                                <td class="py-3">Research Co-Pilot</td>
+                                <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                            </tr>
+                            <tr>
+                                <td class="py-3">F&O Analysis Engine</td>
+                                <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="py-3 text-center" style="background:#f8faff;"><i class="fas fa-check text-success"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                            </tr>
+                            <tr class="bg-light">
+                                <td class="py-3">Behavioural AI Engine</td>
+                                <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                            </tr>
+                            <tr>
+                                <td class="py-3">Trade Now (Execution)</td>
+                                <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
+                                <td class="py-3 text-center">1 broker</td>
+                                <td class="py-3 text-center" style="background:#f8faff;">3 brokers</td>
+                                <td class="py-3 text-center">3 brokers</td>
+                            </tr>
+                            <tr class="bg-light">
+                                <td class="py-3">I-Score Investment Rating</td>
+                                <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                             </tr>
                             <tr>
                                 <td class="py-3">Portfolio Optimization</td>
                                 <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
-                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
+                                <td class="py-3 text-center" style="background:#f8faff;"><i class="fas fa-check text-success"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                             </tr>
                             <tr class="bg-light">
-                                <td class="py-3">Trade Now (Execution)</td>
-                                <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
-                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
-                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
-                            </tr>
-                            <tr>
-                                <td class="py-3">Behavioural Guardrails</td>
-                                <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
-                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
-                                <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
-                            </tr>
-                            <tr class="bg-light">
-                                <td class="py-3">Broker Connections</td>
-                                <td class="py-3 text-center">1</td>
-                                <td class="py-3 text-center">1</td>
-                                <td class="py-3 text-center">1</td>
-                            </tr>
-                            <tr>
                                 <td class="py-3">Dedicated Account Manager</td>
                                 <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
+                                <td class="py-3 text-center"><i class="fas fa-times text-muted"></i></td>
                                 <td class="py-3 text-center"><i class="fas fa-check text-success"></i></td>
                             </tr>
-                            <tr class="border-bottom bg-light">
+                            <tr class="border-bottom">
                                 <td class="py-3">Support Level</td>
-                                <td class="py-3 text-center">Community</td>
-                                <td class="py-3 text-center">Priority Email</td>
-                                <td class="py-3 text-center">Premium 24/7</td>
+                                <td class="py-3 text-center text-muted small">Community</td>
+                                <td class="py-3 text-center small">Email</td>
+                                <td class="py-3 text-center small" style="background:#f8faff;">Priority Email</td>
+                                <td class="py-3 text-center small">Premium 24/7</td>
                             </tr>
                         </tbody>
                     </table>

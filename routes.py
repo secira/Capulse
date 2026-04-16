@@ -444,11 +444,16 @@ def add_broker():
             flash(f'You already have a {broker_name} connection configured.', 'error')
             return redirect(url_for('broker_management'))
         
-        # Check broker limits - hard cap of 3 brokers for all users
+        # Check broker limits based on user's pricing plan
+        max_brokers = current_user.get_max_broker_connections()
         existing_brokers_count = BrokerAccount.query.filter_by(user_id=current_user.id, is_active=True).count()
-        
-        if existing_brokers_count >= 3:
-            flash('You can add a maximum of 3 broker connections. Please remove an existing broker before adding a new one.', 'error')
+
+        if max_brokers == 0:
+            flash('Broker connections are not available on the Starter Plan. Upgrade to Growth Plan or higher.', 'error')
+            return redirect(url_for('broker_management'))
+
+        if existing_brokers_count >= max_brokers:
+            flash(f'Your {current_user.get_plan_display_name()} allows up to {max_brokers} broker connection(s). Remove an existing broker or upgrade your plan.', 'error')
             return redirect(url_for('broker_management'))
         
         # Create new broker connection (Step 1: Add broker with disconnected status)

@@ -16,6 +16,8 @@
     <!-- Scrollable Navigation Area -->
     <div class="sidebar-scroll">
 
+        {% set is_free = current_user.is_authenticated and current_user.pricing_plan.value == 'FREE' %}
+
         <!-- Main Navigation -->
         <div class="sidebar-menu">
             <ul class="nav-list">
@@ -28,7 +30,7 @@
                     </a>
                 </li>
 
-                {% if current_user.is_authenticated and current_user.can_access_menu('dashboard_trading_signals') %}
+                {% if current_user.is_authenticated %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint in ['dashboard_daily_signals', 'daily_signals_analysis'] else '' }}"
                        href="{{ url_for('dashboard_daily_signals') }}">
@@ -49,7 +51,16 @@
                 </li>
                 {% endif %}
 
-                {% if current_user.is_authenticated and current_user.can_access_menu('dashboard_trading_signals') %}
+                {% if current_user.is_authenticated %}
+                {% if is_free %}
+                <li class="nav-item">
+                    <a class="nav-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to Growth Plan">
+                        <i class="nav-icon fas fa-search-dollar"></i>
+                        <span class="nav-text">Research Co-Pilot</span>
+                        <i class="fas fa-lock nav-lock-icon"></i>
+                    </a>
+                </li>
+                {% else %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if 'research' in request.endpoint else '' }}"
                        href="{{ url_for('research_dashboard') }}">
@@ -58,8 +69,19 @@
                     </a>
                 </li>
                 {% endif %}
+                {% endif %}
 
                 {% if current_user.is_authenticated %}
+                {% if is_free %}
+                <li class="nav-item">
+                    <a class="nav-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to Growth Plan">
+                        <i class="nav-icon fas fa-chart-area"></i>
+                        <span class="nav-text">F&O Analysis</span>
+                        <span class="nav-badge-new">NEW</span>
+                        <i class="fas fa-lock nav-lock-icon"></i>
+                    </a>
+                </li>
+                {% else %}
                 <li class="nav-item">
                     <div class="nav-link collapsible-header" onclick="toggleFnoMenu()">
                         <i class="nav-icon fas fa-chart-area"></i>
@@ -99,8 +121,18 @@
                     </ul>
                 </li>
                 {% endif %}
+                {% endif %}
 
                 {% if current_user.is_authenticated %}
+                {% if is_free %}
+                <li class="nav-item">
+                    <a class="nav-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to Growth Plan">
+                        <i class="nav-icon fas fa-exchange-alt"></i>
+                        <span class="nav-text">Trade Now</span>
+                        <i class="fas fa-lock nav-lock-icon"></i>
+                    </a>
+                </li>
+                {% else %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_trade_now' else '' }}"
                        href="{{ url_for('dashboard_trade_now') }}">
@@ -109,8 +141,19 @@
                     </a>
                 </li>
                 {% endif %}
+                {% endif %}
 
                 {% if current_user.is_authenticated %}
+                {% if is_free %}
+                <li class="nav-item">
+                    <a class="nav-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to Growth Plan">
+                        <i class="nav-icon fas fa-brain"></i>
+                        <span class="nav-text">Behavioural AI</span>
+                        <span class="nav-badge-new">USP</span>
+                        <i class="fas fa-lock nav-lock-icon"></i>
+                    </a>
+                </li>
+                {% else %}
                 <li class="nav-item">
                     <div class="nav-link collapsible-header" onclick="toggleBehaviourMenu()">
                         <i class="nav-icon fas fa-brain"></i>
@@ -165,6 +208,7 @@
                     </ul>
                 </li>
                 {% endif %}
+                {% endif %}
 
 
             </ul>
@@ -183,6 +227,15 @@
 
                     <ul class="nav-list submenu-list" id="portfolioHubMenu" style="display: none;">
 
+                        {% if is_free %}
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to connect brokers">
+                                <i class="nav-icon fas fa-plug"></i>
+                                <span class="nav-text">Connect Broker</span>
+                                <i class="fas fa-lock nav-lock-icon"></i>
+                            </a>
+                        </li>
+                        {% else %}
                         <li class="nav-item submenu-item">
                             <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'broker_oauth.broker_connect' else '' }}"
                                href="{{ url_for('broker_oauth.broker_connect') }}">
@@ -194,6 +247,7 @@
                                 {% endif %}
                             </a>
                         </li>
+                        {% endif %}
                         {% set portfolio_flags = tenant_config.get('portfolio_hub', {}) if tenant_config else {} %}
 
                         {% if portfolio_flags.get('show_banks', false) %}
@@ -374,7 +428,7 @@
     <!-- Sidebar Footer: Plan + User -->
     {% if current_user.is_authenticated %}
     <div class="sidebar-footer">
-        <div class="sidebar-plan-chip {{ current_user.pricing_plan.value }}">
+        <div class="sidebar-plan-chip {{ current_user.pricing_plan.value | lower }}">
             <i class="fas fa-crown"></i>
             <span>{{ current_user.get_plan_display_name() }}</span>
         </div>

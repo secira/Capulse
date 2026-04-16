@@ -60,7 +60,7 @@ Target Capital employs a dual AI engine approach:
 -   **Admin Data Input Source**: Switchable market data sources (NSE Python default, TrueData API, User Custom). Stored in `data_source_config` table, manageable from Admin Panel → Data Input Source.
 -   **F&O Continuous Monitor**: APScheduler-based background scanner (60s interval) in `services/fno_monitor.py`. Runs during market hours (9:15 AM–3:30 PM IST), saves signals to `fno_signal_history` table. Smart alert system: Telegram alerts only when confidence > 75, new direction (not duplicate), 10-min cooldown, max 3 alerts/day. Signal history viewable on the F&O page.
 -   **Comprehensive Trading Signal System**: LangGraph-powered signal pipeline.
--   **Subscription Model**: Tiered access (FREE, TARGET PLUS, TARGET PRO, HNI).
+-   **Subscription Model**: Tiered access with 4 plans. DB enum values unchanged (FREE, TARGET_PLUS, TARGET_PRO, HNI) — display names rebranded to Starter, Growth, Pro, Elite. FREE=0 broker connections, GROWTH=1, PRO/ELITE=3. Sidebar shows lock icons for FREE users on Research Co-Pilot, F&O Analysis, Trade Now, Behavioural AI, and Connect Broker — all redirect to /pricing.
 -   **Knowledge Base**: Educational trading articles.
 
 **Mobile App & PWA Support**:
