@@ -218,6 +218,15 @@
         <div class="sidebar-section-label">PORTFOLIO HUB</div>
         <div class="sidebar-menu">
             <ul class="nav-list">
+                {% if is_free %}
+                <li class="nav-item">
+                    <a class="nav-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to access Portfolio Hub">
+                        <i class="nav-icon fas fa-layer-group"></i>
+                        <span class="nav-text">Portfolio Hub</span>
+                        <i class="fas fa-lock nav-lock-icon"></i>
+                    </a>
+                </li>
+                {% else %}
                 <li class="nav-item">
                     <div class="nav-link collapsible-header" onclick="togglePortfolioHub()">
                         <i class="nav-icon fas fa-layer-group"></i>
@@ -227,15 +236,6 @@
 
                     <ul class="nav-list submenu-list" id="portfolioHubMenu" style="display: none;">
 
-                        {% if is_free %}
-                        <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to connect brokers">
-                                <i class="nav-icon fas fa-plug"></i>
-                                <span class="nav-text">Connect Broker</span>
-                                <i class="fas fa-lock nav-lock-icon"></i>
-                            </a>
-                        </li>
-                        {% else %}
                         <li class="nav-item submenu-item">
                             <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'broker_oauth.broker_connect' else '' }}"
                                href="{{ url_for('broker_oauth.broker_connect') }}">
@@ -247,7 +247,7 @@
                                 {% endif %}
                             </a>
                         </li>
-                        {% endif %}
+
                         {% set portfolio_flags = tenant_config.get('portfolio_hub', {}) if tenant_config else {} %}
 
                         {% if portfolio_flags.get('show_banks', false) %}
@@ -311,6 +311,7 @@
 
                     </ul>
                 </li>
+                {% endif %}
             </ul>
         </div>
 

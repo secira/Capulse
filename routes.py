@@ -2581,6 +2581,7 @@ def dashboard_my_portfolio_old():
 
 @app.route('/dashboard/equities', methods=['GET', 'POST'])
 @login_required
+@paid_plan_required
 def dashboard_equities():
     """Equities portfolio management - manual and broker holdings"""
     from models import ManualEquityHolding
@@ -2890,6 +2891,7 @@ def refresh_equity_prices():
 
 @app.route('/dashboard/mutual-funds', methods=['GET', 'POST'])
 @login_required
+@paid_plan_required
 def dashboard_mutual_funds():
     """Mutual Funds portfolio management - manual and broker holdings"""
     from models import ManualMutualFundHolding
@@ -3197,6 +3199,7 @@ def delete_real_estate_holding(holding_id):
 
 @app.route('/dashboard/commodities', methods=['GET', 'POST'])
 @login_required
+@paid_plan_required
 def dashboard_commodities():
     """Gold, Silver & Commodities portfolio management - manual entries"""
     from models import ManualCommodityHolding
@@ -3394,6 +3397,7 @@ def delete_cryptocurrency_holding(holding_id):
 
 @app.route('/dashboard/insurance', methods=['GET', 'POST'])
 @login_required
+@paid_plan_required
 def dashboard_insurance():
     """Insurance policies management - manual entries"""
     from models import ManualInsuranceHolding
@@ -3503,6 +3507,7 @@ def delete_insurance_policy(policy_id):
 
 @app.route('/dashboard/banks', methods=['GET', 'POST'])
 @login_required
+@paid_plan_required
 def dashboard_banks():
     """Bank accounts and cash management - manual entries"""
     from models import ManualBankAccount
@@ -3589,6 +3594,7 @@ def delete_bank_account(account_id):
 
 @app.route('/dashboard/futures-options', methods=['GET', 'POST'])
 @login_required
+@paid_plan_required
 def dashboard_futures_options():
     """Futures and Options positions - manual entries"""
     from models import ManualFuturesOptionsHolding
