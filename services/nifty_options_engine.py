@@ -12,6 +12,7 @@ Outputs 3 trade recommendations (ATM, OTM, ITM) per expiry with confidence scori
 
 import logging
 import math
+import time as _time_mod
 from datetime import datetime, date, timedelta, time as dtime
 from typing import Dict, Any, List, Optional
 import pytz
@@ -22,6 +23,11 @@ IST = pytz.timezone('Asia/Kolkata')
 
 NIFTY_LOT_SIZE = 50
 STRIKE_INTERVAL = 50
+
+# Module-level candle cache — shared across all engine instances (TTL 5 min)
+_candle_cache_data = None
+_candle_cache_ts = 0.0
+_CANDLE_CACHE_TTL = 300
 
 
 class NiftyOptionsEngine:
@@ -481,21 +487,148 @@ class NiftyOptionsEngine:
             return {'pass': False, 'reason': 'Weekend — market closed', 'status': 'blocked'}
         return {'pass': True, 'reason': 'Trading window active', 'status': 'active'}
 
+    # ------------------------------------------------------------------
+    # Real indicator calculations using yfinance intraday 5-min candles
+    # ------------------------------------------------------------------
+
+    def _fetch_intraday_candles(self):
+        """Fetch today's 5-min NIFTY candles from yfinance, cached 5 min at module level."""
+        global _candle_cache_data, _candle_cache_ts
+        now_ts = _time_mod.time()
+        if _candle_cache_data is not None and (now_ts - _candle_cache_ts) < _CANDLE_CACHE_TTL:
+            return _candle_cache_data
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker("^NSEI")
+            df = ticker.history(period="1d", interval="5m")
+            if df is None or df.empty or len(df) < 5:
+                _candle_cache_data = None
+                _candle_cache_ts = now_ts
+                return None
+            _candle_cache_data = df
+            _candle_cache_ts = now_ts
+            return df
+        except Exception as e:
+            logger.warning(f"yfinance intraday candles error: {e}")
+            _candle_cache_data = None
+            _candle_cache_ts = now_ts
+            return None
+
+    def _calculate_vwap(self, df) -> float:
+        """Cumulative VWAP from today's candles."""
+        try:
+            tp = (df['High'] + df['Low'] + df['Close']) / 3
+            vol = df['Volume'].replace(0, 1)
+            vwap = (tp * vol).cumsum() / vol.cumsum()
+            return float(vwap.iloc[-1])
+        except Exception:
+            return float(df['Close'].iloc[-1])
+
+    def _calculate_adx(self, df, period: int = 14):
+        """Wilder's ADX, +DI, -DI. Returns (adx, dmi_plus, dmi_minus, adx_rising)."""
+        try:
+            import pandas as pd
+            h = df['High']
+            l = df['Low']
+            c = df['Close']
+
+            tr = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(axis=1)
+            up = h.diff()
+            down = -l.diff()
+            dm_p = up.where((up > 0) & (up > down), 0.0)
+            dm_m = down.where((down > 0) & (down > up), 0.0)
+
+            # Drop the initial NaN row from diff so rolling().sum() gives correct first window
+            tr = tr.dropna()
+            dm_p = dm_p.dropna()
+            dm_m = dm_m.dropna()
+
+            if len(tr) < period * 2:
+                return 22.0, 22.0, 22.0, False
+
+            # Wilder smoothing: first window = simple sum, subsequent = prev - prev/n + current
+            def wilder_smooth(series, n):
+                vals = series.values.astype(float)
+                out = [float('nan')] * len(vals)
+                out[n - 1] = float(vals[:n].sum())
+                for i in range(n, len(vals)):
+                    out[i] = out[i - 1] - out[i - 1] / n + vals[i]
+                return pd.Series(out, index=series.index)
+
+            atr_w = wilder_smooth(tr, period)
+            dmp_w = wilder_smooth(dm_p, period)
+            dmm_w = wilder_smooth(dm_m, period)
+
+            safe_atr = atr_w.replace(0, 0.01)
+            di_p = (100 * dmp_w / safe_atr).clip(0, 100)
+            di_m = (100 * dmm_w / safe_atr).clip(0, 100)
+            dx = (100 * (di_p - di_m).abs() / (di_p + di_m).replace(0, 0.01)).clip(0, 100)
+            # ADX = EMA of DX (Wilder's alpha = 1/period, com = period-1)
+            adx_s = dx.dropna().ewm(com=period - 1, adjust=False).mean()
+
+            valid = adx_s.dropna()
+            if len(valid) < 2:
+                return 22.0, 22.0, 22.0, False
+
+            adx = min(float(valid.iloc[-1]), 100.0)
+            dmi_p = min(float(di_p.iloc[-1]), 100.0)
+            dmi_m = min(float(di_m.iloc[-1]), 100.0)
+            rising = bool(valid.iloc[-1] > valid.iloc[-3]) if len(valid) >= 3 else False
+            return round(adx, 1), round(dmi_p, 1), round(dmi_m, 1), rising
+        except Exception as e:
+            logger.warning(f"ADX calculation error: {e}")
+            return 22.0, 22.0, 22.0, False
+
+    def _calculate_atr(self, df, period: int = 14):
+        """EMA-based ATR. Returns (atr, atr_rising)."""
+        try:
+            import pandas as pd
+            h = df['High']
+            l = df['Low']
+            c = df['Close']
+            tr = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(axis=1)
+            atr_s = tr.ewm(span=period, adjust=False).mean()
+            atr = float(atr_s.iloc[-1])
+            rising = bool(atr_s.iloc[-1] > atr_s.iloc[-3]) if len(atr_s) >= 3 else False
+            return round(atr, 2), rising
+        except Exception as e:
+            logger.warning(f"ATR calculation error: {e}")
+            return 100.0, False
+
+    def _calculate_supertrend(self, df, atr_period: int = 10, multiplier: float = 3.0) -> str:
+        """Simple Supertrend signal. Returns 'BUY' or 'SELL'."""
+        try:
+            import pandas as pd
+            h = df['High']
+            l = df['Low']
+            c = df['Close']
+            tr = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(axis=1)
+            atr = tr.ewm(span=atr_period, adjust=False).mean()
+            mid = (h + l) / 2
+            upper = mid + multiplier * atr
+            lower = mid - multiplier * atr
+            last_close = float(c.iloc[-1])
+            last_upper = float(upper.iloc[-1])
+            last_lower = float(lower.iloc[-1])
+            return 'BUY' if last_close > last_lower and last_close > (last_upper + last_lower) / 2 else 'SELL'
+        except Exception as e:
+            logger.warning(f"Supertrend calculation error: {e}")
+            return 'BUY'
+
     def _direction_engine(self, spot: float) -> Dict[str, Any]:
-        import random
-        random.seed(int(spot * 100) % 10000)
-        vwap = spot * (1 + random.uniform(-0.003, 0.003))
-        supertrend_signal = 'BUY' if spot > vwap else 'SELL'
-        dmi_plus = random.uniform(18, 35)
-        dmi_minus = random.uniform(18, 35)
-        if spot > vwap:
-            dmi_plus = max(dmi_plus, dmi_minus + random.uniform(2, 8))
+        df = self._fetch_intraday_candles()
+        if df is not None and len(df) >= 10:
+            vwap = self._calculate_vwap(df)
+            supertrend_signal = self._calculate_supertrend(df)
+            _, dmi_plus, dmi_minus, _ = self._calculate_adx(df)
         else:
-            dmi_minus = max(dmi_minus, dmi_plus + random.uniform(2, 8))
+            vwap = spot
+            supertrend_signal = 'BUY'
+            dmi_plus = 22.0
+            dmi_minus = 22.0
 
         bullish = spot > vwap and supertrend_signal == 'BUY' and dmi_plus > dmi_minus
         bearish = spot < vwap and supertrend_signal == 'SELL' and dmi_minus > dmi_plus
-
         direction = 'BULLISH' if bullish else ('BEARISH' if bearish else 'NEUTRAL')
 
         return {
@@ -509,12 +642,13 @@ class NiftyOptionsEngine:
         }
 
     def _strength_engine(self, spot: float) -> Dict[str, Any]:
-        import random
-        random.seed(int(spot * 10) % 10000)
-        adx = random.uniform(18, 38)
-        adx_rising = random.random() > 0.4
-        atr = round(random.uniform(80, 200), 2)
-        atr_rising = random.random() > 0.4
+        df = self._fetch_intraday_candles()
+        if df is not None and len(df) >= 10:
+            adx, _, _, adx_rising = self._calculate_adx(df)
+            atr, atr_rising = self._calculate_atr(df)
+        else:
+            adx, adx_rising = 22.0, False
+            atr, atr_rising = 100.0, False
 
         strong = adx > 25 and adx_rising and atr_rising
         no_trade_zone = adx < 20 or (not atr_rising and not adx_rising)
@@ -522,7 +656,7 @@ class NiftyOptionsEngine:
         return {
             'adx': round(adx, 1),
             'adx_rising': adx_rising,
-            'atr': atr,
+            'atr': round(atr, 2),
             'atr_rising': atr_rising,
             'strength': 'STRONG' if strong else ('WEAK' if no_trade_zone else 'MODERATE'),
             'no_trade_zone': no_trade_zone,

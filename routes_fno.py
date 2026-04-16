@@ -79,12 +79,15 @@ def fno_signal_history():
         ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
         ist_today_start = ist_now.replace(hour=0, minute=0, second=0, microsecond=0)
         utc_today_start = ist_today_start - timedelta(hours=5, minutes=30)
+        # Only show actual trade recommendations — no NO TRADE scans
         rows = db.session.execute(db.text("""
             SELECT id, signal_type, direction, confidence, confidence_grade,
                    entry_mode, spot_price, atm_strike, alert_sent, data_source,
                    created_at
             FROM fno_signal_history
             WHERE created_at >= :today_start
+              AND entry_mode != 'NO TRADE'
+              AND confidence >= 60
             ORDER BY created_at DESC
             LIMIT :limit
         """), {'today_start': utc_today_start, 'limit': min(limit, 50)}).fetchall()
@@ -102,9 +105,28 @@ def fno_signal_history():
                 'atm_strike': r.atm_strike,
                 'alert_sent': r.alert_sent,
                 'data_source': r.data_source,
-                'created_at': r.created_at.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%d/%m %I:%M %p IST') if r.created_at else '',
+                'created_at': r.created_at.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%d/%m %I:%M %p') if r.created_at else '',
             })
         return jsonify({'success': True, 'data': signals})
     except Exception as e:
         logger.error(f"Signal history error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@fno_bp.route('/api/active-trade')
+@login_required
+def fno_active_trade():
+    try:
+        from services.fno_monitor import get_monitor_status
+        status = get_monitor_status()
+        return jsonify({
+            'success': True,
+            'trade_state': status.get('trade_state', 'NONE'),
+            'active_trade': status.get('active_trade'),
+            'confirmation_count': status.get('confirmation_count', 0),
+            'confirmation_needed': status.get('confirmation_needed', 2),
+            'cooldown_remaining_min': status.get('cooldown_remaining_min', 0),
+        })
+    except Exception as e:
+        logger.error(f"Active trade status error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -88,10 +88,27 @@
 .monitor-bar{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .monitor-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
 .monitor-dot.active{background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,.5);animation:pulse-dot 2s infinite}
+.monitor-dot.locked{background:#3b82f6;box-shadow:0 0 6px rgba(59,130,246,.5);animation:pulse-dot 2s infinite}
 .monitor-dot.inactive{background:#94a3b8}
 @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
 .monitor-stat{font-size:12px;color:#64748b}
 .monitor-stat span{font-weight:700;color:#334155}
+
+.active-trade-panel{border-radius:12px;padding:18px 22px;margin-bottom:20px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:2px solid #3b82f6}
+.active-trade-panel.exit-mode{background:linear-gradient(135deg,#fef3c7,#fffbeb);border-color:#f59e0b}
+.active-trade-panel.confirming-mode{background:linear-gradient(135deg,#f5f3ff,#ede9fe);border-color:#8b5cf6}
+.active-trade-panel.cooldown-mode{background:linear-gradient(135deg,#f8fafc,#f1f5f9);border-color:#94a3b8}
+.at-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.at-lock-icon{font-size:20px}
+.at-title{font-size:14px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:.5px}
+.at-subtitle{font-size:11px;color:#3b82f6;font-weight:600}
+.at-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+.at-item{background:rgba(255,255,255,.7);border-radius:8px;padding:10px 12px;text-align:center}
+.at-lbl{font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.at-val{font-size:16px;font-weight:800;color:#1e3a5f}
+.at-val.green{color:#16a34a}
+.at-val.red{color:#dc2626}
+.at-timer{font-size:11px;color:#3b82f6;font-weight:700;margin-top:8px;text-align:center}
 
 .signal-history-table{width:100%;font-size:12px;border-collapse:collapse}
 .signal-history-table th{background:#f8fafc;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;text-align:left;border-bottom:2px solid #e2e8f0}
@@ -100,6 +117,9 @@
 .alert-badge{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
 .alert-sent{background:#dcfce7;color:#16a34a}
 .alert-none{background:#f1f5f9;color:#94a3b8}
+.signal-event-trigger{font-size:10px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:4px;font-weight:700}
+.signal-event-exit{font-size:10px;background:#fce7f3;color:#9d174d;padding:2px 7px;border-radius:4px;font-weight:700}
+.signal-event-scan{font-size:10px;background:#f1f5f9;color:#64748b;padding:2px 7px;border-radius:4px;font-weight:600}
 
 .collapse-header{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:0;transition:all .2s}
 .collapse-header:hover{background:#f1f5f9}
@@ -218,6 +238,21 @@
     <div class="monitor-stat">Last alert: <span id="monitorLast">—</span></div>
     <div class="monitor-stat">Threshold: <span id="monitorThreshold">75+</span></div>
     <div class="monitor-stat">Scan: <span>Every 60s</span></div>
+</div>
+
+<!-- Active Trade / Lifecycle Panel -->
+<div id="activeTradePanelWrap" style="display:none">
+    <div class="active-trade-panel" id="activeTradePanel">
+        <div class="at-header">
+            <span class="at-lock-icon" id="atIcon">🔒</span>
+            <div>
+                <div class="at-title" id="atTitle">ACTIVE TRADE — DIRECTION LOCKED</div>
+                <div class="at-subtitle" id="atSubtitle">Managing position — no new entries until exit</div>
+            </div>
+        </div>
+        <div class="at-grid" id="atGrid"></div>
+        <div class="at-timer" id="atTimer"></div>
+    </div>
 </div>
 
 <!-- MOMENTUM METER -->
@@ -388,14 +423,17 @@
     </div>
 </div>
 
-<!-- Signal History -->
+<!-- Signal History — trade recommendations only -->
 <div class="engine-card mt-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="engine-title mb-0"><i class="fas fa-history"></i> Today's Signal History</div>
+        <div class="engine-title mb-0"><i class="fas fa-history"></i> Today's Trade Recommendations</div>
         <button class="btn btn-sm btn-outline-secondary" onclick="loadSignalHistory()"><i class="fas fa-refresh me-1"></i>Refresh</button>
     </div>
+    <div style="font-size:11px;color:#64748b;margin-bottom:12px">
+        Shows only confirmed trade recommendations (CONFIRMED or EARLY entry, confidence ≥ 60). Background scans are not shown.
+    </div>
     <div id="signalHistoryContainer">
-        <p class="text-muted text-center py-3" style="font-size:13px">Loading signal history...</p>
+        <p class="text-muted text-center py-3" style="font-size:13px">Loading recommendations...</p>
     </div>
 </div>
 
@@ -770,13 +808,28 @@ function loadMonitorStatus() {
         var d = res.data;
         var dot = document.getElementById('monitorDot');
         var label = document.getElementById('monitorLabel');
-        if (d.running && d.market_hours) {
+        var tradeState = (d.trade_state || 'NONE');
+        if (tradeState === 'ACTIVE') {
+            dot.className = 'monitor-dot locked';
+            label.textContent = '🔒 TRADE ACTIVE — Direction Locked';
+            label.style.color = '#1d4ed8';
+        } else if (tradeState === 'CONFIRMING') {
+            var cnt = d.confirmation_count || 0;
+            var needed = d.confirmation_needed || 2;
             dot.className = 'monitor-dot active';
-            label.textContent = 'Scanner: Active';
+            label.textContent = '⏳ Confirming signal (' + cnt + '/' + needed + ' scans)';
+            label.style.color = '#7c3aed';
+        } else if (d.cooldown_remaining_min > 0) {
+            dot.className = 'monitor-dot inactive';
+            label.textContent = '⏸ Entry cooldown — ' + d.cooldown_remaining_min + 'm remaining';
+            label.style.color = '#d97706';
+        } else if (d.running && d.market_hours) {
+            dot.className = 'monitor-dot active';
+            label.textContent = '📡 Scan Mode — Watching market';
             label.style.color = '#16a34a';
         } else if (d.running && !d.market_hours) {
             dot.className = 'monitor-dot inactive';
-            label.textContent = 'Scanner: Waiting for market';
+            label.textContent = 'Scanner: Waiting for market open';
             label.style.color = '#d97706';
         } else {
             dot.className = 'monitor-dot inactive';
@@ -791,24 +844,88 @@ function loadMonitorStatus() {
     }).catch(function(){});
 }
 
+function loadActiveTrade() {
+    fetch('/dashboard/fno/api/active-trade').then(function(r){return r.json()}).then(function(res) {
+        if (!res.success) return;
+        var wrap = document.getElementById('activeTradePanelWrap');
+        var panel = document.getElementById('activeTradePanel');
+        var state = res.trade_state || 'NONE';
+        var at = res.active_trade;
+
+        if (state === 'ACTIVE' && at) {
+            wrap.style.display = 'block';
+            panel.className = 'active-trade-panel';
+            document.getElementById('atIcon').textContent = '🔒';
+            document.getElementById('atTitle').textContent = at.direction + ' — ' + at.type + ' TRADE ACTIVE';
+            document.getElementById('atSubtitle').textContent = 'Direction locked since ' + at.entry_time + ' · No new entries until this exits';
+            var dirColor = at.direction === 'BULLISH' ? '#16a34a' : '#dc2626';
+            var grid = [
+                {lbl:'Direction', val: at.direction, cls: at.direction === 'BULLISH' ? 'green' : 'red'},
+                {lbl:'Entry Price', val: '₹' + (at.entry_price||0).toFixed(0)},
+                {lbl:'Stop Loss', val: '₹' + (at.sl||0).toFixed(0), cls:'red'},
+                {lbl:'Target', val: '₹' + (at.target||0).toFixed(0), cls:'green'},
+                {lbl:'Time In Trade', val: at.elapsed_min + ' min'},
+                {lbl:'Time Remaining', val: at.remaining_min + ' min'},
+                {lbl:'Confidence', val: at.confidence + '/100'},
+                {lbl:'ATM Strike', val: at.atm_strike},
+            ];
+            var gridHtml = grid.map(function(g){
+                return '<div class="at-item"><div class="at-lbl">' + g.lbl + '</div><div class="at-val' + (g.cls ? ' ' + g.cls : '') + '">' + g.val + '</div></div>';
+            }).join('');
+            document.getElementById('atGrid').innerHTML = gridHtml;
+            document.getElementById('atTimer').innerHTML = '⏱ Auto-exit in <strong>' + at.remaining_min + ' min</strong> · SL: ₹' + (at.sl||0).toFixed(0) + ' · Target: ₹' + (at.target||0).toFixed(0);
+
+        } else if (state === 'CONFIRMING') {
+            wrap.style.display = 'block';
+            panel.className = 'active-trade-panel confirming-mode';
+            document.getElementById('atIcon').textContent = '⏳';
+            var cnt = res.confirmation_count || 0;
+            var needed = res.confirmation_needed || 2;
+            document.getElementById('atTitle').textContent = 'CONFIRMING SIGNAL (' + cnt + '/' + needed + ' scans)';
+            document.getElementById('atSubtitle').textContent = 'Waiting for ' + (needed - cnt) + ' more confirming scan' + (needed - cnt > 1 ? 's' : '') + ' to lock the trade';
+            document.getElementById('atGrid').innerHTML = '<div style="color:#6d28d9;font-size:13px;padding:8px 0">Strong signal detected. Verifying consistency before locking direction...</div>';
+            document.getElementById('atTimer').innerHTML = '';
+
+        } else if (res.cooldown_remaining_min > 0) {
+            wrap.style.display = 'block';
+            panel.className = 'active-trade-panel cooldown-mode';
+            document.getElementById('atIcon').textContent = '⏸';
+            document.getElementById('atTitle').textContent = 'ENTRY COOLDOWN';
+            document.getElementById('atSubtitle').textContent = 'Waiting ' + res.cooldown_remaining_min + ' min before accepting new signals';
+            document.getElementById('atGrid').innerHTML = '<div style="color:#64748b;font-size:13px;padding:8px 0">Previous trade exited. 15-minute cooldown prevents overtrading.</div>';
+            document.getElementById('atTimer').innerHTML = '';
+        } else {
+            wrap.style.display = 'none';
+        }
+    }).catch(function(){});
+}
+
 function loadSignalHistory() {
-    fetch('/dashboard/fno/api/signal-history?limit=15').then(function(r){return r.json()}).then(function(res) {
+    fetch('/dashboard/fno/api/signal-history?limit=20').then(function(r){return r.json()}).then(function(res) {
         var container = document.getElementById('signalHistoryContainer');
         if (!res.success || !res.data || res.data.length === 0) {
-            container.innerHTML = '<p class="text-muted text-center py-3" style="font-size:13px">No signals today. The scanner saves signals during market hours when confidence is 60+.</p>';
+            container.innerHTML = '<p class="text-muted text-center py-3" style="font-size:13px">No trade recommendations today. Recommendations appear when confidence ≥ 60 and conditions are met (CONFIRMED or EARLY entry mode).</p>';
             return;
         }
         var html = '<div style="max-height:300px;overflow-y:auto"><table class="signal-history-table"><thead><tr>';
-        html += '<th>Time</th><th>Type</th><th>Direction</th><th>Confidence</th><th>Entry Mode</th><th>Spot</th><th>ATM</th><th>Alert</th>';
+        html += '<th>Time</th><th>Event</th><th>Direction</th><th>Confidence</th><th>Spot</th><th>ATM</th><th>Alert</th>';
         html += '</tr></thead><tbody>';
         res.data.forEach(function(s) {
             var dirClass = s.direction === 'BULLISH' ? 'badge-bullish' : s.direction === 'BEARISH' ? 'badge-bearish' : 'badge-neutral';
+            var dirEmoji = s.direction === 'BULLISH' ? '▲' : s.direction === 'BEARISH' ? '▼' : '●';
+            var eventTag, eventBg;
+            if (s.signal_type === 'TRADE_TRIGGER') {
+                eventTag = '<span class="signal-event-trigger">🔒 TRADE LOCKED</span>';
+            } else if (s.signal_type === 'TRADE_EXIT') {
+                eventTag = '<span class="signal-event-exit">🚪 EXIT</span>';
+            } else {
+                eventTag = '<span class="signal-event-scan">' + s.entry_mode + '</span>';
+            }
             html += '<tr>';
-            html += '<td>' + s.created_at + '</td>';
-            html += '<td><span class="signal-type-tag">' + s.signal_type + '</span></td>';
-            html += '<td><span class="layer-badge ' + dirClass + '">' + s.direction + '</span></td>';
-            html += '<td><strong>' + s.confidence + '</strong>/100</td>';
-            html += '<td>' + s.entry_mode + '</td>';
+            html += '<td style="white-space:nowrap">' + s.created_at + '</td>';
+            html += '<td>' + eventTag + '</td>';
+            html += '<td><span class="layer-badge ' + dirClass + '">' + dirEmoji + ' ' + s.direction + '</span></td>';
+            html += '<td><strong>' + s.confidence + '</strong><span style="color:#94a3b8">/100</span></td>';
             html += '<td>₹' + fmt(s.spot_price) + '</td>';
             html += '<td>' + s.atm_strike + '</td>';
             html += '<td><span class="alert-badge ' + (s.alert_sent ? 'alert-sent' : 'alert-none') + '">' + (s.alert_sent ? 'SENT' : '—') + '</span></td>';
@@ -844,9 +961,11 @@ document.addEventListener('DOMContentLoaded', function() {
     refreshAnalysis();
     loadMonitorStatus();
     loadSignalHistory();
+    loadActiveTrade();
 
     setInterval(loadMonitorStatus, 30000);
     setInterval(loadSignalHistory, 60000);
+    setInterval(loadActiveTrade, 30000);
 });
 </script>
 {% endblock %}
