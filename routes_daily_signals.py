@@ -313,8 +313,7 @@ def dashboard_daily_signals():
         result = {}
         try:
             from services.dhan_service import get_index_quotes
-            uid = current_user.id if current_user.is_authenticated else None
-            dhan_data = get_index_quotes(uid)
+            dhan_data = get_index_quotes(_captured_uid)
             DHAN_KEY_MAP = {
                 'NIFTY':     'nifty_50',
                 'BANKNIFTY': 'nifty_bank',
@@ -337,6 +336,12 @@ def dashboard_daily_signals():
         if result:
             _market_cache_set('indices', result)
         return result
+
+    # Capture user ID BEFORE spawning threads — current_user proxy is not thread-safe
+    try:
+        _captured_uid = current_user.id if current_user.is_authenticated else None
+    except Exception:
+        _captured_uid = None
 
     import concurrent.futures as _cf
     try:
@@ -378,9 +383,9 @@ def dashboard_daily_signals():
         def _normalise_mover(row: dict) -> dict:
             return {
                 'symbol':         str(row.get('symbol', '')),
-                'company':        str(row.get('company', row.get('name', row.get('symbol', '')))),
+                'company_name':   str(row.get('company', row.get('company_name', row.get('name', row.get('symbol', ''))))),
                 'change_percent': float(row.get('change_percent', row.get('pChange', 0))),
-                'price':          float(row.get('price', row.get('lastPrice', 0))),
+                'current_price':  float(row.get('price', row.get('current_price', row.get('lastPrice', 0)))),
                 'volume':         str(row.get('volume', '')),
             }
         top_gainers = [_normalise_mover(r) for r in plex_result.get('top_gainers', [])[:8]]
