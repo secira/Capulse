@@ -16,6 +16,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from app import db
+from decorators import paid_plan_required
 from models_broker import BrokerAccount, BrokerType, ConnectionStatus
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ def _save_pending_account(broker_type_value: str, client_id: str,
 
 @broker_oauth.route('/dashboard/broker-connect')
 @login_required
+@paid_plan_required
 def broker_connect():
     """Broker login page — all active brokers."""
     from routes_broker import BROKER_CATALOG

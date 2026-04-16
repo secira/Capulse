@@ -5,6 +5,7 @@ Serves the Behavioural Insights dashboard, sub-pages, and pre-trade check API.
 from flask import render_template, request, jsonify, redirect, url_for, flash, Response
 from flask_login import login_required, current_user
 from app import app, db
+from decorators import paid_plan_required
 import logging
 import csv
 import io
@@ -20,6 +21,7 @@ def _get_engine():
 
 @app.route('/dashboard/behavioural-insights')
 @login_required
+@paid_plan_required
 def behavioural_insights():
     try:
         engine = _get_engine()
@@ -43,6 +45,7 @@ def behavioural_insights():
 
 @app.route('/dashboard/behavioural-insights/trading')
 @login_required
+@paid_plan_required
 def behavioural_trading():
     try:
         engine = _get_engine()
@@ -65,6 +68,7 @@ def behavioural_trading():
 
 @app.route('/dashboard/behavioural-insights/risk')
 @login_required
+@paid_plan_required
 def behavioural_risk():
     try:
         engine = _get_engine()
@@ -82,6 +86,7 @@ def behavioural_risk():
 
 @app.route('/dashboard/behavioural-insights/portfolio')
 @login_required
+@paid_plan_required
 def behavioural_portfolio():
     try:
         engine = _get_engine()
@@ -102,6 +107,7 @@ def behavioural_portfolio():
 
 @app.route('/dashboard/behavioural-insights/performance')
 @login_required
+@paid_plan_required
 def behavioural_performance():
     try:
         engine = _get_engine()
@@ -122,6 +128,7 @@ def behavioural_performance():
 
 @app.route('/dashboard/behavioural-insights/psychology')
 @login_required
+@paid_plan_required
 def behavioural_psychology():
     try:
         engine = _get_engine()

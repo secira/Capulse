@@ -5,6 +5,7 @@ Provides in-depth research pages for each asset class with I-Score analysis
 from flask import render_template, jsonify, request
 from flask_login import login_required, current_user
 from app import app, db
+from decorators import paid_plan_required
 from models import TradingSignal, ResearchCache, ResearchRun, ResearchList
 from datetime import datetime, timezone, date
 import logging
@@ -151,6 +152,7 @@ def get_signals_for_asset(signal_type):
 
 @app.route('/dashboard/research')
 @login_required
+@paid_plan_required
 def research_dashboard():
     """Main research dashboard with asset selection"""
     # Get tenant to check feature flags

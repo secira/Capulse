@@ -2,6 +2,7 @@ from flask import render_template, request, redirect, url_for, flash, jsonify, s
 from flask_login import login_required, login_user, logout_user, current_user
 from flask_limiter.util import get_remote_address
 from app import app, db, limiter, csrf
+from decorators import paid_plan_required
 from services.perplexity_service import PerplexityService
 from models import (BlogPost, TeamMember, Testimonial, User, WatchlistItem, StockAnalysis, 
                    AIStockPick, Portfolio,
@@ -1689,7 +1690,8 @@ def dashboard_trading_signals():
                          timedelta=timedelta)
 
 @app.route('/dashboard/trade-now')
-@login_required  
+@login_required
+@paid_plan_required
 def dashboard_trade_now():
     """Trade Now page for executing live trades"""
     from datetime import date

@@ -2,8 +2,9 @@
 F&O Analysis Routes — NIFTY Options Engine
 """
 
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash
 from flask_login import login_required, current_user
+from decorators import paid_plan_required
 from datetime import timezone
 import logging
 import pytz
@@ -17,12 +18,14 @@ fno_bp = Blueprint('fno', __name__, url_prefix='/dashboard/fno')
 
 @fno_bp.route('/')
 @login_required
+@paid_plan_required
 def fno_landing():
     return render_template('dashboard/fno_nifty.html')
 
 
 @fno_bp.route('/nifty')
 @login_required
+@paid_plan_required
 def fno_nifty():
     return render_template('dashboard/fno_nifty.html')
 
