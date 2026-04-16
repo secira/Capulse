@@ -39,22 +39,22 @@
                 </li>
                 {% endif %}
 
-                {% if current_user.is_authenticated and current_user.can_access_menu('dashboard_trading_signals') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if 'research' in request.endpoint else '' }}"
-                       href="{{ url_for('research_dashboard') }}">
-                        <i class="nav-icon fas fa-search-dollar"></i>
-                        <span class="nav-text">Research Co-Pilot</span>
-                    </a>
-                </li>
-                {% endif %}
-
                 {% if current_user.is_authenticated %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_my_portfolio' else '' }}"
                        href="{{ url_for('dashboard_my_portfolio') }}">
                         <i class="nav-icon fas fa-briefcase"></i>
                         <span class="nav-text">Portfolio Analysis</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% if current_user.is_authenticated and current_user.can_access_menu('dashboard_trading_signals') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if 'research' in request.endpoint else '' }}"
+                       href="{{ url_for('research_dashboard') }}">
+                        <i class="nav-icon fas fa-search-dollar"></i>
+                        <span class="nav-text">Research Co-Pilot</span>
                     </a>
                 </li>
                 {% endif %}
