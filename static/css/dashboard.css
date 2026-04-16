@@ -286,6 +286,59 @@ body:has(.dashboard-app) {
     flex-shrink: 0;
 }
 
+/* Upgrade prompt box for FREE plan users */
+.sidebar-upgrade-box {
+    margin: 16px 12px;
+    padding: 18px 16px;
+    background: linear-gradient(135deg, #00091a 0%, #001233 100%);
+    border: 1px solid rgba(240, 180, 41, 0.3);
+    border-radius: 12px;
+    text-align: center;
+}
+.sidebar-upgrade-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(240, 180, 41, 0.15);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 10px;
+    color: #f0b429;
+    font-size: 16px;
+}
+.sidebar-upgrade-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+}
+.sidebar-upgrade-text {
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.5;
+    margin-bottom: 14px;
+}
+.sidebar-upgrade-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f0b429;
+    color: #00091a;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.1s;
+}
+.sidebar-upgrade-btn:hover {
+    background: #e0a41a;
+    color: #00091a;
+    text-decoration: none;
+    transform: translateY(-1px);
+}
+
 .sidebar-user-row {
     display: flex;
     align-items: center;

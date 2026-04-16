@@ -18,7 +18,7 @@
 
         {% set is_free = current_user.is_authenticated and current_user.pricing_plan.value == 'FREE' %}
 
-        <!-- Main Navigation -->
+        <!-- Always visible: Dashboard, Live Market Pulse, Portfolio Analysis -->
         <div class="sidebar-menu">
             <ul class="nav-list">
 
@@ -51,16 +51,27 @@
                 </li>
                 {% endif %}
 
-                {% if current_user.is_authenticated %}
-                {% if is_free %}
-                <li class="nav-item">
-                    <a class="nav-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to Growth Plan">
-                        <i class="nav-icon fas fa-search-dollar"></i>
-                        <span class="nav-text">Research Co-Pilot</span>
-                        <i class="fas fa-lock nav-lock-icon"></i>
-                    </a>
-                </li>
-                {% else %}
+            </ul>
+        </div>
+
+        {% if is_free %}
+        <!-- FREE users: single upgrade prompt replaces all other menu items -->
+        <div class="sidebar-upgrade-box">
+            <div class="sidebar-upgrade-icon">
+                <i class="fas fa-lock"></i>
+            </div>
+            <div class="sidebar-upgrade-title">Unlock All Features</div>
+            <div class="sidebar-upgrade-text">Research Co-Pilot, F&O Analysis, Trade Now, Behavioural AI, Portfolio Hub, and broker connections are available on paid plans.</div>
+            <a href="{{ url_for('pricing') }}" class="sidebar-upgrade-btn">
+                <i class="fas fa-arrow-up"></i> Upgrade Now
+            </a>
+        </div>
+
+        {% else %}
+        <!-- PAID users: full menu -->
+        <div class="sidebar-menu">
+            <ul class="nav-list">
+
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if 'research' in request.endpoint else '' }}"
                        href="{{ url_for('research_dashboard') }}">
@@ -68,20 +79,7 @@
                         <span class="nav-text">Research Co-Pilot</span>
                     </a>
                 </li>
-                {% endif %}
-                {% endif %}
 
-                {% if current_user.is_authenticated %}
-                {% if is_free %}
-                <li class="nav-item">
-                    <a class="nav-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to Growth Plan">
-                        <i class="nav-icon fas fa-chart-area"></i>
-                        <span class="nav-text">F&O Analysis</span>
-                        <span class="nav-badge-new">NEW</span>
-                        <i class="fas fa-lock nav-lock-icon"></i>
-                    </a>
-                </li>
-                {% else %}
                 <li class="nav-item">
                     <div class="nav-link collapsible-header" onclick="toggleFnoMenu()">
                         <i class="nav-icon fas fa-chart-area"></i>
@@ -120,19 +118,7 @@
                         </li>
                     </ul>
                 </li>
-                {% endif %}
-                {% endif %}
 
-                {% if current_user.is_authenticated %}
-                {% if is_free %}
-                <li class="nav-item">
-                    <a class="nav-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to Growth Plan">
-                        <i class="nav-icon fas fa-exchange-alt"></i>
-                        <span class="nav-text">Trade Now</span>
-                        <i class="fas fa-lock nav-lock-icon"></i>
-                    </a>
-                </li>
-                {% else %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_trade_now' else '' }}"
                        href="{{ url_for('dashboard_trade_now') }}">
@@ -140,20 +126,7 @@
                         <span class="nav-text">Trade Now</span>
                     </a>
                 </li>
-                {% endif %}
-                {% endif %}
 
-                {% if current_user.is_authenticated %}
-                {% if is_free %}
-                <li class="nav-item">
-                    <a class="nav-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to Growth Plan">
-                        <i class="nav-icon fas fa-brain"></i>
-                        <span class="nav-text">Behavioural AI</span>
-                        <span class="nav-badge-new">USP</span>
-                        <i class="fas fa-lock nav-lock-icon"></i>
-                    </a>
-                </li>
-                {% else %}
                 <li class="nav-item">
                     <div class="nav-link collapsible-header" onclick="toggleBehaviourMenu()">
                         <i class="nav-icon fas fa-brain"></i>
@@ -207,26 +180,14 @@
                         </li>
                     </ul>
                 </li>
-                {% endif %}
-                {% endif %}
-
 
             </ul>
         </div>
 
-        <!-- Portfolio Hub Section -->
+        <!-- Portfolio Hub Section (paid only) -->
         <div class="sidebar-section-label">PORTFOLIO HUB</div>
         <div class="sidebar-menu">
             <ul class="nav-list">
-                {% if is_free %}
-                <li class="nav-item">
-                    <a class="nav-link nav-locked" href="{{ url_for('pricing') }}" title="Upgrade to access Portfolio Hub">
-                        <i class="nav-icon fas fa-layer-group"></i>
-                        <span class="nav-text">Portfolio Hub</span>
-                        <i class="fas fa-lock nav-lock-icon"></i>
-                    </a>
-                </li>
-                {% else %}
                 <li class="nav-item">
                     <div class="nav-link collapsible-header" onclick="togglePortfolioHub()">
                         <i class="nav-icon fas fa-layer-group"></i>
@@ -311,9 +272,10 @@
 
                     </ul>
                 </li>
-                {% endif %}
             </ul>
         </div>
+
+        {% endif %}<!-- end is_free / paid split -->
 
         <!-- Administration Section (admin only) -->
         {% if current_user.is_authenticated and current_user.is_admin %}
@@ -396,7 +358,7 @@
         </div>
         {% endif %}
 
-        <!-- Settings Section -->
+        <!-- Settings Section (all users) -->
         <div class="sidebar-section-label">SETTINGS</div>
         <div class="sidebar-menu">
             <ul class="nav-list">
@@ -438,8 +400,8 @@
                 {{ current_user.get_full_name()[:1].upper() if current_user.get_full_name() else 'U' }}
             </div>
             <div class="sidebar-user-info">
-                <span class="sidebar-user-name">{{ current_user.get_full_name() }}</span>
-                <span class="sidebar-user-email">{{ current_user.email }}</span>
+                <div class="sidebar-user-name">{{ current_user.get_full_name() or current_user.username }}</div>
+                <div class="sidebar-user-email">{{ current_user.email }}</div>
             </div>
             <a href="{{ url_for('logout') }}" class="sidebar-logout-btn" title="Logout">
                 <i class="fas fa-sign-out-alt"></i>
@@ -449,113 +411,3 @@
     {% endif %}
 
 </nav>
-
-<script>
-function toggleBehaviourMenu() {
-    const menu = document.getElementById('behaviourMenu');
-    const toggleIcon = document.getElementById('behaviourToggle');
-    if (menu.style.display === 'none' || menu.style.display === '') {
-        menu.style.display = 'block';
-        toggleIcon.classList.add('expanded');
-        localStorage.setItem('behaviourExpanded', 'true');
-    } else {
-        menu.style.display = 'none';
-        toggleIcon.classList.remove('expanded');
-        localStorage.setItem('behaviourExpanded', 'false');
-    }
-}
-
-function togglePortfolioHub() {
-    const menu = document.getElementById('portfolioHubMenu');
-    const toggleIcon = document.getElementById('portfolioHubToggle');
-    if (menu.style.display === 'none' || menu.style.display === '') {
-        menu.style.display = 'block';
-        toggleIcon.classList.add('expanded');
-        localStorage.setItem('portfolioHubExpanded', 'true');
-    } else {
-        menu.style.display = 'none';
-        toggleIcon.classList.remove('expanded');
-        localStorage.setItem('portfolioHubExpanded', 'false');
-    }
-}
-
-function toggleFnoMenu() {
-    const menu = document.getElementById('fnoMenu');
-    const toggleIcon = document.getElementById('fnoMenuToggle');
-    if (menu.style.display === 'none' || menu.style.display === '') {
-        menu.style.display = 'block';
-        toggleIcon.classList.add('expanded');
-        localStorage.setItem('fnoMenuExpanded', 'true');
-    } else {
-        menu.style.display = 'none';
-        toggleIcon.classList.remove('expanded');
-        localStorage.setItem('fnoMenuExpanded', 'false');
-    }
-}
-
-function toggleAdminMenu() {
-    const menu = document.getElementById('adminMenu');
-    const toggleIcon = document.getElementById('adminMenuToggle');
-    if (menu.style.display === 'none' || menu.style.display === '') {
-        menu.style.display = 'block';
-        toggleIcon.classList.add('expanded');
-        localStorage.setItem('adminMenuExpanded', 'true');
-    } else {
-        menu.style.display = 'none';
-        toggleIcon.classList.remove('expanded');
-        localStorage.setItem('adminMenuExpanded', 'false');
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const currentEndpoint = '{{ request.endpoint }}';
-    const portfolioHubPages = ['broker_oauth.broker_connect', 'dashboard_banks', 'dashboard_insurance',
-                               'dashboard_equities', 'dashboard_mutual_funds', 'dashboard_fixed_deposits',
-                               'dashboard_futures_options', 'dashboard_real_estate', 'dashboard_commodities'];
-    const portfolioMenu = document.getElementById('portfolioHubMenu');
-    const portfolioToggle = document.getElementById('portfolioHubToggle');
-    if (portfolioMenu && portfolioToggle) {
-        const expanded = localStorage.getItem('portfolioHubExpanded');
-        if (expanded === 'true' || portfolioHubPages.includes(currentEndpoint)) {
-            portfolioMenu.style.display = 'block';
-            portfolioToggle.classList.add('expanded');
-        }
-    }
-
-    const behaviourPages = ['behavioural_insights', 'behavioural_trading', 'behavioural_risk',
-                            'behavioural_portfolio', 'behavioural_performance', 'behavioural_psychology'];
-    const behaviourMenu = document.getElementById('behaviourMenu');
-    const behaviourToggle = document.getElementById('behaviourToggle');
-    if (behaviourMenu && behaviourToggle) {
-        const bExpanded = localStorage.getItem('behaviourExpanded');
-        if (bExpanded === 'true' || behaviourPages.includes(currentEndpoint)) {
-            behaviourMenu.style.display = 'block';
-            behaviourToggle.classList.add('expanded');
-        }
-    }
-
-    const fnoPages = ['fno.fno_landing', 'fno.fno_nifty'];
-    const fnoMenu = document.getElementById('fnoMenu');
-    const fnoToggle = document.getElementById('fnoMenuToggle');
-    if (fnoMenu && fnoToggle) {
-        const fnoExpanded = localStorage.getItem('fnoMenuExpanded');
-        if (fnoExpanded === 'true' || fnoPages.includes(currentEndpoint)) {
-            fnoMenu.style.display = 'block';
-            fnoToggle.classList.add('expanded');
-        }
-    }
-
-    const adminPages = ['admin.users', 'admin.daily_signals', 'admin.research_list',
-                        'admin.payments', 'admin.account_handling', 'admin.research_config',
-                        'admin.contact_messages', 'admin.blog_list', 'admin.data_sources'];
-    const adminMenu = document.getElementById('adminMenu');
-    const adminToggle = document.getElementById('adminMenuToggle');
-    if (adminMenu && adminToggle) {
-        const adminExpanded = localStorage.getItem('adminMenuExpanded');
-        if (adminExpanded === 'true' || adminPages.includes(currentEndpoint)) {
-            adminMenu.style.display = 'block';
-            adminToggle.classList.add('expanded');
-        }
-    }
-});
-</script>
