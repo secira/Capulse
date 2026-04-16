@@ -335,11 +335,27 @@ def dashboard_daily_signals():
             f_active  = pool.submit(_fetch_most_active)
             f_nifty50 = pool.submit(_get_live_nifty50_data)
 
-            live_indices = f_indices.result()
-            top_gainers  = f_gainers.result()
-            top_losers   = f_losers.result()
-            most_active  = f_active.result()
-            nifty50_data = f_nifty50.result()
+            # Cap each call at 5 seconds — NSE is geo-blocked and can hang
+            try:
+                live_indices = f_indices.result(timeout=5)
+            except Exception:
+                live_indices = {}
+            try:
+                top_gainers = f_gainers.result(timeout=5)
+            except Exception:
+                top_gainers = []
+            try:
+                top_losers = f_losers.result(timeout=5)
+            except Exception:
+                top_losers = []
+            try:
+                most_active = f_active.result(timeout=5)
+            except Exception:
+                most_active = []
+            try:
+                nifty50_data = f_nifty50.result(timeout=5)
+            except Exception:
+                nifty50_data = []
 
         # Merge live index data over fallback
         for key in ('nifty_50', 'nifty_bank', 'sensex', 'nifty_it'):

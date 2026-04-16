@@ -22,6 +22,21 @@ import logging
 logger = logging.getLogger(__name__)
 import random
 import os
+import time
+
+# In-memory cache for Portfolio AI insights (2-hour TTL per user)
+_PORTFOLIO_AI_CACHE: dict = {}
+_PORTFOLIO_AI_TTL = 7200  # seconds
+
+
+def _get_portfolio_ai_insights(portfolio_service, portfolio_summary, user_id: int) -> str:
+    """Return cached AI insights or generate fresh ones (2-hour TTL)."""
+    entry = _PORTFOLIO_AI_CACHE.get(user_id)
+    if entry and (time.time() - entry['ts']) < _PORTFOLIO_AI_TTL:
+        return entry['data']
+    insights = portfolio_service.generate_ai_insights(portfolio_summary)
+    _PORTFOLIO_AI_CACHE[user_id] = {'data': insights, 'ts': time.time()}
+    return insights
 import hmac
 import hashlib
 import json
@@ -2069,8 +2084,8 @@ def dashboard_my_portfolio():
     portfolio_service = get_comprehensive_portfolio_service(current_user.id)
     portfolio_summary = portfolio_service.get_complete_portfolio_summary()
 
-    # Generate AI insights
-    ai_insights = portfolio_service.generate_ai_insights(portfolio_summary)
+    # Generate AI insights (cached per user, 2-hour TTL to avoid blocking every page load)
+    ai_insights = _get_portfolio_ai_insights(portfolio_service, portfolio_summary, current_user.id)
 
     # Get top performers
     top_performers = portfolio_service.get_top_performers(limit=5)
