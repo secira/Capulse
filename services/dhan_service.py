@@ -22,6 +22,15 @@ _SECID_LOCK    = threading.Lock()
 _SECID_MAP: Dict[str, int] = {}   # symbol (upper) → security_id
 _SECID_LOADED  = False
 
+# ------------------------------------------------------------------
+# OHLC quote cache — short-TTL in-memory cache for get_eq_quote()
+# Avoids redundant Dhan API calls when the same symbol is requested
+# multiple times within a short window (e.g. across pages in a session).
+# ------------------------------------------------------------------
+_QUOTE_CACHE_TTL = 60  # seconds
+_QUOTE_CACHE_LOCK = threading.Lock()
+_QUOTE_CACHE: Dict[str, tuple] = {}  # symbol → (timestamp: float, data: dict)
+
 
 def _load_security_id_map() -> Dict[str, int]:
     """
@@ -218,7 +227,25 @@ def get_eq_quote(symbol: str, user_id: Optional[int] = None) -> Optional[Dict]:
     Returns a dict with keys: ltp, open, high, low, close, change, pct_change
     (all floats), plus 'source': 'Dhan'.  Returns None when Dhan is unavailable
     or the symbol is not in the instrument master.
+
+    Results are cached in memory for _QUOTE_CACHE_TTL seconds to avoid redundant
+    API calls when the same symbol is requested multiple times in quick succession.
     """
+    import time
+    # Normalise cache key the same way _get_security_id() does so that
+    # "RELIANCE" and "RELIANCE-EQ" resolve to the same cache entry.
+    sym_key = symbol.upper().replace("-EQ", "").replace("-BE", "").replace("-SM", "")
+
+    # Check cache first (thread-safe)
+    with _QUOTE_CACHE_LOCK:
+        cached = _QUOTE_CACHE.get(sym_key)
+        if cached is not None:
+            cached_ts, cached_data = cached
+            age = time.time() - cached_ts
+            if age < _QUOTE_CACHE_TTL:
+                logger.debug(f"get_eq_quote({symbol}): cache hit (age {age:.1f}s)")
+                return dict(cached_data)  # shallow copy to prevent caller mutation
+
     sec_id = _get_security_id(symbol)
     if sec_id is None:
         logger.debug(f"get_eq_quote({symbol}): no security ID in instrument master")
@@ -228,10 +255,13 @@ def get_eq_quote(symbol: str, user_id: Optional[int] = None) -> Optional[Dict]:
         logger.debug(f"get_eq_quote({symbol}): no Dhan broker available")
         return None
     try:
+        logger.debug(f"get_eq_quote({symbol}): cache miss — fetching from Dhan")
         raw = broker.get_eq_ohlc([sec_id])
         row = raw.get(str(sec_id))
         if row and row.get("ltp", 0) > 0:
             row["source"] = "Dhan"
+            with _QUOTE_CACHE_LOCK:
+                _QUOTE_CACHE[sym_key] = (time.time(), dict(row))  # store a copy
             return row
     except Exception as e:
         logger.error(f"get_eq_quote({symbol}) error: {e}")
