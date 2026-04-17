@@ -445,6 +445,18 @@ class User(UserMixin, db.Model):
             return True
         return self.is_trial_active()
 
+    def trial_end_date(self):
+        """Returns the datetime when the 30-day trial ends (or None for paid users)."""
+        if self.pricing_plan != PricingPlan.FREE:
+            return None
+        from datetime import timedelta
+        created = self.created_at
+        if not created:
+            return None
+        if hasattr(created, 'tzinfo') and created.tzinfo is not None:
+            created = created.replace(tzinfo=None)
+        return created + timedelta(days=30)
+
     def trial_days_remaining(self):
         """Returns whole days left in the trial (0 if expired or paid plan)."""
         if not self.is_trial_active():

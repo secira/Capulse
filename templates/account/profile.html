@@ -88,7 +88,31 @@
                     <h4 class="text-primary mb-1">{{ current_user.get_plan_display_name() }}</h4>
                     <p class="text-muted small mb-3">{{ current_user.get_plan_tagline() }}</p>
                     {% if current_user.pricing_plan == PricingPlan.FREE %}
-                    <p class="text-muted small">Dashboard, Live Market Pulse &amp; Portfolio Analysis</p>
+                    <p class="text-muted small mb-2">30-Day Full Access Trial</p>
+                    {% if current_user.is_trial_active() %}
+                    <span class="badge bg-success mb-2">Trial Active</span>
+                    <div class="mb-2">
+                        <span class="badge bg-light text-dark border small">
+                            <i class="fas fa-calendar-alt me-1 text-primary"></i>
+                            Expires on {{ current_user.trial_end_date().strftime('%d %b %Y') }}
+                        </span>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge bg-warning text-dark small">
+                            <i class="fas fa-hourglass-half me-1"></i>
+                            {{ current_user.trial_days_remaining() }} day{{ 's' if current_user.trial_days_remaining() != 1 else '' }} remaining
+                        </span>
+                    </div>
+                    {% else %}
+                    <span class="badge bg-danger mb-2">Trial Expired</span>
+                    <div class="mb-2">
+                        <span class="badge bg-light text-dark border small">
+                            <i class="fas fa-calendar-times me-1 text-danger"></i>
+                            Expired on {{ (current_user.created_at + timedelta(days=30)).strftime('%d %b %Y') }}
+                        </span>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">Upgrade to continue accessing all features.</p>
+                    {% endif %}
                     {% else %}
                     <p class="text-muted small mb-2">₹{{ current_user.get_plan_price() }}/month</p>
                     {% if current_user.is_subscription_active() %}
