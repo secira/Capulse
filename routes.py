@@ -2689,7 +2689,40 @@ def dashboard_equities():
                     })
         except Exception as e:
             logger.warning(f"Broker data fetch error: {e}")
-    
+
+    # Enrich broker positions with live Dhan prices
+    if broker_positions_list:
+        try:
+            from services import dhan_service as _dhan_svc
+            pos_symbols = list({p['symbol'] for p in broker_positions_list if p.get('symbol')})
+            pos_security_id_map = {}
+            for sym in pos_symbols:
+                sid = _dhan_svc.get_security_id(sym)
+                if sid is not None:
+                    pos_security_id_map[sym] = sid
+
+            pos_live_prices = {}
+            if pos_security_id_map:
+                pos_live_prices = _dhan_svc.get_nifty50_stock_quotes(pos_security_id_map, current_user.id)
+
+            if pos_live_prices:
+                for pos in broker_positions_list:
+                    sym = pos.get('symbol', '')
+                    quote = pos_live_prices.get(sym)
+                    if not quote:
+                        continue
+                    ltp = quote.get('ltp', 0)
+                    if ltp and ltp > 0:
+                        qty = float(pos.get('quantity') or 0)
+                        avg_price = float(pos.get('avg_buy_price') or 0)
+                        unrealized_pnl = (float(ltp) - avg_price) * qty
+                        pos['current_price'] = ltp
+                        pos['unrealized_pnl'] = unrealized_pnl
+                        pos['total_pnl'] = unrealized_pnl + float(pos.get('realized_pnl') or 0)
+                        pos['price_source'] = 'Dhan'
+        except Exception as _e:
+            logger.warning(f"Dhan live price fetch for positions failed: {_e}")
+
     # Combine holdings for display
     combined_holdings = []
     

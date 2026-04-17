@@ -419,6 +419,9 @@
                         <td>
                             {% if pos.current_price > 0 %}
                             ₹{{ "%.2f"|format(pos.current_price) }}
+                            {% if pos.price_source == 'Dhan' %}
+                            <span class="badge ms-1" style="background:#1e40af; font-size:9px; vertical-align:middle;">Dhan</span>
+                            {% endif %}
                             {% else %}
                             <span class="text-muted">—</span>
                             {% endif %}
