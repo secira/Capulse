@@ -107,15 +107,16 @@ class DhanBroker(BrokerBase):
             if resp.get("status") == "success":
                 items = _unwrap(resp, "IDX_I")
                 logger.debug(f"Dhan get_price({symbol}) ohlc items: {items}")
-                for item in (items if isinstance(items, list) else []):
+                # items may be a list OR a dict keyed by security_id string
+                item_list = items if isinstance(items, list) else list(items.values()) if isinstance(items, dict) else []
+                for item in item_list:
                     sid = str(item.get("security_id", ""))
-                    if sid == str(sec_id):
-                        ltp = float(item.get("ltp", item.get("last_price", 0)))
-                        if ltp > 0:
-                            return ltp
-                # fallback: first item
-                if isinstance(items, list) and items:
-                    ltp = float(items[0].get("ltp", items[0].get("last_price", 0)))
+                    ltp = float(item.get("ltp", item.get("last_price", 0)))
+                    if sid == str(sec_id) and ltp > 0:
+                        return ltp
+                # fallback: first item regardless of security_id
+                if item_list:
+                    ltp = float(item_list[0].get("ltp", item_list[0].get("last_price", 0)))
                     if ltp > 0:
                         return ltp
             logger.warning(f"Dhan get_price({symbol}): no LTP in response, resp={resp.get('remarks','')}")
@@ -201,11 +202,19 @@ class DhanBroker(BrokerBase):
 
             logger.info(f"Fetching Dhan option chain: {symbol} (sec_id={sec_id}) expiry={expiry}")
 
-            # Step 2: fetch option chain
+            # Step 2: fetch option chain (retry once on 429 rate-limit)
+            import time as _time
             resp = self._get_sdk().option_chain(sec_id, "IDX_I", expiry)
             if resp.get("status") != "success":
-                logger.warning(f"Dhan option chain failed (HTTP!=200): {resp.get('remarks', '')}")
-                return []
+                raw = resp.get("data", {})
+                # dhanhq SDK maps HTTP 429 → status='failure'; retry after 1s
+                if isinstance(raw, dict) and raw.get("httpStatus") == 429:
+                    logger.warning(f"Dhan option chain 429 — retrying in 1s")
+                    _time.sleep(1)
+                    resp = self._get_sdk().option_chain(sec_id, "IDX_I", expiry)
+                if resp.get("status") != "success":
+                    logger.warning(f"Dhan option chain failed: {resp.get('remarks', resp.get('data', ''))}")
+                    return []
 
             # SDK wraps: resp["data"] = <api_json>
             # Dhan API: {"status":"success","data":{"last_price":...,"oc":{...}}}
