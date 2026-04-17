@@ -624,10 +624,10 @@ class NiftyOptionsEngine:
         except Exception:
             return float(df['Close'].iloc[-1])
 
-    def _calculate_adx(self, df, period: int = 7, di_period: int = 3):
+    def _calculate_adx(self, df, period: int = 3, di_period: int = 7):
         """Wilder's ADX, +DI, -DI. Returns (adx, dmi_plus, dmi_minus, adx_rising).
 
-        New rules use ADX(3,7): DI smoothing = 3 candles, ADX smoothing = 7.
+        New rules use ADX(7,3): DI smoothing = 7 candles, ADX smoothing = 3.
         """
         try:
             import pandas as pd
