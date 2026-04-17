@@ -960,7 +960,7 @@ def dashboard_live_portfolio():
     """Live portfolio with real broker data"""
     # Check subscription access
     from models import PricingPlan
-    if current_user.pricing_plan not in [PricingPlan.TARGET_PLUS, PricingPlan.TARGET_PRO, PricingPlan.HNI]:
+    if not current_user.has_full_access():
         flash('Live portfolio access requires Target Plus subscription or higher.', 'warning')
         return redirect(url_for('pricing'))
     
@@ -1009,9 +1009,9 @@ def api_place_broker_order():
                 'message': 'Target Plus plan allows portfolio analysis only. Upgrade to Target Pro for trade execution.'
             }), 403
         
-        if current_user.pricing_plan not in [PricingPlan.TARGET_PRO, PricingPlan.HNI]:
+        if not current_user.has_full_access():
             return jsonify({
-                'success': False, 
+                'success': False,
                 'message': 'Trade execution requires Target Pro subscription or higher.'
             }), 403
         
@@ -1126,7 +1126,7 @@ def dashboard_broker_trading():
     """Broker trading interface"""
     # Check subscription access
     from models import PricingPlan
-    if current_user.pricing_plan not in [PricingPlan.TARGET_PRO, PricingPlan.HNI]:
+    if not current_user.has_full_access():
         flash('Broker trading requires Target Pro or HNI subscription.', 'warning')
         return redirect(url_for('pricing'))
     

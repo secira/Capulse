@@ -624,10 +624,11 @@ def liveness_check():
 # Import routes
 import routes
 
-# ── FREE PLAN ACCESS GUARD ────────────────────────────────────────────────────
-# Definitive whitelist of endpoints FREE (Starter) users may visit.
-# Everything else redirects to /pricing.  Admins are always exempt.
-_FREE_PLAN_ALLOWED: frozenset = frozenset({
+# ── 30-DAY TRIAL EXPIRY GUARD ─────────────────────────────────────────────────
+# FREE-plan users get full access for 30 days after registration.
+# After the trial ends every request (except the exempt set below) is
+# redirected to /pricing so they can upgrade.  Admins are always exempt.
+_TRIAL_EXEMPT_ENDPOINTS: frozenset = frozenset({
     # Infrastructure
     'static', 'health_check', 'liveness_check',
     # Public / marketing pages
@@ -635,50 +636,35 @@ _FREE_PLAN_ALLOWED: frozenset = frozenset({
     'blog', 'blog_post', 'blog_post_by_slug', 'pricing', 'careers',
     'news', 'partners', 'for_brokers', 'contact',
     'trading_signals', 'daily_signals_feature', 'live_market',
-    # Auth (own app + Google OAuth)
+    # Auth
     'login', 'register', 'logout',
     'google_auth.login', 'google_auth.callback', 'google_auth.logout',
     # OTP / mobile auth
     'send_otp', 'verify_otp', 'resend_otp', 'mobile_login',
-    # Payments / upgrades (FREE users must be able to subscribe)
+    # Payments / upgrades (must be reachable so they can subscribe)
     'subscribe', 'verify_payment', 'payment_success', 'payment_failed',
     'upgrade_plan', 'razorpay_webhook',
-    # Settings & account
+    # Settings & account management
     'account_profile', 'update_profile', 'account_settings',
     'account_billing', 'change_password', 'update_notification_settings',
-    # ── ALLOWED DASHBOARD FEATURES ─────────────────────────────────────────
-    # 1. Main dashboard overview
-    'dashboard',
-    'api_data_quality',      # freshness banner on dashboard
-    'api_realtime_indices',  # live index ticker on dashboard
-    # 2. Live Market Pulse (full access for FREE)
-    'dashboard_daily_signals', 'daily_signals_analysis', 'daily_signal_detail',
-    'daily_signals_api',
-    'market_pulse_commentary', 'market_pulse_query', 'market_pulse_tts',
-    # 3. Portfolio Analysis (manual entry, no broker connection needed)
-    'dashboard_my_portfolio',
-    'api_portfolio', 'api_portfolio_unified', 'api_portfolio_by_asset_type',
 })
 
 @app.before_request
-def enforce_free_plan_access():
-    """Block FREE-plan users from accessing any endpoint not in the whitelist."""
+def check_trial_expiry():
+    """Redirect FREE users to pricing once their 30-day trial has expired."""
     from flask import request, redirect, url_for, flash
     from flask_login import current_user
 
     endpoint = request.endpoint
-    if not endpoint:
+    if not endpoint or endpoint in _TRIAL_EXEMPT_ENDPOINTS:
         return
 
-    # Unauthenticated users are handled by @login_required on each route.
     if not current_user.is_authenticated:
         return
 
-    # Admins always have full access.
     if getattr(current_user, 'is_admin', False):
         return
 
-    # Only restrict FREE plan.
     try:
         plan = current_user.pricing_plan.value
     except Exception:
@@ -687,15 +673,18 @@ def enforce_free_plan_access():
     if plan != 'FREE':
         return
 
-    if endpoint not in _FREE_PLAN_ALLOWED:
-        flash(
-            'This feature is available on the Growth Plan and above. '
-            'Upgrade to unlock Research Co-Pilot, F&O Analysis, Trade Now, '
-            'Behavioural AI, and all broker connections.',
-            'warning'
-        )
-        return redirect(url_for('pricing'))
-# ── END FREE PLAN ACCESS GUARD ────────────────────────────────────────────────
+    # Trial still active → full access, nothing to do
+    if current_user.is_trial_active():
+        return
+
+    # Trial expired → send to pricing
+    flash(
+        'Your 30-day free trial has ended. '
+        'Please upgrade to continue using all features of Target Capital.',
+        'warning'
+    )
+    return redirect(url_for('pricing'))
+# ── END TRIAL EXPIRY GUARD ────────────────────────────────────────────────────
 
 @app.context_processor
 def inject_tenant_config():

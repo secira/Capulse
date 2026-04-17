@@ -17,8 +17,18 @@
     <div class="sidebar-scroll">
 
         {% set is_free = current_user.is_authenticated and current_user.pricing_plan.value == 'FREE' %}
+        {% set trial_days = current_user.trial_days_remaining() if is_free else 0 %}
 
-        <!-- Always visible: Dashboard, Live Market Pulse, Portfolio Analysis -->
+        <!-- Trial countdown banner for FREE users -->
+        {% if is_free and current_user.is_trial_active() %}
+        <div class="sidebar-trial-banner">
+            <i class="fas fa-clock"></i>
+            <span><strong>{{ trial_days }} day{{ 's' if trial_days != 1 else '' }}</strong> left in trial</span>
+            <a href="{{ url_for('pricing') }}" class="sidebar-trial-upgrade">Upgrade</a>
+        </div>
+        {% endif %}
+
+        <!-- Full navigation menu for all users -->
         <div class="sidebar-menu">
             <ul class="nav-list">
 
@@ -54,21 +64,7 @@
             </ul>
         </div>
 
-        {% if is_free %}
-        <!-- FREE users: single upgrade prompt replaces all other menu items -->
-        <div class="sidebar-upgrade-box">
-            <div class="sidebar-upgrade-icon">
-                <i class="fas fa-lock"></i>
-            </div>
-            <div class="sidebar-upgrade-title">Unlock All Features</div>
-            <div class="sidebar-upgrade-text">Research Co-Pilot, F&O Analysis, Trade Now, Behavioural AI, Portfolio Hub, and broker connections are available on paid plans.</div>
-            <a href="{{ url_for('pricing') }}" class="sidebar-upgrade-btn">
-                <i class="fas fa-arrow-up"></i> Upgrade Now
-            </a>
-        </div>
-
-        {% else %}
-        <!-- PAID users: full menu -->
+        <!-- Full menu (all authenticated users) -->
         <div class="sidebar-menu">
             <ul class="nav-list">
 
@@ -274,8 +270,6 @@
                 </li>
             </ul>
         </div>
-
-        {% endif %}<!-- end is_free / paid split -->
 
         <!-- Administration Section (admin only) -->
         {% if current_user.is_authenticated and current_user.is_admin %}

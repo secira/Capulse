@@ -379,9 +379,13 @@ class User(UserMixin, db.Model):
         return True
 
     def get_max_broker_connections(self):
-        """Return max number of broker connections allowed for the user's plan"""
+        """Return max number of broker connections allowed for the user's plan.
+
+        FREE users on an active 30-day trial are treated as Growth (1 broker).
+        """
+        if self.pricing_plan == PricingPlan.FREE:
+            return 1 if self.is_trial_active() else 0
         limits = {
-            PricingPlan.FREE: 0,
             PricingPlan.TARGET_PLUS: 1,
             PricingPlan.TARGET_PRO: 3,
             PricingPlan.HNI: 3,
@@ -418,6 +422,40 @@ class User(UserMixin, db.Model):
         }
         return prices.get(self.pricing_plan, 0)
     
+    def is_trial_active(self):
+        """Returns True if this FREE user is within the 30-day trial period."""
+        if self.pricing_plan != PricingPlan.FREE:
+            return False
+        if not self.created_at:
+            return True  # No creation date recorded — allow access
+        from datetime import timedelta
+        created = self.created_at
+        if hasattr(created, 'tzinfo') and created.tzinfo is not None:
+            created = created.replace(tzinfo=None)
+        return datetime.utcnow() < (created + timedelta(days=30))
+
+    def has_full_access(self):
+        """Returns True if user should have full feature access.
+
+        Paid plan users always do.  FREE users do during their 30-day trial.
+        """
+        if self.pricing_plan != PricingPlan.FREE:
+            return True
+        return self.is_trial_active()
+
+    def trial_days_remaining(self):
+        """Returns whole days left in the trial (0 if expired or paid plan)."""
+        if not self.is_trial_active():
+            return 0
+        from datetime import timedelta
+        created = self.created_at
+        if not created:
+            return 30
+        if hasattr(created, 'tzinfo') and created.tzinfo is not None:
+            created = created.replace(tzinfo=None)
+        remaining = (created + timedelta(days=30) - datetime.utcnow()).days
+        return max(0, remaining)
+
     def is_subscription_active(self):
         """Check if user has active subscription"""
         if self.pricing_plan == PricingPlan.FREE:

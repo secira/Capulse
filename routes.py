@@ -155,7 +155,7 @@ def admin_required(f):
 
 def plan_required(*allowed_plans):
     """Decorator to require specific pricing plan access.
-    Admin users always bypass plan checks regardless of their stored plan."""
+    Admin users and FREE users on an active trial always bypass plan checks."""
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
@@ -163,6 +163,9 @@ def plan_required(*allowed_plans):
                 return redirect(url_for('login'))
             # Admins always have full access
             if current_user.is_admin:
+                return f(*args, **kwargs)
+            # FREE users on active trial have full access
+            if current_user.has_full_access():
                 return f(*args, **kwargs)
             if current_user.pricing_plan not in allowed_plans:
                 flash('This feature requires a higher subscription plan. Please upgrade your account.', 'warning')
@@ -1651,7 +1654,7 @@ def dashboard_trading_signals():
     """Trading signals page for paid users only"""
     # Check if user has paid subscription (admins always have full access)
     from models import PricingPlan
-    if not current_user.is_admin and current_user.pricing_plan not in [PricingPlan.TARGET_PLUS, PricingPlan.TARGET_PRO, PricingPlan.HNI]:
+    if not current_user.is_admin and not current_user.has_full_access():
         flash('Trading signals are available for Target Plus, Target Pro, and HNI subscribers only.', 'warning')
         return redirect(url_for('pricing'))
     
@@ -1853,7 +1856,7 @@ def trade_assist():
     """Trade Assist page - helps users execute trades based on signals"""
     # Check subscription access (admins always have full access)
     from models import PricingPlan
-    if not current_user.is_admin and current_user.pricing_plan not in [PricingPlan.TARGET_PLUS, PricingPlan.TARGET_PRO, PricingPlan.HNI]:
+    if not current_user.is_admin and not current_user.has_full_access():
         flash('Trade Assist is available for Trader, Trader Plus, and HNI subscribers only.', 'warning')
         return redirect(url_for('pricing'))
     
@@ -4313,9 +4316,9 @@ def api_deploy_trade(recommendation_id):
                 'error': 'Target Plus plan allows portfolio analysis only. Upgrade to Target Pro for trade execution.'
             }), 403
         
-        if not current_user.is_admin and current_user.pricing_plan not in [PricingPlan.TARGET_PRO, PricingPlan.HNI]:
+        if not current_user.is_admin and not current_user.has_full_access():
             return jsonify({
-                'success': False, 
+                'success': False,
                 'error': 'Trade execution requires Target Pro subscription or higher.'
             }), 403
         
@@ -5400,10 +5403,10 @@ def api_trade_execute_signal():
         from models_broker import BrokerAccount, BrokerOrder
         from models import PricingPlan
         
-        # Check subscription access (admins always have full access)
-        if not current_user.is_admin and current_user.pricing_plan not in [PricingPlan.TARGET_PRO, PricingPlan.HNI]:
+        # Check subscription access (admins and trial users always have full access)
+        if not current_user.is_admin and not current_user.has_full_access():
             return jsonify({
-                'success': False, 
+                'success': False,
                 'error': 'Trade execution requires TARGET PRO or HNI subscription'
             }), 403
         
@@ -5933,8 +5936,8 @@ def api_trading_signals():
         from sqlalchemy import desc
         from services.nse_service import NSEService
         
-        # Check if user has paid subscription (admins always have full access)
-        if not current_user.is_admin and current_user.pricing_plan not in [PricingPlan.TARGET_PLUS, PricingPlan.TARGET_PRO, PricingPlan.HNI]:
+        # Check if user has access (admins and trial users always have full access)
+        if not current_user.is_admin and not current_user.has_full_access():
             return jsonify({
                 'success': True,
                 'signals': [],

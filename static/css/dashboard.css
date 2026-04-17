@@ -286,6 +286,34 @@ body:has(.dashboard-app) {
     flex-shrink: 0;
 }
 
+/* Trial countdown banner for FREE plan users */
+.sidebar-trial-banner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 12px 4px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid #f0b429;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #92400e;
+}
+.sidebar-trial-banner i { color: #d97706; flex-shrink: 0; }
+.sidebar-trial-banner span { flex: 1; }
+.sidebar-trial-upgrade {
+    font-size: 11px;
+    font-weight: 700;
+    color: #d97706;
+    text-decoration: none;
+    white-space: nowrap;
+    padding: 2px 8px;
+    border: 1px solid #f0b429;
+    border-radius: 4px;
+    background: #fff;
+}
+.sidebar-trial-upgrade:hover { background: #f0b429; color: #fff; }
+
 /* Upgrade prompt box for FREE plan users */
 .sidebar-upgrade-box {
     margin: 16px 12px;

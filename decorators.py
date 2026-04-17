@@ -8,17 +8,22 @@ from flask_login import current_user
 
 def paid_plan_required(f):
     """
-    Restrict a route to users on a paid plan (Growth / Pro / Elite).
-    FREE (Starter) users are redirected to /pricing with an explanatory message.
+    Restrict a route to users who have full feature access:
+      - Any paid plan (Growth / Pro / Elite), OR
+      - FREE plan within the 30-day trial window.
+
+    Expired-trial FREE users are redirected to /pricing.
     Always stack BELOW @login_required so current_user is already resolved.
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        if current_user.pricing_plan.value == 'FREE':
+        if getattr(current_user, 'is_admin', False):
+            return f(*args, **kwargs)
+        if not current_user.has_full_access():
             flash(
-                'This feature is available on the Growth Plan and above. '
-                'Upgrade to unlock Research Co-Pilot, F&O Analysis, Trade Now, '
-                'Behavioural AI, and broker connections.',
+                'Your 30-day free trial has ended. '
+                'Upgrade to continue using Research Co-Pilot, F&O Analysis, '
+                'Trade Now, Behavioural AI, and broker connections.',
                 'warning'
             )
             return redirect(url_for('pricing'))
