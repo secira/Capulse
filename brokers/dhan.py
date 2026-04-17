@@ -228,12 +228,13 @@ class DhanBroker(BrokerBase):
                     put_md  = options.get("put_options",  {}).get("market_data", {})
                     call_od = options.get("call_options", {}).get("option_data", {})
                     put_od  = options.get("put_options",  {}).get("option_data", {})
+                    # Dhan v2 API returns OI as "oi"; also accept "open_interest" for safety
                     chain.append({
                         "strike":           strike,
                         "call_ltp":         float(call_md.get("ltp", 0)),
                         "put_ltp":          float(put_md.get("ltp", 0)),
-                        "call_oi":          int(call_md.get("open_interest", 0)),
-                        "put_oi":           int(put_md.get("open_interest", 0)),
+                        "call_oi":          int(call_md.get("oi", call_md.get("open_interest", 0))),
+                        "put_oi":           int(put_md.get("oi", put_md.get("open_interest", 0))),
                         "call_iv":          float(call_md.get("iv", 0)),
                         "put_iv":           float(put_md.get("iv", 0)),
                         "call_volume":      int(call_md.get("volume", 0)),
@@ -242,8 +243,8 @@ class DhanBroker(BrokerBase):
                         "call_ask":         float(call_md.get("best_ask_price", 0)),
                         "put_bid":          float(put_md.get("best_bid_price", 0)),
                         "put_ask":          float(put_md.get("best_ask_price", 0)),
-                        "call_oi_change":   0,
-                        "put_oi_change":    0,
+                        "call_oi_change":   int(call_md.get("oi_change", call_md.get("change_in_oi", 0))),
+                        "put_oi_change":    int(put_md.get("oi_change", put_md.get("change_in_oi", 0))),
                         "call_security_id": call_od.get("security_id"),
                         "put_security_id":  put_od.get("security_id"),
                         "spot":             spot,

@@ -375,10 +375,35 @@
         <div class="collapse" id="oiCollapse">
             <div class="collapse-body">
                 <div class="indicator-row"><span class="indicator-name">OI Differential</span><span class="indicator-val" id="oiDiff">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">PCR</span><span class="indicator-val" id="pcrVal">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">PCR (Overall)</span><span class="indicator-val" id="pcrVal">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">ATM PCR</span><span class="indicator-val" id="atmPcrVal">—</span></div>
+                <div class="indicator-row">
+                    <span class="indicator-name">Max Pain</span>
+                    <span class="indicator-val">
+                        <span id="maxPainStrike" style="font-weight:700">—</span>
+                        <span id="maxPainDist" style="font-size:10px;color:#94a3b8;margin-left:4px"></span>
+                    </span>
+                </div>
                 <div class="mt-2">
                     <div class="d-flex justify-content-between" style="font-size:11px;font-weight:600"><span style="color:#ef4444">Call OI</span><span style="color:#22c55e">Put OI</span></div>
                     <div class="oi-bar"><div class="oi-call" id="oiCallBar" style="width:50%"></div><div class="oi-put" id="oiPutBar" style="width:50%"></div></div>
+                    <div class="d-flex justify-content-between mt-1" style="font-size:10px;color:#94a3b8">
+                        <span id="totalCallOiLbl">—</span><span id="totalPutOiLbl">—</span>
+                    </div>
+                </div>
+                <!-- Key Resistance (top CE OI) -->
+                <div class="mt-2" id="ceResistanceSection" style="display:none">
+                    <div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:4px">
+                        <i class="fas fa-shield me-1"></i>Key Resistance (Call OI)
+                    </div>
+                    <div id="ceResistanceList"></div>
+                </div>
+                <!-- Key Support (top PE OI) -->
+                <div class="mt-2" id="peSupportSection" style="display:none">
+                    <div style="font-size:11px;font-weight:700;color:#22c55e;margin-bottom:4px">
+                        <i class="fas fa-shield-alt me-1"></i>Key Support (Put OI)
+                    </div>
+                    <div id="peSupportList"></div>
                 </div>
             </div>
         </div>
@@ -739,13 +764,58 @@ function refreshAnalysis() {
         document.getElementById('atrVal').textContent = d.strength.atr;
         document.getElementById('atrRising').innerHTML = d.strength.atr_rising ? '<i class="fas fa-arrow-up text-success"></i> Yes' : '<i class="fas fa-arrow-down text-danger"></i> No';
 
-        setTrafficLight('oiTraffic', ls.oi || 'fail', d.oi_analysis.oi_signal);
-        document.getElementById('oiDiff').textContent = (d.oi_analysis.oi_diff * 100).toFixed(2) + '%';
-        document.getElementById('pcrVal').textContent = d.oi_analysis.pcr;
-        var totalOi = d.oi_analysis.total_call_oi + d.oi_analysis.total_put_oi;
+        var oi = d.oi_analysis || {};
+        setTrafficLight('oiTraffic', ls.oi || 'fail', oi.oi_signal);
+        document.getElementById('oiDiff').textContent = ((oi.oi_diff || 0) * 100).toFixed(2) + '%';
+        document.getElementById('pcrVal').textContent = oi.pcr || '—';
+
+        // ATM PCR with colour-coded signal
+        var atmPcrEl = document.getElementById('atmPcrVal');
+        if (oi.atm_pcr !== undefined) {
+            var atmPcrColor = oi.atm_pcr > 1.2 ? '#22c55e' : (oi.atm_pcr < 0.8 ? '#ef4444' : '#f59e0b');
+            atmPcrEl.innerHTML = '<span style="color:' + atmPcrColor + ';font-weight:700">' + oi.atm_pcr + '</span>';
+        }
+
+        // Max Pain
+        if (oi.max_pain) {
+            document.getElementById('maxPainStrike').textContent = oi.max_pain.toLocaleString('en-IN');
+            var dist = oi.max_pain_distance || 0;
+            var distColor = Math.abs(dist) < 1 ? '#22c55e' : (Math.abs(dist) < 2 ? '#f59e0b' : '#ef4444');
+            document.getElementById('maxPainDist').innerHTML =
+                '<span style="color:' + distColor + '">' + (dist >= 0 ? '+' : '') + dist + '%</span>';
+        }
+
+        // OI bar + absolute totals
+        var totalOi = (oi.total_call_oi || 0) + (oi.total_put_oi || 0);
         if (totalOi > 0) {
-            document.getElementById('oiCallBar').style.width = (d.oi_analysis.total_call_oi / totalOi * 100).toFixed(1) + '%';
-            document.getElementById('oiPutBar').style.width = (d.oi_analysis.total_put_oi / totalOi * 100).toFixed(1) + '%';
+            document.getElementById('oiCallBar').style.width = (oi.total_call_oi / totalOi * 100).toFixed(1) + '%';
+            document.getElementById('oiPutBar').style.width  = (oi.total_put_oi  / totalOi * 100).toFixed(1) + '%';
+            document.getElementById('totalCallOiLbl').textContent = fmtOI(oi.total_call_oi);
+            document.getElementById('totalPutOiLbl').textContent  = fmtOI(oi.total_put_oi);
+        }
+
+        // Key Resistance (top CE OI strikes)
+        if (oi.top_ce_strikes && oi.top_ce_strikes.length > 0) {
+            var ceHtml = oi.top_ce_strikes.slice(0, 3).map(function(x) {
+                return '<div class="d-flex justify-content-between" style="font-size:11px;padding:2px 0;border-bottom:1px solid #f1f5f9">' +
+                    '<span style="font-weight:600;color:#dc2626">' + x.strike.toLocaleString('en-IN') + ' CE</span>' +
+                    '<span style="color:#64748b">' + fmtOI(x.oi) + '</span>' +
+                '</div>';
+            }).join('');
+            document.getElementById('ceResistanceList').innerHTML = ceHtml;
+            document.getElementById('ceResistanceSection').style.display = '';
+        }
+
+        // Key Support (top PE OI strikes)
+        if (oi.top_pe_strikes && oi.top_pe_strikes.length > 0) {
+            var peHtml = oi.top_pe_strikes.slice(0, 3).map(function(x) {
+                return '<div class="d-flex justify-content-between" style="font-size:11px;padding:2px 0;border-bottom:1px solid #f1f5f9">' +
+                    '<span style="font-weight:600;color:#16a34a">' + x.strike.toLocaleString('en-IN') + ' PE</span>' +
+                    '<span style="color:#64748b">' + fmtOI(x.oi) + '</span>' +
+                '</div>';
+            }).join('');
+            document.getElementById('peSupportList').innerHTML = peHtml;
+            document.getElementById('peSupportSection').style.display = '';
         }
 
         var ldRow = document.getElementById('layerDecisionRow');

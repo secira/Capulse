@@ -485,6 +485,67 @@ class NiftyOptionsEngine:
             return 0
         return (total_put_oi - total_call_oi) / total_call_oi
 
+    def _compute_oi_metrics(self, chain: dict, atm: int, spot: float) -> dict:
+        """Comprehensive OI analysis: Max Pain, ATM PCR, top support/resistance strikes."""
+        strikes = sorted(set(
+            int(k[:-2]) for k in chain
+            if (k.endswith('CE') or k.endswith('PE'))
+            and k[:-2].lstrip('-').isdigit()
+        ))
+        if not strikes:
+            return {'oi_diff': 0, 'oi_signal': 'NEUTRAL', 'pcr': 0, 'atm_pcr': 0,
+                    'total_call_oi': 0, 'total_put_oi': 0, 'max_pain': atm,
+                    'max_pain_distance': 0, 'top_ce_strikes': [], 'top_pe_strikes': []}
+
+        # ── Totals ──────────────────────────────────────────────────────
+        total_call_oi = sum(chain.get(f'{s}CE', {}).get('oi', 0) for s in strikes)
+        total_put_oi  = sum(chain.get(f'{s}PE', {}).get('oi', 0) for s in strikes)
+        pcr_overall   = round(total_put_oi / total_call_oi, 2) if total_call_oi else 0
+
+        # ── ATM PCR (±3 strikes around ATM) ─────────────────────────────
+        atm_range = [s for s in strikes if abs(s - atm) <= 3 * STRIKE_INTERVAL]
+        atm_call  = sum(chain.get(f'{s}CE', {}).get('oi', 0) for s in atm_range)
+        atm_put   = sum(chain.get(f'{s}PE', {}).get('oi', 0) for s in atm_range)
+        atm_pcr   = round(atm_put / atm_call, 2) if atm_call else 0
+
+        # ── OI Differential ──────────────────────────────────────────────
+        oi_diff   = (total_put_oi - total_call_oi) / total_call_oi if total_call_oi else 0
+        oi_signal = 'BULLISH' if oi_diff > 0.20 else ('BEARISH' if oi_diff < -0.20 else 'NEUTRAL')
+
+        # ── Max Pain ─────────────────────────────────────────────────────
+        # Strike where total loss for option buyers (CE+PE combined) is maximum
+        pain = {}
+        for test_s in strikes:
+            ce_pain = sum(max(0, test_s - s) * chain.get(f'{s}CE', {}).get('oi', 0) for s in strikes)
+            pe_pain = sum(max(0, s - test_s) * chain.get(f'{s}PE', {}).get('oi', 0) for s in strikes)
+            pain[test_s] = ce_pain + pe_pain
+        max_pain_strike = max(pain, key=pain.get) if pain else atm
+        max_pain_dist   = round((max_pain_strike - spot) / spot * 100, 2) if spot else 0
+
+        # ── Top OI Strikes (resistance = high CE OI, support = high PE OI) ──
+        ce_oi = [(s, chain.get(f'{s}CE', {}).get('oi', 0)) for s in strikes]
+        pe_oi = [(s, chain.get(f'{s}PE', {}).get('oi', 0)) for s in strikes]
+        top_ce = [{'strike': s, 'oi': o} for s, o in sorted(ce_oi, key=lambda x: x[1], reverse=True)[:5] if o > 0]
+        top_pe = [{'strike': s, 'oi': o} for s, o in sorted(pe_oi, key=lambda x: x[1], reverse=True)[:5] if o > 0]
+
+        logger.info(
+            f"OI Metrics — PCR:{pcr_overall} ATM_PCR:{atm_pcr} MaxPain:{max_pain_strike} "
+            f"({max_pain_dist:+.2f}%) OI_diff:{oi_diff:.3f} "
+            f"CE_OI:{total_call_oi:,} PUT_OI:{total_put_oi:,}"
+        )
+        return {
+            'oi_diff':           round(oi_diff, 4),
+            'oi_signal':         oi_signal,
+            'pcr':               pcr_overall,
+            'atm_pcr':           atm_pcr,
+            'total_call_oi':     total_call_oi,
+            'total_put_oi':      total_put_oi,
+            'max_pain':          max_pain_strike,
+            'max_pain_distance': max_pain_dist,
+            'top_ce_strikes':    top_ce,
+            'top_pe_strikes':    top_pe,
+        }
+
     def _time_filter(self) -> Dict[str, Any]:
         now = datetime.now(IST)
         current_time = now.time()
@@ -922,8 +983,9 @@ class NiftyOptionsEngine:
 
         direction = self._direction_engine(spot)
         strength = self._strength_engine(spot)
-        oi_diff = self._compute_oi_differential(current_chain, atm)
-        oi_signal = 'BULLISH' if oi_diff > 0.20 else ('BEARISH' if oi_diff < -0.20 else 'NEUTRAL')
+        oi_metrics = self._compute_oi_metrics(current_chain, atm, spot)
+        oi_diff   = oi_metrics['oi_diff']
+        oi_signal = oi_metrics['oi_signal']
         confidence = self._confidence_score(direction, strength, oi_diff)
 
         entry_mode = 'NO TRADE'
@@ -985,10 +1047,6 @@ class NiftyOptionsEngine:
         for t in next_trades:
             t['trade_reasons'] = self._generate_trade_reasons(t, direction, strength, oi_signal)
 
-        total_put_oi = sum(v.get('oi', 0) for k, v in current_chain.items() if k.endswith('PE'))
-        total_call_oi = sum(v.get('oi', 0) for k, v in current_chain.items() if k.endswith('CE'))
-        pcr = round(total_put_oi / total_call_oi, 2) if total_call_oi else 0
-
         layer_status = {
             'time': 'pass' if time_check['pass'] else 'fail',
             'direction': 'pass' if direction['indicators_aligned'] else ('warn' if direction['direction'] != 'NEUTRAL' else 'fail'),
@@ -1004,13 +1062,7 @@ class NiftyOptionsEngine:
             'time_filter': time_check,
             'direction': direction,
             'strength': strength,
-            'oi_analysis': {
-                'oi_diff': round(oi_diff, 4),
-                'oi_signal': oi_signal,
-                'pcr': pcr,
-                'total_call_oi': total_call_oi,
-                'total_put_oi': total_put_oi,
-            },
+            'oi_analysis': oi_metrics,
             'confidence': confidence,
             'confidence_grade': 'Strong' if confidence >= 80 else ('Medium' if confidence >= 60 else 'Weak'),
             'entry_mode': entry_mode,
