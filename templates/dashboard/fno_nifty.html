@@ -346,6 +346,8 @@
                 <div class="indicator-row"><span class="indicator-name">Price vs VWAP</span><span class="indicator-val" id="vwapVal">—</span></div>
                 <div class="indicator-row"><span class="indicator-name">Supertrend</span><span class="indicator-val" id="stVal">—</span></div>
                 <div class="indicator-row"><span class="indicator-name">+DI / −DI</span><span class="indicator-val" id="dmiVal">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">RSI(7)</span><span class="indicator-val" id="rsiVal">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">Entry Trigger</span><span class="indicator-val" id="triggerVal">—</span></div>
             </div>
         </div>
     </div>
@@ -359,7 +361,9 @@
         <div class="collapse" id="layer3Collapse">
             <div class="collapse-body" id="strengthCard">
                 <div class="indicator-row"><span class="indicator-name">ADX</span><span class="indicator-val" id="adxVal">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">ADX Tier</span><span class="indicator-val" id="adxTier">—</span></div>
                 <div class="indicator-row"><span class="indicator-name">ADX Rising</span><span class="indicator-val" id="adxRising">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">Market Regime</span><span class="indicator-val" id="regimeVal">—</span></div>
             </div>
         </div>
     </div>
@@ -728,7 +732,12 @@ function refreshAnalysis() {
         document.getElementById('decisionDir').textContent = d.trade_direction || '—';
         document.getElementById('decisionConf').textContent = d.confidence + '%';
         var statusText = d.entry_mode;
-        if (isBlocked && d.block_reasons && d.block_reasons.length > 0) {
+        var setupState = d.setup_state || '';
+        if (setupState === 'SETUP_READY_WAIT_TRIGGER') {
+            statusText = 'SETUP READY — WAIT FOR TRIGGER';
+        } else if (setupState === 'SETUP_FORMING') {
+            statusText = 'SETUP FORMING';
+        } else if (isBlocked && d.block_reasons && d.block_reasons.length > 0) {
             statusText = 'BLOCKED';
         }
         document.getElementById('decisionStatus').textContent = statusText;
@@ -769,10 +778,50 @@ function refreshAnalysis() {
         document.getElementById('stVal').style.color = d.direction.supertrend === 'BUY' ? '#16a34a' : '#dc2626';
         document.getElementById('dmiVal').textContent = '+DI ' + d.direction.dmi_plus + ' / −DI ' + d.direction.dmi_minus;
 
+        // RSI(7)
+        var rsiVal = (d.direction.rsi !== undefined && d.direction.rsi !== null) ? d.direction.rsi : '—';
+        var rsiEl = document.getElementById('rsiVal');
+        if (rsiEl) {
+            rsiEl.textContent = rsiVal;
+            rsiEl.style.color = (rsiVal !== '—' && rsiVal > 55) ? '#16a34a' : ((rsiVal !== '—' && rsiVal < 45) ? '#dc2626' : '#64748b');
+        }
+
+        // Entry Trigger
+        var trg = d.trigger || {};
+        var trgEl = document.getElementById('triggerVal');
+        if (trgEl) {
+            if (trg.triggered) {
+                trgEl.innerHTML = '<i class="fas fa-check-circle text-success"></i> ' + (trg.mode || 'CONFIRMED');
+                trgEl.style.color = '#16a34a';
+            } else {
+                trgEl.innerHTML = '<i class="fas fa-hourglass-half text-warning"></i> ' + (trg.mode || 'WAITING');
+                trgEl.style.color = '#d97706';
+            }
+        }
+
         setTrafficLight('strTraffic', ls.strength || 'fail', d.strength.strength);
         document.getElementById('adxVal').textContent = d.strength.adx;
-        document.getElementById('adxVal').style.color = d.strength.adx > 25 ? '#16a34a' : '#dc2626';
+        document.getElementById('adxVal').style.color = d.strength.adx >= 25 ? '#16a34a' : (d.strength.adx >= 20 ? '#d97706' : '#dc2626');
+        var tierEl = document.getElementById('adxTier');
+        if (tierEl && d.strength.tier) {
+            var tierLabel = (d.strength.tier || '').replace(/_/g,' ');
+            tierEl.textContent = tierLabel;
+            tierEl.style.color = d.strength.tier === 'STRONG_TREND' ? '#16a34a' : (d.strength.tier === 'TRADABLE_TREND' ? '#d97706' : '#dc2626');
+        }
         document.getElementById('adxRising').innerHTML = d.strength.adx_rising ? '<i class="fas fa-arrow-up text-success"></i> Yes' : '<i class="fas fa-arrow-down text-danger"></i> No';
+
+        // Market regime
+        var regEl = document.getElementById('regimeVal');
+        var reg = d.regime || {};
+        if (regEl) {
+            if (reg.pass) {
+                regEl.innerHTML = '<i class="fas fa-check-circle text-success"></i> Healthy';
+                regEl.style.color = '#16a34a';
+            } else {
+                regEl.innerHTML = '<i class="fas fa-ban text-danger"></i> ' + ((reg.reasons && reg.reasons[0]) ? reg.reasons[0].split('—')[0].trim() : 'Choppy');
+                regEl.style.color = '#dc2626';
+            }
+        }
 
         var oi = d.oi_analysis || {};
         setTrafficLight('oiTraffic', ls.oi || 'fail', oi.oi_signal);

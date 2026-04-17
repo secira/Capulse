@@ -560,13 +560,26 @@ class NiftyOptionsEngine:
     def _time_filter(self) -> Dict[str, Any]:
         now = datetime.now(IST)
         current_time = now.time()
-        if current_time < dtime(9, 30):
-            return {'pass': False, 'reason': 'Pre-market — no trades before 9:30 AM', 'status': 'blocked'}
-        if current_time > dtime(14, 45):
-            return {'pass': False, 'reason': 'Market closing — no new trades after 2:45 PM', 'status': 'blocked'}
         if now.weekday() >= 5:
-            return {'pass': False, 'reason': 'Weekend — market closed', 'status': 'blocked'}
-        return {'pass': True, 'reason': 'Trading window active', 'status': 'active'}
+            return {'pass': False, 'reason': 'Weekend — market closed', 'status': 'blocked', 'caution': False}
+        # Hard block opening noise (9:15–9:25) and closing noise (15:05–15:15)
+        if current_time < dtime(9, 25):
+            return {'pass': False, 'reason': 'Opening noise window — no trades before 9:25 AM', 'status': 'blocked', 'caution': False}
+        if current_time >= dtime(15, 5):
+            return {'pass': False, 'reason': 'Closing noise window — no new trades after 3:05 PM', 'status': 'blocked', 'caution': False}
+        # Existing wider safety guard — keep older 9:30 / 14:45 limits to stay conservative
+        if current_time < dtime(9, 30):
+            return {'pass': False, 'reason': 'Pre-market — no trades before 9:30 AM', 'status': 'blocked', 'caution': False}
+        if current_time > dtime(14, 45):
+            return {'pass': False, 'reason': 'Market closing — no new trades after 2:45 PM', 'status': 'blocked', 'caution': False}
+        # Mid-session caution: 12:00–12:30 → reduce confidence by 10
+        caution = dtime(12, 0) <= current_time <= dtime(12, 30)
+        return {
+            'pass': True,
+            'reason': 'Mid-session caution — lunch hour, confidence reduced' if caution else 'Trading window active',
+            'status': 'caution' if caution else 'active',
+            'caution': caution,
+        }
 
     # ------------------------------------------------------------------
     # Real indicator calculations — intraday 5-min candles
@@ -756,6 +769,160 @@ class NiftyOptionsEngine:
             logger.warning(f"Supertrend calculation error: {e}")
             return 'BUY'
 
+    # ------------------------------------------------------------------
+    # New: RSI(7), Market Regime Filter, Entry Trigger, OI classifier
+    # ------------------------------------------------------------------
+
+    def _calculate_rsi(self, df, period: int = 7):
+        """Wilder RSI on Close. Returns (rsi, rsi_expanding_2bars)."""
+        try:
+            import pandas as pd
+            c = df['Close'].astype(float)
+            delta = c.diff()
+            gain = delta.clip(lower=0)
+            loss = (-delta).clip(lower=0)
+            avg_gain = gain.ewm(alpha=1.0 / period, adjust=False).mean()
+            avg_loss = loss.ewm(alpha=1.0 / period, adjust=False).mean()
+            rs = avg_gain / avg_loss.replace(0, 1e-9)
+            rsi_s = (100 - 100 / (1 + rs)).clip(0, 100)
+            valid = rsi_s.dropna()
+            if len(valid) < 3:
+                return 50.0, False, False
+            rsi = float(valid.iloc[-1])
+            # Expansion: monotonic increase OR decrease over last 2 bars (direction-agnostic flag)
+            expanding_up = bool(valid.iloc[-1] > valid.iloc[-2] > valid.iloc[-3])
+            expanding_down = bool(valid.iloc[-1] < valid.iloc[-2] < valid.iloc[-3])
+            return round(rsi, 1), expanding_up, expanding_down
+        except Exception as e:
+            logger.warning(f"RSI calculation error: {e}")
+            return 50.0, False, False
+
+    def _market_regime_filter(self, df, spot: float, vwap: float, adx: float) -> Dict[str, Any]:
+        """Block trades during choppy / compressed / low-edge conditions.
+
+        Checks:
+          1. ADX < 18 → chop
+          2. |spot - vwap| / spot * 100 < 0.10  → too close to VWAP
+          3. Last 3 candles overlap > 50% AND body below recent avg → sideways
+          4. Current candle range < 0.6 × avg range of last 5 → compression
+        """
+        reasons = []
+        try:
+            if adx < 18:
+                reasons.append("Choppy market — ADX below 18")
+
+            if vwap > 0:
+                vwap_dist_pct = abs(spot - vwap) / spot * 100.0
+                if vwap_dist_pct < 0.10:
+                    reasons.append("Price too close to VWAP — weak edge")
+
+            if df is None or len(df) < 6:
+                return {'pass': not reasons, 'reasons': reasons, 'vwap_distance_pct': round(abs(spot - vwap) / spot * 100.0, 3) if spot else 0}
+
+            highs = df['High'].astype(float).values
+            lows  = df['Low'].astype(float).values
+            opens = df['Open'].astype(float).values
+            closes = df['Close'].astype(float).values
+
+            ranges = highs - lows
+            avg_range_5 = float(sum(ranges[-6:-1]) / 5) if len(ranges) >= 6 else 0.0
+            cur_range  = float(ranges[-1])
+            if avg_range_5 > 0 and cur_range < 0.6 * avg_range_5:
+                reasons.append("Range compression detected — wait for breakout")
+
+            # Overlap-chop: last 3 candles each overlap prior by >50% and small bodies
+            if len(closes) >= 4:
+                bodies = [abs(closes[i] - opens[i]) for i in range(len(closes))]
+                avg_body = sum(bodies[-10:]) / max(1, len(bodies[-10:]))
+
+                def _overlap_pct(i_prev, i_cur):
+                    a_lo, a_hi = lows[i_prev], highs[i_prev]
+                    b_lo, b_hi = lows[i_cur], highs[i_cur]
+                    inter = max(0.0, min(a_hi, b_hi) - max(a_lo, b_lo))
+                    rng = max(a_hi - a_lo, 1e-9)
+                    return inter / rng
+
+                last3_overlap = all(
+                    _overlap_pct(-i - 1, -i) > 0.5 for i in range(1, 4)
+                )
+                last3_small = all(bodies[-i] < avg_body for i in range(1, 4))
+                if last3_overlap and last3_small:
+                    reasons.append("Overlapping candles — avoid sideways market")
+        except Exception as e:
+            logger.warning(f"Market regime filter error: {e}")
+
+        return {
+            'pass': not reasons,
+            'reasons': reasons,
+            'vwap_distance_pct': round(abs(spot - vwap) / spot * 100.0, 3) if (spot and vwap) else 0,
+        }
+
+    def _classify_oi(self, oi_diff: float, direction: str) -> Dict[str, Any]:
+        """OI as confirmation, not gate.
+
+        Returns role: STRONG_SUPPORT | MILD_SUPPORT | NEUTRAL | OPPOSE
+        Block flag is True only when OI strongly opposes the proposed direction.
+        """
+        role = 'NEUTRAL'
+        block = False
+        if direction == 'BULLISH':
+            if oi_diff >= 0.20:
+                role = 'STRONG_SUPPORT'
+            elif oi_diff >= 0.05:
+                role = 'MILD_SUPPORT'
+            elif oi_diff <= -0.10:
+                role = 'OPPOSE'
+                block = True
+        elif direction == 'BEARISH':
+            if oi_diff <= -0.20:
+                role = 'STRONG_SUPPORT'
+            elif oi_diff <= -0.05:
+                role = 'MILD_SUPPORT'
+            elif oi_diff >= 0.10:
+                role = 'OPPOSE'
+                block = True
+        return {'role': role, 'block': block}
+
+    def _entry_trigger_validation(self, df, direction: str, vwap: float) -> Dict[str, Any]:
+        """Validate breakout / retest entry trigger.
+
+        Bullish trigger:  current candle high > previous candle high, OR
+                          price retests VWAP from above and closes above it.
+        Bearish trigger:  current candle low  < previous candle low,  OR
+                          price retests VWAP from below and closes below it.
+        """
+        if direction == 'NEUTRAL' or df is None or len(df) < 3:
+            return {'triggered': False, 'mode': 'NONE', 'reason': 'Direction aligned, waiting for breakout trigger'}
+        try:
+            h = df['High'].astype(float).values
+            l = df['Low'].astype(float).values
+            c = df['Close'].astype(float).values
+
+            cur_h, prev_h = float(h[-1]), float(h[-2])
+            cur_l, prev_l = float(l[-1]), float(l[-2])
+            cur_c, prev_c = float(c[-1]), float(c[-2])
+
+            if direction == 'BULLISH':
+                breakout = cur_h > prev_h and cur_c > prev_h
+                retest = vwap > 0 and cur_l <= vwap * 1.0008 and cur_c > vwap
+                if breakout:
+                    return {'triggered': True, 'mode': 'BREAKOUT', 'reason': 'Bullish breakout — current high > previous high'}
+                if retest:
+                    return {'triggered': True, 'mode': 'RETEST', 'reason': 'Bullish retest of VWAP held'}
+                return {'triggered': False, 'mode': 'WAIT', 'reason': 'Direction aligned, waiting for breakout trigger'}
+
+            if direction == 'BEARISH':
+                breakout = cur_l < prev_l and cur_c < prev_l
+                retest = vwap > 0 and cur_h >= vwap * 0.9992 and cur_c < vwap
+                if breakout:
+                    return {'triggered': True, 'mode': 'BREAKOUT', 'reason': 'Bearish breakdown — current low < previous low'}
+                if retest:
+                    return {'triggered': True, 'mode': 'RETEST', 'reason': 'Bearish rejection at VWAP held'}
+                return {'triggered': False, 'mode': 'WAIT', 'reason': 'Direction aligned, waiting for retest confirmation'}
+        except Exception as e:
+            logger.warning(f"Entry trigger validation error: {e}")
+        return {'triggered': False, 'mode': 'NONE', 'reason': 'Trigger evaluation unavailable'}
+
     def _direction_engine(self, spot: float, oi_window_diff: float = 0.0, adx: float = 22.0) -> Dict[str, Any]:
         df = self._fetch_intraday_candles()
         if df is not None and len(df) >= 10:
@@ -763,30 +930,49 @@ class NiftyOptionsEngine:
             supertrend_signal = self._calculate_supertrend(df)
             # Standard DMI(14) for +DI / -DI to match broker-chart values
             _, dmi_plus, dmi_minus, _ = self._calculate_adx(df, period=14, di_period=14)
+            rsi, rsi_up, rsi_down = self._calculate_rsi(df, period=7)
         else:
             vwap = spot
             supertrend_signal = 'BUY'
             dmi_plus = 22.0
             dmi_minus = 22.0
+            rsi, rsi_up, rsi_down = 50.0, False, False
 
-        # New trade-selection rules — all conditions must be true to qualify.
-        # Calls:  +DI > -DI, ADX(3,7) > 20, Supertrend BUY,  spot > VWAP, (PutOI-CallOI)/CallOI in ±6 strikes >  20%
-        # Puts :  +DI < -DI, ADX(3,7) > 20, Supertrend SELL, spot < VWAP, (PutOI-CallOI)/CallOI in ±6 strikes < -20%
+        # OI is confirmation, not a hard gate. It blocks only when strongly opposite.
+        bull_oi = self._classify_oi(oi_window_diff, 'BULLISH')
+        bear_oi = self._classify_oi(oi_window_diff, 'BEARISH')
+
+        # New trade-selection rules:
+        # Calls:  +DI > -DI, ADX >= 20, Supertrend BUY,  spot > VWAP, RSI(7) > 55, OI not strongly bearish
+        # Puts :  +DI < -DI, ADX >= 20, Supertrend SELL, spot < VWAP, RSI(7) < 45, OI not strongly bullish
         bullish = (
             dmi_plus > dmi_minus
-            and adx > 20
+            and adx >= 20
             and supertrend_signal == 'BUY'
             and spot > vwap
-            and oi_window_diff > 0.20
+            and rsi > 55
+            and not bull_oi['block']
         )
         bearish = (
             dmi_plus < dmi_minus
-            and adx > 20
+            and adx >= 20
             and supertrend_signal == 'SELL'
             and spot < vwap
-            and oi_window_diff < -0.20
+            and rsi < 45
+            and not bear_oi['block']
         )
         direction = 'BULLISH' if bullish else ('BEARISH' if bearish else 'NEUTRAL')
+
+        oi_role = 'NEUTRAL'
+        oi_block_dir = False
+        if direction == 'BULLISH':
+            oi_role = bull_oi['role']
+        elif direction == 'BEARISH':
+            oi_role = bear_oi['role']
+        else:
+            # If neutral, still report if OI strongly opposes a candidate side
+            if bull_oi['block'] or bear_oi['block']:
+                oi_block_dir = True
 
         return {
             'direction': direction,
@@ -795,6 +981,11 @@ class NiftyOptionsEngine:
             'supertrend': supertrend_signal,
             'dmi_plus': round(dmi_plus, 1),
             'dmi_minus': round(dmi_minus, 1),
+            'rsi': rsi,
+            'rsi_expanding_up': rsi_up,
+            'rsi_expanding_down': rsi_down,
+            'oi_role': oi_role,
+            'oi_blocks_candidate': oi_block_dir,
             'indicators_aligned': bullish or bearish,
         }
 
@@ -803,36 +994,110 @@ class NiftyOptionsEngine:
         if df is not None and len(df) >= 10:
             adx, _, _, adx_rising = self._calculate_adx(df)
             atr, atr_rising = self._calculate_atr(df)
+            # ADX falling check — useful for caution flag after entry
+            try:
+                _, _, _, adx_rising_now = self._calculate_adx(df)
+                _, _, _, adx_rising_prev = self._calculate_adx(df.iloc[:-1]) if len(df) > 11 else (None, None, None, False)
+                adx_falling = (not adx_rising_now) and (not adx_rising_prev)
+            except Exception:
+                adx_falling = False
         else:
             adx, adx_rising = 22.0, False
             atr, atr_rising = 100.0, False
+            adx_falling = False
 
-        # Per new rules: ADX(3,7) > 20 is the only momentum gate. ATR is informational only.
-        strong = adx > 25
-        no_trade_zone = adx < 20
+        # Refined ADX tiers per new rules
+        if adx < 18:
+            tier = 'NO_TRADE_ZONE'
+            strength = 'WEAK'
+            no_trade_zone = True
+            caution = False
+        elif adx < 20:
+            tier = 'WEAK_TREND'
+            strength = 'WEAK'
+            no_trade_zone = True
+            caution = True
+        elif adx < 25:
+            tier = 'TRADABLE_TREND'
+            strength = 'MODERATE'
+            no_trade_zone = False
+            caution = False
+        else:
+            tier = 'STRONG_TREND'
+            strength = 'STRONG'
+            no_trade_zone = False
+            caution = False
 
         return {
             'adx': round(adx, 1),
             'adx_rising': adx_rising,
+            'adx_falling': adx_falling,
             'atr': round(atr, 2),
             'atr_rising': atr_rising,
-            'strength': 'STRONG' if strong else ('WEAK' if no_trade_zone else 'MODERATE'),
+            'strength': strength,
+            'tier': tier,
             'no_trade_zone': no_trade_zone,
+            'caution': caution,
         }
 
-    def _confidence_score(self, direction: dict, strength: dict, oi_diff: float) -> int:
+    def _confidence_score(self, direction: dict, strength: dict, oi_diff: float,
+                          trigger: Optional[dict] = None, time_check: Optional[dict] = None,
+                          spot: float = 0.0) -> int:
         score = 0
+        # Direction agreement
         if direction['spot_vs_vwap'] in ['ABOVE', 'BELOW'] and direction['direction'] != 'NEUTRAL':
             score += 20
         if direction['indicators_aligned']:
             score += 15
         if direction['dmi_plus'] != direction['dmi_minus']:
+            score += 10
+
+        # ADX magnitude
+        if strength['adx'] >= 25:
+            score += 20
+        elif strength['adx'] >= 20:
+            score += 10
+
+        # ADX rising bonus (reduced from +20 to +10)
+        if strength.get('adx_rising'):
+            score += 10
+
+        # RSI alignment with direction (+10 if expanding in trade direction)
+        if direction['direction'] == 'BULLISH' and direction.get('rsi', 50) > 55:
+            score += 5
+            if direction.get('rsi_expanding_up'):
+                score += 5
+        elif direction['direction'] == 'BEARISH' and direction.get('rsi', 50) < 45:
+            score += 5
+            if direction.get('rsi_expanding_down'):
+                score += 5
+
+        # OI as confirmation layer (not penalty)
+        oi_role = direction.get('oi_role', 'NEUTRAL')
+        if oi_role == 'STRONG_SUPPORT':
+            score += 10
+        elif oi_role == 'MILD_SUPPORT':
+            score += 5
+
+        # Trigger confirmation bonus
+        if trigger and trigger.get('triggered'):
             score += 15
-        if abs(oi_diff) > 0.20:
-            score += 25
-        if strength['adx'] > 25:
-            score += 25
-        return min(score, 100)
+
+        # VWAP-extension penalty: if spot too far from VWAP, entry is late
+        try:
+            vwap = direction.get('vwap', 0) or 0
+            if spot and vwap:
+                vwap_dist_pct = abs(spot - vwap) / spot * 100.0
+                if vwap_dist_pct > 0.6:
+                    score -= 10
+        except Exception:
+            pass
+
+        # Lunch-hour caution: −10
+        if time_check and time_check.get('caution'):
+            score -= 10
+
+        return max(0, min(score, 100))
 
     def _select_strikes(self, spot: float, direction: str) -> List[Dict[str, Any]]:
         atm = int(round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL)
@@ -879,27 +1144,48 @@ class NiftyOptionsEngine:
 
         return trades
 
-    def _generate_trade_reasons(self, trade: dict, direction: dict, strength: dict, oi_signal: str) -> List[str]:
+    def _generate_trade_reasons(self, trade: dict, direction: dict, strength: dict, oi_signal: str,
+                                 trigger: Optional[dict] = None) -> List[str]:
         reasons = []
         m = trade.get('moneyness', '')
         if direction['indicators_aligned']:
-            reasons.append(f"All direction indicators aligned ({direction['direction']})")
-        if strength['adx'] > 25:
+            reasons.append(f"Confluence aligned ({direction['direction']})")
+        if strength['adx'] >= 25:
             reasons.append(f"Strong trend — ADX {strength['adx']}")
-        if strength['adx_rising']:
+        elif strength['adx'] >= 20:
+            reasons.append(f"Tradable trend — ADX {strength['adx']}")
+        if strength.get('adx_rising'):
             reasons.append("ADX rising — trend gaining strength")
-        if oi_signal != 'NEUTRAL':
-            reasons.append(f"OI confirms {oi_signal.lower()} bias")
+        # RSI
+        rsi = direction.get('rsi', 50)
+        if direction['direction'] == 'BULLISH' and rsi > 55:
+            reasons.append(f"RSI(7) bullish ({rsi})")
+        elif direction['direction'] == 'BEARISH' and rsi < 45:
+            reasons.append(f"RSI(7) bearish ({rsi})")
+        # OI confirmation
+        oi_role = direction.get('oi_role', 'NEUTRAL')
+        if oi_role == 'STRONG_SUPPORT':
+            reasons.append("OI strongly supports direction")
+        elif oi_role == 'MILD_SUPPORT':
+            reasons.append("OI mildly supports direction")
+        # Trigger
+        if trigger and trigger.get('triggered'):
+            reasons.append(trigger.get('reason', 'Entry trigger confirmed'))
+        # Moneyness blurb
         if m == 'ATM':
             reasons.append("Best delta exposure — highest probability of profit")
         elif m == 'OTM':
             reasons.append("Lower premium cost — higher leverage if move extends")
         elif m == 'ITM':
             reasons.append("Higher intrinsic value — safer with more delta")
-        return reasons[:4]
+        return reasons[:5]
 
     def _enrich_trades(self, trades: List[Dict], chain: dict, confidence: int, entry_mode: str, expiry_info: dict = None) -> List[Dict]:
         enriched = []
+        # Liquidity / spread filters (per new rules)
+        MIN_OPTION_VOLUME = 1000
+        MAX_SPREAD_PCT = 3.0
+        OVERHEATED_PCT_CHANGE = 25.0  # block if option premium already moved >25% on last tick
         for t in trades:
             strike = int(t['strike']) if isinstance(t['strike'], float) and t['strike'] == int(t['strike']) else t['strike']
             key = f"{strike}{t['type']}"
@@ -920,12 +1206,53 @@ class NiftyOptionsEngine:
                 logger.warning(f"No option data for {key}, skipping")
                 continue
 
-            # New rules: target ("Trigger Price") = 30 points, SL = 20 points (option-premium)
+            # ── Liquidity & execution-quality filters ─────────────────
+            bid = float(opt_data.get('bid', 0) or 0)
+            ask = float(opt_data.get('ask', 0) or 0)
+            volume = float(opt_data.get('volume', 0) or 0)
+            pct_chg = float(opt_data.get('pct_change', 0) or 0)
+            spread_pct = ((ask - bid) / ltp * 100.0) if (bid > 0 and ask > 0 and ltp > 0) else 0.0
+
+            if spread_pct > MAX_SPREAD_PCT:
+                logger.info(f"Skipping {key}: spread {spread_pct:.2f}% > {MAX_SPREAD_PCT}%")
+                continue
+            if volume > 0 and volume < MIN_OPTION_VOLUME:
+                logger.info(f"Skipping {key}: volume {volume:.0f} below min {MIN_OPTION_VOLUME}")
+                continue
+            if abs(pct_chg) > OVERHEATED_PCT_CHANGE:
+                logger.info(f"Skipping {key}: premium overheated ({pct_chg:.1f}%)")
+                continue
+
+            # New rules: default Target = +30 pts, SL = -20 pts (option-premium).
+            # Adaptive override: when option premium volatility is high (proxy by recent
+            # absolute change vs LTP), widen SL/target proportionally so the stop is not
+            # caught by routine swings.
             sl_points = 20
             target_points = 30
+            try:
+                avg_swing_proxy = abs(float(opt_data.get('change', 0) or 0))
+                # If recent move > 12 pts, scale SL/target
+                if avg_swing_proxy > 12:
+                    sl_points = max(20, int(round(1.2 * avg_swing_proxy)))
+                    target_points = int(round(1.5 * sl_points))
+            except Exception:
+                pass
+
             entry_price = ltp
+            # Floor SL so it never crosses zero (cap at 0.05 minimum tick).
+            # If LTP is too small to absorb the stop, shrink stop to half the premium
+            # but only if that still leaves a sensible >= 5pt buffer; otherwise skip.
+            MIN_TICK = 0.05
+            MIN_SL_POINTS = 5
+            if entry_price - sl_points <= MIN_TICK:
+                adjusted_sl = max(MIN_SL_POINTS, int(round(entry_price * 0.5)))
+                if adjusted_sl < MIN_SL_POINTS or entry_price <= MIN_SL_POINTS + MIN_TICK:
+                    logger.info(f"Skipping {key}: premium {entry_price:.2f} too low for valid SL {sl_points}")
+                    continue
+                sl_points = adjusted_sl
+                target_points = max(target_points, int(round(1.5 * sl_points)))
             target = round(entry_price + target_points, 2)
-            sl = round(entry_price - sl_points, 2)
+            sl = round(max(MIN_TICK, entry_price - sl_points), 2)
 
             lot_value = ltp * NIFTY_LOT_SIZE
             max_loss_per_lot = sl_points * NIFTY_LOT_SIZE
@@ -1052,36 +1379,75 @@ class NiftyOptionsEngine:
         oi_window_diff = oi_metrics.get('oi_window_diff', 0.0)
         oi_signal      = oi_metrics['oi_signal']
         strength = self._strength_engine(spot)
-        # New rules need ADX + windowed OI to fully gate direction
         direction = self._direction_engine(spot, oi_window_diff=oi_window_diff, adx=strength.get('adx', 22.0))
-        confidence = self._confidence_score(direction, strength, oi_window_diff)
+
+        # Market Regime Filter — runs before final approval
+        candles_df = self._fetch_intraday_candles()
+        regime = self._market_regime_filter(candles_df, spot, direction.get('vwap', spot), strength.get('adx', 22.0))
+
+        # Entry Trigger Validation — runs after direction is decided
+        trigger = self._entry_trigger_validation(candles_df, direction['direction'], direction.get('vwap', 0.0))
+
+        confidence = self._confidence_score(direction, strength, oi_window_diff,
+                                            trigger=trigger, time_check=time_check, spot=spot)
 
         entry_mode = 'NO TRADE'
-        if time_check['pass'] and not strength['no_trade_zone']:
+        if (time_check['pass'] and not strength['no_trade_zone']
+                and regime['pass'] and direction['indicators_aligned'] and trigger['triggered']):
             if strength['adx'] > 28:
                 entry_mode = 'CONFIRMED'
-            elif strength['adx'] > 25:
+            elif strength['adx'] >= 25:
+                entry_mode = 'EARLY'
+            else:
                 entry_mode = 'EARLY'
 
         trade_direction = direction['direction']
-        if oi_signal != 'NEUTRAL' and direction['direction'] == 'NEUTRAL':
-            trade_direction = oi_signal
 
         block_reasons = []
         if not time_check['pass']:
             block_reasons.append(time_check['reason'])
-        if strength['no_trade_zone']:
-            block_reasons.append(f"Weak momentum — ADX {strength['adx']:.1f} (below 20)")
+        # Regime filter reasons (chop / vwap-distance / compression / overlap)
+        for r in regime.get('reasons', []):
+            block_reasons.append(r)
+        # ADX tier
+        if strength.get('tier') == 'NO_TRADE_ZONE':
+            block_reasons.append(f"Choppy market — ADX {strength['adx']:.1f} below 18")
+        elif strength.get('tier') == 'WEAK_TREND':
+            block_reasons.append(f"Weak trend — ADX {strength['adx']:.1f} (18–20 caution zone)")
+        # RSI gate
+        rsi_v = direction.get('rsi', 50)
+        if 45 <= rsi_v <= 55:
+            block_reasons.append(f"RSI momentum neutral ({rsi_v}) — wait for expansion")
+        # OI as confirmation
+        if direction.get('oi_blocks_candidate'):
+            block_reasons.append("OI strongly opposes candidate direction")
+        elif direction.get('oi_role') == 'NEUTRAL' and direction['direction'] != 'NEUTRAL':
+            # Neutral OI is allowed, just informational
+            pass
+        # Direction not aligned
         if not direction['indicators_aligned'] and direction['direction'] == 'NEUTRAL':
             block_reasons.append("No clear direction — indicators not aligned")
 
-        is_blocked = entry_mode == 'NO TRADE'
-        final_decision = 'TRADE' if not is_blocked and confidence >= 60 else 'NO TRADE'
+        # Setup state machine
+        setup_state = 'NO_TRADE'
+        if not time_check['pass'] or not regime['pass'] or strength['no_trade_zone']:
+            setup_state = 'NO_TRADE'
+        elif not direction['indicators_aligned']:
+            setup_state = 'SETUP_FORMING'
+        elif direction['indicators_aligned'] and not trigger['triggered']:
+            setup_state = 'SETUP_READY_WAIT_TRIGGER'
+            block_reasons.append(trigger['reason'])
+        elif direction['indicators_aligned'] and trigger['triggered']:
+            setup_state = 'TRADE_RECOMMENDED'
+
+        # Unified decision: blocked if entry conditions fail OR confidence below threshold.
+        # Keeps UI banner, traffic lights and trade cards consistent.
+        if entry_mode != 'NO TRADE' and confidence < 60:
+            block_reasons.append(f"Confidence too low ({confidence}/100, need 60+)")
+        is_blocked = entry_mode == 'NO TRADE' or confidence < 60
+        final_decision = 'NO TRADE' if is_blocked else 'TRADE'
         if is_blocked and not block_reasons:
-            if confidence < 60:
-                block_reasons.append(f"Confidence too low ({confidence}/100, need 60+)")
-            else:
-                block_reasons.append("Entry conditions not met")
+            block_reasons.append("Entry conditions not met")
 
         momentum_pct = min(100, max(0, int(
             (strength['adx'] / 40 * 40) +
@@ -1111,15 +1477,29 @@ class NiftyOptionsEngine:
             next_trades = self._enrich_trades(raw_strikes, next_chain, confidence, entry_mode, next_expiry_info)
 
         for t in current_trades:
-            t['trade_reasons'] = self._generate_trade_reasons(t, direction, strength, oi_signal)
+            t['trade_reasons'] = self._generate_trade_reasons(t, direction, strength, oi_signal, trigger=trigger)
         for t in next_trades:
-            t['trade_reasons'] = self._generate_trade_reasons(t, direction, strength, oi_signal)
+            t['trade_reasons'] = self._generate_trade_reasons(t, direction, strength, oi_signal, trigger=trigger)
+
+        # OI status uses confirmation classification (not the old hard threshold)
+        oi_role = direction.get('oi_role', 'NEUTRAL')
+        if oi_role == 'STRONG_SUPPORT':
+            oi_status = 'pass'
+        elif oi_role == 'MILD_SUPPORT':
+            oi_status = 'warn'
+        elif oi_role == 'OPPOSE' or direction.get('oi_blocks_candidate'):
+            oi_status = 'fail'
+        else:
+            oi_status = 'warn' if abs(oi_window_diff) > 0.10 else 'pass'  # neutral OI is allowed
 
         layer_status = {
             'time': 'pass' if time_check['pass'] else 'fail',
+            'regime': 'pass' if regime['pass'] else 'fail',
             'direction': 'pass' if direction['indicators_aligned'] else ('warn' if direction['direction'] != 'NEUTRAL' else 'fail'),
-            'strength': 'pass' if strength['strength'] == 'STRONG' else ('warn' if strength['strength'] == 'MODERATE' else 'fail'),
-            'oi': 'pass' if abs(oi_window_diff) > 0.20 else ('warn' if abs(oi_window_diff) > 0.10 else 'fail'),
+            'strength': 'pass' if strength.get('tier') in ('STRONG_TREND',) else ('warn' if strength.get('tier') == 'TRADABLE_TREND' else 'fail'),
+            'rsi': 'pass' if (rsi_v > 55 or rsi_v < 45) else 'fail',
+            'trigger': 'pass' if trigger.get('triggered') else 'fail',
+            'oi': oi_status,
         }
 
         return {
@@ -1131,6 +1511,9 @@ class NiftyOptionsEngine:
             'direction': direction,
             'strength': strength,
             'oi_analysis': oi_metrics,
+            'regime': regime,
+            'trigger': trigger,
+            'setup_state': setup_state,
             'confidence': confidence,
             'confidence_grade': 'Strong' if confidence >= 80 else ('Medium' if confidence >= 60 else 'Weak'),
             'entry_mode': entry_mode,
