@@ -702,21 +702,56 @@ class NiftyOptionsEngine:
             return 100.0, False
 
     def _calculate_supertrend(self, df, atr_period: int = 10, multiplier: float = 3.0) -> str:
-        """Simple Supertrend signal. Returns 'BUY' or 'SELL'."""
+        """Proper Supertrend with locked final bands and trend flips.
+
+        Returns 'BUY' if final trend = up, 'SELL' otherwise.
+        """
         try:
             import pandas as pd
-            h = df['High']
-            l = df['Low']
-            c = df['Close']
+            h = df['High'].astype(float)
+            l = df['Low'].astype(float)
+            c = df['Close'].astype(float)
+
             tr = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(axis=1)
-            atr = tr.ewm(span=atr_period, adjust=False).mean()
-            mid = (h + l) / 2
-            upper = mid + multiplier * atr
-            lower = mid - multiplier * atr
-            last_close = float(c.iloc[-1])
-            last_upper = float(upper.iloc[-1])
-            last_lower = float(lower.iloc[-1])
-            return 'BUY' if last_close > last_lower and last_close > (last_upper + last_lower) / 2 else 'SELL'
+            # Wilder ATR (alpha = 1/period)
+            atr = tr.ewm(alpha=1.0 / atr_period, adjust=False).mean()
+
+            hl2 = (h + l) / 2.0
+            upper_basic = (hl2 + multiplier * atr).values
+            lower_basic = (hl2 - multiplier * atr).values
+            close_arr = c.values
+            n = len(close_arr)
+            if n < 2:
+                return 'BUY'
+
+            final_upper = [0.0] * n
+            final_lower = [0.0] * n
+            trend = [1] * n  # 1 = up (BUY), -1 = down (SELL)
+
+            final_upper[0] = upper_basic[0]
+            final_lower[0] = lower_basic[0]
+
+            for i in range(1, n):
+                # Lock bands once price crosses them
+                if upper_basic[i] < final_upper[i - 1] or close_arr[i - 1] > final_upper[i - 1]:
+                    final_upper[i] = upper_basic[i]
+                else:
+                    final_upper[i] = final_upper[i - 1]
+
+                if lower_basic[i] > final_lower[i - 1] or close_arr[i - 1] < final_lower[i - 1]:
+                    final_lower[i] = lower_basic[i]
+                else:
+                    final_lower[i] = final_lower[i - 1]
+
+                # Trend flips
+                if trend[i - 1] == 1 and close_arr[i] < final_lower[i]:
+                    trend[i] = -1
+                elif trend[i - 1] == -1 and close_arr[i] > final_upper[i]:
+                    trend[i] = 1
+                else:
+                    trend[i] = trend[i - 1]
+
+            return 'BUY' if trend[-1] == 1 else 'SELL'
         except Exception as e:
             logger.warning(f"Supertrend calculation error: {e}")
             return 'BUY'
@@ -726,7 +761,8 @@ class NiftyOptionsEngine:
         if df is not None and len(df) >= 10:
             vwap = self._calculate_vwap(df)
             supertrend_signal = self._calculate_supertrend(df)
-            _, dmi_plus, dmi_minus, _ = self._calculate_adx(df)
+            # Standard DMI(14) for +DI / -DI to match broker-chart values
+            _, dmi_plus, dmi_minus, _ = self._calculate_adx(df, period=14, di_period=14)
         else:
             vwap = spot
             supertrend_signal = 'BUY'
