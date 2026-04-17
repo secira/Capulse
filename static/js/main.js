@@ -3,6 +3,36 @@
  * Handles client-side interactions and enhancements
  */
 
+/* ── Sidebar submenu toggles ───────────────────────────────────────────────
+ * Defined here (outside any IIFE / DOMContentLoaded) so they are always
+ * accessible from inline onclick attributes in sidebar.html, regardless of
+ * which page or base template is in use.
+ */
+(function() {
+    function _sidebarToggle(menuId, iconId) {
+        var menu = document.getElementById(menuId);
+        var icon = document.getElementById(iconId);
+        if (!menu) return;
+        var isOpen = menu.style.display !== 'none';
+        menu.style.display = isOpen ? 'none' : 'block';
+        if (icon) icon.style.transform = isOpen ? '' : 'rotate(180deg)';
+    }
+    window.toggleFnoMenu       = function() { _sidebarToggle('fnoMenu',          'fnoMenuToggle'); };
+    window.toggleBehaviourMenu = function() { _sidebarToggle('behaviourMenu',    'behaviourToggle'); };
+    window.togglePortfolioHub  = function() { _sidebarToggle('portfolioHubMenu', 'portfolioHubToggle'); };
+    window.toggleAdminMenu     = function() { _sidebarToggle('adminMenu',        'adminMenuToggle'); };
+    window.toggleSignalPanel   = function() {
+        var panel = document.getElementById('signalPanel');
+        if (!panel) return;
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    };
+    window.markSignalsRead = function() {
+        var panel = document.getElementById('signalPanel');
+        if (panel) panel.style.display = 'none';
+    };
+}());
+/* ── End sidebar toggles ─────────────────────────────────────────────────── */
+
 (function() {
     'use strict';
 
