@@ -45,47 +45,53 @@ class NSEService:
         """Add delay to respect rate limits"""
         time.sleep(self.rate_limit)
     
-    def get_stock_quote(self, symbol: str, delayed_minutes: int = 5) -> Optional[Dict[str, Any]]:
+    def get_stock_quote(self, symbol: str, delayed_minutes: int = 5,
+                        skip_dhan: bool = False) -> Optional[Dict[str, Any]]:
         """
         Get stock quote with intelligent fallback - uses live price if market open, last close if closed
         Args:
             symbol: NSE stock symbol (e.g., 'RELIANCE', 'TCS')
             delayed_minutes: Minutes to delay the price data (default: 5 minutes)
+            skip_dhan: If True, skip the Dhan OHLC lookup (used when caller already
+                       attempted Dhan for this symbol via a batch call)
         Returns:
             Dictionary with stock data - ALWAYS includes a price
         """
         # PRIORITY 0: Try Dhan OHLC (most reliable, direct exchange data)
-        try:
-            from services.dhan_service import get_eq_quote
-            dhan_data = get_eq_quote(symbol)
-            if dhan_data and dhan_data.get("ltp", 0) > 0:
-                ltp = float(dhan_data["ltp"])
-                prev_close = float(dhan_data.get("close", 0))
-                change_amt = float(dhan_data.get("change", ltp - prev_close if prev_close else 0))
-                change_pct = float(dhan_data.get("pct_change",
-                                   (change_amt / prev_close * 100) if prev_close else 0))
-                self.logger.info(f"{symbol}: Dhan price ₹{ltp}")
-                return {
-                    "symbol": symbol,
-                    "company_name": symbol,
-                    "current_price": ltp,
-                    "previous_close": prev_close,
-                    "change_amount": change_amt,
-                    "change_percent": change_pct,
-                    "volume": 0,
-                    "day_high": float(dhan_data.get("high", ltp)),
-                    "day_low": float(dhan_data.get("low", ltp)),
-                    "week_52_high": 0.0,
-                    "week_52_low": 0.0,
-                    "market_cap": None,
-                    "pe_ratio": None,
-                    "timestamp": dt.datetime.now(timezone.utc),
-                    "data_delay_minutes": 0,
-                    "real_timestamp": dt.datetime.now(timezone.utc),
-                    "data_source": "Dhan",
-                }
-        except Exception as e:
-            self.logger.debug(f"{symbol}: Dhan lookup skipped: {e}")
+        # skip_dhan=True when get_multiple_quotes already attempted a batch
+        # call for this symbol so we avoid a redundant per-symbol Dhan round-trip.
+        if not skip_dhan:
+            try:
+                from services.dhan_service import get_eq_quote
+                dhan_data = get_eq_quote(symbol)
+                if dhan_data and dhan_data.get("ltp", 0) > 0:
+                    ltp = float(dhan_data["ltp"])
+                    prev_close = float(dhan_data.get("close", 0))
+                    change_amt = float(dhan_data.get("change", ltp - prev_close if prev_close else 0))
+                    change_pct = float(dhan_data.get("pct_change",
+                                       (change_amt / prev_close * 100) if prev_close else 0))
+                    self.logger.info(f"{symbol}: Dhan price ₹{ltp}")
+                    return {
+                        "symbol": symbol,
+                        "company_name": symbol,
+                        "current_price": ltp,
+                        "previous_close": prev_close,
+                        "change_amount": change_amt,
+                        "change_percent": change_pct,
+                        "volume": 0,
+                        "day_high": float(dhan_data.get("high", ltp)),
+                        "day_low": float(dhan_data.get("low", ltp)),
+                        "week_52_high": 0.0,
+                        "week_52_low": 0.0,
+                        "market_cap": None,
+                        "pe_ratio": None,
+                        "timestamp": dt.datetime.now(timezone.utc),
+                        "data_delay_minutes": 0,
+                        "real_timestamp": dt.datetime.now(timezone.utc),
+                        "data_source": "Dhan",
+                    }
+            except Exception as e:
+                self.logger.debug(f"{symbol}: Dhan lookup skipped: {e}")
 
         try:
             # First check market status to decide if we should expect live prices
@@ -151,6 +157,11 @@ class NSEService:
         quotes: List[Dict[str, Any]] = []
         remaining: List[str] = list(symbols)
 
+        # Tracks symbols already attempted via Dhan (batch or known-unavailable).
+        # Used so per-symbol fallbacks don't retry Dhan needlessly.
+        dhan_tried_syms: set = set()
+        dhan_batch_failed: bool = False  # True when Dhan raised an exception
+
         # ── PRIORITY 0: Dhan batch call ──────────────────────────────────────
         try:
             from services.dhan_service import get_security_id as _get_security_id, get_nifty50_stock_quotes
@@ -165,6 +176,8 @@ class NSEService:
 
             if sec_id_map:
                 batch = get_nifty50_stock_quotes(sec_id_map)
+                # All symbols that had a security ID were attempted via the batch.
+                dhan_tried_syms = set(sec_id_map.keys())
                 found: List[str] = []
                 for sym, data in batch.items():
                     ltp = float(data.get("ltp", 0))
@@ -199,13 +212,23 @@ class NSEService:
                 )
         except Exception as e:
             self.logger.debug(f"get_multiple_quotes: Dhan batch skipped: {e}")
+            dhan_batch_failed = True  # Don't retry Dhan per-symbol when broker is down
 
         # ── FALLBACK: per-symbol calls for anything Dhan didn't cover ────────
+        # skip_dhan=True for symbols already tried via batch (or when Dhan is down)
+        # so we avoid redundant Dhan round-trips in the individual fallback path.
         if remaining:
             from concurrent.futures import ThreadPoolExecutor, as_completed
             max_workers = min(10, len(remaining))
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = {executor.submit(self.get_stock_quote, sym): sym for sym in remaining}
+                futures = {
+                    executor.submit(
+                        self.get_stock_quote,
+                        sym,
+                        skip_dhan=(sym in dhan_tried_syms or dhan_batch_failed),
+                    ): sym
+                    for sym in remaining
+                }
                 for future in as_completed(futures):
                     try:
                         result = future.result()
