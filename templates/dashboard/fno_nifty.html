@@ -360,8 +360,6 @@
             <div class="collapse-body" id="strengthCard">
                 <div class="indicator-row"><span class="indicator-name">ADX</span><span class="indicator-val" id="adxVal">—</span></div>
                 <div class="indicator-row"><span class="indicator-name">ADX Rising</span><span class="indicator-val" id="adxRising">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">ATR</span><span class="indicator-val" id="atrVal">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">ATR Rising</span><span class="indicator-val" id="atrRising">—</span></div>
             </div>
         </div>
     </div>
@@ -761,8 +759,6 @@ function refreshAnalysis() {
         document.getElementById('adxVal').textContent = d.strength.adx;
         document.getElementById('adxVal').style.color = d.strength.adx > 25 ? '#16a34a' : '#dc2626';
         document.getElementById('adxRising').innerHTML = d.strength.adx_rising ? '<i class="fas fa-arrow-up text-success"></i> Yes' : '<i class="fas fa-arrow-down text-danger"></i> No';
-        document.getElementById('atrVal').textContent = d.strength.atr;
-        document.getElementById('atrRising').innerHTML = d.strength.atr_rising ? '<i class="fas fa-arrow-up text-success"></i> Yes' : '<i class="fas fa-arrow-down text-danger"></i> No';
 
         var oi = d.oi_analysis || {};
         setTrafficLight('oiTraffic', ls.oi || 'fail', oi.oi_signal);
