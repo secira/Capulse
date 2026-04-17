@@ -403,6 +403,7 @@ with app.app_context():
         )''',
         '''INSERT INTO data_api_plan (plan_type, is_active) SELECT 'user_data', true
             WHERE NOT EXISTS (SELECT 1 FROM data_api_plan)''',
+        'ALTER TABLE research_list ADD COLUMN IF NOT EXISTS hist_data_source VARCHAR(50)',
     ]
     try:
         with db.engine.connect() as _conn:

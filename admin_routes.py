@@ -290,6 +290,7 @@ def refresh_research_stock(stock_id):
                 'current_price': market.get('current_price'),
                 'previous_close': market.get('previous_close'),
                 'price_change_pct': market.get('change_pct'),
+                'data_source': result.get('data_source', ''),
             }
             stock.update_from_iscore_result(mapped)
             stock.computation_source = 'manual'
@@ -376,6 +377,7 @@ def batch_iscore():
                             'current_price': market.get('current_price'),
                             'previous_close': market.get('previous_close'),
                             'price_change_pct': market.get('change_pct'),
+                            'data_source': result.get('data_source', ''),
                         }
                         stock.update_from_iscore_result(mapped)
                         stock.computation_source = 'batch'

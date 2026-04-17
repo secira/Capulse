@@ -362,6 +362,7 @@ def api_research_analyze():
                     'current_price':        market.get('current_price'),
                     'previous_close':       market.get('previous_close'),
                     'price_change_pct':     market.get('change_pct'),
+                    'data_source':          result.get('data_source', ''),
                 }
 
                 entry = ResearchList.query.filter_by(symbol=symbol).first()
@@ -486,6 +487,7 @@ def api_research_cached(symbol):
                     'previous_close': float(rl.previous_close) if rl.previous_close else None,
                     'change_pct':     float(rl.price_change_pct) if rl.price_change_pct else None,
                 },
+                'data_source': rl.hist_data_source or '',
                 '_from_cache': True,
             }
             return jsonify({
@@ -680,6 +682,7 @@ def refresh_watchlist_iscores():
                             'current_price': market.get('current_price'),
                             'previous_close': market.get('previous_close'),
                             'price_change_pct': market.get('change_pct'),
+                            'data_source': result.get('data_source', ''),
                         }
                         stock.update_from_iscore_result(mapped)
                         stock.computation_source = 'user_refresh'
