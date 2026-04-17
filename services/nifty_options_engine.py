@@ -508,9 +508,17 @@ class NiftyOptionsEngine:
         atm_put   = sum(chain.get(f'{s}PE', {}).get('oi', 0) for s in atm_range)
         atm_pcr   = round(atm_put / atm_call, 2) if atm_call else 0
 
-        # ── OI Differential ──────────────────────────────────────────────
+        # ── OI Differential (overall) ────────────────────────────────────
         oi_diff   = (total_put_oi - total_call_oi) / total_call_oi if total_call_oi else 0
-        oi_signal = 'BULLISH' if oi_diff > 0.20 else ('BEARISH' if oi_diff < -0.20 else 'NEUTRAL')
+
+        # ── Windowed OI Differential (±6 strikes from ATM) ───────────────
+        # New trade-selection rule: bullish if window diff > +20%, bearish if < -20%.
+        window_strikes = [s for s in strikes if abs(s - atm) <= 6 * STRIKE_INTERVAL]
+        win_call_oi = sum(chain.get(f'{s}CE', {}).get('oi', 0) for s in window_strikes)
+        win_put_oi  = sum(chain.get(f'{s}PE', {}).get('oi', 0) for s in window_strikes)
+        oi_window_diff = (win_put_oi - win_call_oi) / win_call_oi if win_call_oi else 0
+
+        oi_signal = 'BULLISH' if oi_window_diff > 0.20 else ('BEARISH' if oi_window_diff < -0.20 else 'NEUTRAL')
 
         # ── Max Pain ─────────────────────────────────────────────────────
         # Strike where total loss for option buyers (CE+PE combined) is maximum
@@ -535,6 +543,9 @@ class NiftyOptionsEngine:
         )
         return {
             'oi_diff':           round(oi_diff, 4),
+            'oi_window_diff':    round(oi_window_diff, 4),
+            'window_call_oi':    win_call_oi,
+            'window_put_oi':     win_put_oi,
             'oi_signal':         oi_signal,
             'pcr':               pcr_overall,
             'atm_pcr':           atm_pcr,
@@ -613,8 +624,11 @@ class NiftyOptionsEngine:
         except Exception:
             return float(df['Close'].iloc[-1])
 
-    def _calculate_adx(self, df, period: int = 14):
-        """Wilder's ADX, +DI, -DI. Returns (adx, dmi_plus, dmi_minus, adx_rising)."""
+    def _calculate_adx(self, df, period: int = 7, di_period: int = 3):
+        """Wilder's ADX, +DI, -DI. Returns (adx, dmi_plus, dmi_minus, adx_rising).
+
+        New rules use ADX(3,7): DI smoothing = 3 candles, ADX smoothing = 7.
+        """
         try:
             import pandas as pd
             h = df['High']
@@ -632,28 +646,31 @@ class NiftyOptionsEngine:
             dm_p = dm_p.dropna()
             dm_m = dm_m.dropna()
 
-            if len(tr) < period * 2:
+            if len(tr) < max(period, di_period) * 2:
                 return 22.0, 22.0, 22.0, False
 
             # Wilder smoothing: first window = simple sum, subsequent = prev - prev/n + current
             def wilder_smooth(series, n):
                 vals = series.values.astype(float)
                 out = [float('nan')] * len(vals)
+                if len(vals) < n:
+                    return pd.Series(out, index=series.index)
                 out[n - 1] = float(vals[:n].sum())
                 for i in range(n, len(vals)):
                     out[i] = out[i - 1] - out[i - 1] / n + vals[i]
                 return pd.Series(out, index=series.index)
 
-            atr_w = wilder_smooth(tr, period)
-            dmp_w = wilder_smooth(dm_p, period)
-            dmm_w = wilder_smooth(dm_m, period)
+            # DI components smoothed with di_period (3)
+            atr_w = wilder_smooth(tr, di_period)
+            dmp_w = wilder_smooth(dm_p, di_period)
+            dmm_w = wilder_smooth(dm_m, di_period)
 
             safe_atr = atr_w.replace(0, 0.01)
             di_p = (100 * dmp_w / safe_atr).clip(0, 100)
             di_m = (100 * dmm_w / safe_atr).clip(0, 100)
             dx = (100 * (di_p - di_m).abs() / (di_p + di_m).replace(0, 0.01)).clip(0, 100)
-            # ADX = EMA of DX (Wilder's alpha = 1/period, com = period-1)
-            adx_s = dx.dropna().ewm(com=period - 1, adjust=False).mean()
+            # ADX = EMA of DX over the ADX smoothing period (7)
+            adx_s = dx.dropna().ewm(com=max(period - 1, 1), adjust=False).mean()
 
             valid = adx_s.dropna()
             if len(valid) < 2:
@@ -704,7 +721,7 @@ class NiftyOptionsEngine:
             logger.warning(f"Supertrend calculation error: {e}")
             return 'BUY'
 
-    def _direction_engine(self, spot: float) -> Dict[str, Any]:
+    def _direction_engine(self, spot: float, oi_window_diff: float = 0.0, adx: float = 22.0) -> Dict[str, Any]:
         df = self._fetch_intraday_candles()
         if df is not None and len(df) >= 10:
             vwap = self._calculate_vwap(df)
@@ -716,8 +733,23 @@ class NiftyOptionsEngine:
             dmi_plus = 22.0
             dmi_minus = 22.0
 
-        bullish = spot > vwap and supertrend_signal == 'BUY' and dmi_plus > dmi_minus
-        bearish = spot < vwap and supertrend_signal == 'SELL' and dmi_minus > dmi_plus
+        # New trade-selection rules — all conditions must be true to qualify.
+        # Calls:  +DI > -DI, ADX(3,7) > 20, Supertrend BUY,  spot > VWAP, (PutOI-CallOI)/CallOI in ±6 strikes >  20%
+        # Puts :  +DI < -DI, ADX(3,7) > 20, Supertrend SELL, spot < VWAP, (PutOI-CallOI)/CallOI in ±6 strikes < -20%
+        bullish = (
+            dmi_plus > dmi_minus
+            and adx > 20
+            and supertrend_signal == 'BUY'
+            and spot > vwap
+            and oi_window_diff > 0.20
+        )
+        bearish = (
+            dmi_plus < dmi_minus
+            and adx > 20
+            and supertrend_signal == 'SELL'
+            and spot < vwap
+            and oi_window_diff < -0.20
+        )
         direction = 'BULLISH' if bullish else ('BEARISH' if bearish else 'NEUTRAL')
 
         return {
@@ -739,8 +771,9 @@ class NiftyOptionsEngine:
             adx, adx_rising = 22.0, False
             atr, atr_rising = 100.0, False
 
-        strong = adx > 25 and adx_rising and atr_rising
-        no_trade_zone = adx < 20 or (not atr_rising and not adx_rising)
+        # Per new rules: ADX(3,7) > 20 is the only momentum gate. ATR is informational only.
+        strong = adx > 25
+        no_trade_zone = adx < 20
 
         return {
             'adx': round(adx, 1),
@@ -760,11 +793,9 @@ class NiftyOptionsEngine:
         if direction['dmi_plus'] != direction['dmi_minus']:
             score += 15
         if abs(oi_diff) > 0.20:
-            score += 20
+            score += 25
         if strength['adx'] > 25:
-            score += 15
-        if strength['atr_rising']:
-            score += 15
+            score += 25
         return min(score, 100)
 
     def _select_strikes(self, spot: float, direction: str) -> List[Dict[str, Any]]:
@@ -821,8 +852,6 @@ class NiftyOptionsEngine:
             reasons.append(f"Strong trend — ADX {strength['adx']}")
         if strength['adx_rising']:
             reasons.append("ADX rising — trend gaining strength")
-        if strength['atr_rising']:
-            reasons.append("ATR rising — volatility expanding")
         if oi_signal != 'NEUTRAL':
             reasons.append(f"OI confirms {oi_signal.lower()} bias")
         if m == 'ATM':
@@ -855,8 +884,9 @@ class NiftyOptionsEngine:
                 logger.warning(f"No option data for {key}, skipping")
                 continue
 
-            sl_points = 10
-            target_points = 20
+            # New rules: target ("Trigger Price") = 30 points, SL = 20 points (option-premium)
+            sl_points = 20
+            target_points = 30
             entry_price = ltp
             target = round(entry_price + target_points, 2)
             sl = round(entry_price - sl_points, 2)
@@ -981,12 +1011,14 @@ class NiftyOptionsEngine:
 
         atm = int(round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL)
 
-        direction = self._direction_engine(spot)
-        strength = self._strength_engine(spot)
         oi_metrics = self._compute_oi_metrics(current_chain, atm, spot)
-        oi_diff   = oi_metrics['oi_diff']
-        oi_signal = oi_metrics['oi_signal']
-        confidence = self._confidence_score(direction, strength, oi_diff)
+        oi_diff        = oi_metrics['oi_diff']
+        oi_window_diff = oi_metrics.get('oi_window_diff', 0.0)
+        oi_signal      = oi_metrics['oi_signal']
+        strength = self._strength_engine(spot)
+        # New rules need ADX + windowed OI to fully gate direction
+        direction = self._direction_engine(spot, oi_window_diff=oi_window_diff, adx=strength.get('adx', 22.0))
+        confidence = self._confidence_score(direction, strength, oi_window_diff)
 
         entry_mode = 'NO TRADE'
         if time_check['pass'] and not strength['no_trade_zone']:
@@ -1051,7 +1083,7 @@ class NiftyOptionsEngine:
             'time': 'pass' if time_check['pass'] else 'fail',
             'direction': 'pass' if direction['indicators_aligned'] else ('warn' if direction['direction'] != 'NEUTRAL' else 'fail'),
             'strength': 'pass' if strength['strength'] == 'STRONG' else ('warn' if strength['strength'] == 'MODERATE' else 'fail'),
-            'oi': 'pass' if abs(oi_diff) > 0.20 else ('warn' if abs(oi_diff) > 0.10 else 'fail'),
+            'oi': 'pass' if abs(oi_window_diff) > 0.20 else ('warn' if abs(oi_window_diff) > 0.10 else 'fail'),
         }
 
         return {
