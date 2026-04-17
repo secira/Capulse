@@ -81,14 +81,16 @@ def fno_signal_history():
         utc_today_start = ist_today_start - timedelta(hours=5, minutes=30)
         # Only show actual trade recommendations — no NO TRADE scans
         rows = db.session.execute(db.text("""
-            SELECT id, signal_type, direction, confidence, confidence_grade,
-                   entry_mode, spot_price, atm_strike, alert_sent, data_source,
-                   created_at
-            FROM fno_signal_history
-            WHERE created_at >= :today_start
-              AND entry_mode != 'NO TRADE'
-              AND confidence >= 60
-            ORDER BY created_at DESC
+            SELECT h.id, h.signal_type, h.direction, h.confidence, h.confidence_grade,
+                   h.entry_mode, h.spot_price, h.atm_strike, h.alert_sent, h.data_source,
+                   h.created_at,
+                   COALESCE(d.display_name, h.data_source) AS source_display_name
+            FROM fno_signal_history h
+            LEFT JOIN data_source_config d ON d.source_key = h.data_source
+            WHERE h.created_at >= :today_start
+              AND h.entry_mode != 'NO TRADE'
+              AND h.confidence >= 60
+            ORDER BY h.created_at DESC
             LIMIT :limit
         """), {'today_start': utc_today_start, 'limit': min(limit, 50)}).fetchall()
 
@@ -105,6 +107,7 @@ def fno_signal_history():
                 'atm_strike': r.atm_strike,
                 'alert_sent': r.alert_sent,
                 'data_source': r.data_source,
+                'source_display_name': r.source_display_name,
                 'created_at': r.created_at.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%d/%m %I:%M %p') if r.created_at else '',
             })
         return jsonify({'success': True, 'data': signals})

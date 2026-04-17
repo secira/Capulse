@@ -1020,15 +1020,13 @@ function loadSignalHistory() {
                 eventTag = '<span class="signal-event-scan">' + s.entry_mode + '</span>';
             }
             var srcRaw = (s.data_source || '').toLowerCase();
-            var srcLabel, srcStyle;
+            var srcLabel = s.source_display_name || s.data_source || 'estimated';
+            var srcStyle;
             if (srcRaw.indexOf('dhan') !== -1 || srcRaw.indexOf('truedata') !== -1 || srcRaw.indexOf('broker') !== -1) {
-                srcLabel = s.data_source;
                 srcStyle = 'background:#dcfce7;color:#15803d;border:1px solid #bbf7d0';
             } else if (srcRaw.indexOf('nse') !== -1) {
-                srcLabel = s.data_source;
                 srcStyle = 'background:#fef9c3;color:#a16207;border:1px solid #fde68a';
             } else {
-                srcLabel = s.data_source || 'estimated';
                 srcStyle = 'background:#fee2e2;color:#b91c1c;border:1px solid #fecaca';
             }
             html += '<tr>';
