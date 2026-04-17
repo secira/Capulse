@@ -277,7 +277,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const tenureDaysInput = document.getElementById('tenure_days');
     
     if (depositDateInput) {
-        depositDateInput.max = new Date().toISOString().split('T')[0];
+        depositDateInput.max = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     }
     
     // Auto-calculate maturity date based on tenure

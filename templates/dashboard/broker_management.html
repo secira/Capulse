@@ -729,19 +729,23 @@ function openTradeHistoryModal(brokerId, brokerName) {
     new bootstrap.Modal(document.getElementById('tradeHistoryModal')).show();
 }
 
+function _toISTDate(d) {
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
 function setQuickRange(days) {
     const to   = new Date();
     const from = new Date();
     from.setDate(to.getDate() - days);
-    document.getElementById('thFromDate').value = from.toISOString().split('T')[0];
-    document.getElementById('thToDate').value   = to.toISOString().split('T')[0];
+    document.getElementById('thFromDate').value = _toISTDate(from);
+    document.getElementById('thToDate').value   = _toISTDate(to);
 }
 
 function setCurrentMonth() {
     const now   = new Date();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
-    document.getElementById('thFromDate').value = first.toISOString().split('T')[0];
-    document.getElementById('thToDate').value   = now.toISOString().split('T')[0];
+    document.getElementById('thFromDate').value = _toISTDate(first);
+    document.getElementById('thToDate').value   = _toISTDate(now);
 }
 
 function fetchTradeHistory() {

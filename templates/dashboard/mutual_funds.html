@@ -275,7 +275,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     const transactionDateInput = document.getElementById('transaction_date');
     if (transactionDateInput) {
-        transactionDateInput.max = new Date().toISOString().split('T')[0];
+        transactionDateInput.max = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     }
     
     // Calculate amount based on units and NAV

@@ -65,7 +65,7 @@ function updatePriceDisplay(symbol, data) {
     }
     
     if (updateTimeElement) {
-        updateTimeElement.textContent = new Date().toLocaleTimeString();
+        updateTimeElement.textContent = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) + ' IST';
     }
 }
 

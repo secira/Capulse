@@ -139,7 +139,7 @@ async function loadMarketIndices() {
         
         if (data.success) {
             displayIndices(data.data);
-            document.getElementById('lastUpdated').textContent = new Date(data.last_updated).toLocaleString();
+            document.getElementById('lastUpdated').textContent = _istStr(data.last_updated);
         }
     } catch (error) {
         console.error('Error loading indices:', error);

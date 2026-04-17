@@ -294,7 +294,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     const asOnDateInput = document.getElementById('as_on_date');
     if (asOnDateInput && !asOnDateInput.value) {
-        asOnDateInput.value = new Date().toISOString().split('T')[0];
+        asOnDateInput.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     }
 });
 

@@ -528,7 +528,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     const tradeDateInput = document.getElementById('trade_date');
     if (tradeDateInput) {
-        tradeDateInput.max = new Date().toISOString().split('T')[0];
+        tradeDateInput.max = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     }
     
     // Auto-calculate total quantity

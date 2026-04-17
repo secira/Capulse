@@ -123,7 +123,7 @@ function refreshChart(symbol) {
 function updateChartFooter(symbolInfo = null) {
     const updateTimeElement = document.getElementById('chart-update-time-{{ symbol if symbol else "default" }}');
     if (updateTimeElement) {
-        updateTimeElement.textContent = new Date().toLocaleTimeString();
+        updateTimeElement.textContent = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) + ' IST';
     }
 }
 

@@ -244,16 +244,32 @@
             return confirm(`Are you sure you want to delete this ${item}? This action cannot be undone.`);
         }
         
-        // Real-time clock update
+        // Real-time clock update (always shown in IST)
         function updateClock() {
             const now = new Date();
-            const timeString = now.toLocaleString();
+            const timeString = now.toLocaleString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            }) + ' IST';
             document.querySelector('.admin-header small').textContent = timeString;
         }
         
         setInterval(updateClock, 1000);
     </script>
     
+    <script>
+    /* Global IST helper */
+    function _istStr(ts, timeOnly) {
+        if (!ts) return 'N/A';
+        var s = String(ts);
+        var d = new Date(/[Z+]/.test(s) ? s : s + 'Z');
+        if (isNaN(d)) return s;
+        var opts = { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+        if (timeOnly) { delete opts.day; delete opts.month; delete opts.year; }
+        return d.toLocaleString('en-IN', opts) + ' IST';
+    }
+    </script>
     {% block scripts %}{% endblock %}
     {% block extra_js %}{% endblock %}
 </body>

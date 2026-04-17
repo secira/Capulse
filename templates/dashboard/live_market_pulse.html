@@ -1063,7 +1063,7 @@ function askChip(el) {
 }
 
 function renderQA(question, answer) {
-    const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+    const now = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour:'2-digit', minute:'2-digit' });
     aiMsgBox.innerHTML = `
         <div class="ai-msg user">
             <div class="ai-msg-av"><i class="fas fa-user" style="font-size:9px;"></i></div>
@@ -1074,7 +1074,7 @@ function renderQA(question, answer) {
 }
 
 function renderAnswer(answer) {
-    const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+    const now = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour:'2-digit', minute:'2-digit' });
     const el = document.getElementById('aiAnswer');
     if (el) {
         el.innerHTML = `
@@ -1453,7 +1453,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAI();
     initVoice();
     document.getElementById('mpTs').textContent =
-        'as of ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+        'as of ' + new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour:'2-digit', minute:'2-digit' }) + ' IST';
     const tab = new URLSearchParams(window.location.search).get('tab');
     if (tab) {
         const btn = document.querySelector(`.lmp-tab-btn[onclick*="'${tab}'"]`);

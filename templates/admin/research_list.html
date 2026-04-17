@@ -375,7 +375,7 @@ function showDetails(stockId) {
                 ` : ''}
                 <hr>
                 <small class="text-muted">
-                    Last computed: ${data.last_computed_at ? new Date(data.last_computed_at).toLocaleString() : 'Never'} 
+                    Last computed: ${data.last_computed_at ? _istStr(data.last_computed_at) : 'Never'} 
                     ${data.is_stale ? '<span class="badge bg-warning">Stale</span>' : ''}
                 </small>
             `;

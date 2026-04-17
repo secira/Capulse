@@ -128,6 +128,18 @@
 </style>
 
 <script>
+/* Global IST helper — converts any UTC/ISO timestamp to a readable IST string */
+function _istStr(ts, timeOnly) {
+    if (!ts) return 'N/A';
+    var s = String(ts);
+    var d = new Date(/[Z+]/.test(s) ? s : s + 'Z');
+    if (isNaN(d)) return s;
+    var opts = { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+    if (timeOnly) { delete opts.day; delete opts.month; delete opts.year; }
+    return d.toLocaleString('en-IN', opts) + ' IST';
+}
+</script>
+<script>
 (function() {
     'use strict';
 

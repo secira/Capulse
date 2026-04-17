@@ -588,7 +588,8 @@ function addMessage(type, content) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `perplexity-message ${type}`;
     
-    const currentTime = new Date().toLocaleTimeString('en-US', {
+    const currentTime = new Date().toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
         hour: '2-digit',
         minute: '2-digit'
     });

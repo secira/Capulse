@@ -326,7 +326,7 @@ function loadExecutions(typeFilter) {
         data.executions.forEach(ex => {
             const typeIcons = { iscore: 'fa-chart-line', research: 'fa-search', portfolio: 'fa-briefcase' };
             const icon = typeIcons[ex.workflow_type] || 'fa-cogs';
-            const time = ex.started_at ? new Date(ex.started_at).toLocaleString() : 'N/A';
+            const time = ex.started_at ? _istStr(ex.started_at) : 'N/A';
             html += `<div class="execution-row d-flex align-items-center" onclick="viewExecution('${ex.execution_id}')">
                 <i class="fas ${icon} me-3 text-primary"></i>
                 <div class="flex-grow-1">

@@ -454,7 +454,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     const purchaseDateInput = document.getElementById('purchase_date');
     if (purchaseDateInput) {
-        purchaseDateInput.max = new Date().toISOString().split('T')[0];
+        purchaseDateInput.max = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     }
     // Auto-fetch price when symbol field loses focus
     const symbolInput = document.getElementById('symbol');

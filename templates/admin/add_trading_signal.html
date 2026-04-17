@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const expiryDate = document.getElementById('expires_date');
     const today = new Date();
     today.setDate(today.getDate() + 7);
-    expiryDate.value = today.toISOString().split('T')[0];
+    expiryDate.value = today.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 });
 </script>
 {% endblock %}
