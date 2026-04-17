@@ -2759,6 +2759,48 @@ def dashboard_equities():
             'purchase_date_str': holding.created_at.strftime('%d %b %Y') if holding.created_at else '',
         })
     
+    # Fetch live Dhan prices server-side so the page shows current data on first load
+    dhan_prices_loaded = False
+    try:
+        from services import dhan_service as _dhan_svc
+        unique_symbols = list({h['symbol'] for h in combined_holdings if h.get('symbol')})
+        security_id_map = {}
+        for sym in unique_symbols:
+            sid = _dhan_svc.get_security_id(sym)
+            if sid is not None:
+                security_id_map[sym] = sid
+
+        dhan_live_prices = {}
+        if security_id_map:
+            dhan_live_prices = _dhan_svc.get_nifty50_stock_quotes(security_id_map, current_user.id)
+
+        updated_count = 0
+        if dhan_live_prices:
+            for h in combined_holdings:
+                sym = h.get('symbol', '')
+                quote = dhan_live_prices.get(sym)
+                if not quote:
+                    continue
+                ltp = quote.get('ltp', 0)
+                if ltp and ltp > 0:
+                    qty = h.get('quantity') or 0
+                    investment = h.get('total_investment') or 0
+                    curr_value = float(qty) * float(ltp)
+                    pnl = curr_value - float(investment)
+                    pnl_pct = (pnl / float(investment) * 100) if investment else None
+                    h['current_price'] = ltp
+                    h['current_value'] = curr_value
+                    h['unrealized_pnl'] = pnl
+                    h['unrealized_pnl_percentage'] = pnl_pct
+                    h['price_source'] = 'Dhan'
+                    rec_label, rec_color = _recommendation(pnl_pct)
+                    h['recommendation'] = rec_label
+                    h['recommendation_color'] = rec_color
+                    updated_count += 1
+        dhan_prices_loaded = updated_count > 0
+    except Exception as _e:
+        logger.warning(f"Dhan live price fetch on equities page failed: {_e}")
+
     # Calculate summary
     total_investment = sum((h.get('total_investment') or 0) for h in combined_holdings)
     current_value = sum((h.get('current_value') or h.get('total_investment') or 0) for h in combined_holdings)
@@ -2771,7 +2813,8 @@ def dashboard_equities():
                          total_investment=total_investment,
                          current_value=current_value,
                          total_pnl=total_pnl,
-                         holdings_count=holdings_count)
+                         holdings_count=holdings_count,
+                         dhan_prices_loaded=dhan_prices_loaded)
 
 @app.route('/api/equities/<int:holding_id>', methods=['GET'])
 @login_required

@@ -234,7 +234,12 @@
                         <td class="text-end">₹{{ "{:,.2f}".format(holding.purchase_price or 0) }}</td>
                         <td class="text-end curr-price-cell">
                             <span class="curr-price-val fw-semibold" style="color:{{ '#16a34a' if pnl_pos else ('#dc2626' if pnl < 0 else '#64748b') }};">
-                                {% if holding.current_price %}₹{{ "{:,.2f}".format(holding.current_price) }}{% else %}—{% endif %}
+                                {% if holding.current_price %}
+                                    ₹{{ "{:,.2f}".format(holding.current_price) }}
+                                    {% if holding.get('price_source') == 'Dhan' %}
+                                    <br><span style="font-size:9px;font-weight:400;background:#eef2ff;color:#4338ca;padding:1px 5px;border-radius:8px;">Dhan</span>
+                                    {% endif %}
+                                {% else %}—{% endif %}
                             </span>
                         </td>
                         <td class="text-end">{{ holding.quantity }}</td>
@@ -463,8 +468,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (this.value.trim()) fetchMarketPrice();
         });
     }
-    // Auto-fetch live prices for all holdings on page load
+    // Auto-fetch live prices for all holdings on page load only when
+    // Dhan did not already supply live prices server-side
+    {% if not dhan_prices_loaded %}
     fetchAllLivePrices();
+    {% endif %}
 });
 
 async function fetchAllLivePrices() {
