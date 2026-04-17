@@ -526,6 +526,22 @@ except ImportError as e:
 # Per user requirement: no automatic background polling, demo data generation, or WebSocket connections
 logging.info("🚀 Starting Target Capital application (user-driven mode - no WebSocket servers)")
 
+# Warm up Dhan instrument master in a background daemon thread so that the
+# first I-Score / OHLCV request after a server restart is not delayed.
+def _warmup_dhan_instrument_master():
+    try:
+        from services.dhan_service import _load_security_id_map
+        _load_security_id_map()
+    except Exception as _e:
+        logging.warning(f"Dhan instrument master warm-up failed: {_e}")
+
+_warmup_thread = threading.Thread(
+    target=_warmup_dhan_instrument_master,
+    daemon=True,
+    name="dhan-instrument-master-warmup",
+)
+_warmup_thread.start()
+
 # Performance optimizations - Caching and security headers
 @app.after_request
 def enable_caching_and_security(response):
