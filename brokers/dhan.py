@@ -312,6 +312,124 @@ class DhanBroker(BrokerBase):
             return {}
 
     # ------------------------------------------------------------------
+    # Historical & Intraday Candle Data
+    # ------------------------------------------------------------------
+
+    def get_intraday_candles(self, security_id: int, exchange_segment: str,
+                             instrument_type: str, from_date: str,
+                             to_date: str, interval: int = 5) -> List[Dict]:
+        """
+        Fetch intraday OHLCV candles from Dhan's /charts/intraday endpoint.
+
+        Args:
+            security_id:      Dhan security ID (e.g. 13 for NIFTY index)
+            exchange_segment: "IDX_I", "NSE_EQ", "NSE_FNO", etc.
+            instrument_type:  "INDEX", "EQUITY", "FUTIDX", "OPTIDX", etc.
+            from_date:        "YYYY-MM-DD"
+            to_date:          "YYYY-MM-DD"
+            interval:         candle size in minutes — 1, 5, 15, 25, or 60
+
+        Returns:
+            List of dicts: [{"open": f, "high": f, "low": f, "close": f, "volume": i, "timestamp": str}, ...]
+            Empty list on failure.
+        """
+        try:
+            sdk = self._get_sdk()
+            resp = sdk.intraday_minute_data(
+                security_id=str(security_id),
+                exchange_segment=exchange_segment,
+                instrument_type=instrument_type,
+                from_date=from_date,
+                to_date=to_date,
+                interval=interval,
+            )
+            if resp.get("status") != "success":
+                logger.warning(f"Dhan intraday_candles failed: {resp.get('remarks', '')}")
+                return []
+            # SDK wraps: resp["data"] = api_json; api_json["data"] = payload dict
+            outer = resp.get("data", {})
+            payload = outer.get("data", outer) if isinstance(outer, dict) else {}
+            if not isinstance(payload, dict):
+                return []
+            opens  = payload.get("open",      [])
+            highs  = payload.get("high",      [])
+            lows   = payload.get("low",       [])
+            closes = payload.get("close",     [])
+            vols   = payload.get("volume",    [])
+            stamps = payload.get("timestamp", [])
+            rows = []
+            for i in range(min(len(opens), len(closes))):
+                rows.append({
+                    "timestamp": stamps[i] if i < len(stamps) else "",
+                    "open":   float(opens[i]),
+                    "high":   float(highs[i]) if i < len(highs) else float(opens[i]),
+                    "low":    float(lows[i])  if i < len(lows)  else float(opens[i]),
+                    "close":  float(closes[i]),
+                    "volume": int(vols[i])    if i < len(vols)  else 0,
+                })
+            logger.info(f"Dhan intraday_candles: {len(rows)} candles for sec_id={security_id}")
+            return rows
+        except Exception as e:
+            logger.error(f"Dhan get_intraday_candles error: {e}")
+            return []
+
+    def get_historical_daily_data(self, security_id: int, exchange_segment: str,
+                                  instrument_type: str, from_date: str,
+                                  to_date: str) -> List[Dict]:
+        """
+        Fetch daily OHLCV candles from Dhan's /charts/historical endpoint.
+
+        Args:
+            security_id:      Dhan security ID
+            exchange_segment: "IDX_I", "NSE_EQ", etc.
+            instrument_type:  "INDEX", "EQUITY", etc.
+            from_date:        "YYYY-MM-DD"
+            to_date:          "YYYY-MM-DD"
+
+        Returns:
+            List of dicts: [{"open": f, "high": f, "low": f, "close": f, "volume": i, "timestamp": str}, ...]
+            Empty list on failure.
+        """
+        try:
+            sdk = self._get_sdk()
+            resp = sdk.historical_daily_data(
+                security_id=str(security_id),
+                exchange_segment=exchange_segment,
+                instrument_type=instrument_type,
+                from_date=from_date,
+                to_date=to_date,
+                expiry_code=0,
+            )
+            if resp.get("status") != "success":
+                logger.warning(f"Dhan historical_daily_data failed: {resp.get('remarks', '')}")
+                return []
+            outer = resp.get("data", {})
+            payload = outer.get("data", outer) if isinstance(outer, dict) else {}
+            if not isinstance(payload, dict):
+                return []
+            opens  = payload.get("open",      [])
+            highs  = payload.get("high",      [])
+            lows   = payload.get("low",       [])
+            closes = payload.get("close",     [])
+            vols   = payload.get("volume",    [])
+            stamps = payload.get("timestamp", [])
+            rows = []
+            for i in range(min(len(opens), len(closes))):
+                rows.append({
+                    "timestamp": stamps[i] if i < len(stamps) else "",
+                    "open":   float(opens[i]),
+                    "high":   float(highs[i]) if i < len(highs) else float(opens[i]),
+                    "low":    float(lows[i])  if i < len(lows)  else float(opens[i]),
+                    "close":  float(closes[i]),
+                    "volume": int(vols[i])    if i < len(vols)  else 0,
+                })
+            logger.info(f"Dhan historical_daily: {len(rows)} rows for sec_id={security_id}")
+            return rows
+        except Exception as e:
+            logger.error(f"Dhan get_historical_daily_data error: {e}")
+            return []
+
+    # ------------------------------------------------------------------
     # Instruments (not implemented via Dhan for now — too heavy)
     # ------------------------------------------------------------------
     def get_instruments(self, exchange: str = "NFO") -> List[Dict]:

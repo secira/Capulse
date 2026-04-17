@@ -444,13 +444,22 @@ class NiftyOptionsEngine:
         return chain
 
     def _get_sample_option_chain(self) -> Dict[str, Any]:
+        spot = 23500
         try:
-            import yfinance as yf
-            ticker = yf.Ticker("^NSEI")
-            hist = ticker.history(period="1d")
-            spot = float(hist['Close'].iloc[-1]) if not hist.empty else 23500
+            from services.dhan_service import get_nifty_spot
+            s = get_nifty_spot(user_id=self.user_id)
+            if s and s > 0:
+                spot = s
         except Exception:
-            spot = 23500
+            pass
+        if spot == 23500:
+            try:
+                import yfinance as yf
+                hist = yf.Ticker("^NSEI").history(period="1d")
+                if not hist.empty:
+                    spot = float(hist['Close'].iloc[-1])
+            except Exception:
+                pass
         chain = self._get_sample_chain(spot)
         return {
             'spot_price': spot,
@@ -488,31 +497,50 @@ class NiftyOptionsEngine:
         return {'pass': True, 'reason': 'Trading window active', 'status': 'active'}
 
     # ------------------------------------------------------------------
-    # Real indicator calculations using yfinance intraday 5-min candles
+    # Real indicator calculations — intraday 5-min candles
+    # Priority 1: Dhan  |  Priority 2: yfinance (fallback)
     # ------------------------------------------------------------------
 
     def _fetch_intraday_candles(self):
-        """Fetch today's 5-min NIFTY candles from yfinance, cached 5 min at module level."""
+        """
+        Fetch today's 5-min NIFTY candles.
+        Tries Dhan first (paid, reliable), falls back to yfinance.
+        Result is cached at module level for _CANDLE_CACHE_TTL seconds.
+        """
         global _candle_cache_data, _candle_cache_ts
         now_ts = _time_mod.time()
         if _candle_cache_data is not None and (now_ts - _candle_cache_ts) < _CANDLE_CACHE_TTL:
             return _candle_cache_data
+
+        df = None
+
+        # ── Priority 1: Dhan intraday candles ──────────────────────────
         try:
-            import yfinance as yf
-            ticker = yf.Ticker("^NSEI")
-            df = ticker.history(period="1d", interval="5m")
-            if df is None or df.empty or len(df) < 5:
-                _candle_cache_data = None
-                _candle_cache_ts = now_ts
-                return None
-            _candle_cache_data = df
-            _candle_cache_ts = now_ts
-            return df
+            from services.dhan_service import get_nifty_intraday_candles
+            df_dhan = get_nifty_intraday_candles(interval=5, user_id=self.user_id)
+            if df_dhan is not None and not df_dhan.empty and len(df_dhan) >= 5:
+                df = df_dhan
+                logger.info(f"_fetch_intraday_candles: {len(df)} candles from Dhan")
         except Exception as e:
-            logger.warning(f"yfinance intraday candles error: {e}")
-            _candle_cache_data = None
-            _candle_cache_ts = now_ts
-            return None
+            logger.warning(f"Dhan intraday candles error: {e}")
+
+        # ── Priority 2: yfinance fallback ──────────────────────────────
+        if df is None or df.empty:
+            try:
+                import yfinance as yf
+                ticker = yf.Ticker("^NSEI")
+                df_yf = ticker.history(period="1d", interval="5m")
+                if df_yf is not None and not df_yf.empty and len(df_yf) >= 5:
+                    df = df_yf
+                    logger.info(f"_fetch_intraday_candles: {len(df)} candles from yfinance (fallback)")
+                else:
+                    logger.warning("_fetch_intraday_candles: yfinance also returned no data")
+            except Exception as e:
+                logger.warning(f"yfinance intraday candles error: {e}")
+
+        _candle_cache_data = df if (df is not None and not df.empty) else None
+        _candle_cache_ts = now_ts
+        return _candle_cache_data
 
     def _calculate_vwap(self, df) -> float:
         """Cumulative VWAP from today's candles."""
@@ -868,16 +896,24 @@ class NiftyOptionsEngine:
 
         if not current_chain:
             data_source = 'estimated'
+            spot = 23500
+            # Priority 1: Dhan spot price
             try:
-                import yfinance as yf
-                ticker = yf.Ticker("^NSEI")
-                hist = ticker.history(period="1d")
-                if not hist.empty:
-                    spot = float(hist['Close'].iloc[-1])
-                else:
-                    spot = 23500
+                from services.dhan_service import get_nifty_spot
+                s = get_nifty_spot(user_id=self.user_id)
+                if s and s > 0:
+                    spot = s
             except Exception:
-                spot = 23500
+                pass
+            # Priority 2: yfinance fallback
+            if spot == 23500:
+                try:
+                    import yfinance as yf
+                    hist = yf.Ticker("^NSEI").history(period="1d")
+                    if not hist.empty:
+                        spot = float(hist['Close'].iloc[-1])
+                except Exception:
+                    pass
             logger.warning(f"All data sources unavailable — using estimated data. Spot: {spot}")
             current_chain = self._get_sample_chain(spot)
             next_chain = {}

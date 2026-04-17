@@ -773,35 +773,60 @@ class LangGraphIScoreEngine:
         confidence = 0.30
         data_sources = []
 
-        # ---- 1. Try India VIX via yfinance (^INDIAVIX) — works outside India ----
+        # ---- 1. Try Dhan for VIX + NIFTY (primary — paid, reliable) ----
         try:
-            import yfinance as yf
-            vix_ticker = yf.Ticker('^INDIAVIX')
-            vix_info = vix_ticker.history(period='2d')
-            if not vix_info.empty:
-                vix = float(vix_info['Close'].iloc[-1])
-                vix_score, vix_regime = _vix_score_regime(vix)
-                data_sources.append('yfinance-VIX')
-                confidence = max(confidence, 0.60)
+            from services.dhan_service import get_index_quotes
+            idx_data = get_index_quotes()   # returns {NIFTY:{ltp,open,...}, INDIA VIX:{...}, ...}
+            if idx_data:
+                # VIX
+                vix_raw = idx_data.get("INDIA VIX", {}).get("ltp", 0)
+                if vix_raw and float(vix_raw) > 0:
+                    vix = float(vix_raw)
+                    vix_score, vix_regime = _vix_score_regime(vix)
+                    data_sources.append('Dhan-VIX')
+                    confidence = max(confidence, 0.70)
+                # NIFTY day change %
+                nifty_d = idx_data.get("NIFTY", {})
+                pct = nifty_d.get("pct_change", 0)
+                if pct is not None:
+                    mkt_chg = round(float(pct), 2)
+                    mkt_score_val = _mkt_score(mkt_chg)
+                    data_sources.append('Dhan-NIFTY')
+                    confidence = max(confidence, 0.70)
         except Exception as e:
-            logger.debug(f"yfinance VIX fetch failed: {e}")
+            logger.debug(f"Dhan VIX/NIFTY fetch failed: {e}")
 
-        # ---- 2. Try Nifty 50 change via yfinance ----
-        try:
-            import yfinance as yf
-            nifty_ticker = yf.Ticker('^NSEI')
-            nifty_hist = nifty_ticker.history(period='2d')
-            if len(nifty_hist) >= 2:
-                prev_close = float(nifty_hist['Close'].iloc[-2])
-                last_close = float(nifty_hist['Close'].iloc[-1])
-                mkt_chg = round((last_close - prev_close) / prev_close * 100, 2) if prev_close else 0.0
-                mkt_score_val = _mkt_score(mkt_chg)
-                data_sources.append('yfinance-NIFTY')
-                confidence = max(confidence, 0.60)
-        except Exception as e:
-            logger.debug(f"yfinance Nifty fetch failed: {e}")
+        # ---- 2. yfinance fallback for VIX (if Dhan didn't supply it) ----
+        if 'Dhan-VIX' not in data_sources:
+            try:
+                import yfinance as yf
+                vix_ticker = yf.Ticker('^INDIAVIX')
+                vix_info = vix_ticker.history(period='2d')
+                if not vix_info.empty:
+                    vix = float(vix_info['Close'].iloc[-1])
+                    vix_score, vix_regime = _vix_score_regime(vix)
+                    data_sources.append('yfinance-VIX')
+                    confidence = max(confidence, 0.60)
+            except Exception as e:
+                logger.debug(f"yfinance VIX fetch failed: {e}")
 
-        # ---- 3. Try NSE service for PCR (may fail when geo-blocked) ----
+        # ---- 3. yfinance fallback for NIFTY change (if Dhan didn't supply it) ----
+        if 'Dhan-NIFTY' not in data_sources:
+            try:
+                import yfinance as yf
+                nifty_ticker = yf.Ticker('^NSEI')
+                nifty_hist = nifty_ticker.history(period='2d')
+                if len(nifty_hist) >= 2:
+                    prev_close = float(nifty_hist['Close'].iloc[-2])
+                    last_close = float(nifty_hist['Close'].iloc[-1])
+                    mkt_chg = round((last_close - prev_close) / prev_close * 100, 2) if prev_close else 0.0
+                    mkt_score_val = _mkt_score(mkt_chg)
+                    data_sources.append('yfinance-NIFTY')
+                    confidence = max(confidence, 0.60)
+            except Exception as e:
+                logger.debug(f"yfinance Nifty fetch failed: {e}")
+
+        # ---- 4. Try NSE service for PCR (may fail when geo-blocked) ----
         try:
             from services.nse_service import NSEService
             nse = NSEService()
@@ -814,8 +839,8 @@ class LangGraphIScoreEngine:
         except Exception as e:
             logger.debug(f"NSE PCR fetch failed (geo-blocked?): {e}")
 
-        # ---- 4. Try NSE service for VIX override (only if yfinance already failed) ----
-        if 'yfinance-VIX' not in data_sources:
+        # ---- 5. Try NSE service for VIX (last resort — geo-blocked in cloud) ----
+        if 'Dhan-VIX' not in data_sources and 'yfinance-VIX' not in data_sources:
             try:
                 from services.nse_service import NSEService
                 nse = NSEService()

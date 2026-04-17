@@ -80,7 +80,7 @@ Target Capital employs a dual AI engine approach:
 
 **I-Score Engine Implementation (v2)**:
 -   **6-component model for stocks**: Quantitative, Trend, Risk, Qualitative, Search, Market Context, with hardcoded weights.
--   **Real technical indicators**: Incorporates Wilder RSI, EMA, ATR, SuperTrend, momentum, max drawdown, beta, and volume profiling from yfinance.
+-   **Real technical indicators**: Incorporates Wilder RSI, EMA, ATR, SuperTrend, momentum, max drawdown, beta, and volume profiling. Historical OHLCV sourced via Dhan API (primary) → yfinance (fallback).
 -   **Stocks pipeline**: A multi-step process from cache check to result storage.
 -   **Nonlinear penalty system**: Adjusts scores based on volatility, trends, and drawdowns.
 -   **Confidence scoring**: Rates score reliability based on component variance and data quality.
