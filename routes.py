@@ -4350,23 +4350,23 @@ def dashboard_account_handling():
 def dashboard_nse_stocks():
     """NSE India stocks dashboard with real-time data"""
     try:
-        # Get Indian market data using enhanced market data service
-        trending_indian_stocks = market_data_service.get_trending_stocks('INDIA', 15)
+        # Popular symbols — use nse_service (Dhan-first) for live prices
+        popular_symbols = [
+            'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK',
+            'SBIN', 'BHARTIARTL', 'ITC', 'LT', 'KOTAKBANK',
+            'AXISBANK', 'MARUTI', 'WIPRO', 'HCLTECH', 'BAJFINANCE',
+        ]
+        trending_indian_stocks = nse_service.get_multiple_quotes(popular_symbols)
+
+        # Indices from market_data_service (NSE/BSE indices)
         market_indices = market_data_service.get_market_indices()
-        
-        # Filter Indian indices
         indian_indices = [idx for idx in market_indices if idx.get('exchange') == 'NSE']
-        
+
         # Get market status and additional data from NSE service
         market_status = nse_service.get_market_status()
         top_gainers = nse_service.get_top_gainers(10)
         top_losers = nse_service.get_top_losers(10)
-        
-        # If no data from enhanced service, fallback to original NSE service
-        if not trending_indian_stocks:
-            popular_symbols = ['RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 'SBIN']
-            trending_indian_stocks = nse_service.get_multiple_quotes(popular_symbols)
-        
+
         if not indian_indices:
             indian_indices = nse_service.get_market_indices()
         

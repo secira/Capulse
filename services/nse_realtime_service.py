@@ -94,6 +94,32 @@ class NSERealTimeService:
     
     def get_stock_data(self, symbol: str) -> Dict:
         """Fetch real-time stock data for a given symbol"""
+        # PRIORITY 1: Dhan OHLC (direct exchange data)
+        try:
+            from services.dhan_service import get_eq_quote
+            dhan_data = get_eq_quote(symbol)
+            if dhan_data and dhan_data.get("ltp", 0) > 0:
+                ltp = float(dhan_data["ltp"])
+                prev_close = float(dhan_data.get("close", 0))
+                change_amt = float(dhan_data.get("change", ltp - prev_close if prev_close else 0))
+                change_pct = float(dhan_data.get("pct_change",
+                                   (change_amt / prev_close * 100) if prev_close else 0))
+                logger.info(f"{symbol}: Dhan price ₹{ltp}")
+                return {
+                    "success": True,
+                    "symbol": symbol,
+                    "price": ltp,
+                    "current_price": ltp,
+                    "change": change_amt,
+                    "change_percent": change_pct,
+                    "volume": 0,
+                    "source": "Dhan",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+        except Exception as e:
+            logger.debug(f"{symbol}: Dhan lookup skipped: {e}")
+
+        # PRIORITY 2: NSE API
         try:
             url = f"https://www.nseindia.com/api/quote-equity?symbol={symbol}"
             response = self.session.get(url, timeout=10)
@@ -105,15 +131,17 @@ class NSERealTimeService:
                         'success': True,
                         'symbol': symbol,
                         'price': float(price_info['lastPrice']),
+                        'current_price': float(price_info['lastPrice']),
                         'change': float(price_info['change']),
                         'change_percent': float(price_info['pChange']),
                         'volume': int(price_info.get('totalTradedVolume', 0)),
-                        'source': 'nse',
+                        'source': 'NSE',
                         'timestamp': datetime.now(timezone.utc).isoformat()
                     }
         except Exception as e:
             logger.warning(f"NSE API failed for {symbol}: {e}")
 
+        # PRIORITY 3: yfinance fallback
         return self._yfinance_fallback(symbol)
 
     def _yfinance_fallback(self, symbol: str) -> Dict:

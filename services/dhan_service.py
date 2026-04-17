@@ -73,6 +73,11 @@ def _get_security_id(symbol: str) -> Optional[int]:
     return m.get(sym)
 
 
+def get_security_id(symbol: str) -> Optional[int]:
+    """Public alias for _get_security_id — returns Dhan NSE_EQ security ID or None."""
+    return _get_security_id(symbol)
+
+
 def _get_dhan_broker(user_id: Optional[int] = None):
     """
     Return a connected DhanBroker instance for the given user's DataApiBroker,
@@ -204,6 +209,33 @@ def get_option_chain(symbol: str = "NIFTY", expiry: Optional[str] = None,
     except Exception as e:
         logger.error(f"DhanDataService.get_option_chain error: {e}")
         return {}
+
+
+def get_eq_quote(symbol: str, user_id: Optional[int] = None) -> Optional[Dict]:
+    """
+    Fetch current OHLC + LTP for a single NSE equity symbol via Dhan.
+
+    Returns a dict with keys: ltp, open, high, low, close, change, pct_change
+    (all floats), plus 'source': 'Dhan'.  Returns None when Dhan is unavailable
+    or the symbol is not in the instrument master.
+    """
+    sec_id = _get_security_id(symbol)
+    if sec_id is None:
+        logger.debug(f"get_eq_quote({symbol}): no security ID in instrument master")
+        return None
+    broker = _get_dhan_broker(user_id) or _get_any_dhan_broker()
+    if broker is None:
+        logger.debug(f"get_eq_quote({symbol}): no Dhan broker available")
+        return None
+    try:
+        raw = broker.get_eq_ohlc([sec_id])
+        row = raw.get(str(sec_id))
+        if row and row.get("ltp", 0) > 0:
+            row["source"] = "Dhan"
+            return row
+    except Exception as e:
+        logger.error(f"get_eq_quote({symbol}) error: {e}")
+    return None
 
 
 def get_nifty50_stock_quotes(security_id_map: Dict[str, int],

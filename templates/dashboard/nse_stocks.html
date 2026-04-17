@@ -112,7 +112,10 @@
                                         <td>
                                             <div class="fw-bold">{{ stock.company_name }}</div>
                                         </td>
-                                        <td class="fw-bold">₹{{ "%.2f"|format(stock.current_price) }}</td>
+                                        <td class="fw-bold">
+                                            ₹{{ "%.2f"|format(stock.current_price) }}
+                                            <br><span class="badge rounded-pill" style="font-size:9px;background:{% if stock.data_source == 'Dhan' %}#eef2ff;color:#4338ca{% elif stock.data_source == 'live' %}#dcfce7;color:#16a34a{% else %}#f1f5f9;color:#64748b{% endif %};">{{ stock.data_source or 'NSE' }}</span>
+                                        </td>
                                         <td>
                                             <span class="text-{{ 'success' if stock.change_amount > 0 else 'danger' }}">
                                                 <i class="fas fa-arrow-{{ 'up' if stock.change_amount > 0 else 'down' }} me-1"></i>

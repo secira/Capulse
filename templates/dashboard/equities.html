@@ -499,8 +499,9 @@ async function fetchAllLivePrices() {
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const data = await resp.json();
             const price = parseFloat(data.price || data.current_price || data.lastPrice || 0);
+            const src   = data.source || '';
             if (price > 0) {
-                symbolMap[sym].forEach(row => updateRowWithPrice(row, price));
+                symbolMap[sym].forEach(row => updateRowWithPrice(row, price, src));
             } else {
                 symbolMap[sym].forEach(row => {
                     const cell = row.querySelector('.curr-price-val');
@@ -521,7 +522,7 @@ async function fetchAllLivePrices() {
     }
 }
 
-function updateRowWithPrice(row, price) {
+function updateRowWithPrice(row, price, src) {
     const qty        = parseFloat(row.dataset.qty)        || 0;
     const buyPrice   = parseFloat(row.dataset.buy)        || 0;
     const investment = parseFloat(row.dataset.investment) || (qty * buyPrice);
@@ -537,7 +538,14 @@ function updateRowWithPrice(row, price) {
     const priceCell = row.querySelector('.curr-price-val');
     if (priceCell) {
         priceCell.style.color = color;
-        priceCell.innerHTML = '₹' + fmt(price, 2);
+        var srcBadge = '';
+        if (src) {
+            var isDhan = src === 'Dhan';
+            var badgeBg = isDhan ? '#eef2ff' : '#f1f5f9';
+            var badgeColor = isDhan ? '#4338ca' : '#64748b';
+            srcBadge = '<br><span style="font-size:9px;font-weight:400;background:' + badgeBg + ';color:' + badgeColor + ';padding:1px 5px;border-radius:8px;">' + src + '</span>';
+        }
+        priceCell.innerHTML = '₹' + fmt(price, 2) + srcBadge;
     }
 
     // Current Value cell

@@ -88,7 +88,7 @@
                 <div id="livePriceBar" class="d-flex align-items-baseline gap-3 d-none">
                     <span id="livePriceVal" class="fw-bold" style="font-size:22px;color:#1e293b;">—</span>
                     <span id="livePriceChg" class="badge rounded-pill px-3 py-1" style="font-size:12px;background:#e2e8f0;color:#475569;">—</span>
-                    <span class="ms-auto badge" style="background:#eef2ff;color:#4338ca;font-size:11px;border-radius:6px;padding:4px 8px;">NSE</span>
+                    <span id="livePriceSrc" class="ms-auto badge" style="background:#eef2ff;color:#4338ca;font-size:11px;border-radius:6px;padding:4px 8px;">NSE</span>
                 </div>
                 <!-- Hint row (entry / target / SL) -->
                 <div id="hintRow" class="d-flex gap-3 mt-2 d-none" style="font-size:12px;color:#64748b;">
@@ -464,6 +464,19 @@ function fetchLivePrice(symbol, keepTarget, keepSL) {
             if (spinner) spinner.classList.add('d-none');
             if (data.success && data.data && parseFloat(data.data.current_price) > 0) {
                 populatePriceDefaults(data.data.current_price, keepTarget, keepSL);
+                // Update data source badge
+                var srcEl = document.getElementById('livePriceSrc');
+                if (srcEl && data.data.data_source) {
+                    var ds = data.data.data_source;
+                    srcEl.textContent = ds;
+                    if (ds === 'Dhan') {
+                        srcEl.style.background = '#eef2ff'; srcEl.style.color = '#4338ca';
+                    } else if (ds === 'live') {
+                        srcEl.style.background = '#dcfce7'; srcEl.style.color = '#16a34a';
+                    } else {
+                        srcEl.style.background = '#f1f5f9'; srcEl.style.color = '#64748b';
+                    }
+                }
             } else {
                 if (bar) { bar.classList.remove('d-none'); document.getElementById('livePriceVal').textContent = 'Price unavailable'; }
             }
@@ -635,6 +648,20 @@ function prePopulateForm(urlParams) {
                         chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
                         chgEl.style.background = chg >= 0 ? '#dcfce7' : '#fee2e2';
                         chgEl.style.color = chg >= 0 ? '#16a34a' : '#dc2626';
+                    }
+
+                    // Data source badge
+                    var srcEl = document.getElementById('livePriceSrc');
+                    if (srcEl && data.data.data_source) {
+                        var ds = data.data.data_source;
+                        srcEl.textContent = ds;
+                        if (ds === 'Dhan') {
+                            srcEl.style.background = '#eef2ff'; srcEl.style.color = '#4338ca';
+                        } else if (ds === 'live') {
+                            srcEl.style.background = '#dcfce7'; srcEl.style.color = '#16a34a';
+                        } else {
+                            srcEl.style.background = '#f1f5f9'; srcEl.style.color = '#64748b';
+                        }
                     }
                 }
                 // Override with signal-provided entry price

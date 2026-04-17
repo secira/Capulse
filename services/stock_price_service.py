@@ -1,6 +1,6 @@
 """
 Stock Price Service - Get real prices from multiple sources
-Priority: Perplexity > yfinance > NSE > Fallback
+Priority: Dhan > Perplexity > yfinance > NSE > Fallback
 """
 
 import logging
@@ -13,10 +13,11 @@ class StockPriceService:
     def get_real_price(self, symbol: str, perplexity_price: Optional[float] = None) -> Dict[str, Any]:
         """
         Get real stock price with priority fallback:
-        1. Perplexity-provided price (real-time web data)
-        2. yfinance (Yahoo Finance - reliable Indian stock data)
-        3. NSE API (if available)
-        4. Fallback demo data
+        1. Dhan OHLC (direct exchange data, most reliable)
+        2. Perplexity-provided price (real-time web data)
+        3. yfinance (Yahoo Finance - reliable Indian stock data)
+        4. NSE API (if available)
+        5. Fallback demo data
         
         Args:
             symbol: NSE stock symbol (e.g., 'RELIANCE', 'TCS')
@@ -26,21 +27,35 @@ class StockPriceService:
             Dict with 'price', 'source', and 'company_name'
         """
         
-        # PRIORITY 1: Use Perplexity price if available
+        # PRIORITY 1: Try Dhan OHLC
+        try:
+            from services.dhan_service import get_eq_quote
+            dhan_data = get_eq_quote(symbol)
+            if dhan_data and dhan_data.get("ltp", 0) > 0:
+                price = float(dhan_data["ltp"])
+                self.logger.info(f"{symbol}: Using Dhan price: ₹{price}")
+                return {
+                    'price': price,
+                    'source': 'Dhan',
+                    'company_name': None
+                }
+        except Exception as e:
+            self.logger.debug(f"{symbol}: Dhan lookup skipped: {e}")
+
+        # PRIORITY 2: Use Perplexity price if available
         if perplexity_price and perplexity_price > 0:
             self.logger.info(f"{symbol}: Using Perplexity real-time price: ₹{perplexity_price}")
             return {
                 'price': perplexity_price,
                 'source': 'Perplexity Real-time',
-                'company_name': None  # Will be filled from Perplexity data
+                'company_name': None
             }
         
-        # PRIORITY 2: Try yfinance (Yahoo Finance)
+        # PRIORITY 3: Try yfinance (Yahoo Finance)
         try:
             import yfinance as yf
-            ticker = yf.Ticker(f"{symbol}.NS")  # NSE stocks end with .NS
+            ticker = yf.Ticker(f"{symbol}.NS")
             
-            # Get most recent close price
             hist = ticker.history(period="1d")
             if not hist.empty:
                 price = float(hist['Close'].iloc[-1])
@@ -54,7 +69,7 @@ class StockPriceService:
         except Exception as e:
             self.logger.warning(f"{symbol}: yfinance failed: {str(e)}")
         
-        # PRIORITY 3: Try NSE API
+        # PRIORITY 4: Try NSE API
         try:
             from services.nse_service import nse_service
             live_quote = nse_service.get_stock_quote(symbol, delayed_minutes=5)

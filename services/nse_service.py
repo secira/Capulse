@@ -54,6 +54,39 @@ class NSEService:
         Returns:
             Dictionary with stock data - ALWAYS includes a price
         """
+        # PRIORITY 0: Try Dhan OHLC (most reliable, direct exchange data)
+        try:
+            from services.dhan_service import get_eq_quote
+            dhan_data = get_eq_quote(symbol)
+            if dhan_data and dhan_data.get("ltp", 0) > 0:
+                ltp = float(dhan_data["ltp"])
+                prev_close = float(dhan_data.get("close", 0))
+                change_amt = float(dhan_data.get("change", ltp - prev_close if prev_close else 0))
+                change_pct = float(dhan_data.get("pct_change",
+                                   (change_amt / prev_close * 100) if prev_close else 0))
+                self.logger.info(f"{symbol}: Dhan price ₹{ltp}")
+                return {
+                    "symbol": symbol,
+                    "company_name": symbol,
+                    "current_price": ltp,
+                    "previous_close": prev_close,
+                    "change_amount": change_amt,
+                    "change_percent": change_pct,
+                    "volume": 0,
+                    "day_high": float(dhan_data.get("high", ltp)),
+                    "day_low": float(dhan_data.get("low", ltp)),
+                    "week_52_high": 0.0,
+                    "week_52_low": 0.0,
+                    "market_cap": None,
+                    "pe_ratio": None,
+                    "timestamp": dt.datetime.now(timezone.utc),
+                    "data_delay_minutes": 0,
+                    "real_timestamp": dt.datetime.now(timezone.utc),
+                    "data_source": "Dhan",
+                }
+        except Exception as e:
+            self.logger.debug(f"{symbol}: Dhan lookup skipped: {e}")
+
         try:
             # First check market status to decide if we should expect live prices
             market_status = self.get_market_status()
@@ -105,24 +138,82 @@ class NSEService:
     
     def get_multiple_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
         """
-        Get quotes for multiple stocks in parallel using a thread pool.
+        Get quotes for multiple stocks, preferring a single Dhan batch call
+        when security IDs are available, with per-symbol fallbacks for the rest.
         Args:
             symbols: List of NSE stock symbols
         Returns:
-            List of stock data dictionaries (order may differ from input)
+            List of stock data dictionaries
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        quotes = []
-        max_workers = min(10, len(symbols)) if symbols else 1
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(self.get_stock_quote, sym): sym for sym in symbols}
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-                    if result:
-                        quotes.append(result)
-                except Exception:
-                    pass
+        if not symbols:
+            return []
+
+        quotes: List[Dict[str, Any]] = []
+        remaining: List[str] = list(symbols)
+
+        # ── PRIORITY 0: Dhan batch call ──────────────────────────────────────
+        try:
+            from services.dhan_service import get_security_id as _get_security_id, get_nifty50_stock_quotes
+            import datetime as _dt
+            from datetime import timezone as _tz
+
+            sec_id_map = {}
+            for sym in symbols:
+                sid = _get_security_id(sym)
+                if sid is not None:
+                    sec_id_map[sym] = sid
+
+            if sec_id_map:
+                batch = get_nifty50_stock_quotes(sec_id_map)
+                found: List[str] = []
+                for sym, data in batch.items():
+                    ltp = float(data.get("ltp", 0))
+                    if ltp > 0:
+                        prev_close = float(data.get("close", 0))
+                        change_amt = float(data.get("change", ltp - prev_close if prev_close else 0))
+                        change_pct = float(data.get("pct_change",
+                                           (change_amt / prev_close * 100) if prev_close else 0))
+                        quotes.append({
+                            "symbol": sym,
+                            "company_name": sym,
+                            "current_price": ltp,
+                            "previous_close": prev_close,
+                            "change_amount": change_amt,
+                            "change_percent": change_pct,
+                            "volume": 0,
+                            "day_high": float(data.get("high", ltp)),
+                            "day_low": float(data.get("low", ltp)),
+                            "week_52_high": 0.0,
+                            "week_52_low": 0.0,
+                            "market_cap": None,
+                            "pe_ratio": None,
+                            "timestamp": _dt.datetime.now(_tz.utc),
+                            "data_delay_minutes": 0,
+                            "real_timestamp": _dt.datetime.now(_tz.utc),
+                            "data_source": "Dhan",
+                        })
+                        found.append(sym)
+                remaining = [s for s in symbols if s not in found]
+                self.logger.info(
+                    f"get_multiple_quotes: Dhan batch returned {len(found)}/{len(symbols)} symbols"
+                )
+        except Exception as e:
+            self.logger.debug(f"get_multiple_quotes: Dhan batch skipped: {e}")
+
+        # ── FALLBACK: per-symbol calls for anything Dhan didn't cover ────────
+        if remaining:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            max_workers = min(10, len(remaining))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {executor.submit(self.get_stock_quote, sym): sym for sym in remaining}
+                for future in as_completed(futures):
+                    try:
+                        result = future.result()
+                        if result:
+                            quotes.append(result)
+                    except Exception:
+                        pass
+
         return quotes
     
     def get_market_indices(self) -> Dict[str, Any]:
