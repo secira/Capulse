@@ -767,11 +767,11 @@ function refreshAnalysis() {
         var oi = d.oi_analysis || {};
         setTrafficLight('oiTraffic', ls.oi || 'fail', oi.oi_signal);
         document.getElementById('oiDiff').textContent = ((oi.oi_diff || 0) * 100).toFixed(2) + '%';
-        document.getElementById('pcrVal').textContent = oi.pcr || '—';
+        document.getElementById('pcrVal').textContent = (oi.pcr !== undefined && oi.pcr !== null) ? oi.pcr : '—';
 
         // ATM PCR with colour-coded signal
         var atmPcrEl = document.getElementById('atmPcrVal');
-        if (oi.atm_pcr !== undefined) {
+        if (oi.atm_pcr !== undefined && oi.atm_pcr !== null) {
             var atmPcrColor = oi.atm_pcr > 1.2 ? '#22c55e' : (oi.atm_pcr < 0.8 ? '#ef4444' : '#f59e0b');
             atmPcrEl.innerHTML = '<span style="color:' + atmPcrColor + ';font-weight:700">' + oi.atm_pcr + '</span>';
         }

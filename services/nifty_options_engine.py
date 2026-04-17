@@ -519,7 +519,7 @@ class NiftyOptionsEngine:
             ce_pain = sum(max(0, test_s - s) * chain.get(f'{s}CE', {}).get('oi', 0) for s in strikes)
             pe_pain = sum(max(0, s - test_s) * chain.get(f'{s}PE', {}).get('oi', 0) for s in strikes)
             pain[test_s] = ce_pain + pe_pain
-        max_pain_strike = max(pain, key=pain.get) if pain else atm
+        max_pain_strike = min(pain, key=pain.get) if pain else atm
         max_pain_dist   = round((max_pain_strike - spot) / spot * 100, 2) if spot else 0
 
         # ── Top OI Strikes (resistance = high CE OI, support = high PE OI) ──

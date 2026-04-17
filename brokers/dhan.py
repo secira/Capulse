@@ -225,6 +225,28 @@ class DhanBroker(BrokerBase):
             oc = oc_data.get("oc", {})
             spot = float(oc_data.get("last_price", 0))
 
+            # Log an ATM-area strike's market_data to verify OI field names and values
+            if oc:
+                atm_approx = round(spot / 50) * 50
+                sample_key = None
+                for sk in oc:
+                    try:
+                        if abs(float(sk) - atm_approx) <= 200:
+                            sample_key = sk
+                            break
+                    except (ValueError, TypeError):
+                        pass
+                if not sample_key:
+                    sample_key = next(iter(oc))
+                sample_opts   = oc[sample_key]
+                ce_sample = sample_opts.get('ce', {})
+                pe_sample = sample_opts.get('pe', {})
+                logger.debug(
+                    f"Dhan OC ATM sample strike={sample_key} "
+                    f"ce_oi={ce_sample.get('oi',0):,} pe_oi={pe_sample.get('oi',0):,} "
+                    f"ce_ltp={ce_sample.get('last_price',0)} pe_ltp={pe_sample.get('last_price',0)}"
+                )
+
             if not oc:
                 logger.warning(f"Dhan option chain: empty 'oc' in response for {symbol} expiry={expiry}")
                 return []
@@ -233,29 +255,33 @@ class DhanBroker(BrokerBase):
             for strike_str, options in oc.items():
                 try:
                     strike = int(float(strike_str))
-                    call_md = options.get("call_options", {}).get("market_data", {})
-                    put_md  = options.get("put_options",  {}).get("market_data", {})
-                    call_od = options.get("call_options", {}).get("option_data", {})
-                    put_od  = options.get("put_options",  {}).get("option_data", {})
-                    # Dhan v2 API returns OI as "oi"; also accept "open_interest" for safety
+                    # Dhan v2 option chain actual structure:
+                    # options = {"ce": {last_price, oi, implied_volatility, volume, ...},
+                    #            "pe": {last_price, oi, implied_volatility, volume, ...}}
+                    call_md = options.get("ce", {})
+                    put_md  = options.get("pe",  {})
+                    call_oi      = int(call_md.get("oi", 0))
+                    put_oi       = int(put_md.get("oi", 0))
+                    call_prev_oi = int(call_md.get("previous_oi", call_oi))
+                    put_prev_oi  = int(put_md.get("previous_oi",  put_oi))
                     chain.append({
                         "strike":           strike,
-                        "call_ltp":         float(call_md.get("ltp", 0)),
-                        "put_ltp":          float(put_md.get("ltp", 0)),
-                        "call_oi":          int(call_md.get("oi", call_md.get("open_interest", 0))),
-                        "put_oi":           int(put_md.get("oi", put_md.get("open_interest", 0))),
-                        "call_iv":          float(call_md.get("iv", 0)),
-                        "put_iv":           float(put_md.get("iv", 0)),
+                        "call_ltp":         float(call_md.get("last_price", 0)),
+                        "put_ltp":          float(put_md.get("last_price", 0)),
+                        "call_oi":          call_oi,
+                        "put_oi":           put_oi,
+                        "call_iv":          float(call_md.get("implied_volatility", 0)),
+                        "put_iv":           float(put_md.get("implied_volatility", 0)),
                         "call_volume":      int(call_md.get("volume", 0)),
                         "put_volume":       int(put_md.get("volume", 0)),
-                        "call_bid":         float(call_md.get("best_bid_price", 0)),
-                        "call_ask":         float(call_md.get("best_ask_price", 0)),
-                        "put_bid":          float(put_md.get("best_bid_price", 0)),
-                        "put_ask":          float(put_md.get("best_ask_price", 0)),
-                        "call_oi_change":   int(call_md.get("oi_change", call_md.get("change_in_oi", 0))),
-                        "put_oi_change":    int(put_md.get("oi_change", put_md.get("change_in_oi", 0))),
-                        "call_security_id": call_od.get("security_id"),
-                        "put_security_id":  put_od.get("security_id"),
+                        "call_bid":         float(call_md.get("top_bid_price", 0)),
+                        "call_ask":         float(call_md.get("top_ask_price", 0)),
+                        "put_bid":          float(put_md.get("top_bid_price", 0)),
+                        "put_ask":          float(put_md.get("top_ask_price", 0)),
+                        "call_oi_change":   call_oi - call_prev_oi,
+                        "put_oi_change":    put_oi  - put_prev_oi,
+                        "call_security_id": call_md.get("security_id"),
+                        "put_security_id":  put_md.get("security_id"),
                         "spot":             spot,
                         "expiry":           expiry,
                     })
