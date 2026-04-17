@@ -1006,7 +1006,7 @@ function loadSignalHistory() {
             return;
         }
         var html = '<div style="max-height:300px;overflow-y:auto"><table class="signal-history-table"><thead><tr>';
-        html += '<th>Time</th><th>Event</th><th>Direction</th><th>Confidence</th><th>Spot</th><th>ATM</th><th>Alert</th>';
+        html += '<th>Time</th><th>Event</th><th>Direction</th><th>Confidence</th><th>Spot</th><th>ATM</th><th>Alert</th><th>Source</th>';
         html += '</tr></thead><tbody>';
         res.data.forEach(function(s) {
             var dirClass = s.direction === 'BULLISH' ? 'badge-bullish' : s.direction === 'BEARISH' ? 'badge-bearish' : 'badge-neutral';
@@ -1019,6 +1019,18 @@ function loadSignalHistory() {
             } else {
                 eventTag = '<span class="signal-event-scan">' + s.entry_mode + '</span>';
             }
+            var srcRaw = (s.data_source || '').toLowerCase();
+            var srcLabel, srcStyle;
+            if (srcRaw.indexOf('dhan') !== -1 || srcRaw.indexOf('truedata') !== -1 || srcRaw.indexOf('broker') !== -1) {
+                srcLabel = s.data_source;
+                srcStyle = 'background:#dcfce7;color:#15803d;border:1px solid #bbf7d0';
+            } else if (srcRaw.indexOf('nse') !== -1) {
+                srcLabel = s.data_source;
+                srcStyle = 'background:#fef9c3;color:#a16207;border:1px solid #fde68a';
+            } else {
+                srcLabel = s.data_source || 'estimated';
+                srcStyle = 'background:#fee2e2;color:#b91c1c;border:1px solid #fecaca';
+            }
             html += '<tr>';
             html += '<td style="white-space:nowrap">' + s.created_at + '</td>';
             html += '<td>' + eventTag + '</td>';
@@ -1027,6 +1039,7 @@ function loadSignalHistory() {
             html += '<td>₹' + fmt(s.spot_price) + '</td>';
             html += '<td>' + s.atm_strike + '</td>';
             html += '<td><span class="alert-badge ' + (s.alert_sent ? 'alert-sent' : 'alert-none') + '">' + (s.alert_sent ? 'SENT' : '—') + '</span></td>';
+            html += '<td><span style="' + srcStyle + ';padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap">' + srcLabel + '</span></td>';
             html += '</tr>';
         });
         html += '</tbody></table></div>';
