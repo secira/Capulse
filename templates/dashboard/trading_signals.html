@@ -1400,16 +1400,19 @@ function updateLiveIndicator() {
 }
 
 function isMarketHours() {
+    // Always evaluate in IST regardless of browser timezone
     const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const timeInMinutes = hours * 60 + minutes;
-    
-    // Market hours: 9:15 AM to 3:30 PM (IST)
-    const marketOpen = 9 * 60 + 15; // 9:15 AM
-    const marketClose = 15 * 60 + 30; // 3:30 PM
-    
-    return timeInMinutes >= marketOpen && timeInMinutes <= marketClose;
+    const istStr = now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+    const ist = new Date(istStr);
+    const timeInMinutes = ist.getHours() * 60 + ist.getMinutes();
+
+    // Market hours: 9:15 AM to 3:30 PM IST, Mon–Fri
+    const marketOpen  = 9 * 60 + 15;
+    const marketClose = 15 * 60 + 30;
+    const dayOfWeek   = ist.getDay(); // 0=Sun, 6=Sat
+
+    return dayOfWeek >= 1 && dayOfWeek <= 5 &&
+           timeInMinutes >= marketOpen && timeInMinutes <= marketClose;
 }
 
 // Keyboard shortcuts for quick actions

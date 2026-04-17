@@ -6,10 +6,17 @@ from flask_login import login_required, current_user
 from app import app, db
 from models import DailyTradingSignal, PricingPlan
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import json
 import time
+
+_IST = ZoneInfo('Asia/Kolkata')
+
+def _today_ist() -> date:
+    """Return today's date in Indian Standard Time (UTC+5:30)."""
+    return datetime.now(_IST).date()
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +218,7 @@ def _get_live_nifty50_data(plex_nifty50: dict = None) -> list:
             plex_nifty50 = {}
 
     import random as _random, hashlib as _hashlib
-    day_seed = int(_hashlib.md5(date.today().isoformat().encode()).hexdigest(), 16) % (2 ** 31)
+    day_seed = int(_hashlib.md5(_today_ist().isoformat().encode()).hexdigest(), 16) % (2 ** 31)
     rng = _random.Random(day_seed)
 
     result = []
@@ -274,9 +281,9 @@ def dashboard_daily_signals():
         try:
             selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
         except ValueError:
-            selected_date = date.today()
+            selected_date = _today_ist()
     else:
-        selected_date = date.today()
+        selected_date = _today_ist()
 
     query = DailyTradingSignal.query.filter(DailyTradingSignal.signal_date == selected_date)
     if asset_type_filter != 'all':
@@ -288,7 +295,7 @@ def dashboard_daily_signals():
 
     signals = query.order_by(DailyTradingSignal.signal_number.asc()).all()
 
-    date_range = [date.today() - timedelta(days=i) for i in range(30)]
+    date_range = [_today_ist() - timedelta(days=i) for i in range(30)]
     summary_stats = calculate_daily_summary(selected_date)
 
     # ── Market data: Dhan (indices) + Perplexity (movers + treemap), parallel ──
@@ -591,9 +598,9 @@ def daily_signals_api():
         try:
             selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
         except ValueError:
-            selected_date = date.today()
+            selected_date = _today_ist()
     else:
-        selected_date = date.today()
+        selected_date = _today_ist()
 
     query = DailyTradingSignal.query.filter(DailyTradingSignal.signal_date == selected_date)
     if asset_type != 'all':
@@ -647,8 +654,8 @@ def daily_signals_analysis():
     start_date_str = request.args.get('start_date')
     end_date_str   = request.args.get('end_date')
 
-    start_date = date.today() - timedelta(days=30)
-    end_date   = date.today()
+    start_date = _today_ist() - timedelta(days=30)
+    end_date   = _today_ist()
 
     if start_date_str:
         try:

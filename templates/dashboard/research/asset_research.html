@@ -674,7 +674,11 @@ function displayIScoreResult(data) {
         
         if (document.getElementById('dataTimestamp') && marketData.timestamp) {
             const date = new Date(marketData.timestamp);
-            document.getElementById('dataTimestamp').textContent = 'Data as of: ' + date.toLocaleString();
+            document.getElementById('dataTimestamp').textContent = 'Data as of: ' + date.toLocaleString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            }) + ' IST';
         }
     } else {
         console.log('No market_data in response');
@@ -1933,9 +1937,10 @@ function formatDetailValue(value) {
                 // Add a soft banner so the user knows it's stored data
                 const cachedAt = data.cached_at
                     ? new Date(data.cached_at).toLocaleString('en-IN', {
+                          timeZone: 'Asia/Kolkata',
                           day: '2-digit', month: 'short', year: 'numeric',
                           hour: '2-digit', minute: '2-digit'
-                      })
+                      }) + ' IST'
                     : 'earlier';
                 if (hint) {
                     hint.innerHTML =

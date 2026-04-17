@@ -1655,15 +1655,17 @@ def dashboard_trading_signals():
         flash('Trading signals are available for Target Plus, Target Pro, and HNI subscribers only.', 'warning')
         return redirect(url_for('pricing'))
     
-    # Get date filter parameter
+    # Get date filter parameter — default to today in Indian Standard Time
+    from zoneinfo import ZoneInfo as _ZI
+    _IST = _ZI('Asia/Kolkata')
     selected_date_str = request.args.get('date')
     if selected_date_str:
         try:
             selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
         except ValueError:
-            selected_date = datetime.utcnow().date()
+            selected_date = datetime.now(_IST).date()
     else:
-        selected_date = datetime.utcnow().date()
+        selected_date = datetime.now(_IST).date()
     
     # Get active trading signals from admin
     try:
