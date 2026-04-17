@@ -118,6 +118,9 @@
                                         </div>
                                     </div>
                                     <div id="recommendationBadge" class="mb-2"></div>
+                                    <div class="mb-2" id="dataSourceBadgeWrap" style="display:none">
+                                        <span id="iscoreDataSourceBadge" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;display:inline-block"></span>
+                                    </div>
                                     <p class="text-muted small mb-0" id="resultSummary"></p>
                                 </div>
                                 
@@ -708,7 +711,27 @@ function displayIScoreResult(data) {
     }
     
     document.getElementById('resultSymbol').textContent = data.symbol;
-    
+
+    const dsBadgeWrap = document.getElementById('dataSourceBadgeWrap');
+    const dsBadge = document.getElementById('iscoreDataSourceBadge');
+    if (dsBadge && dsBadgeWrap) {
+        const src = data.data_source || '';
+        let label, bg, color;
+        if (src === 'Dhan') {
+            label = '● Live: Dhan'; bg = '#dcfce7'; color = '#16a34a';
+        } else if (src === 'yfinance') {
+            label = '● Fallback: yfinance'; bg = '#fef3c7'; color = '#d97706';
+        } else if (src) {
+            label = '● Live: ' + src; bg = '#dcfce7'; color = '#16a34a';
+        } else {
+            label = '⚠ Estimated'; bg = '#fee2e2'; color = '#dc2626';
+        }
+        dsBadge.textContent = label;
+        dsBadge.style.background = bg;
+        dsBadge.style.color = color;
+        dsBadgeWrap.style.display = 'block';
+    }
+
     const iscore = Math.round(data.iscore || 0);
     document.getElementById('iscoreValue').textContent = iscore;
     

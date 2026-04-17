@@ -21,6 +21,18 @@ def fetch_historical_ohlcv(symbol: str, days: int = 120) -> pd.DataFrame:
       1. Dhan API  (primary — reliable, paid)
       2. yfinance  (fallback — free, may be rate-limited in cloud)
     """
+    df, _ = fetch_historical_ohlcv_with_source(symbol, days)
+    return df
+
+
+def fetch_historical_ohlcv_with_source(symbol: str, days: int = 120) -> tuple:
+    """
+    Same as fetch_historical_ohlcv but also returns the source name.
+
+    Returns:
+        (DataFrame, source_name) where source_name is one of:
+          'Dhan', 'yfinance', or '' (empty on failure)
+    """
     df = pd.DataFrame()
 
     # ── Priority 1: Dhan ──────────────────────────────────────────────
@@ -29,7 +41,7 @@ def fetch_historical_ohlcv(symbol: str, days: int = 120) -> pd.DataFrame:
         df_dhan = get_stock_historical_ohlcv(symbol=symbol, days=days)
         if df_dhan is not None and not df_dhan.empty and len(df_dhan) >= 10:
             logger.info(f"fetch_historical_ohlcv({symbol}): {len(df_dhan)} rows from Dhan")
-            return df_dhan
+            return df_dhan, 'Dhan'
     except Exception as e:
         logger.warning(f"fetch_historical_ohlcv({symbol}): Dhan failed — {e}")
 
@@ -49,7 +61,7 @@ def fetch_historical_ohlcv(symbol: str, days: int = 120) -> pd.DataFrame:
 
         if df is None or df.empty:
             logger.warning(f"fetch_historical_ohlcv({symbol}): no data from yfinance either")
-            return pd.DataFrame()
+            return pd.DataFrame(), ''
 
         df = df.rename(columns={
             'Open': 'open', 'High': 'high', 'Low': 'low',
@@ -59,11 +71,11 @@ def fetch_historical_ohlcv(symbol: str, days: int = 120) -> pd.DataFrame:
         df = df.dropna(subset=['close'])
         df = df.tail(days).reset_index(drop=True)
         logger.info(f"fetch_historical_ohlcv({symbol}): {len(df)} rows from yfinance (fallback)")
-        return df
+        return df, 'yfinance'
 
     except Exception as e:
         logger.error(f"fetch_historical_ohlcv({symbol}): yfinance error — {e}")
-        return pd.DataFrame()
+        return pd.DataFrame(), ''
 
 
 def fetch_market_index_history(symbol: str = '^NSEI', days: int = 60) -> pd.DataFrame:

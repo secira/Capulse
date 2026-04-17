@@ -94,6 +94,7 @@ class IScoreState(TypedDict):
     audit_trail: List[Dict]
     error: Optional[str]
     step: str
+    hist_data_source: str
 
 
 class LangGraphIScoreEngine:
@@ -471,11 +472,11 @@ class LangGraphIScoreEngine:
         symbol = state['symbol']
 
         try:
-            from services.iscore.data_fetcher import fetch_historical_ohlcv
+            from services.iscore.data_fetcher import fetch_historical_ohlcv_with_source
             from services.iscore.indicators import compute_all_indicators
             from services.iscore.scoring import compute_quant_score
 
-            df = fetch_historical_ohlcv(symbol, days=120)
+            df, hist_src = fetch_historical_ohlcv_with_source(symbol, days=120)
             if df is not None and len(df) >= 15:
                 indicators = compute_all_indicators(df)
                 if indicators:
@@ -498,6 +499,7 @@ class LangGraphIScoreEngine:
                         'price_change_pct': price['change_pct'],
                         'market_status': 'live',
                         'raw_indicators': indicators,
+                        'hist_data_source': hist_src,
                         'quantitative_score': min(100, max(0, quant['composite'])),
                         'quantitative_details': {
                             'rsi': {'value': rsi_val, 'signal': rsi_signal, 'score': quant['rsi_score']},
@@ -522,7 +524,7 @@ class LangGraphIScoreEngine:
                             },
                         },
                         'quantitative_sources': [
-                            {'name': 'Historical OHLCV (yfinance)', 'type': 'market_data', 'coverage': f'{len(df)} days'},
+                            {'name': f'Historical OHLCV ({hist_src or "unknown"})', 'type': 'market_data', 'coverage': f'{len(df)} days'},
                             {'name': f'RSI(14) Wilder', 'type': 'technical', 'coverage': f'{rsi_val}'},
                             {'name': f'EMA(9/20/50)', 'type': 'technical', 'coverage': ema_signal},
                             {'name': 'SuperTrend (ATR)', 'type': 'trend_following', 'coverage': indicators['supertrend_direction']},
@@ -3016,6 +3018,7 @@ class LangGraphIScoreEngine:
             'confidence_level': 'Medium', 'score_factors': [],
             'config': {}, 'evidence': [], 'audit_trail': [],
             'error': None, 'step': 'start',
+            'hist_data_source': '',
         }
 
         try:
@@ -3113,6 +3116,7 @@ class LangGraphIScoreEngine:
                 },
                 'cached': result.get('cache_hit', False),
                 'timestamp': datetime.utcnow().isoformat(),
+                'data_source': result.get('hist_data_source', 'yfinance'),
             }
 
         except Exception as e:
