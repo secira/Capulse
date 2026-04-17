@@ -371,12 +371,14 @@ class User(UserMixin, db.Model):
         return self.username
     
     def can_access_menu(self, menu_item):
-        """Check if user can access specific menu item based on pricing plan"""
-        if self.pricing_plan == PricingPlan.FREE:
-            # Starter Plan: Dashboard, Live Market Pulse, Portfolio Analysis + Portfolio Hub (manual only)
-            return menu_item in ['dashboard', 'dashboard_daily_signals', 'dashboard_my_portfolio', 'portfolio_hub']
-        # Growth, Pro, Elite: full access
-        return True
+        """Check if user can access a specific menu item.
+
+        Under the 30-day full-access trial model this simply mirrors
+        has_full_access() — paid users and trial-active FREE users get
+        everything; expired-trial FREE users get nothing (and are also
+        redirected to /pricing by the check_trial_expiry hook).
+        """
+        return self.has_full_access()
 
     def get_max_broker_connections(self):
         """Return max number of broker connections allowed for the user's plan.
