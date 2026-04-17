@@ -624,6 +624,79 @@ def liveness_check():
 # Import routes
 import routes
 
+# ── FREE PLAN ACCESS GUARD ────────────────────────────────────────────────────
+# Definitive whitelist of endpoints FREE (Starter) users may visit.
+# Everything else redirects to /pricing.  Admins are always exempt.
+_FREE_PLAN_ALLOWED: frozenset = frozenset({
+    # Infrastructure
+    'static', 'health_check', 'liveness_check',
+    # Public / marketing pages
+    'index', 'about', 'services', 'algo_trading', 'algo_trading_service',
+    'blog', 'blog_post', 'blog_post_by_slug', 'pricing', 'careers',
+    'news', 'partners', 'for_brokers', 'contact',
+    'trading_signals', 'daily_signals_feature', 'live_market',
+    # Auth (own app + Google OAuth)
+    'login', 'register', 'logout',
+    'google_auth.login', 'google_auth.callback', 'google_auth.logout',
+    # OTP / mobile auth
+    'send_otp', 'verify_otp', 'resend_otp', 'mobile_login',
+    # Payments / upgrades (FREE users must be able to subscribe)
+    'subscribe', 'verify_payment', 'payment_success', 'payment_failed',
+    'upgrade_plan', 'razorpay_webhook',
+    # Settings & account
+    'account_profile', 'update_profile', 'account_settings',
+    'account_billing', 'change_password', 'update_notification_settings',
+    # ── ALLOWED DASHBOARD FEATURES ─────────────────────────────────────────
+    # 1. Main dashboard overview
+    'dashboard',
+    'api_data_quality',      # freshness banner on dashboard
+    'api_realtime_indices',  # live index ticker on dashboard
+    # 2. Live Market Pulse (full access for FREE)
+    'dashboard_daily_signals', 'daily_signals_analysis', 'daily_signal_detail',
+    'daily_signals_api',
+    'market_pulse_commentary', 'market_pulse_query', 'market_pulse_tts',
+    # 3. Portfolio Analysis (manual entry, no broker connection needed)
+    'dashboard_my_portfolio',
+    'api_portfolio', 'api_portfolio_unified', 'api_portfolio_by_asset_type',
+})
+
+@app.before_request
+def enforce_free_plan_access():
+    """Block FREE-plan users from accessing any endpoint not in the whitelist."""
+    from flask import request, redirect, url_for, flash
+    from flask_login import current_user
+
+    endpoint = request.endpoint
+    if not endpoint:
+        return
+
+    # Unauthenticated users are handled by @login_required on each route.
+    if not current_user.is_authenticated:
+        return
+
+    # Admins always have full access.
+    if getattr(current_user, 'is_admin', False):
+        return
+
+    # Only restrict FREE plan.
+    try:
+        plan = current_user.pricing_plan.value
+    except Exception:
+        return
+
+    if plan != 'FREE':
+        return
+
+    if endpoint not in _FREE_PLAN_ALLOWED:
+        flash(
+            'This feature is available on the Growth Plan and above. '
+            'Upgrade to unlock Research Co-Pilot, F&O Analysis, Trade Now, '
+            'Behavioural AI, and all broker connections.',
+            'warning'
+        )
+        return redirect(url_for('pricing'))
+# ── END FREE PLAN ACCESS GUARD ────────────────────────────────────────────────
+
 @app.context_processor
 def inject_tenant_config():
     try:
