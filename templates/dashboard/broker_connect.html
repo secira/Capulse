@@ -55,10 +55,22 @@
         </div>
         <div class="col-md-5 text-md-end">
           {% if zerodha and zerodha.account and zerodha.account.connection_status == 'connected' %}
-            <div class="d-flex gap-2 justify-content-md-end flex-wrap">
+            {% set hours_since = ((now - zerodha.account.last_connected).total_seconds() // 3600) if zerodha.account.last_connected else 999 %}
+            <div class="d-flex gap-2 justify-content-md-end flex-wrap align-items-center">
+              {% if hours_since >= 20 %}
+              <div class="alert alert-warning py-1 px-2 mb-0 small d-flex align-items-center gap-1">
+                <i class="fas fa-exclamation-triangle"></i>
+                Token expires daily — re-login needed
+              </div>
+              {% endif %}
               <a href="{{ url_for('dashboard_live_portfolio') }}" class="btn btn-primary">
                 <i class="fas fa-chart-line me-2"></i>View Portfolio
               </a>
+              <form method="POST" action="{{ url_for('broker_oauth.reconnect_zerodha') }}" class="d-inline">
+                <button type="submit" class="btn btn-outline-warning" title="Zerodha tokens expire daily — click to re-login">
+                  <i class="fas fa-sync me-1"></i>Re-login
+                </button>
+              </form>
               <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug='zerodha') }}" class="d-inline">
                 <button type="submit" class="btn btn-outline-danger">
                   <i class="fas fa-unlink me-1"></i>Disconnect
@@ -115,11 +127,20 @@
                     <i class="fas fa-check me-1"></i>Connected
                   </span>
                 </div>
-                <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug=slug) }}">
-                  <button type="submit" class="btn btn-outline-danger btn-sm w-100">
-                    <i class="fas fa-unlink me-1"></i>Disconnect
-                  </button>
-                </form>
+                <div class="d-flex gap-1">
+                  {% if slug == 'angel_broking' %}
+                  <form method="POST" action="{{ url_for('broker_oauth.reconnect_angel') }}" class="flex-fill">
+                    <button type="submit" class="btn btn-outline-warning btn-sm w-100" title="Auto-refresh JWT using stored TOTP (no PIN re-entry)">
+                      <i class="fas fa-sync me-1"></i>Refresh
+                    </button>
+                  </form>
+                  {% endif %}
+                  <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug=slug) }}" class="flex-fill">
+                    <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                      <i class="fas fa-unlink me-1"></i>Disconnect
+                    </button>
+                  </form>
+                </div>
               {% else %}
                 <button class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#{{ modal_id }}">
                   <i class="fas fa-plug me-1"></i>Connect {{ bname }}
@@ -244,7 +265,10 @@
       <form method="POST" action="{{ url_for('broker_oauth.auth_zerodha') }}">
         <div class="modal-body">
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-            Create an app at <a href="https://developers.kite.trade/apps" target="_blank">developers.kite.trade</a> and paste your credentials below.
+            Create an app at <a href="https://developers.kite.trade/apps" target="_blank">developers.kite.trade</a> and paste your credentials below. Set the redirect URL to <code>{{ request.host_url.rstrip('/') }}/broker/callback/zerodha</code>
+          </div>
+          <div class="alert alert-warning small mb-2 py-2">
+            <i class="fas fa-clock me-1"></i><strong>Note:</strong> Zerodha tokens expire every day at midnight. Use the <strong>Re-login</strong> button on this page each morning to refresh your session.
           </div>
           <div class="mb-3">
             <label class="form-label fw-semibold">API Key <span class="text-danger">*</span></label>
@@ -314,7 +338,10 @@
       <form method="POST" action="{{ url_for('broker_oauth.auth_angel') }}">
         <div class="modal-body">
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-            Get credentials from <a href="https://smartapi.angelbroking.com" target="_blank">smartapi.angelbroking.com</a>. TOTP must be enabled.
+            Get credentials from <a href="https://smartapi.angelbroking.com" target="_blank">smartapi.angelbroking.com</a>. TOTP must be enabled on your account.
+          </div>
+          <div class="alert alert-success small mb-2 py-2">
+            <i class="fas fa-magic me-1"></i><strong>Auto-refresh:</strong> Your PIN and TOTP secret are stored securely. Use the <strong>Refresh Session</strong> button each day to renew your token without re-entering credentials.
           </div>
           <div class="row g-2">
             <div class="col-6">

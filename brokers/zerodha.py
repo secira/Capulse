@@ -1,9 +1,14 @@
+import csv
+import io
 import logging
 import requests
+from datetime import datetime, date
 from typing import Dict, List, Any, Optional
 from brokers.base import BrokerBase
 
 logger = logging.getLogger(__name__)
+
+_INSTRUMENT_CACHE: Dict[str, Dict] = {}
 
 
 class ZerodhaBroker(BrokerBase):
@@ -11,11 +16,16 @@ class ZerodhaBroker(BrokerBase):
     BROKER_NAME = "zerodha"
     SUPPORTS_DIRECT_CHAIN = False
 
+    VALID_NAMES = {"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX"}
+
     def __init__(self, credentials: Dict[str, str]):
         super().__init__(credentials)
-        self.api_key = credentials.get("api_key", credentials.get("client_id", ""))
+        self.api_key = credentials.get("client_id", credentials.get("api_key", ""))
         self.access_token = credentials.get("access_token", "")
         self.base_url = "https://api.kite.trade"
+        self._update_headers()
+
+    def _update_headers(self):
         self.headers = {
             "X-Kite-Version": "3",
             "Authorization": f"token {self.api_key}:{self.access_token}",
@@ -29,6 +39,7 @@ class ZerodhaBroker(BrokerBase):
             if resp.status_code == 200:
                 self._connected = True
                 return True
+            logger.warning(f"Zerodha connect failed: {resp.status_code} — token may have expired (valid 1 day only)")
             return False
         except Exception as e:
             logger.error(f"Zerodha connect error: {e}")
@@ -36,8 +47,7 @@ class ZerodhaBroker(BrokerBase):
 
     def get_price(self, symbol: str) -> float:
         try:
-            exchange = "NSE"
-            trading_symbol = self._map_symbol(symbol)
+            exchange, trading_symbol = self._map_symbol(symbol)
             resp = self.session.get(
                 f"{self.base_url}/quote/ltp",
                 params={"i": f"{exchange}:{trading_symbol}"},
@@ -60,7 +70,7 @@ class ZerodhaBroker(BrokerBase):
             resp = self.session.get(
                 f"{self.base_url}/quote",
                 params={"i": instruments},
-                timeout=10,
+                timeout=15,
             )
             if resp.status_code == 200:
                 data = resp.json().get("data", {})
@@ -82,6 +92,8 @@ class ZerodhaBroker(BrokerBase):
 
     def get_option_chain(self, symbol: str, expiry: Optional[str] = None) -> List[Dict]:
         instruments = self.get_instruments("NFO")
+        if symbol.upper() in ("SENSEX", "BANKEX"):
+            instruments += self.get_instruments("BFO")
         if not instruments:
             return []
         price = self.get_price(symbol)
@@ -92,29 +104,44 @@ class ZerodhaBroker(BrokerBase):
         return build_option_chain(self, instruments, price, symbol, expiry)
 
     def get_instruments(self, exchange: str = "NFO") -> List[Dict]:
+        global _INSTRUMENT_CACHE
+        today = str(date.today())
+        cache_key = f"{exchange}_{today}"
+
+        if cache_key in _INSTRUMENT_CACHE:
+            logger.debug(f"Zerodha instruments: cache hit for {exchange}")
+            return _INSTRUMENT_CACHE[cache_key]
+
         try:
             resp = self.session.get(
                 f"{self.base_url}/instruments/{exchange}",
                 timeout=30,
             )
-            if resp.status_code == 200:
-                import csv
-                import io
-                reader = csv.DictReader(io.StringIO(resp.text))
-                instruments = []
-                for row in reader:
-                    if row.get("name") in ("NIFTY", "BANKNIFTY", "FINNIFTY"):
-                        instruments.append({
-                            "token": row.get("tradingsymbol", ""),
-                            "symbol": row.get("name", ""),
-                            "strike": float(row.get("strike", 0)),
-                            "type": "CE" if "CE" in row.get("instrument_type", "") else "PE",
-                            "expiry": row.get("expiry", ""),
-                            "exchange": exchange,
-                            "instrument_type": row.get("instrument_type", ""),
-                        })
-                return instruments
-            return []
+            if resp.status_code != 200:
+                return []
+
+            reader = csv.DictReader(io.StringIO(resp.text))
+            instruments = []
+            for row in reader:
+                name = row.get("name", "").upper()
+                if name not in self.VALID_NAMES:
+                    continue
+                inst_type = row.get("instrument_type", "")
+                if inst_type not in ("CE", "PE"):
+                    continue
+                instruments.append({
+                    "token": row.get("tradingsymbol", ""),
+                    "symbol": name,
+                    "strike": float(row.get("strike", 0) or 0),
+                    "type": inst_type,
+                    "expiry": row.get("expiry", ""),
+                    "exchange": exchange,
+                    "lot_size": int(row.get("lot_size", 0) or 0),
+                })
+
+            _INSTRUMENT_CACHE[cache_key] = instruments
+            logger.info(f"Zerodha instruments fetched: {len(instruments)} contracts from {exchange}")
+            return instruments
         except Exception as e:
             logger.error(f"Zerodha get_instruments error: {e}")
             return []
@@ -123,9 +150,10 @@ class ZerodhaBroker(BrokerBase):
                     order_type: str = "MARKET", product: str = "INTRADAY",
                     price: float = 0, trigger_price: float = 0) -> Dict:
         try:
+            exchange = "BFO" if symbol.upper().startswith("SENSEX") else "NFO"
             payload = {
                 "tradingsymbol": symbol,
-                "exchange": "NFO",
+                "exchange": exchange,
                 "transaction_type": side.upper(),
                 "order_type": order_type.upper(),
                 "quantity": qty,
@@ -134,7 +162,11 @@ class ZerodhaBroker(BrokerBase):
                 "price": price,
                 "trigger_price": trigger_price,
             }
-            resp = self.session.post(f"{self.base_url}/orders/regular", data=payload, timeout=15)
+            resp = self.session.post(
+                f"{self.base_url}/orders/regular",
+                data=payload,
+                timeout=15,
+            )
             data = resp.json()
             return {
                 "status": data.get("status", "unknown"),
@@ -167,6 +199,15 @@ class ZerodhaBroker(BrokerBase):
         except Exception:
             return []
 
-    def _map_symbol(self, symbol: str) -> str:
-        mapping = {"NIFTY": "NIFTY 50", "BANKNIFTY": "NIFTY BANK"}
-        return mapping.get(symbol.upper(), symbol)
+    def _map_symbol(self, symbol: str):
+        """Return (exchange, trading_symbol) for LTP lookup."""
+        mapping = {
+            "NIFTY":      ("NSE", "NIFTY 50"),
+            "BANKNIFTY":  ("NSE", "NIFTY BANK"),
+            "NIFTY BANK": ("NSE", "NIFTY BANK"),
+            "FINNIFTY":   ("NSE", "NIFTY FIN SERVICE"),
+            "MIDCPNIFTY": ("NSE", "NIFTY MID SELECT"),
+            "SENSEX":     ("BSE", "SENSEX"),
+            "BANKEX":     ("BSE", "BANKEX"),
+        }
+        return mapping.get(symbol.upper(), ("NSE", symbol))

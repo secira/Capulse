@@ -89,6 +89,7 @@ def broker_connect():
     return render_template(
         'dashboard/broker_connect.html',
         broker_catalog=catalog,
+        now=datetime.utcnow(),
     )
 
 
@@ -365,7 +366,6 @@ def auth_angel():
             raise ValueError(data.get('message', 'Angel One login failed'))
 
         access_token = data['data']['jwtToken']
-        refresh_token = data['data'].get('refreshToken', '')
 
         account = _save_pending_account(
             'angel_broking', api_key, totp_secret, extra=access_token
@@ -373,7 +373,7 @@ def auth_angel():
         account.set_credentials(
             client_id=client_id,
             access_token=access_token,
-            api_secret=f"{api_key}:{totp_secret}:{refresh_token}",
+            api_secret=f"{api_key}:{totp_secret}:{password}",
         )
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
@@ -386,6 +386,82 @@ def auth_angel():
         flash(f'Angel One connection failed: {str(e)}', 'error')
 
     return redirect(url_for('broker_oauth.broker_connect'))
+
+
+@broker_oauth.route('/broker/reconnect/angel', methods=['POST'])
+@login_required
+def reconnect_angel():
+    """Re-generate Angel One JWT using stored TOTP secret + PIN (no re-entry needed)."""
+    account = BrokerAccount.query.filter_by(
+        user_id=current_user.id, broker_type='angel_broking', is_active=True,
+    ).first()
+    if not account:
+        flash('Angel One account not found. Please connect first.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    try:
+        import pyotp
+        from SmartApi import SmartConnect
+
+        creds = account.get_credentials()
+        parts = (creds.get('api_secret') or '').split(':')
+        api_key = parts[0] if parts else ''
+        totp_secret = parts[1] if len(parts) > 1 else ''
+        stored_pin = parts[2] if len(parts) > 2 else ''
+        client_id = creds.get('client_id', '')
+
+        if not all([api_key, totp_secret, stored_pin, client_id]):
+            flash('Stored credentials incomplete — please re-connect Angel One with all fields.', 'error')
+            return redirect(url_for('broker_oauth.broker_connect'))
+
+        totp = pyotp.TOTP(totp_secret).now()
+        smart = SmartConnect(api_key=api_key)
+        data = smart.generateSession(client_id, stored_pin, totp)
+
+        if not data or data.get('status') is False:
+            raise ValueError(data.get('message', 'Angel One refresh failed'))
+
+        new_token = data['data']['jwtToken']
+        account.set_credentials(
+            client_id=client_id,
+            access_token=new_token,
+            api_secret=f"{api_key}:{totp_secret}:{stored_pin}",
+        )
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+        flash('Angel One session refreshed successfully!', 'success')
+        logger.info(f"Angel One token refreshed for user {current_user.id}")
+    except Exception as e:
+        logger.error(f"Angel One reconnect failed: {e}")
+        flash(f'Angel One reconnect failed: {str(e)}', 'error')
+
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
+@broker_oauth.route('/broker/reconnect/zerodha', methods=['POST'])
+@login_required
+def reconnect_zerodha():
+    """Re-start Zerodha OAuth flow using stored API key (daily token refresh)."""
+    account = BrokerAccount.query.filter_by(
+        user_id=current_user.id, broker_type='zerodha', is_active=True,
+    ).first()
+    if not account:
+        flash('Zerodha account not found. Please connect first.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    creds = account.get_credentials()
+    api_key = creds.get('client_id', '')
+    if not api_key:
+        flash('Stored credentials missing — please reconnect Zerodha.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    session['zerodha_account_id'] = account.id
+    account.connection_status = ConnectionStatus.DISCONNECTED.value
+    db.session.commit()
+
+    kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={api_key}"
+    return redirect(kite_url)
 
 
 # ---------------------------------------------------------------------------

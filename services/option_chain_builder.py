@@ -3,16 +3,29 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-STRIKE_INTERVAL = 50
 STRIKE_RANGE = 6
+
+SYMBOL_STRIKE_INTERVALS = {
+    "NIFTY":      50,
+    "BANKNIFTY":  100,
+    "FINNIFTY":   50,
+    "MIDCPNIFTY": 25,
+    "SENSEX":     100,
+    "BANKEX":     100,
+}
+
+
+def _get_strike_interval(symbol: str) -> int:
+    return SYMBOL_STRIKE_INTERVALS.get(symbol.upper(), 50)
 
 
 def build_option_chain(broker, instruments: List[Dict], spot_price: float,
                        symbol: str = "NIFTY", expiry: Optional[str] = None) -> List[Dict]:
-    atm = round(spot_price / STRIKE_INTERVAL) * STRIKE_INTERVAL
+    interval = _get_strike_interval(symbol)
+    atm = round(spot_price / interval) * interval
     strikes_needed = set()
     for i in range(-STRIKE_RANGE, STRIKE_RANGE + 1):
-        strikes_needed.add(int(atm + i * STRIKE_INTERVAL))
+        strikes_needed.add(int(atm + i * interval))
 
     filtered = []
     for inst in instruments:
@@ -36,7 +49,7 @@ def build_option_chain(broker, instruments: List[Dict], spot_price: float,
                 if strike in strikes_needed:
                     filtered.append(inst)
         if not filtered:
-            logger.warning(f"No matching instruments for {symbol} around ATM {atm}")
+            logger.warning(f"No matching instruments for {symbol} around ATM {atm} (interval={interval})")
             return []
 
     tokens = [inst.get("token", "") for inst in filtered if inst.get("token")]

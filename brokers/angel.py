@@ -1,5 +1,6 @@
 import logging
 import requests
+from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from brokers.base import BrokerBase
 
@@ -13,10 +14,19 @@ class AngelBroker(BrokerBase):
 
     def __init__(self, credentials: Dict[str, str]):
         super().__init__(credentials)
-        self.api_key = credentials.get("api_key", credentials.get("client_id", ""))
+        self.client_code = credentials.get("client_id", "")
         self.access_token = credentials.get("access_token", "")
-        self.client_code = credentials.get("client_code", credentials.get("client_id", ""))
+
+        api_secret_raw = credentials.get("api_secret", "")
+        parts = api_secret_raw.split(":")
+        self.api_key = parts[0] if parts and parts[0] else self.client_code
+        self.totp_secret = parts[1] if len(parts) > 1 else ""
+        self.refresh_token = parts[2] if len(parts) > 2 else ""
+
         self.base_url = "https://apiconnect.angelone.in"
+        self._build_session()
+
+    def _build_session(self):
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
@@ -31,12 +41,51 @@ class AngelBroker(BrokerBase):
         self.session = requests.Session()
         self.session.headers.update(self.headers)
 
+    def _refresh_token(self) -> bool:
+        """Auto-refresh session using stored TOTP secret if available."""
+        if not self.totp_secret or not self.client_code or not self.api_key:
+            return False
+        try:
+            import pyotp
+            from SmartApi import SmartConnect
+            totp = pyotp.TOTP(self.totp_secret).now()
+            smart = SmartConnect(api_key=self.api_key)
+            stored_password = self.refresh_token or ""
+            if not stored_password:
+                logger.warning("Angel: no password stored, cannot auto-refresh token")
+                return False
+            data = smart.generateSession(self.client_code, stored_password, totp)
+            if not data or data.get("status") is False:
+                return False
+            new_token = data["data"]["jwtToken"]
+            self.access_token = new_token
+            self.refresh_token = data["data"].get("refreshToken", self.refresh_token)
+            self._build_session()
+            logger.info(f"Angel One token auto-refreshed for {self.client_code}")
+            return True
+        except Exception as e:
+            logger.error(f"Angel token refresh failed: {e}")
+            return False
+
     def connect(self) -> bool:
         try:
-            resp = self.session.get(f"{self.base_url}/rest/secure/angelbroking/user/v1/getProfile", timeout=10)
+            resp = self.session.get(
+                f"{self.base_url}/rest/secure/angelbroking/user/v1/getProfile",
+                timeout=10,
+            )
             if resp.status_code == 200 and resp.json().get("status"):
                 self._connected = True
                 return True
+            if resp.status_code in (401, 403):
+                logger.info("Angel: token expired, attempting auto-refresh")
+                if self._refresh_token():
+                    resp2 = self.session.get(
+                        f"{self.base_url}/rest/secure/angelbroking/user/v1/getProfile",
+                        timeout=10,
+                    )
+                    if resp2.status_code == 200 and resp2.json().get("status"):
+                        self._connected = True
+                        return True
             return False
         except Exception as e:
             logger.error(f"Angel connect error: {e}")
@@ -44,10 +93,10 @@ class AngelBroker(BrokerBase):
 
     def get_price(self, symbol: str) -> float:
         try:
-            token = self._map_token(symbol)
+            token, exchange = self._map_token(symbol)
             payload = {
                 "mode": "LTP",
-                "exchangeTokens": {"NSE": [token]},
+                "exchangeTokens": {exchange: [token]},
             }
             resp = self.session.post(
                 f"{self.base_url}/rest/secure/angelbroking/market/v1/quote/",
@@ -114,8 +163,7 @@ class AngelBroker(BrokerBase):
                     strike_map[strike][f"{prefix}_oi"] = int(row.get("opnInterest", 0))
                     strike_map[strike][f"{prefix}_iv"] = float(row.get("impliedVolatility", 0))
                     strike_map[strike][f"{prefix}_volume"] = int(row.get("tradeVolume", 0))
-                chain = [strike_map[s] for s in sorted(strike_map)]
-                return chain
+                return [strike_map[s] for s in sorted(strike_map)]
             return []
         except Exception as e:
             logger.error(f"Angel get_option_chain error: {e}")
@@ -158,7 +206,9 @@ class AngelBroker(BrokerBase):
     def get_holdings(self) -> List[Dict]:
         try:
             resp = self.session.get(
-                f"{self.base_url}/rest/secure/angelbroking/portfolio/v1/getHolding", timeout=10)
+                f"{self.base_url}/rest/secure/angelbroking/portfolio/v1/getHolding",
+                timeout=10,
+            )
             return resp.json().get("data", []) if resp.status_code == 200 else []
         except Exception:
             return []
@@ -166,7 +216,9 @@ class AngelBroker(BrokerBase):
     def get_positions(self) -> List[Dict]:
         try:
             resp = self.session.get(
-                f"{self.base_url}/rest/secure/angelbroking/order/v1/getPosition", timeout=10)
+                f"{self.base_url}/rest/secure/angelbroking/order/v1/getPosition",
+                timeout=10,
+            )
             return resp.json().get("data", []) if resp.status_code == 200 else []
         except Exception:
             return []
@@ -174,11 +226,22 @@ class AngelBroker(BrokerBase):
     def get_orders(self) -> List[Dict]:
         try:
             resp = self.session.get(
-                f"{self.base_url}/rest/secure/angelbroking/order/v1/getOrderBook", timeout=10)
+                f"{self.base_url}/rest/secure/angelbroking/order/v1/getOrderBook",
+                timeout=10,
+            )
             return resp.json().get("data", []) if resp.status_code == 200 else []
         except Exception:
             return []
 
-    def _map_token(self, symbol: str) -> str:
-        mapping = {"NIFTY": "99926000", "NIFTY 50": "99926000", "BANKNIFTY": "99926009"}
-        return mapping.get(symbol.upper(), symbol)
+    def _map_token(self, symbol: str):
+        """Return (token, exchange) for LTP lookup."""
+        mapping = {
+            "NIFTY":      ("99926000", "NSE"),
+            "NIFTY 50":   ("99926000", "NSE"),
+            "BANKNIFTY":  ("99926009", "NSE"),
+            "NIFTY BANK": ("99926009", "NSE"),
+            "FINNIFTY":   ("99926037", "NSE"),
+            "SENSEX":     ("1",        "BSE"),
+            "BSE SENSEX": ("1",        "BSE"),
+        }
+        return mapping.get(symbol.upper(), (symbol, "NSE"))
