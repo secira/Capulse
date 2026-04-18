@@ -21,21 +21,92 @@ logger = logging.getLogger(__name__)
 
 IST = pytz.timezone('Asia/Kolkata')
 
-NIFTY_LOT_SIZE = 50
-STRIKE_INTERVAL = 50
+NIFTY_LOT_SIZE = 50      # kept for backward compat
+STRIKE_INTERVAL = 50     # kept for backward compat
 
-# Module-level candle cache — shared across all engine instances (TTL 5 min)
-_candle_cache_data = None
-_candle_cache_ts = 0.0
+# ── Per-index configuration ───────────────────────────────────────────────────
+INDEX_CONFIGS = {
+    'NIFTY': {
+        'lot_size':         50,
+        'strike_interval':  50,
+        'yf_ticker':        '^NSEI',
+        'nse_symbol':       'NIFTY',
+        'dhan_symbol':      'NIFTY',
+        'truedata_spot_sym':'NIFTY 50',
+        'truedata_chain_sym':'NIFTY',
+        'default_spot':     23500,
+        'display_name':     'NIFTY 50',
+        'dhan_security_id': 13,        # Dhan internal security ID for NIFTY index
+        'exchange_segment': 'IDX_I',
+    },
+    'BANKNIFTY': {
+        'lot_size':         15,
+        'strike_interval':  100,
+        'yf_ticker':        '^NSEBANK',
+        'nse_symbol':       'BANKNIFTY',
+        'dhan_symbol':      'BANKNIFTY',
+        'truedata_spot_sym':'BANK NIFTY',
+        'truedata_chain_sym':'BANKNIFTY',
+        'default_spot':     50200,
+        'display_name':     'Bank Nifty',
+        'dhan_security_id': 25,
+        'exchange_segment': 'IDX_I',
+    },
+    'FINNIFTY': {
+        'lot_size':         40,
+        'strike_interval':  50,
+        'yf_ticker':        '^CNXFIN',
+        'nse_symbol':       'FINNIFTY',
+        'dhan_symbol':      'FINNIFTY',
+        'truedata_spot_sym':'NIFTY FIN SERVICE',
+        'truedata_chain_sym':'FINNIFTY',
+        'default_spot':     21000,
+        'display_name':     'Fin Nifty',
+        'dhan_security_id': None,       # Dhan security ID not confirmed; falls back to yfinance
+        'exchange_segment': 'IDX_I',
+    },
+    'SENSEX': {
+        'lot_size':         10,
+        'strike_interval':  100,
+        'yf_ticker':        '^BSESN',
+        'nse_symbol':       'SENSEX',
+        'dhan_symbol':      'SENSEX',
+        'truedata_spot_sym':'SENSEX',
+        'truedata_chain_sym':'SENSEX',
+        'default_spot':     77500,
+        'display_name':     'SENSEX',
+        'dhan_security_id': None,       # BSE index; yfinance used for candles
+        'exchange_segment': 'IDX_I',
+    },
+}
+
+# Module-level candle cache — per-index dict {index_key: (df, timestamp)}
+_candle_cache: dict = {}
 _CANDLE_CACHE_TTL = 300
 
 
 class NiftyOptionsEngine:
 
-    def __init__(self, user_id: int = None):
-        self.data_source = self._get_active_data_source()
-        self.user_id = user_id
-        self._broker_adapter = None
+    def __init__(self, user_id: int = None, index: str = 'NIFTY'):
+        index = (index or 'NIFTY').upper()
+        if index not in INDEX_CONFIGS:
+            raise ValueError(f"Unknown index '{index}'. Valid: {list(INDEX_CONFIGS)}")
+        cfg = INDEX_CONFIGS[index]
+        self.index                  = index
+        self.lot_size               = cfg['lot_size']
+        self.strike_interval        = cfg['strike_interval']
+        self.yf_ticker              = cfg['yf_ticker']
+        self.nse_symbol             = cfg['nse_symbol']
+        self.dhan_symbol            = cfg['dhan_symbol']
+        self.truedata_spot_sym      = cfg['truedata_spot_sym']
+        self.truedata_chain_sym     = cfg['truedata_chain_sym']
+        self.default_spot           = cfg['default_spot']
+        self.display_name           = cfg['display_name']
+        self.dhan_security_id       = cfg.get('dhan_security_id')
+        self.exchange_segment       = cfg.get('exchange_segment', 'IDX_I')
+        self.data_source            = self._get_active_data_source()
+        self.user_id                = user_id
+        self._broker_adapter        = None
 
     def _get_admin_data_plan(self) -> str:
         try:
@@ -61,7 +132,7 @@ class NiftyOptionsEngine:
             headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
             spot_resp = requests.get(
                 'https://api.truedata.in/v1/getltp',
-                params={'symbol': 'NIFTY 50'},
+                params={'symbol': self.truedata_spot_sym},
                 headers=headers, timeout=10
             )
             if spot_resp.status_code != 200:
@@ -76,7 +147,7 @@ class NiftyOptionsEngine:
 
             chain_resp = requests.get(
                 'https://api.truedata.in/v1/optionchain',
-                params={'symbol': 'NIFTY'},
+                params={'symbol': self.truedata_chain_sym},
                 headers=headers, timeout=15
             )
             if chain_resp.status_code == 200:
@@ -128,7 +199,7 @@ class NiftyOptionsEngine:
             broker_expiries = []
             if hasattr(broker, 'get_expiry_list'):
                 try:
-                    broker_expiries = broker.get_expiry_list("NIFTY") or []
+                    broker_expiries = broker.get_expiry_list(self.dhan_symbol) or []
                 except Exception:
                     pass
 
@@ -136,15 +207,15 @@ class NiftyOptionsEngine:
             # first available expiry so that spot+chain are always consistent.
             if broker_expiries:
                 nearest_expiry = broker_expiries[0]
-                chain_raw = broker.get_option_chain("NIFTY", nearest_expiry)
+                chain_raw = broker.get_option_chain(self.dhan_symbol, nearest_expiry)
                 # Spot is embedded in each chain row
                 spot = float(chain_raw[0].get("spot", 0)) if chain_raw else 0.0
                 if not spot or spot <= 0:
                     # Fall back to separate price call
-                    spot = broker.get_price("NIFTY")
+                    spot = broker.get_price(self.dhan_symbol)
             else:
-                spot = broker.get_price("NIFTY")
-                chain_raw = broker.get_option_chain("NIFTY") if spot and spot > 0 else []
+                spot = broker.get_price(self.dhan_symbol)
+                chain_raw = broker.get_option_chain(self.dhan_symbol) if spot and spot > 0 else []
 
             if not spot or spot <= 0:
                 logger.warning(f"Data broker {broker.BROKER_NAME} returned no spot price")
@@ -232,7 +303,7 @@ class NiftyOptionsEngine:
     def _get_nse_option_chain_raw(self) -> dict:
         try:
             from nsepython import option_chain as nse_oc
-            raw = nse_oc("NIFTY")
+            raw = nse_oc(self.nse_symbol)
             if raw and isinstance(raw, dict) and raw.get('records', {}).get('data'):
                 logger.info(f"NSE option chain via nsepython: {len(raw['records']['data'])} entries")
                 return raw
@@ -253,7 +324,7 @@ class NiftyOptionsEngine:
             })
             session.get('https://www.nseindia.com', timeout=10)
             resp = session.get(
-                'https://www.nseindia.com/api/option-chain-indices?symbol=NIFTY',
+                f'https://www.nseindia.com/api/option-chain-indices?symbol={self.nse_symbol}',
                 timeout=15,
             )
             if resp.status_code == 200:
@@ -401,14 +472,15 @@ class NiftyOptionsEngine:
         return self._get_sample_option_chain()
 
     def _get_sample_chain(self, spot: float) -> dict:
-        atm = round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL
+        si = self.strike_interval
+        atm = round(spot / si) * si
         chain = {}
         base_iv = 13.0
         days_to_expiry = 4
         time_val = (base_iv / 100) * spot * (days_to_expiry / 365) ** 0.5 * 0.4
 
         for i in range(-6, 7):
-            strike = atm + i * STRIKE_INTERVAL
+            strike = atm + i * si
             diff = spot - strike
             ce_intrinsic = max(0, diff)
             pe_intrinsic = max(0, -diff)
@@ -444,28 +516,20 @@ class NiftyOptionsEngine:
         return chain
 
     def _get_sample_option_chain(self) -> Dict[str, Any]:
-        spot = 23500
+        spot = float(self.default_spot)
         try:
-            from services.dhan_service import get_nifty_spot
-            s = get_nifty_spot(user_id=self.user_id)
-            if s and s > 0:
-                spot = s
+            import yfinance as yf
+            hist = yf.Ticker(self.yf_ticker).history(period="1d")
+            if not hist.empty:
+                spot = float(hist['Close'].iloc[-1])
         except Exception:
             pass
-        if spot == 23500:
-            try:
-                import yfinance as yf
-                hist = yf.Ticker("^NSEI").history(period="1d")
-                if not hist.empty:
-                    spot = float(hist['Close'].iloc[-1])
-            except Exception:
-                pass
         chain = self._get_sample_chain(spot)
         return {
             'spot_price': spot,
             'previous_close': spot - 30,
-            'lot_size': NIFTY_LOT_SIZE,
-            'strike_interval': STRIKE_INTERVAL,
+            'lot_size': self.lot_size,
+            'strike_interval': self.strike_interval,
             'option_chain': chain,
             'expiry_dates': [],
         }
@@ -474,7 +538,7 @@ class NiftyOptionsEngine:
         total_put_oi = 0
         total_call_oi = 0
         for i in range(-6, 7):
-            strike = atm + i * STRIKE_INTERVAL
+            strike = atm + i * self.strike_interval
             ce_key = f'{strike}CE'
             pe_key = f'{strike}PE'
             if ce_key in chain:
@@ -503,7 +567,7 @@ class NiftyOptionsEngine:
         pcr_overall   = round(total_put_oi / total_call_oi, 2) if total_call_oi else 0
 
         # ── ATM PCR (±3 strikes around ATM) ─────────────────────────────
-        atm_range = [s for s in strikes if abs(s - atm) <= 3 * STRIKE_INTERVAL]
+        atm_range = [s for s in strikes if abs(s - atm) <= 3 * self.strike_interval]
         atm_call  = sum(chain.get(f'{s}CE', {}).get('oi', 0) for s in atm_range)
         atm_put   = sum(chain.get(f'{s}PE', {}).get('oi', 0) for s in atm_range)
         atm_pcr   = round(atm_put / atm_call, 2) if atm_call else 0
@@ -513,7 +577,7 @@ class NiftyOptionsEngine:
 
         # ── Windowed OI Differential (±6 strikes from ATM) ───────────────
         # New trade-selection rule: bullish if window diff > +20%, bearish if < -20%.
-        window_strikes = [s for s in strikes if abs(s - atm) <= 6 * STRIKE_INTERVAL]
+        window_strikes = [s for s in strikes if abs(s - atm) <= 6 * self.strike_interval]
         win_call_oi = sum(chain.get(f'{s}CE', {}).get('oi', 0) for s in window_strikes)
         win_put_oi  = sum(chain.get(f'{s}PE', {}).get('oi', 0) for s in window_strikes)
         oi_window_diff = (win_put_oi - win_call_oi) / win_call_oi if win_call_oi else 0
@@ -588,44 +652,53 @@ class NiftyOptionsEngine:
 
     def _fetch_intraday_candles(self):
         """
-        Fetch today's 5-min NIFTY candles.
-        Tries Dhan first (paid, reliable), falls back to yfinance.
-        Result is cached at module level for _CANDLE_CACHE_TTL seconds.
+        Fetch today's 5-min candles for this index.
+        Tries Dhan first (if Dhan security ID is known), falls back to yfinance.
+        Result is cached per-index at module level for _CANDLE_CACHE_TTL seconds.
         """
-        global _candle_cache_data, _candle_cache_ts
+        global _candle_cache
         now_ts = _time_mod.time()
-        if _candle_cache_data is not None and (now_ts - _candle_cache_ts) < _CANDLE_CACHE_TTL:
-            return _candle_cache_data
+        cached = _candle_cache.get(self.index)
+        if cached is not None:
+            df_c, ts_c = cached
+            if (now_ts - ts_c) < _CANDLE_CACHE_TTL and df_c is not None:
+                return df_c
 
         df = None
 
-        # ── Priority 1: Dhan intraday candles ──────────────────────────
-        try:
-            from services.dhan_service import get_nifty_intraday_candles
-            df_dhan = get_nifty_intraday_candles(interval=5, user_id=self.user_id)
-            if df_dhan is not None and not df_dhan.empty and len(df_dhan) >= 5:
-                df = df_dhan
-                logger.info(f"_fetch_intraday_candles: {len(df)} candles from Dhan")
-        except Exception as e:
-            logger.warning(f"Dhan intraday candles error: {e}")
+        # ── Priority 1: Dhan intraday candles (NIFTY only — security ID confirmed) ─
+        if self.dhan_security_id is not None:
+            try:
+                from services.dhan_service import get_index_intraday_candles
+                df_dhan = get_index_intraday_candles(
+                    security_id=self.dhan_security_id,
+                    exchange_segment=self.exchange_segment,
+                    interval=5, user_id=self.user_id,
+                    index_label=self.index,
+                )
+                if df_dhan is not None and not df_dhan.empty and len(df_dhan) >= 5:
+                    df = df_dhan
+                    logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from Dhan")
+            except Exception as e:
+                logger.warning(f"Dhan intraday candles error ({self.index}): {e}")
 
         # ── Priority 2: yfinance fallback ──────────────────────────────
         if df is None or df.empty:
             try:
                 import yfinance as yf
-                ticker = yf.Ticker("^NSEI")
+                ticker = yf.Ticker(self.yf_ticker)
                 df_yf = ticker.history(period="1d", interval="5m")
                 if df_yf is not None and not df_yf.empty and len(df_yf) >= 5:
                     df = df_yf
-                    logger.info(f"_fetch_intraday_candles: {len(df)} candles from yfinance (fallback)")
+                    logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from yfinance")
                 else:
-                    logger.warning("_fetch_intraday_candles: yfinance also returned no data")
+                    logger.warning(f"_fetch_intraday_candles({self.index}): yfinance also returned no data")
             except Exception as e:
-                logger.warning(f"yfinance intraday candles error: {e}")
+                logger.warning(f"yfinance intraday candles error ({self.index}): {e}")
 
-        _candle_cache_data = df if (df is not None and not df.empty) else None
-        _candle_cache_ts = now_ts
-        return _candle_cache_data
+        result = df if (df is not None and not df.empty) else None
+        _candle_cache[self.index] = (result, now_ts)
+        return result
 
     def _calculate_vwap(self, df) -> float:
         """Cumulative VWAP from today's candles."""
@@ -1100,7 +1173,8 @@ class NiftyOptionsEngine:
         return max(0, min(score, 100))
 
     def _select_strikes(self, spot: float, direction: str) -> List[Dict[str, Any]]:
-        atm = int(round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL)
+        si = self.strike_interval
+        atm = int(round(spot / si) * si)
         trades = []
         opt_type = 'CE' if direction == 'BULLISH' else 'PE'
         if direction == 'NEUTRAL':
@@ -1117,11 +1191,11 @@ class NiftyOptionsEngine:
         })
 
         if opt_type == 'CE':
-            otm_strike = atm + STRIKE_INTERVAL
-            itm_strike = atm - STRIKE_INTERVAL
+            otm_strike = atm + si
+            itm_strike = atm - si
         else:
-            otm_strike = atm - STRIKE_INTERVAL
-            itm_strike = atm + STRIKE_INTERVAL
+            otm_strike = atm - si
+            itm_strike = atm + si
 
         trades.append({
             'strike': otm_strike,
@@ -1254,9 +1328,9 @@ class NiftyOptionsEngine:
             target = round(entry_price + target_points, 2)
             sl = round(max(MIN_TICK, entry_price - sl_points), 2)
 
-            lot_value = ltp * NIFTY_LOT_SIZE
-            max_loss_per_lot = sl_points * NIFTY_LOT_SIZE
-            max_profit_per_lot = target_points * NIFTY_LOT_SIZE
+            lot_value = ltp * self.lot_size
+            max_loss_per_lot = sl_points * self.lot_size
+            max_profit_per_lot = target_points * self.lot_size
 
             trade_data = {
                 **t,
@@ -1279,7 +1353,7 @@ class NiftyOptionsEngine:
                 'change': opt_data.get('change', 0),
                 'pct_change': opt_data.get('pct_change', 0),
                 'prev_oi': opt_data.get('prev_oi', 0),
-                'lot_size': NIFTY_LOT_SIZE,
+                'lot_size': self.lot_size,
                 'lot_value': round(lot_value, 2),
                 'max_loss_per_lot': round(max_loss_per_lot, 2),
                 'max_profit_per_lot': round(max_profit_per_lot, 2),
@@ -1343,36 +1417,27 @@ class NiftyOptionsEngine:
                 data_source = 'live'
                 spot_val = raw_nse.get('records', {}).get('underlyingValue', 0) or raw_nse.get('filtered', {}).get('data', [{}])[0].get('PE', {}).get('underlyingValue', 0) if raw_nse.get('filtered', {}).get('data') else 0
                 if not spot_val:
-                    spot_val = 23500
+                    spot_val = self.default_spot
                 spot = float(spot_val)
                 current_chain = self._build_chain_for_expiry(raw_nse, expiry_picks['current'], spot)
                 next_chain = self._build_chain_for_expiry(raw_nse, expiry_picks['next'], spot) if expiry_picks.get('next') else {}
 
         if not current_chain:
             data_source = 'estimated'
-            spot = 23500
-            # Priority 1: Dhan spot price
+            spot = float(self.default_spot)
+            # yfinance fallback for spot
             try:
-                from services.dhan_service import get_nifty_spot
-                s = get_nifty_spot(user_id=self.user_id)
-                if s and s > 0:
-                    spot = s
+                import yfinance as yf
+                hist = yf.Ticker(self.yf_ticker).history(period="1d")
+                if not hist.empty:
+                    spot = float(hist['Close'].iloc[-1])
             except Exception:
                 pass
-            # Priority 2: yfinance fallback
-            if spot == 23500:
-                try:
-                    import yfinance as yf
-                    hist = yf.Ticker("^NSEI").history(period="1d")
-                    if not hist.empty:
-                        spot = float(hist['Close'].iloc[-1])
-                except Exception:
-                    pass
-            logger.warning(f"All data sources unavailable — using estimated data. Spot: {spot}")
+            logger.warning(f"All data sources unavailable — using estimated data ({self.index}). Spot: {spot}")
             current_chain = self._get_sample_chain(spot)
             next_chain = {}
 
-        atm = int(round(spot / STRIKE_INTERVAL) * STRIKE_INTERVAL)
+        atm = int(round(spot / self.strike_interval) * self.strike_interval)
 
         oi_metrics = self._compute_oi_metrics(current_chain, atm, spot)
         oi_diff        = oi_metrics['oi_diff']
@@ -1541,4 +1606,8 @@ class NiftyOptionsEngine:
                 'risk_per_trade': '1% of capital',
             },
             'configured_source': self.data_source,
+            'index':             self.index,
+            'lot_size':          self.lot_size,
+            'strike_interval':   self.strike_interval,
+            'display_name':      self.display_name,
         }

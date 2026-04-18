@@ -301,28 +301,48 @@ def get_nifty50_stock_quotes(security_id_map: Dict[str, int],
 
 def get_nifty_intraday_candles(interval: int = 5,
                                 user_id: Optional[int] = None) -> "pd.DataFrame":
+    """Fetch today's intraday NIFTY 50 candles via Dhan (backward-compat wrapper)."""
+    return get_index_intraday_candles(
+        security_id=13, exchange_segment='IDX_I',
+        interval=interval, user_id=user_id, index_label='NIFTY',
+    )
+
+
+def get_index_intraday_candles(security_id: int,
+                                exchange_segment: str = 'IDX_I',
+                                interval: int = 5,
+                                user_id: Optional[int] = None,
+                                index_label: str = 'INDEX') -> "pd.DataFrame":
     """
-    Fetch today's intraday NIFTY 50 candles via Dhan and return a DataFrame
-    with columns matching yfinance output: Open, High, Low, Close, Volume.
+    Generic intraday candles fetcher for any Dhan-supported index.
+
+    Parameters
+    ----------
+    security_id      : Dhan internal security ID (13 = NIFTY, 25 = BANKNIFTY, …)
+    exchange_segment : e.g. 'IDX_I'
+    interval         : candle interval in minutes (default 5)
+    user_id          : optional user for broker selection
+    index_label      : used only for logging
+
+    Returns a DataFrame with columns: Open, High, Low, Close, Volume.
     Returns empty DataFrame on failure.
     """
     broker = _get_dhan_broker(user_id) or _get_any_dhan_broker()
     if broker is None:
-        logger.debug("get_nifty_intraday_candles: no Dhan broker available")
+        logger.debug(f"get_index_intraday_candles({index_label}): no Dhan broker available")
         return pd.DataFrame()
     try:
         today_str = datetime.now().strftime("%Y-%m-%d")
-        # Dhan intraday API covers last 5 trading days; use today → today
         rows = broker.get_intraday_candles(
-            security_id=13,
-            exchange_segment="IDX_I",
+            security_id=security_id,
+            exchange_segment=exchange_segment,
             instrument_type="INDEX",
             from_date=today_str,
             to_date=today_str,
             interval=interval,
         )
         if not rows:
-            logger.warning("get_nifty_intraday_candles: Dhan returned no rows")
+            logger.warning(f"get_index_intraday_candles({index_label}): Dhan returned no rows")
             return pd.DataFrame()
         df = pd.DataFrame(rows)
         df = df.rename(columns={
@@ -331,10 +351,10 @@ def get_nifty_intraday_candles(interval: int = 5,
         })
         df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
         df = df.dropna(subset=["Close"])
-        logger.info(f"get_nifty_intraday_candles: {len(df)} candles from Dhan")
+        logger.info(f"get_index_intraday_candles({index_label}): {len(df)} candles from Dhan")
         return df
     except Exception as e:
-        logger.error(f"get_nifty_intraday_candles error: {e}")
+        logger.error(f"get_index_intraday_candles({index_label}) error: {e}")
         return pd.DataFrame()
 
 

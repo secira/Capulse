@@ -1,6 +1,6 @@
 {% extends "dashboard/dashboard_base.html" %}
-{% block title %}NIFTY Options Analysis — F&O Engine | Target Capital{% endblock %}
-{% block dashboard_title %}NIFTY Options Analysis{% endblock %}
+{% block title %}{{ fno_display_name or 'NIFTY 50' }} Options Analysis — F&O Engine | Target Capital{% endblock %}
+{% block dashboard_title %}{{ fno_display_name or 'NIFTY 50' }} Options Analysis{% endblock %}
 {% block dashboard_subtitle %}MVLA Decision Engine — Momentum-Validated, Loss-Averse{% endblock %}
 
 {% block dashboard_content %}
@@ -178,8 +178,28 @@
 <div class="spinner-overlay" id="loadingOverlay">
     <div class="text-center">
         <div class="spinner-border text-primary" style="width:48px;height:48px"></div>
-        <p class="mt-3 fw-semibold text-muted">Analysing NIFTY Options...</p>
+        <p class="mt-3 fw-semibold text-muted">Analysing {{ fno_display_name or 'NIFTY 50' }} Options...</p>
     </div>
+</div>
+
+<!-- Index navigation tabs -->
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+    <a href="/dashboard/fno/nifty"
+       style="flex:1;min-width:110px;text-align:center;padding:10px 0;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;border:2px solid {% if fno_active_tab == 'nifty' %}#3b82f6;background:#3b82f6;color:#fff{% else %}#e2e8f0;background:#fff;color:#334155{% endif %}">
+        <i class="fas fa-chart-line me-1"></i>NIFTY 50
+    </a>
+    <a href="/dashboard/fno/banknifty"
+       style="flex:1;min-width:110px;text-align:center;padding:10px 0;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;border:2px solid {% if fno_active_tab == 'banknifty' %}#8b5cf6;background:#8b5cf6;color:#fff{% else %}#e2e8f0;background:#fff;color:#334155{% endif %}">
+        <i class="fas fa-university me-1"></i>Bank Nifty
+    </a>
+    <a href="/dashboard/fno/finnifty"
+       style="flex:1;min-width:110px;text-align:center;padding:10px 0;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;border:2px solid {% if fno_active_tab == 'finnifty' %}#10b981;background:#10b981;color:#fff{% else %}#e2e8f0;background:#fff;color:#334155{% endif %}">
+        <i class="fas fa-landmark me-1"></i>Fin Nifty
+    </a>
+    <a href="/dashboard/fno/sensex"
+       style="flex:1;min-width:110px;text-align:center;padding:10px 0;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;border:2px solid {% if fno_active_tab == 'sensex' %}#f59e0b;background:#f59e0b;color:#fff{% else %}#e2e8f0;background:#fff;color:#334155{% endif %}">
+        <i class="fas fa-chart-bar me-1"></i>SENSEX
+    </a>
 </div>
 
 <!-- TOP: Index Strip -->
@@ -466,6 +486,12 @@
 </div>
 
 <script>
+/* ── Index config injected by Flask ── */
+var FNO_INDEX_ID  = '{{ fno_index_id  or "NIFTY" }}';
+var FNO_LOT_SIZE  = {{ fno_lot_size if fno_lot_size is defined else 50 }};
+var FNO_SOURCE    = 'fno_{{ fno_active_tab or "nifty" }}';
+var FNO_API_URL   = '/dashboard/fno/api/analysis/' + FNO_INDEX_ID;
+
 var tradingCapital = 100000;
 var cachedAnalysis = null;
 var isBlocked = false;
@@ -489,7 +515,7 @@ function updateCapitalCalcs() {
     document.getElementById('riskDailyLoss').textContent = '₹' + formatINR(risk3);
     document.getElementById('rlRemainingRisk').textContent = '₹' + formatINR(risk3);
 
-    var lotSize = 50;
+    var lotSize = (cachedAnalysis && cachedAnalysis.lot_size) ? cachedAnalysis.lot_size : FNO_LOT_SIZE;
     var defaultSL = 10;
     var maxLossPerLot = defaultSL * lotSize;
     var maxLots = Math.floor(risk1 / maxLossPerLot);
@@ -547,7 +573,7 @@ function onExpiryChange() {
 function buildTradeCard(t) {
     var isCE = t.type === 'CE';
     var risk1 = Math.round(tradingCapital * 0.01);
-    var niftyLotSize = 50;
+    var niftyLotSize = t.lot_size || (cachedAnalysis && cachedAnalysis.lot_size) || FNO_LOT_SIZE;
     var slPoints = t.sl_points > 0 ? t.sl_points : 10;
     var maxLossPerLot = slPoints * niftyLotSize;
     var suggestedLots = Math.floor(risk1 / maxLossPerLot);
@@ -585,7 +611,7 @@ function buildTradeCard(t) {
             target:       (t.target || 0).toString(),
             stop_loss:    (t.sl || 0).toString(),
             product_type: 'NRML',
-            source:       'fno_nifty',
+            source:       FNO_SOURCE,
             strike:       t.strike,
             opt_type:     t.type,
             expiry:       (t.expiry || '')
@@ -668,7 +694,7 @@ function refreshAnalysis() {
         }
     }).catch(function(){});
 
-    fetch('/dashboard/fno/api/analysis').then(function(r){return r.json()}).then(function(res) {
+    fetch(FNO_API_URL).then(function(r){return r.json()}).then(function(res) {
         document.getElementById('loadingOverlay').classList.remove('show');
         if (!res.success) return;
         var d = res.data;
