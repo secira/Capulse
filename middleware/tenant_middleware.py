@@ -80,8 +80,11 @@ def get_tenant_from_user():
     """
     from flask_login import current_user
     
-    if current_user and current_user.is_authenticated:
-        return getattr(current_user, 'tenant_id', None)
+    try:
+        if current_user and current_user.is_authenticated:
+            return getattr(current_user, 'tenant_id', None)
+    except Exception:
+        pass
     
     return None
 
@@ -149,7 +152,16 @@ def init_tenant_middleware(app):
     @app.before_request
     def set_tenant_context():
         """Set tenant context for each request."""
-        g.tenant_id = resolve_tenant_id()
+        try:
+            g.tenant_id = resolve_tenant_id()
+        except Exception as exc:
+            logger.warning(f"Tenant resolution failed ({type(exc).__name__}), rolling back and defaulting to '{DEFAULT_TENANT_ID}'")
+            try:
+                from app import db
+                db.session.rollback()
+            except Exception:
+                pass
+            g.tenant_id = DEFAULT_TENANT_ID
         logger.debug(f"Request tenant context: {g.tenant_id}")
     
     @app.after_request
