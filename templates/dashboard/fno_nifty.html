@@ -986,7 +986,7 @@ function refreshAnalysis() {
 }
 
 function loadMonitorStatus() {
-    fetch('/dashboard/fno/api/monitor-status').then(function(r){return r.json()}).then(function(res) {
+    fetch('/dashboard/fno/api/monitor-status?index_id=' + FNO_INDEX_ID).then(function(r){return r.json()}).then(function(res) {
         if (!res.success) return;
         var d = res.data;
         var dot = document.getElementById('monitorDot');
@@ -1028,7 +1028,7 @@ function loadMonitorStatus() {
 }
 
 function loadActiveTrade() {
-    fetch('/dashboard/fno/api/active-trade').then(function(r){return r.json()}).then(function(res) {
+    fetch('/dashboard/fno/api/active-trade?index_id=' + FNO_INDEX_ID).then(function(r){return r.json()}).then(function(res) {
         if (!res.success) return;
         var wrap = document.getElementById('activeTradePanelWrap');
         var panel = document.getElementById('activeTradePanel');
@@ -1084,7 +1084,7 @@ function loadActiveTrade() {
 }
 
 function loadSignalHistory() {
-    fetch('/dashboard/fno/api/signal-history?limit=20').then(function(r){return r.json()}).then(function(res) {
+    fetch('/dashboard/fno/api/signal-history?limit=20&index_id=' + FNO_INDEX_ID).then(function(r){return r.json()}).then(function(res) {
         var container = document.getElementById('signalHistoryContainer');
         if (!res.success || !res.data || res.data.length === 0) {
             container.innerHTML = '<p class="text-muted text-center py-3" style="font-size:13px">No trade recommendations today. Recommendations appear when confidence ≥ 60 and conditions are met (CONFIRMED or EARLY entry mode).</p>';

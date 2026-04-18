@@ -129,7 +129,8 @@ def fno_indices_api():
 def fno_monitor_status():
     try:
         from services.fno_monitor import get_monitor_status
-        status = get_monitor_status()
+        index_id = request.args.get('index_id', 'NIFTY').upper()
+        status = get_monitor_status(index_id=index_id)
         return jsonify({'success': True, 'data': status})
     except Exception as e:
         logger.error(f"Monitor status error: {e}")
@@ -146,6 +147,7 @@ def fno_signal_history():
         ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
         ist_today_start = ist_now.replace(hour=0, minute=0, second=0, microsecond=0)
         utc_today_start = ist_today_start - timedelta(hours=5, minutes=30)
+        index_id = request.args.get('index_id', 'NIFTY').upper()
         rows = db.session.execute(db.text("""
             SELECT h.id, h.signal_type, h.direction, h.confidence, h.confidence_grade,
                    h.entry_mode, h.spot_price, h.atm_strike, h.alert_sent, h.data_source,
@@ -156,9 +158,10 @@ def fno_signal_history():
             WHERE h.created_at >= :today_start
               AND h.entry_mode != 'NO TRADE'
               AND h.confidence >= 60
+              AND COALESCE(h.index_id, 'NIFTY') = :index_id
             ORDER BY h.created_at DESC
             LIMIT :limit
-        """), {'today_start': utc_today_start, 'limit': min(limit, 50)}).fetchall()
+        """), {'today_start': utc_today_start, 'limit': min(limit, 50), 'index_id': index_id}).fetchall()
 
         signals = []
         for r in rows:
@@ -187,7 +190,8 @@ def fno_signal_history():
 def fno_active_trade():
     try:
         from services.fno_monitor import get_monitor_status
-        status = get_monitor_status()
+        index_id = request.args.get('index_id', 'NIFTY').upper()
+        status = get_monitor_status(index_id=index_id)
         return jsonify({
             'success': True,
             'trade_state': status.get('trade_state', 'NONE'),
