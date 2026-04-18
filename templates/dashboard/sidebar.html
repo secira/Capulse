@@ -92,24 +92,24 @@
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link disabled" href="#" style="opacity:0.5;pointer-events:none">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'fno.fno_banknifty' else '' }}"
+                               href="{{ url_for('fno.fno_banknifty') }}">
                                 <i class="nav-icon fas fa-university"></i>
                                 <span class="nav-text">Bank Nifty</span>
-                                <span class="nav-badge-sm" style="font-size:9px">SOON</span>
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link disabled" href="#" style="opacity:0.5;pointer-events:none">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'fno.fno_finnifty' else '' }}"
+                               href="{{ url_for('fno.fno_finnifty') }}">
                                 <i class="nav-icon fas fa-landmark"></i>
-                                <span class="nav-text">FIN NIFTY</span>
-                                <span class="nav-badge-sm" style="font-size:9px">SOON</span>
+                                <span class="nav-text">Fin Nifty</span>
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link disabled" href="#" style="opacity:0.5;pointer-events:none">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'fno.fno_sensex' else '' }}"
+                               href="{{ url_for('fno.fno_sensex') }}">
                                 <i class="nav-icon fas fa-rupee-sign"></i>
                                 <span class="nav-text">SENSEX</span>
-                                <span class="nav-badge-sm" style="font-size:9px">SOON</span>
                             </a>
                         </li>
                     </ul>
