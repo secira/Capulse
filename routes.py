@@ -856,7 +856,7 @@ def get_broker_details(broker_id):
                 'api_key_masked': masked_api_key,  # Never expose full key
                 'has_credentials': bool(api_key),
                 'connection_status': broker.connection_status,
-                'last_connected': broker.last_connected.isoformat() if broker.last_connected else None
+                'last_connected': broker.last_connected.astimezone(timezone(timedelta(hours=5, minutes=30))).isoformat() if broker.last_connected else None
             }
         })
         

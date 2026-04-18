@@ -3293,9 +3293,9 @@ class DataConnectorConfig(db.Model):
             'is_active': self.is_active,
             'data_scope': self.data_scope,
             'rate_limit_rpm': self.rate_limit_rpm,
-            'last_connected_at': self.last_connected_at.isoformat() if self.last_connected_at else None,
+            'last_connected_at': self.last_connected_at.astimezone(timezone(timedelta(hours=5, minutes=30))).isoformat() if self.last_connected_at else None,
             'last_error': self.last_error,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'created_at': self.created_at.astimezone(timezone(timedelta(hours=5, minutes=30))).isoformat() if self.created_at else None
         }
 
 

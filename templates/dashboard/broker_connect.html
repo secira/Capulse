@@ -270,7 +270,7 @@
                   <div>
                     <div class="fw-semibold small">{{ b.name }}</div>
                     {% if b.account.last_connected %}
-                    <div class="text-muted" style="font-size:.75rem;">Last synced: {{ b.account.last_connected.strftime('%d %b, %I:%M %p') if b.account.last_connected else 'Never' }}</div>
+                    <div class="text-muted" style="font-size:.75rem;">Last synced: {{ b.account.last_connected|ist_datetime('%d %b %Y, %I:%M %p') }}</div>
                     {% endif %}
                   </div>
                 </div>
@@ -445,52 +445,17 @@
             </div>
             <div class="col-6">
               <label class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
-              <input type="password" name="password" class="form-control" placeholder="Trading PIN" required autocomplete="off">
+              <input type="password" name="password" class="form-control" placeholder="Trading password" required autocomplete="off">
             </div>
             <div class="col-6">
               <label class="form-label fw-semibold">TOTP Secret <span class="text-danger">*</span></label>
-              <input type="text" name="totp_secret" class="form-control" placeholder="Base32 secret" required autocomplete="off">
+              <input type="password" name="totp_secret" class="form-control" placeholder="Base32 TOTP secret" required autocomplete="off">
             </div>
           </div>
         </div>
         <div class="modal-footer border-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Fyers -->
-<div class="modal fade" id="modal-fyers" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header border-0">
-        <div class="d-flex align-items-center gap-2">
-          <div class="broker-avatar-sm" style="background:#1a73e8;">F</div>
-          <div><h5 class="mb-0">Connect Fyers</h5><small class="text-muted">Fyers API v3 · OAuth Login</small></div>
-        </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="POST" action="{{ url_for('broker_oauth.auth_fyers') }}">
-        <div class="modal-body">
-          <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-            Create an app at <a href="https://myapi.fyers.in" target="_blank">myapi.fyers.in</a>. Enter your App ID and Secret Key — you'll be redirected to Fyers to log in, then brought back automatically.
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">App ID (Client ID) <span class="text-danger">*</span></label>
-            <input type="text" name="client_id" class="form-control" placeholder="e.g. XJ12345-100" required autocomplete="off">
-          </div>
-          <div class="mb-2">
-            <label class="form-label fw-semibold">Secret Key <span class="text-danger">*</span></label>
-            <input type="password" name="secret_key" class="form-control" placeholder="Fyers app secret key" required autocomplete="off">
-          </div>
-          <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>Credentials are encrypted. After saving, you'll complete login on the Fyers website.</p>
-        </div>
-        <div class="modal-footer border-0">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-external-link-alt me-2"></i>Continue to Fyers Login</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect Angel One</button>
         </div>
       </form>
     </div>
@@ -504,7 +469,7 @@
       <div class="modal-header border-0">
         <div class="d-flex align-items-center gap-2">
           <div class="broker-avatar-sm" style="background:#6d28d9;">S</div>
-          <div><h5 class="mb-0">Connect Shoonya</h5><small class="text-muted">NorenOMS · TOTP Auth</small></div>
+          <div><h5 class="mb-0">Connect Shoonya</h5><small class="text-muted">Noren OMS · QuickAuth</small></div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
@@ -523,19 +488,18 @@
               <input type="password" name="password" class="form-control" placeholder="Trading password" required autocomplete="off">
             </div>
             <div class="col-6">
-              <label class="form-label fw-semibold">API Secret <span class="text-danger">*</span></label>
-              <input type="text" name="api_secret" class="form-control" placeholder="API Secret key" required autocomplete="off">
+              <label class="form-label fw-semibold">Vendor Code</label>
+              <input type="text" name="vendor_code" class="form-control" placeholder="Vendor code" autocomplete="off">
             </div>
             <div class="col-6">
-              <label class="form-label fw-semibold">Vendor Code</label>
-              <input type="text" name="vendor_code" class="form-control" placeholder="Optional vendor code" autocomplete="off">
+              <label class="form-label fw-semibold">TOTP Secret</label>
+              <input type="password" name="totp_secret" class="form-control" placeholder="Base32 TOTP secret" autocomplete="off">
             </div>
             <div class="col-12">
-              <label class="form-label fw-semibold">TOTP Secret</label>
-              <input type="text" name="totp_secret" class="form-control" placeholder="Base32 TOTP secret (optional)" autocomplete="off">
+              <label class="form-label fw-semibold">API Secret <span class="text-danger">*</span></label>
+              <input type="password" name="api_secret" class="form-control" placeholder="App secret" required autocomplete="off">
             </div>
           </div>
-          <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>Credentials are encrypted and stored securely.</p>
         </div>
         <div class="modal-footer border-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -553,30 +517,33 @@
       <div class="modal-header border-0">
         <div class="d-flex align-items-center gap-2">
           <div class="broker-avatar-sm" style="background:#1e3a8a;">AB</div>
-          <div><h5 class="mb-0">Connect Alice Blue</h5><small class="text-muted">ANT API v2 · SHA-256 Auth</small></div>
+          <div><h5 class="mb-0">Connect Alice Blue</h5><small class="text-muted">ANT API · Direct session</small></div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <form method="POST" action="{{ url_for('broker_oauth.auth_alice') }}">
         <div class="modal-body">
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-            Get your API Key from <a href="https://ant.aliceblueonline.com" target="_blank">ant.aliceblueonline.com</a> under API Settings.
+            Login through Alice Blue's API portal and keep your client details ready. Once connected, you can view holdings, positions, and portfolio details in Target Capital.
           </div>
           <div class="row g-2">
             <div class="col-6">
-              <label class="form-label fw-semibold">User ID <span class="text-danger">*</span></label>
-              <input type="text" name="user_id" class="form-control" placeholder="Alice Blue User ID" required autocomplete="off">
+              <label class="form-label fw-semibold">Client ID <span class="text-danger">*</span></label>
+              <input type="text" name="client_id" class="form-control" placeholder="Alice Blue Client ID" required autocomplete="off">
             </div>
             <div class="col-6">
-              <label class="form-label fw-semibold">API Key <span class="text-danger">*</span></label>
-              <input type="text" name="api_key" class="form-control" placeholder="ANT API Key" required autocomplete="off">
+              <label class="form-label fw-semibold">Access Token <span class="text-danger">*</span></label>
+              <input type="password" name="access_token" class="form-control" placeholder="Access token" required autocomplete="off">
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">API Secret <span class="text-danger">*</span></label>
+              <input type="password" name="api_secret" class="form-control" placeholder="Alice Blue API secret" required autocomplete="off">
             </div>
           </div>
-          <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>Credentials are verified instantly via SHA-256 checksum.</p>
         </div>
         <div class="modal-footer border-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect Alice Blue</button>
         </div>
       </form>
     </div>
@@ -590,7 +557,7 @@
       <div class="modal-header border-0">
         <div class="d-flex align-items-center gap-2">
           <div class="broker-avatar-sm" style="background:#e65100;">5P</div>
-          <div><h5 class="mb-0">Connect 5 Paisa</h5><small class="text-muted">OpenAPI Direct Connect</small></div>
+          <div><h5 class="mb-0">Connect 5 Paisa</h5><small class="text-muted">Login request + JWT</small></div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
@@ -605,12 +572,12 @@
               <input type="text" name="client_code" class="form-control" placeholder="5 Paisa client code" required autocomplete="off">
             </div>
             <div class="col-6">
-              <label class="form-label fw-semibold">App Key <span class="text-danger">*</span></label>
-              <input type="text" name="app_key" class="form-control" placeholder="Developer app key" required autocomplete="off">
-            </div>
-            <div class="col-6">
               <label class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
               <input type="password" name="password" class="form-control" placeholder="Trading password" required autocomplete="off">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">App Key <span class="text-danger">*</span></label>
+              <input type="password" name="app_key" class="form-control" placeholder="App key" required autocomplete="off">
             </div>
             <div class="col-6">
               <label class="form-label fw-semibold">TOTP</label>
@@ -620,7 +587,7 @@
         </div>
         <div class="modal-footer border-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect 5 Paisa</button>
         </div>
       </form>
     </div>
@@ -634,24 +601,25 @@
       <div class="modal-header border-0">
         <div class="d-flex align-items-center gap-2">
           <div class="broker-avatar-sm" style="background:#0f766e;">D</div>
-          <div><h5 class="mb-0">Connect Dhan</h5><small class="text-muted">Token-based direct connect</small></div>
+          <div><h5 class="mb-0">Connect Dhan</h5><small class="text-muted">Access token-based login</small></div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <form method="POST" action="{{ url_for('broker_oauth.auth_dhan') }}">
         <div class="modal-body">
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-            Get your Client ID and Access Token from <a href="https://web.dhan.co" target="_blank">web.dhan.co</a> → Profile → DhanHQ Trading APIs.
+            Get your Dhan API credentials from the DhanHQ developer portal and connect securely for holdings, positions, and trading.
           </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Client ID <span class="text-danger">*</span></label>
-            <input type="text" name="client_id" class="form-control" placeholder="Your Dhan Client ID" required autocomplete="off">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Client ID <span class="text-danger">*</span></label>
+              <input type="text" name="client_id" class="form-control" placeholder="Dhan Client ID" required autocomplete="off">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Access Token <span class="text-danger">*</span></label>
+              <input type="password" name="access_token" class="form-control" placeholder="Access token" required autocomplete="off">
+            </div>
           </div>
-          <div class="mb-2">
-            <label class="form-label fw-semibold">Access Token <span class="text-danger">*</span></label>
-            <input type="password" name="access_token" class="form-control" placeholder="Your Dhan Access Token" required autocomplete="off">
-          </div>
-          <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>Credentials are encrypted and stored securely.</p>
         </div>
         <div class="modal-footer border-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -662,98 +630,4 @@
   </div>
 </div>
 
-
-<style>
-.security-banner {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-  padding: .75rem 1.25rem;
-  font-size: .875rem;
-  color: #1e40af;
-}
-.primary-broker-card {
-  border: 2px solid #bfdbfe;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #f8faff 0%, #eff6ff 100%);
-}
-.broker-avatar {
-  width: 56px; height: 56px;
-  border-radius: 14px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.4rem; font-weight: 800; color: white;
-  flex-shrink: 0;
-}
-.broker-avatar-sm {
-  width: 38px; height: 38px;
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .85rem; font-weight: 800; color: white;
-  flex-shrink: 0;
-}
-.broker-card {
-  border: 1px solid #e9ecef;
-  border-radius: 12px;
-  transition: box-shadow 0.18s, transform 0.18s;
-}
-.broker-card:hover {
-  box-shadow: 0 4px 18px rgba(0,0,0,.09);
-  transform: translateY(-2px);
-}
-.section-label {
-  text-transform: uppercase;
-  font-size: .7rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  color: #94a3b8;
-}
-.auth-badge {
-  font-size: .65rem; font-weight: 600;
-  padding: 2px 7px; border-radius: 4px;
-  display: inline-block; margin-top: 2px;
-}
-.auth-oauth   { background: #eff6ff; color: #2563eb; }
-.auth-totp    { background: #fef9c3; color: #854d0e; }
-.auth-token   { background: #f0fdf4; color: #166534; }
-.auth-direct  { background: #faf5ff; color: #6b21a8; }
-.step-pill {
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  background: #4f46e5; color: white;
-  font-size: .7rem; font-weight: 700;
-  display: inline-flex; align-items: center; justify-content: center;
-  flex-shrink: 0; margin-top: 1px;
-}
-.bg-primary-subtle { background: #eff6ff; }
-</style>
-
-<script>
-function syncAccount(accountId, btn) {
-  if (!confirm('Sync portfolio data from this broker? This fetches your latest holdings, positions and orders.')) return;
-  const orig = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Syncing…';
-  fetch(`/api/broker/sync-account/${accountId}`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({sync_types: ['holdings', 'positions', 'orders']})
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      alert('Sync complete!');
-      location.reload();
-    } else {
-      alert('Sync failed: ' + (data.message || 'Unknown error'));
-      btn.disabled = false;
-      btn.innerHTML = orig;
-    }
-  })
-  .catch(() => {
-    alert('Sync request failed. Please try again.');
-    btn.disabled = false;
-    btn.innerHTML = orig;
-  });
-}
-</script>
 {% endblock %}

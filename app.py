@@ -3,6 +3,7 @@ import logging
 import threading
 import asyncio
 import atexit
+from datetime import datetime, timezone, timedelta
 from flask import Flask, g
 from flask.helpers import send_from_directory
 from flask_compress import Compress
@@ -88,6 +89,22 @@ from flask_wtf.csrf import generate_csrf
 @app.template_global()
 def csrf_token():
     return generate_csrf()
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+@app.template_filter("ist_datetime")
+def ist_datetime(value, fmt="%d %b %Y, %I:%M %p"):
+    if not value:
+        return "—"
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except Exception:
+            return value
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(IST).strftime(fmt)
 
 # Configure secure session settings
 environment = os.environ.get("ENVIRONMENT", "development")
