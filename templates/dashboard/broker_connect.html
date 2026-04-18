@@ -86,7 +86,7 @@
   </div>
 
   <div class="d-flex justify-content-end gap-2 mb-3">
-    <a href="{{ url_for('dashboard_data_api_broker') }}" class="btn btn-info">
+    <a href="{{ url_for('broker_management') }}" class="btn btn-info">
       <i class="fas fa-database me-2"></i>Data API Broker
     </a>
     <a href="{{ url_for('broker_management') }}" class="btn btn-outline-primary">
@@ -124,7 +124,7 @@
                 Token expires daily — re-login needed
               </div>
               {% endif %}
-              <a href="{{ url_for('dashboard_live_portfolio') }}" class="btn btn-primary">
+              <a href="{{ url_for('dashboard_my_portfolio') }}" class="btn btn-primary">
                 <i class="fas fa-chart-line me-2"></i>View Portfolio
               </a>
               <form method="POST" action="{{ url_for('broker_oauth.reconnect_zerodha') }}" class="d-inline">
