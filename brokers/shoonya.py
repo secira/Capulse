@@ -1,10 +1,26 @@
+import hashlib
+import json
 import logging
 import requests
-import hashlib
 from typing import Dict, List, Any, Optional
 from brokers.base import BrokerBase
 
 logger = logging.getLogger(__name__)
+
+_BASE = "https://api.shoonya.com/NorenWClientTP"
+
+
+def _jpost(session: requests.Session, endpoint: str, jdata: dict, token: str) -> dict:
+    """Send a Noren API form-encoded request and return parsed JSON."""
+    jdata_str = json.dumps(jdata)
+    resp = session.post(
+        f"{_BASE}/{endpoint}",
+        data=f"jData={jdata_str}&jKey={token}",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json()
 
 
 class ShoonyaBroker(BrokerBase):
@@ -14,73 +30,48 @@ class ShoonyaBroker(BrokerBase):
 
     def __init__(self, credentials: Dict[str, str]):
         super().__init__(credentials)
-        self.user_id = credentials.get("user_id", credentials.get("client_id", ""))
-        self.password = credentials.get("password", "")
-        self.totp_secret = credentials.get("totp_secret", "")
-        self.api_key = credentials.get("api_key", credentials.get("api_secret", ""))
-        self.vendor_code = credentials.get("vendor_code", "")
-        self.imei = credentials.get("imei", "")
-        self.base_url = "https://api.shoonya.com/NorenWClientTP"
-        self._token = ""
+        self.user_id = credentials.get("client_id", credentials.get("user_id", ""))
         self.session = requests.Session()
 
-    def connect(self) -> bool:
-        try:
-            pwd_hash = hashlib.sha256(self.password.encode()).hexdigest()
-            app_key = hashlib.sha256(f"{self.user_id}|{self.api_key}".encode()).hexdigest()
+        raw_secret = credentials.get("api_secret", "")
+        parts = raw_secret.split(":") if raw_secret else []
+        self.api_secret = parts[0] if parts else ""
+        self.vendor_code = parts[1] if len(parts) > 1 else ""
+        self.totp_secret = parts[2] if len(parts) > 2 else ""
+        self.password = parts[3] if len(parts) > 3 else ""
 
-            payload = {
-                "source": "API",
-                "apkversion": "1.0.0",
-                "uid": self.user_id,
-                "pwd": pwd_hash,
-                "factor2": self._get_totp(),
-                "vc": self.vendor_code or self.user_id,
-                "appkey": app_key,
-                "imei": self.imei or "api",
-            }
-            resp = self.session.post(f"{self.base_url}/QuickAuth", json=payload, timeout=15)
-            if resp.status_code == 200:
-                data = resp.json()
+        self._token = credentials.get("access_token", "")
+
+    def connect(self) -> bool:
+        if self._token:
+            try:
+                data = _jpost(self.session, "UserDetails", {"uid": self.user_id}, self._token)
                 if data.get("stat") == "Ok":
-                    self._token = data.get("susertoken", "")
                     self._connected = True
                     return True
-            return False
-        except Exception as e:
-            logger.error(f"Shoonya connect error: {e}")
-            return False
-
-    def _get_totp(self) -> str:
-        if not self.totp_secret:
-            return ""
-        try:
-            import pyotp
-            totp = pyotp.TOTP(self.totp_secret)
-            return totp.now()
-        except ImportError:
-            logger.warning("pyotp not available for TOTP generation")
-            return self.totp_secret
-
-    def _auth_header(self) -> str:
-        return f"{self.user_id}:{self._token}"
+            except Exception:
+                pass
+        if self.password and self.api_secret:
+            try:
+                from routes_broker_oauth import _shoonya_quickauth
+                self._token = _shoonya_quickauth(
+                    self.user_id, self.password, self.api_secret,
+                    self.vendor_code, self.totp_secret,
+                )
+                self._connected = True
+                return True
+            except Exception as e:
+                logger.error(f"Shoonya connect via QuickAuth failed: {e}")
+        return False
 
     def get_price(self, symbol: str) -> float:
         try:
-            payload = {
-                "uid": self.user_id,
-                "exch": "NSE",
-                "token": self._map_token(symbol),
-            }
-            resp = self.session.post(
-                f"{self.base_url}/GetQuotes",
-                json={"jData": str(payload), "jKey": self._token},
-                timeout=10,
+            data = _jpost(
+                self.session, "GetQuotes",
+                {"uid": self.user_id, "exch": "NSE", "token": self._map_token(symbol)},
+                self._token,
             )
-            if resp.status_code == 200:
-                data = resp.json()
-                return float(data.get("lp", 0))
-            return 0.0
+            return float(data.get("lp", 0))
         except Exception as e:
             logger.error(f"Shoonya get_price error: {e}")
             return 0.0
@@ -89,21 +80,18 @@ class ShoonyaBroker(BrokerBase):
         result = {}
         for token in tokens:
             try:
-                payload = {"uid": self.user_id, "exch": "NFO", "token": token}
-                resp = self.session.post(
-                    f"{self.base_url}/GetQuotes",
-                    json={"jData": str(payload), "jKey": self._token},
-                    timeout=10,
+                data = _jpost(
+                    self.session, "GetQuotes",
+                    {"uid": self.user_id, "exch": "NFO", "token": token},
+                    self._token,
                 )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    result[token] = {
-                        "ltp": float(data.get("lp", 0)),
-                        "oi": int(data.get("oi", 0)),
-                        "volume": int(data.get("v", 0)),
-                        "bid": float(data.get("bp1", 0)),
-                        "ask": float(data.get("sp1", 0)),
-                    }
+                result[token] = {
+                    "ltp": float(data.get("lp", 0)),
+                    "oi": int(data.get("oi", 0)),
+                    "volume": int(data.get("v", 0)),
+                    "bid": float(data.get("bp1", 0)),
+                    "ask": float(data.get("sp1", 0)),
+                }
             except Exception:
                 continue
         return result
@@ -120,28 +108,24 @@ class ShoonyaBroker(BrokerBase):
 
     def get_instruments(self, exchange: str = "NFO") -> List[Dict]:
         try:
-            payload = {"uid": self.user_id, "exch": exchange}
-            resp = self.session.post(
-                f"{self.base_url}/SearchScrip",
-                json={"jData": str({"uid": self.user_id, "stext": "NIFTY", "exch": exchange}), "jKey": self._token},
-                timeout=30,
+            data = _jpost(
+                self.session, "SearchScrip",
+                {"uid": self.user_id, "stext": "NIFTY", "exch": exchange},
+                self._token,
             )
-            if resp.status_code == 200:
-                data = resp.json()
-                values = data.get("values", []) if isinstance(data, dict) else data
-                instruments = []
-                for row in values:
-                    if row.get("instname") in ("OPTIDX",):
-                        instruments.append({
-                            "token": row.get("token", ""),
-                            "symbol": row.get("tsym", ""),
-                            "strike": float(row.get("strprc", 0)),
-                            "type": "CE" if "CE" in row.get("tsym", "") else "PE",
-                            "expiry": row.get("exd", ""),
-                            "exchange": exchange,
-                        })
-                return instruments
-            return []
+            values = data.get("values", []) if isinstance(data, dict) else data
+            instruments = []
+            for row in values:
+                if row.get("instname") in ("OPTIDX",):
+                    instruments.append({
+                        "token": row.get("token", ""),
+                        "symbol": row.get("tsym", ""),
+                        "strike": float(row.get("strprc", 0)),
+                        "type": "CE" if "CE" in row.get("tsym", "") else "PE",
+                        "expiry": row.get("exd", ""),
+                        "exchange": exchange,
+                    })
+            return instruments
         except Exception as e:
             logger.error(f"Shoonya get_instruments error: {e}")
             return []
@@ -150,7 +134,7 @@ class ShoonyaBroker(BrokerBase):
                     order_type: str = "MARKET", product: str = "INTRADAY",
                     price: float = 0, trigger_price: float = 0) -> Dict:
         try:
-            payload = {
+            data = _jpost(self.session, "PlaceOrder", {
                 "uid": self.user_id,
                 "actid": self.user_id,
                 "exch": "NFO",
@@ -162,13 +146,7 @@ class ShoonyaBroker(BrokerBase):
                 "trantype": "B" if side.upper() == "BUY" else "S",
                 "prctyp": "MKT" if order_type.upper() == "MARKET" else "LMT",
                 "ret": "DAY",
-            }
-            resp = self.session.post(
-                f"{self.base_url}/PlaceOrder",
-                json={"jData": str(payload), "jKey": self._token},
-                timeout=15,
-            )
-            data = resp.json()
+            }, self._token)
             return {
                 "status": "success" if data.get("stat") == "Ok" else "error",
                 "order_id": data.get("norenordno"),
@@ -180,37 +158,33 @@ class ShoonyaBroker(BrokerBase):
 
     def get_holdings(self) -> List[Dict]:
         try:
-            resp = self.session.post(
-                f"{self.base_url}/Holdings",
-                json={"jData": str({"uid": self.user_id, "actid": self.user_id, "prd": "C"}), "jKey": self._token},
-                timeout=10,
-            )
-            return resp.json() if resp.status_code == 200 and isinstance(resp.json(), list) else []
+            data = _jpost(self.session, "Holdings",
+                          {"uid": self.user_id, "actid": self.user_id, "prd": "C"}, self._token)
+            return data if isinstance(data, list) else []
         except Exception:
             return []
 
     def get_positions(self) -> List[Dict]:
         try:
-            resp = self.session.post(
-                f"{self.base_url}/PositionBook",
-                json={"jData": str({"uid": self.user_id, "actid": self.user_id}), "jKey": self._token},
-                timeout=10,
-            )
-            return resp.json() if resp.status_code == 200 and isinstance(resp.json(), list) else []
+            data = _jpost(self.session, "PositionBook",
+                          {"uid": self.user_id, "actid": self.user_id}, self._token)
+            return data if isinstance(data, list) else []
         except Exception:
             return []
 
     def get_orders(self) -> List[Dict]:
         try:
-            resp = self.session.post(
-                f"{self.base_url}/OrderBook",
-                json={"jData": str({"uid": self.user_id}), "jKey": self._token},
-                timeout=10,
-            )
-            return resp.json() if resp.status_code == 200 and isinstance(resp.json(), list) else []
+            data = _jpost(self.session, "OrderBook", {"uid": self.user_id}, self._token)
+            return data if isinstance(data, list) else []
         except Exception:
             return []
 
     def _map_token(self, symbol: str) -> str:
-        mapping = {"NIFTY": "26000", "NIFTY 50": "26000", "BANKNIFTY": "26009"}
+        mapping = {
+            "NIFTY": "26000",
+            "NIFTY 50": "26000",
+            "BANKNIFTY": "26009",
+            "FINNIFTY": "26037",
+            "SENSEX": "1",
+        }
         return mapping.get(symbol.upper(), symbol)

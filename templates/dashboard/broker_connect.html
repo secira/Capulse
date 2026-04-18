@@ -161,6 +161,36 @@
                       <i class="fas fa-sync me-1"></i>Refresh
                     </button>
                   </form>
+                  {% elif slug == 'upstox' %}
+                  <form method="POST" action="{{ url_for('broker_oauth.reconnect_upstox') }}" class="flex-fill">
+                    <button type="submit" class="btn btn-outline-warning btn-sm w-100" title="Re-start Upstox OAuth — token refreshes daily">
+                      <i class="fas fa-sync me-1"></i>Refresh
+                    </button>
+                  </form>
+                  {% elif slug == 'fyers' %}
+                  <form method="POST" action="{{ url_for('broker_oauth.reconnect_fyers') }}" class="flex-fill">
+                    <button type="submit" class="btn btn-outline-warning btn-sm w-100" title="Re-start Fyers OAuth — token refreshes daily">
+                      <i class="fas fa-sync me-1"></i>Refresh
+                    </button>
+                  </form>
+                  {% elif slug == 'shoonya' %}
+                  <form method="POST" action="{{ url_for('broker_oauth.reconnect_shoonya') }}" class="flex-fill">
+                    <button type="submit" class="btn btn-outline-warning btn-sm w-100" title="Refresh Shoonya session using stored credentials">
+                      <i class="fas fa-sync me-1"></i>Refresh
+                    </button>
+                  </form>
+                  {% elif slug == 'alice_blue' %}
+                  <form method="POST" action="{{ url_for('broker_oauth.reconnect_alice') }}" class="flex-fill">
+                    <button type="submit" class="btn btn-outline-warning btn-sm w-100" title="Refresh Alice Blue session — expires daily">
+                      <i class="fas fa-sync me-1"></i>Refresh
+                    </button>
+                  </form>
+                  {% elif slug == '5paisa' %}
+                  <form method="POST" action="{{ url_for('broker_oauth.reconnect_fivepaisa') }}" class="flex-fill">
+                    <button type="submit" class="btn btn-outline-warning btn-sm w-100" title="Refresh 5 Paisa JWT using stored credentials">
+                      <i class="fas fa-sync me-1"></i>Refresh
+                    </button>
+                  </form>
                   {% endif %}
                   <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug=slug) }}" class="flex-fill">
                     <button type="submit" class="btn btn-outline-danger btn-sm w-100">
@@ -405,28 +435,28 @@
       <div class="modal-header border-0">
         <div class="d-flex align-items-center gap-2">
           <div class="broker-avatar-sm" style="background:#1a73e8;">F</div>
-          <div><h5 class="mb-0">Connect Fyers</h5><small class="text-muted">Fyers API v3 · Access Token</small></div>
+          <div><h5 class="mb-0">Connect Fyers</h5><small class="text-muted">Fyers API v3 · OAuth Login</small></div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <form method="POST" action="{{ url_for('broker_oauth.auth_fyers') }}">
         <div class="modal-body">
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-            Create an app at <a href="https://myapi.fyers.in" target="_blank">myapi.fyers.in</a> and generate an access token using your App ID.
+            Create an app at <a href="https://myapi.fyers.in" target="_blank">myapi.fyers.in</a>. Enter your App ID and Secret Key — you'll be redirected to Fyers to log in, then brought back automatically.
           </div>
           <div class="mb-3">
-            <label class="form-label fw-semibold">Client ID (App ID) <span class="text-danger">*</span></label>
+            <label class="form-label fw-semibold">App ID (Client ID) <span class="text-danger">*</span></label>
             <input type="text" name="client_id" class="form-control" placeholder="e.g. XJ12345-100" required autocomplete="off">
           </div>
           <div class="mb-2">
-            <label class="form-label fw-semibold">Access Token <span class="text-danger">*</span></label>
-            <input type="password" name="access_token" class="form-control" placeholder="Fyers daily access token" required autocomplete="off">
+            <label class="form-label fw-semibold">Secret Key <span class="text-danger">*</span></label>
+            <input type="password" name="secret_key" class="form-control" placeholder="Fyers app secret key" required autocomplete="off">
           </div>
-          <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>Credentials are encrypted and stored securely.</p>
+          <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>Credentials are encrypted. After saving, you'll complete login on the Fyers website.</p>
         </div>
         <div class="modal-footer border-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-plug me-2"></i>Connect Fyers</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-external-link-alt me-2"></i>Continue to Fyers Login</button>
         </div>
       </form>
     </div>
@@ -447,7 +477,7 @@
       <form method="POST" action="{{ url_for('broker_oauth.auth_shoonya') }}">
         <div class="modal-body">
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-            Get your API credentials from <a href="https://shoonya.com/openapi" target="_blank">shoonya.com/openapi</a>. TOTP must be enabled on your account.
+            Get your API credentials from <a href="https://shoonya.com/openapi" target="_blank">shoonya.com/openapi</a>. Your session will be verified live — provide TOTP secret if 2FA is enabled on your account.
           </div>
           <div class="row g-2">
             <div class="col-6">
@@ -533,7 +563,7 @@
       <form method="POST" action="{{ url_for('broker_oauth.auth_fivepaisa') }}">
         <div class="modal-body">
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
-            Get your App Key from <a href="https://www.5paisa.com/developerapi" target="_blank">5paisa Developer API</a>.
+            Get your App Key from <a href="https://www.5paisa.com/developerapi" target="_blank">5paisa Developer API</a>. The TOTP is the 6-digit OTP sent to your registered mobile/email — leave blank if not required.
           </div>
           <div class="row g-2">
             <div class="col-6">

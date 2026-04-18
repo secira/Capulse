@@ -4,6 +4,8 @@ Handles the redirect-based login flow for Zerodha, Upstox, and ICICI Direct.
 Angel One uses TOTP-based direct connect (no OAuth redirect).
 """
 
+import hashlib
+import json
 import logging
 import secrets
 from datetime import datetime
@@ -496,6 +498,86 @@ def reconnect_angel():
     return redirect(url_for('broker_oauth.broker_connect'))
 
 
+@broker_oauth.route('/broker/reconnect/upstox', methods=['POST'])
+@login_required
+def reconnect_upstox():
+    """Re-start Upstox OAuth flow using stored API key (daily token refresh)."""
+    account = BrokerAccount.query.filter_by(
+        user_id=current_user.id, broker_type='upstox', is_active=True,
+    ).first()
+    if not account:
+        flash('Upstox account not found. Please connect first.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    creds = account.get_credentials()
+    api_key = creds.get('client_id', '')
+    if not api_key:
+        flash('Stored credentials missing — please reconnect Upstox.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    session['upstox_account_id'] = account.id
+    callback = _get_callback_url('upstox')
+    state = secrets.token_urlsafe(16)
+    session['upstox_state'] = state
+
+    auth_url = (
+        f"{UPSTOX_AUTH_URL}"
+        f"?response_type=code"
+        f"&client_id={api_key}"
+        f"&redirect_uri={callback}"
+        f"&state={state}"
+    )
+    return redirect(auth_url)
+
+
+@broker_oauth.route('/broker/reconnect/alice', methods=['POST'])
+@login_required
+def reconnect_alice():
+    """Re-authenticate Alice Blue using stored user_id + api_key (daily session refresh)."""
+    account = BrokerAccount.query.filter_by(
+        user_id=current_user.id, broker_type='alice_blue', is_active=True,
+    ).first()
+    if not account:
+        flash('Alice Blue account not found. Please connect first.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    try:
+        creds = account.get_credentials()
+        user_id = creds.get('client_id', '')
+        api_key = creds.get('api_secret', '')
+        if not user_id or not api_key:
+            flash('Stored credentials incomplete — please reconnect Alice Blue.', 'error')
+            return redirect(url_for('broker_oauth.broker_connect'))
+
+        import base64 as _b64
+        checksum = hashlib.sha256(f"{user_id}{api_key}".encode()).hexdigest()
+        encoded = _b64.b64encode(checksum.encode()).decode()
+
+        resp = requests.post(
+            'https://ant.aliceblueonline.com/rest/AliceBlueAPIService/api/customer/getUserSID',
+            json={"userId": user_id, "userData": encoded},
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        session_id = result.get("sessionID") or result.get("SID") or result.get("result")
+        if not session_id:
+            raise ValueError(f"Auth failed: {result}")
+
+        account.set_credentials(client_id=user_id, access_token=session_id, api_secret=api_key)
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+        flash('Alice Blue session refreshed successfully!', 'success')
+        logger.info(f"Alice Blue session refreshed for user {current_user.id}")
+    except Exception as e:
+        logger.error(f"Alice Blue reconnect failed: {e}")
+        flash(f'Alice Blue reconnect failed: {str(e)}', 'error')
+
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
 @broker_oauth.route('/broker/reconnect/zerodha', methods=['POST'])
 @login_required
 def reconnect_zerodha():
@@ -642,17 +724,11 @@ def auth_fivepaisa():
         if not jwt:
             raise ValueError(body.get("Message", "5 Paisa login failed — check credentials"))
 
-        account = _save_pending_account('5paisa', client_code, f"{app_key}:{totp}", extra=jwt)
-        account.set_credentials(
-            client_id=client_code,
-            access_token=password,
-            api_secret=f"{app_key}:{totp}",
-        )
-        # Store JWT separately (access_token slot used for password so we re-encode)
+        account = _save_pending_account('5paisa', client_code, f"{app_key}:{password}", extra=jwt)
         account.set_credentials(
             client_id=client_code,
             access_token=jwt,
-            api_secret=f"{app_key}:{totp}",
+            api_secret=f"{app_key}:{password}",
         )
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
@@ -666,51 +742,238 @@ def auth_fivepaisa():
     return redirect(url_for('broker_oauth.broker_connect'))
 
 
+@broker_oauth.route('/broker/reconnect/fivepaisa', methods=['POST'])
+@login_required
+def reconnect_fivepaisa():
+    """Re-authenticate 5 Paisa using stored App Key + password (gets a new JWT)."""
+    account = BrokerAccount.query.filter_by(
+        user_id=current_user.id, broker_type='5paisa', is_active=True,
+    ).first()
+    if not account:
+        flash('5 Paisa account not found. Please connect first.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    try:
+        creds = account.get_credentials()
+        client_code = creds.get('client_id', '')
+        parts = (creds.get('api_secret') or '').split(':')
+        app_key = parts[0] if parts else ''
+        password = parts[1] if len(parts) > 1 else ''
+
+        if not all([client_code, app_key, password]):
+            flash('Stored credentials incomplete — please reconnect 5 Paisa.', 'error')
+            return redirect(url_for('broker_oauth.broker_connect'))
+
+        payload = {
+            "head": {"AppKey": app_key},
+            "body": {"ClientCode": client_code, "Password": password, "TOTP": ""},
+        }
+        resp = requests.post(
+            'https://openapi.5paisa.com/VendorsAPI/Service1.svc/V4/LoginRequestMobileNewbyEmail',
+            json=payload,
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        body = result.get("body", {})
+        jwt = body.get("JWTToken") or body.get("AccessToken")
+
+        if not jwt:
+            raise ValueError(body.get("Message", "5 Paisa re-login failed — TOTP may be required"))
+
+        account.set_credentials(client_id=client_code, access_token=jwt, api_secret=f"{app_key}:{password}")
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+        flash('5 Paisa session refreshed successfully!', 'success')
+        logger.info(f"5 Paisa session refreshed for user {current_user.id}")
+    except Exception as e:
+        logger.error(f"5 Paisa reconnect failed: {e}")
+        flash(f'5 Paisa reconnect failed: {str(e)}', 'error')
+
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
 # ---------------------------------------------------------------------------
-# Fyers  (token-based direct connect)
+# Fyers  (API v3 OAuth redirect)
 # ---------------------------------------------------------------------------
+
+FYERS_AUTH_URL = "https://api-t2.fyers.in/api/v3/generate-authcode"
+FYERS_TOKEN_URL = "https://api-t2.fyers.in/api/v3/validate-authcode"
+
 
 @broker_oauth.route('/broker/auth/fyers', methods=['POST'])
 @login_required
 def auth_fyers():
     client_id = request.form.get('client_id', '').strip()
-    access_token = request.form.get('access_token', '').strip()
-    if not client_id or not access_token:
-        flash('Client ID and Access Token are required for Fyers.', 'error')
+    secret_key = request.form.get('secret_key', '').strip()
+    if not client_id or not secret_key:
+        flash('App ID (Client ID) and Secret Key are required for Fyers.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
     limit_err = _check_broker_plan_limit('fyers')
     if limit_err:
         flash(limit_err, 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
 
+    account = _save_pending_account('fyers', client_id, secret_key)
+    session['fyers_account_id'] = account.id
+
+    callback = _get_callback_url('fyers')
+    state = secrets.token_urlsafe(16)
+    session['fyers_state'] = state
+
+    auth_url = (
+        f"{FYERS_AUTH_URL}"
+        f"?client_id={client_id}"
+        f"&redirect_uri={callback}"
+        f"&response_type=code"
+        f"&state={state}"
+    )
+    return redirect(auth_url)
+
+
+@broker_oauth.route('/broker/callback/fyers')
+@login_required
+def callback_fyers():
+    auth_code = request.args.get('auth_code') or request.args.get('code')
+    state = request.args.get('state')
+
+    if not auth_code:
+        flash('Fyers login was cancelled or failed.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    if state != session.pop('fyers_state', None):
+        flash('Invalid state parameter. Please try again.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    account_id = session.pop('fyers_account_id', None)
+    account = BrokerAccount.query.filter_by(
+        id=account_id, user_id=current_user.id,
+    ).first() if account_id else BrokerAccount.query.filter_by(
+        user_id=current_user.id, broker_type='fyers', is_active=True,
+    ).first()
+
+    if not account:
+        flash('Broker account not found. Please try again.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
     try:
-        account = BrokerAccount.query.filter_by(
-            user_id=current_user.id, broker_type='fyers', is_active=True,
-        ).first()
-        if not account:
-            account = BrokerAccount(
-                user_id=current_user.id,
-                broker_type='fyers',
-                broker_name='Fyers',
-                is_active=True,
-            )
-            db.session.add(account)
-        account.set_credentials(client_id=client_id, access_token=access_token, api_secret='')
+        creds = account.get_credentials()
+        client_id = creds.get('client_id', '')
+        secret_key = creds.get('api_secret', '')
+
+        app_id_hash = hashlib.sha256(f"{client_id}:{secret_key}".encode()).hexdigest()
+
+        resp = requests.post(
+            FYERS_TOKEN_URL,
+            json={"grant_type": "authorization_code", "appIdHash": app_id_hash, "code": auth_code},
+            headers={"Content-Type": "application/json"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        if data.get('s') != 'ok':
+            raise ValueError(data.get('message', 'Fyers token exchange failed'))
+
+        access_token = data.get('access_token')
+        if not access_token:
+            raise ValueError("Empty access token from Fyers")
+
+        account.set_credentials(client_id=client_id, access_token=access_token, api_secret=secret_key)
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
         db.session.commit()
+
         flash('Fyers connected successfully!', 'success')
         logger.info(f"Fyers connected for user {current_user.id}")
     except Exception as e:
-        logger.error(f"Fyers connect failed: {e}")
+        logger.error(f"Fyers token exchange failed: {e}")
         flash(f'Fyers connection failed: {str(e)}', 'error')
 
     return redirect(url_for('broker_oauth.broker_connect'))
 
 
+@broker_oauth.route('/broker/reconnect/fyers', methods=['POST'])
+@login_required
+def reconnect_fyers():
+    """Re-start Fyers OAuth flow using stored client_id + secret_key (daily token refresh)."""
+    account = BrokerAccount.query.filter_by(
+        user_id=current_user.id, broker_type='fyers', is_active=True,
+    ).first()
+    if not account:
+        flash('Fyers account not found. Please connect first.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    creds = account.get_credentials()
+    client_id = creds.get('client_id', '')
+    secret_key = creds.get('api_secret', '')
+    if not client_id or not secret_key:
+        flash('Stored Fyers credentials incomplete — please reconnect with App ID and Secret Key.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    session['fyers_account_id'] = account.id
+    callback = _get_callback_url('fyers')
+    state = secrets.token_urlsafe(16)
+    session['fyers_state'] = state
+
+    auth_url = (
+        f"{FYERS_AUTH_URL}"
+        f"?client_id={client_id}"
+        f"&redirect_uri={callback}"
+        f"&response_type=code"
+        f"&state={state}"
+    )
+    return redirect(auth_url)
+
+
 # ---------------------------------------------------------------------------
 # Shoonya / Finvasia  (NorenOMS TOTP-based)
 # ---------------------------------------------------------------------------
+
+SHOONYA_AUTH_URL = "https://api.shoonya.com/NorenWClientTP/QuickAuth"
+
+
+def _shoonya_quickauth(user_id: str, password: str, api_secret: str,
+                        vendor_code: str = "", totp_secret: str = "") -> str:
+    """Call Shoonya QuickAuth and return the session token. Raises on failure."""
+    import pyotp as _pyotp
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    app_key_hash = hashlib.sha256(f"{user_id}|{api_secret}".encode()).hexdigest()
+
+    totp_code = ""
+    if totp_secret:
+        try:
+            totp_code = _pyotp.TOTP(totp_secret).now()
+        except Exception:
+            pass
+
+    jdata = json.dumps({
+        "apkversion": "1.0.0",
+        "uid": user_id,
+        "pwd": pwd_hash,
+        "factor2": totp_code,
+        "vc": vendor_code or user_id,
+        "appkey": app_key_hash,
+        "imei": "api",
+        "source": "API",
+    })
+    resp = requests.post(
+        SHOONYA_AUTH_URL,
+        data=f"jData={jdata}&jKey={app_key_hash}",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("stat") != "Ok":
+        raise ValueError(data.get("emsg", "Shoonya login failed"))
+    token = data.get("susertoken", "")
+    if not token:
+        raise ValueError("Empty session token from Shoonya")
+    return token
+
 
 @broker_oauth.route('/broker/auth/shoonya', methods=['POST'])
 @login_required
@@ -730,6 +993,9 @@ def auth_shoonya():
         return redirect(url_for('broker_oauth.broker_connect'))
 
     try:
+        session_token = _shoonya_quickauth(
+            user_id_field, password, api_secret, vendor_code, totp_secret,
+        )
         account = BrokerAccount.query.filter_by(
             user_id=current_user.id, broker_type='shoonya', is_active=True,
         ).first()
@@ -741,11 +1007,10 @@ def auth_shoonya():
                 is_active=True,
             )
             db.session.add(account)
-        # Store credentials; access_token will be refreshed when first trade is placed
         account.set_credentials(
             client_id=user_id_field,
-            access_token=password,  # password stored as access_token for login
-            api_secret=f"{api_secret}:{vendor_code}:{totp_secret}",
+            access_token=session_token,
+            api_secret=f"{api_secret}:{vendor_code}:{totp_secret}:{password}",
         )
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
@@ -755,6 +1020,48 @@ def auth_shoonya():
     except Exception as e:
         logger.error(f"Shoonya connect failed: {e}")
         flash(f'Shoonya connection failed: {str(e)}', 'error')
+
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
+@broker_oauth.route('/broker/reconnect/shoonya', methods=['POST'])
+@login_required
+def reconnect_shoonya():
+    """Re-authenticate Shoonya using stored credentials (daily session refresh)."""
+    account = BrokerAccount.query.filter_by(
+        user_id=current_user.id, broker_type='shoonya', is_active=True,
+    ).first()
+    if not account:
+        flash('Shoonya account not found. Please connect first.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    try:
+        creds = account.get_credentials()
+        user_id = creds.get('client_id', '')
+        parts = (creds.get('api_secret') or '').split(':')
+        api_secret = parts[0] if parts else ''
+        vendor_code = parts[1] if len(parts) > 1 else ''
+        totp_secret = parts[2] if len(parts) > 2 else ''
+        password = parts[3] if len(parts) > 3 else ''
+
+        if not all([user_id, api_secret, password]):
+            flash('Stored credentials incomplete — please reconnect Shoonya.', 'error')
+            return redirect(url_for('broker_oauth.broker_connect'))
+
+        session_token = _shoonya_quickauth(user_id, password, api_secret, vendor_code, totp_secret)
+        account.set_credentials(
+            client_id=user_id,
+            access_token=session_token,
+            api_secret=creds.get('api_secret', ''),
+        )
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+        flash('Shoonya session refreshed successfully!', 'success')
+        logger.info(f"Shoonya session refreshed for user {current_user.id}")
+    except Exception as e:
+        logger.error(f"Shoonya reconnect failed: {e}")
+        flash(f'Shoonya reconnect failed: {str(e)}', 'error')
 
     return redirect(url_for('broker_oauth.broker_connect'))
 
