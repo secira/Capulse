@@ -2693,38 +2693,9 @@ def dashboard_equities():
         except Exception as e:
             logger.warning(f"Broker data fetch error: {e}")
 
-    # Enrich broker positions with live Dhan prices
-    if broker_positions_list:
-        try:
-            from services import dhan_service as _dhan_svc
-            pos_symbols = list({p['symbol'] for p in broker_positions_list if p.get('symbol')})
-            pos_security_id_map = {}
-            for sym in pos_symbols:
-                sid = _dhan_svc.get_security_id(sym)
-                if sid is not None:
-                    pos_security_id_map[sym] = sid
-
-            pos_live_prices = {}
-            if pos_security_id_map:
-                pos_live_prices = _dhan_svc.get_nifty50_stock_quotes(pos_security_id_map, current_user.id)
-
-            if pos_live_prices:
-                for pos in broker_positions_list:
-                    sym = pos.get('symbol', '')
-                    quote = pos_live_prices.get(sym)
-                    if not quote:
-                        continue
-                    ltp = quote.get('ltp', 0)
-                    if ltp and ltp > 0:
-                        qty = float(pos.get('quantity') or 0)
-                        avg_price = float(pos.get('avg_buy_price') or 0)
-                        unrealized_pnl = (float(ltp) - avg_price) * qty
-                        pos['current_price'] = ltp
-                        pos['unrealized_pnl'] = unrealized_pnl
-                        pos['total_pnl'] = unrealized_pnl + float(pos.get('realized_pnl') or 0)
-                        pos['price_source'] = 'Dhan'
-        except Exception as _e:
-            logger.warning(f"Dhan live price fetch for positions failed: {_e}")
+    # Note: broker positions already carry stored prices from last sync.
+    # Live price enrichment is handled client-side via fetchAllLivePrices() JS
+    # to keep the page load fast (Dhan API can be slow / unavailable).
 
     # Combine holdings for display
     combined_holdings = []
@@ -2795,47 +2766,9 @@ def dashboard_equities():
             'purchase_date_str': holding.created_at.strftime('%d %b %Y') if holding.created_at else '',
         })
     
-    # Fetch live Dhan prices server-side so the page shows current data on first load
+    # Live prices are fetched client-side via fetchAllLivePrices() JS after
+    # page load to avoid blocking the render on slow/unavailable Dhan API.
     dhan_prices_loaded = False
-    try:
-        from services import dhan_service as _dhan_svc
-        unique_symbols = list({h['symbol'] for h in combined_holdings if h.get('symbol')})
-        security_id_map = {}
-        for sym in unique_symbols:
-            sid = _dhan_svc.get_security_id(sym)
-            if sid is not None:
-                security_id_map[sym] = sid
-
-        dhan_live_prices = {}
-        if security_id_map:
-            dhan_live_prices = _dhan_svc.get_nifty50_stock_quotes(security_id_map, current_user.id)
-
-        updated_count = 0
-        if dhan_live_prices:
-            for h in combined_holdings:
-                sym = h.get('symbol', '')
-                quote = dhan_live_prices.get(sym)
-                if not quote:
-                    continue
-                ltp = quote.get('ltp', 0)
-                if ltp and ltp > 0:
-                    qty = h.get('quantity') or 0
-                    investment = h.get('total_investment') or 0
-                    curr_value = float(qty) * float(ltp)
-                    pnl = curr_value - float(investment)
-                    pnl_pct = (pnl / float(investment) * 100) if investment else None
-                    h['current_price'] = ltp
-                    h['current_value'] = curr_value
-                    h['unrealized_pnl'] = pnl
-                    h['unrealized_pnl_percentage'] = pnl_pct
-                    h['price_source'] = 'Dhan'
-                    rec_label, rec_color = _recommendation(pnl_pct)
-                    h['recommendation'] = rec_label
-                    h['recommendation_color'] = rec_color
-                    updated_count += 1
-        dhan_prices_loaded = updated_count > 0
-    except Exception as _e:
-        logger.warning(f"Dhan live price fetch on equities page failed: {_e}")
 
     # Calculate summary
     total_investment = sum((h.get('total_investment') or 0) for h in combined_holdings)

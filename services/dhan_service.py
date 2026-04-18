@@ -269,12 +269,14 @@ def get_eq_quote(symbol: str, user_id: Optional[int] = None) -> Optional[Dict]:
 
 
 def get_nifty50_stock_quotes(security_id_map: Dict[str, int],
-                              user_id: Optional[int] = None) -> Dict[str, Dict]:
+                              user_id: Optional[int] = None,
+                              timeout: float = 5.0) -> Dict[str, Dict]:
     """
     Fetch OHLC for Nifty 50 stocks by their Dhan NSE_EQ security IDs.
 
     Args:
         security_id_map: {symbol: dhan_security_id}, e.g. {"RELIANCE": 2885}
+        timeout: max seconds to wait for the Dhan API (default 5s)
     Returns:
         {symbol: {ltp, change, pct_change, ...}}
     """
@@ -282,9 +284,21 @@ def get_nifty50_stock_quotes(security_id_map: Dict[str, int],
     if broker is None:
         return {}
     try:
+        import concurrent.futures
         rev_map = {v: k for k, v in security_id_map.items()}
         ids = list(security_id_map.values())
-        raw = broker.get_eq_ohlc(ids)
+
+        def _fetch():
+            return broker.get_eq_ohlc(ids)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(_fetch)
+            try:
+                raw = future.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                logger.warning(f"DhanDataService.get_nifty50_stock_quotes timed out after {timeout}s")
+                return {}
+
         result = {}
         for sid_str, data in raw.items():
             sym = rev_map.get(int(sid_str), sid_str)
