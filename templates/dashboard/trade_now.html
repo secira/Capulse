@@ -26,7 +26,7 @@
             {% endfor %}
         </select>
         <small class="text-muted ms-1" style="font-size:11px;">{{ connected_brokers|length }} connected</small>
-        <a href="{{ url_for('broker_accounts') }}" class="btn btn-sm btn-outline-secondary ms-auto" style="border-radius:8px;font-size:11px;">
+        <a href="{{ url_for('broker_management') }}" class="btn btn-sm btn-outline-secondary ms-auto" style="border-radius:8px;font-size:11px;">
             <i class="fas fa-cog me-1"></i>Manage
         </a>
     </div>
@@ -37,7 +37,7 @@
             <strong style="color:#475569;font-size:13px;">No Broker Connected</strong>
             <small class="d-block" style="color:#94a3b8;font-size:12px;">Connect a broker to enable live trade execution</small>
         </div>
-        <a href="{{ url_for('broker_accounts') }}" class="btn btn-sm" style="background:#3182ce;color:white;border-radius:8px;font-size:12px;">
+        <a href="{{ url_for('broker_management') }}" class="btn btn-sm" style="background:#3182ce;color:white;border-radius:8px;font-size:12px;">
             <i class="fas fa-link me-1"></i>Connect Broker
         </a>
     </div>
