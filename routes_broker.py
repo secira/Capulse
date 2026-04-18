@@ -1000,19 +1000,10 @@ def dashboard_live_portfolio():
 def api_place_broker_order():
     """Place order through broker"""
     try:
-        # Check trading permissions based on pricing plan
-        from models import PricingPlan
-        
-        if current_user.pricing_plan == PricingPlan.TARGET_PLUS:
-            return jsonify({
-                'success': False, 
-                'message': 'Target Plus plan allows portfolio analysis only. Upgrade to Target Pro for trade execution.'
-            }), 403
-        
-        if not current_user.has_full_access():
+        if not current_user.can_execute_trades():
             return jsonify({
                 'success': False,
-                'message': 'Trade execution requires Target Pro subscription or higher.'
+                'message': 'Trade execution requires an active subscription. Please upgrade your plan.'
             }), 403
         
         data = request.get_json()

@@ -19,10 +19,37 @@
   {% endwith %}
 
   <!-- Security note -->
-  <div class="security-banner mb-4">
+  <div class="security-banner mb-3">
     <i class="fas fa-shield-alt me-2 text-primary"></i>
     <span>We use official broker OAuth APIs — <strong>your password is never stored.</strong> Read-only access unless you explicitly place a trade.</span>
   </div>
+
+  <!-- Plan broker slot usage banner -->
+  {% if max_brokers == 0 %}
+  <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+    <i class="fas fa-lock fa-fw"></i>
+    <div>
+      <strong>Broker connections unavailable on Starter Plan.</strong>
+      <a href="{{ url_for('pricing') }}" class="alert-link ms-1">Upgrade to Growth or higher</a> to connect your first broker.
+    </div>
+  </div>
+  {% elif at_limit %}
+  <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+    <i class="fas fa-exclamation-triangle fa-fw"></i>
+    <div>
+      <strong>Broker limit reached</strong> — {{ used_brokers }} of {{ max_brokers }} slot{{ 's' if max_brokers != 1 }} used on your <strong>{{ plan_name }}</strong>.
+      To add a new broker, disconnect one first or <a href="{{ url_for('pricing') }}" class="alert-link">upgrade your plan</a>.
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info d-flex align-items-center gap-2 mb-3 py-2" role="alert">
+    <i class="fas fa-info-circle fa-fw"></i>
+    <div class="small">
+      <strong>{{ plan_name }}</strong>: {{ used_brokers }} of {{ max_brokers }} broker slot{{ 's' if max_brokers != 1 }} used.
+      {% if used_brokers == 0 %}Connect your first broker below.{% endif %}
+    </div>
+  </div>
+  {% endif %}
 
   <div class="d-flex justify-content-end gap-2 mb-3">
     <a href="{{ url_for('dashboard_data_api_broker') }}" class="btn btn-info">

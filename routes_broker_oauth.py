@@ -7,6 +7,7 @@ Angel One uses TOTP-based direct connect (no OAuth redirect).
 import logging
 import secrets
 from datetime import datetime
+from typing import Optional
 
 import requests
 from flask import (
@@ -31,6 +32,38 @@ def _get_callback_url(broker_slug: str) -> str:
     from flask import request as req
     base = req.host_url.rstrip('/')
     return f"{base}/broker/callback/{broker_slug}"
+
+
+def _check_broker_plan_limit(broker_type_value: str) -> Optional[str]:
+    """Return an error string if adding this broker would exceed the plan limit.
+
+    Updating an existing broker account of the same type is always allowed.
+    Only creating a brand-new broker type counts against the limit.
+    """
+    existing_same = BrokerAccount.query.filter_by(
+        user_id=current_user.id,
+        broker_type=broker_type_value,
+        is_active=True,
+    ).first()
+    if existing_same:
+        return None
+
+    max_brokers = current_user.get_max_broker_connections()
+    if max_brokers == 0:
+        return (
+            'Broker connections are not available on the Starter Plan. '
+            'Upgrade to Growth Plan or higher to connect a broker.'
+        )
+    existing_count = BrokerAccount.query.filter_by(
+        user_id=current_user.id, is_active=True,
+    ).count()
+    if existing_count >= max_brokers:
+        plan = current_user.get_plan_display_name()
+        return (
+            f'Your {plan} allows up to {max_brokers} broker connection(s). '
+            'Remove an existing broker or upgrade your plan.'
+        )
+    return None
 
 
 def _save_pending_account(broker_type_value: str, client_id: str,
@@ -86,10 +119,18 @@ def broker_connect():
         if b.get('status') == 'active'
     ]
 
+    max_brokers = current_user.get_max_broker_connections()
+    used_brokers = len(user_accounts)
+    at_limit = (max_brokers > 0 and used_brokers >= max_brokers)
+
     return render_template(
         'dashboard/broker_connect.html',
         broker_catalog=catalog,
         now=datetime.utcnow(),
+        max_brokers=max_brokers,
+        used_brokers=used_brokers,
+        at_limit=at_limit,
+        plan_name=current_user.get_plan_display_name(),
     )
 
 
@@ -104,6 +145,10 @@ def auth_zerodha():
     api_secret = request.form.get('api_secret', '').strip()
     if not api_key or not api_secret:
         flash('API Key and API Secret are required for Zerodha.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+    limit_err = _check_broker_plan_limit('zerodha')
+    if limit_err:
+        flash(limit_err, 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
 
     account = _save_pending_account('zerodha', api_key, api_secret)
@@ -183,6 +228,10 @@ def auth_upstox():
     api_secret = request.form.get('api_secret', '').strip()
     if not api_key or not api_secret:
         flash('API Key and API Secret are required for Upstox.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+    limit_err = _check_broker_plan_limit('upstox')
+    if limit_err:
+        flash(limit_err, 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
 
     account = _save_pending_account('upstox', api_key, api_secret)
@@ -280,6 +329,10 @@ def auth_icici():
     if not app_key or not app_secret:
         flash('App Key and App Secret are required for ICICI Direct.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
+    limit_err = _check_broker_plan_limit('icicidirect')
+    if limit_err:
+        flash(limit_err, 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
 
     account = _save_pending_account('icicidirect', app_key, app_secret)
     session['icici_account_id'] = account.id
@@ -352,6 +405,10 @@ def auth_angel():
 
     if not all([client_id, api_key, totp_secret, password]):
         flash('All fields are required for Angel One.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+    limit_err = _check_broker_plan_limit('angel_broking')
+    if limit_err:
+        flash(limit_err, 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
 
     try:
@@ -475,6 +532,10 @@ def auth_groww():
     if not access_token:
         flash('Access Token is required for Groww.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
+    limit_err = _check_broker_plan_limit('groww')
+    if limit_err:
+        flash(limit_err, 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
 
     try:
         account = _save_pending_account('groww', 'groww_user', '', extra=access_token)
@@ -501,6 +562,10 @@ def auth_alice():
     api_key = request.form.get('api_key', '').strip()
     if not user_id or not api_key:
         flash('User ID and API Key are required for Alice Blue.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+    limit_err = _check_broker_plan_limit('alice_blue')
+    if limit_err:
+        flash(limit_err, 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
 
     try:
@@ -548,6 +613,10 @@ def auth_fivepaisa():
 
     if not all([client_code, password, app_key]):
         flash('Client Code, Password, and App Key are required for 5 Paisa.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+    limit_err = _check_broker_plan_limit('5paisa')
+    if limit_err:
+        flash(limit_err, 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
 
     try:
@@ -609,6 +678,10 @@ def auth_fyers():
     if not client_id or not access_token:
         flash('Client ID and Access Token are required for Fyers.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
+    limit_err = _check_broker_plan_limit('fyers')
+    if limit_err:
+        flash(limit_err, 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
 
     try:
         account = BrokerAccount.query.filter_by(
@@ -650,6 +723,10 @@ def auth_shoonya():
 
     if not all([user_id_field, password, api_secret]):
         flash('User ID, Password and API Secret are required for Shoonya.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+    limit_err = _check_broker_plan_limit('shoonya')
+    if limit_err:
+        flash(limit_err, 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
 
     try:
@@ -693,6 +770,10 @@ def auth_dhan():
     access_token = request.form.get('access_token', '').strip()
     if not client_id or not access_token:
         flash('Client ID and Access Token are required for Dhan.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+    limit_err = _check_broker_plan_limit('dhan')
+    if limit_err:
+        flash(limit_err, 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
 
     try:

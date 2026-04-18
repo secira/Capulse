@@ -381,9 +381,14 @@ class User(UserMixin, db.Model):
         return self.has_full_access()
 
     def get_max_broker_connections(self):
-        """Return max number of broker connections allowed for the user's plan.
+        """Return max trading/portfolio broker connections for the user's plan.
 
-        FREE users on an active 30-day trial are treated as Growth (1 broker).
+        Plan rules:
+          Growth (TARGET_PLUS) : 1 broker  — covers Data API, Portfolio Analysis & Trading
+          Pro    (TARGET_PRO)   : 3 brokers — Portfolio Analysis; 1 designated for trading
+          Elite  (HNI)          : 3 brokers — same as Pro
+          FREE trial            : treated as Growth (1 broker)
+          FREE expired          : 0 brokers
         """
         if self.pricing_plan == PricingPlan.FREE:
             return 1 if self.is_trial_active() else 0
@@ -393,6 +398,20 @@ class User(UserMixin, db.Model):
             PricingPlan.HNI: 3,
         }
         return limits.get(self.pricing_plan, 0)
+
+    def get_max_data_api_connections(self):
+        """Return max Data API broker connections (always 1 for any paid plan)."""
+        if self.pricing_plan == PricingPlan.FREE:
+            return 1 if self.is_trial_active() else 0
+        return 1
+
+    def can_execute_trades(self):
+        """Return True if the user is allowed to execute live broker trades.
+
+        All paid plans (Growth, Pro, Elite) and FREE users in their 30-day trial
+        can execute trades.  Expired FREE accounts cannot.
+        """
+        return self.has_full_access()
 
     def get_plan_display_name(self):
         """Get human-readable plan name"""

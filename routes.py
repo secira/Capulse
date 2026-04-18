@@ -4307,19 +4307,10 @@ def api_create_trade_recommendation():
 def api_deploy_trade(recommendation_id):
     """Deploy trade to broker"""
     try:
-        # Additional security check at API level
-        from models import PricingPlan
-        
-        if current_user.pricing_plan == PricingPlan.TARGET_PLUS:
-            return jsonify({
-                'success': False, 
-                'error': 'Target Plus plan allows portfolio analysis only. Upgrade to Target Pro for trade execution.'
-            }), 403
-        
-        if not current_user.is_admin and not current_user.has_full_access():
+        if not current_user.is_admin and not current_user.can_execute_trades():
             return jsonify({
                 'success': False,
-                'error': 'Trade execution requires Target Pro subscription or higher.'
+                'error': 'Trade execution requires an active subscription. Please upgrade your plan.'
             }), 403
         
         from services.trading_service import TradingService
