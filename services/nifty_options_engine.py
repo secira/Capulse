@@ -294,9 +294,65 @@ class NiftyOptionsEngine:
         except Exception as e:
             logger.warning(f"Dhan market indices error: {e}")
 
-        # NO yfinance / hardcoded fallbacks — if Dhan returns nothing,
-        # we return zeros and the UI shows "No Data". Stale weekend prices
-        # masquerading as live data are worse than no data at all.
+        # ── Priority 2: NSE official allIndices API ─────────────────────────
+        if not nifty_price or not bn_price or not sensex_price or not vix_price or not finnifty_price:
+            try:
+                import requests
+                sess = requests.Session()
+                sess.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
+                    'Accept': 'application/json',
+                    'Referer': 'https://www.nseindia.com/',
+                })
+                sess.get('https://www.nseindia.com', timeout=5)
+                r = sess.get('https://www.nseindia.com/api/allIndices', timeout=8)
+                if r.status_code == 200:
+                    nse_map = {row['index']: row for row in r.json().get('data', [])}
+                    def _pull(key):
+                        row = nse_map.get(key) or {}
+                        return float(row.get('last', 0) or 0), float(row.get('variation', row.get('change', 0)) or 0), float(row.get('percentChange', row.get('pChange', 0)) or 0)
+                    if not nifty_price:
+                        nifty_price, nifty_change, nifty_pct = _pull('NIFTY 50')
+                    if not bn_price:
+                        bn_price, bn_change, bn_pct = _pull('NIFTY BANK')
+                    if not finnifty_price:
+                        finnifty_price, finnifty_change, finnifty_pct = _pull('NIFTY FIN SERVICE')
+                    if not vix_price:
+                        vix_price, _, _ = _pull('INDIA VIX')
+                    logger.info(f"NSE allIndices fallback used: NIFTY={nifty_price}, BANK={bn_price}")
+            except Exception as e:
+                logger.warning(f"NSE allIndices fallback failed: {e}")
+
+        # ── Priority 3: yfinance (last resort) ──────────────────────────────
+        if not nifty_price or not bn_price or not sensex_price or not vix_price:
+            try:
+                import yfinance as yf
+                if not nifty_price:
+                    ni = yf.Ticker("^NSEI").fast_info
+                    nifty_price = float(getattr(ni, 'last_price', 0) or 0)
+                    prev = float(getattr(ni, 'previous_close', 0) or 0)
+                    if nifty_price and prev:
+                        nifty_change = round(nifty_price - prev, 2)
+                        nifty_pct = round((nifty_price - prev) / prev * 100, 2)
+                if not bn_price:
+                    bn = yf.Ticker("^NSEBANK").fast_info
+                    bn_price = float(getattr(bn, 'last_price', 0) or 0)
+                    prev_bn = float(getattr(bn, 'previous_close', 0) or 0)
+                    if bn_price and prev_bn:
+                        bn_change = round(bn_price - prev_bn, 2)
+                        bn_pct = round((bn_price - prev_bn) / prev_bn * 100, 2)
+                if not sensex_price:
+                    sx = yf.Ticker("^BSESN").fast_info
+                    sensex_price = float(getattr(sx, 'last_price', 0) or 0)
+                    prev_sx = float(getattr(sx, 'previous_close', 0) or 0)
+                    if sensex_price and prev_sx:
+                        sensex_change = round(sensex_price - prev_sx, 2)
+                        sensex_pct = round((sensex_price - prev_sx) / prev_sx * 100, 2)
+                if not vix_price:
+                    vix_price = float(getattr(yf.Ticker("^INDIAVIX").fast_info, 'last_price', 0) or 0)
+                logger.info(f"yfinance fallback used: NIFTY={nifty_price}")
+            except Exception as e:
+                logger.warning(f"yfinance fallback error: {e}")
 
         def _idx(price, change, pct):
             if not price or price <= 0:

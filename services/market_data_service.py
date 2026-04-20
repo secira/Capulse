@@ -232,23 +232,37 @@ class MarketDataService:
         except Exception as e:
             logger.warning(f"market_data_service Dhan index fetch failed: {e}")
 
-        # NO yfinance fallback for Indian indices — yfinance returns stale
-        # weekend close prices. Missing indices are simply not included so the
-        # UI shows "No Data" instead of misleading stale values.
+        # Priority 2: yfinance fallback for any still-missing Indian indices
+        _yf_fallback = {
+            'NIFTY':     '^NSEI',
+            'BANKNIFTY': '^NSEBANK',
+            'SENSEX':    '^BSESN',
+        }
         for dhan_key, display_name in _indian_map.items():
             if dhan_key in dhan_filled:
                 continue
-            indices.append({
-                'symbol':         dhan_key,
-                'index_name':     display_name,
-                'current_price':  None,
-                'change':         None,
-                'change_percent': None,
-                'source':         'unavailable',
-                'exchange':       'NSE',
-                'last_updated':   datetime.now(timezone.utc).isoformat(),
-                'available':      False,
-            })
+            try:
+                yf_sym = _yf_fallback.get(dhan_key)
+                if yf_sym:
+                    import yfinance as yf
+                    fi = yf.Ticker(yf_sym).fast_info
+                    ltp  = float(getattr(fi, 'last_price', 0) or 0)
+                    prev = float(getattr(fi, 'previous_close', 0) or 0)
+                    if ltp > 0:
+                        chg = round(ltp - prev, 2) if prev else 0
+                        pct = round(chg / prev * 100, 2) if prev else 0
+                        indices.append({
+                            'symbol':         dhan_key,
+                            'index_name':     display_name,
+                            'current_price':  ltp,
+                            'change':         chg,
+                            'change_percent': f"{pct:.2f}",
+                            'source':         'yfinance',
+                            'exchange':       'NSE',
+                            'last_updated':   datetime.now(timezone.utc).isoformat(),
+                        })
+            except Exception:
+                continue
 
         return indices
     
