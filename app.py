@@ -230,12 +230,15 @@ try:
     database_config = secure_config["database_config"]
     database_url = database_config["url"]
     
-    # Fix SSL issues for PostgreSQL
-    if database_url.startswith('postgresql://'):
-        database_url = database_url.replace('postgresql://', 'postgresql+psycopg2://')
+    # Normalise Railway/Heroku postgres:// → postgresql://
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    # Inject psycopg2 driver and SSL
+    if database_url.startswith('postgresql://') and '+psycopg2' not in database_url:
+        database_url = database_url.replace('postgresql://', 'postgresql+psycopg2://', 1)
         if 'sslmode=' not in database_url:
             database_url += '&sslmode=prefer' if '?' in database_url else '?sslmode=prefer'
-    
+
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
         "pool_size": database_config["pool_size"],
@@ -254,9 +257,13 @@ try:
 except (NameError, KeyError):
     # Fallback configuration
     database_url = os.environ.get("DATABASE_URL", "sqlite:///stock_trading.db")
-    
-    if database_url.startswith('postgresql://'):
-        database_url = database_url.replace('postgresql://', 'postgresql+psycopg2://')
+
+    # Normalise Railway/Heroku postgres:// → postgresql://
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    # Inject psycopg2 driver and SSL
+    if database_url.startswith('postgresql://') and '+psycopg2' not in database_url:
+        database_url = database_url.replace('postgresql://', 'postgresql+psycopg2://', 1)
         if 'sslmode=' not in database_url:
             database_url += '&sslmode=prefer' if '?' in database_url else '?sslmode=prefer'
     
