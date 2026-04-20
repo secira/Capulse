@@ -208,10 +208,9 @@
 <div class="idx-strip" id="indicesStrip">
     <div class="idx-card"><div class="idx-label">NIFTY 50</div><div class="idx-price" id="idx-nifty">—</div><div class="idx-change idx-flat" id="idx-nifty-chg">—</div></div>
     <div class="idx-card"><div class="idx-label">SENSEX</div><div class="idx-price" id="idx-sensex">—</div><div class="idx-change idx-flat" id="idx-sensex-chg">—</div></div>
-    <div class="idx-card"><div class="idx-label">NIFTY FUT</div><div class="idx-price" id="idx-niftyfut">—</div><div class="idx-change idx-flat" id="idx-niftyfut-chg">—</div></div>
-    <div class="idx-card"><div class="idx-label">INDIA VIX</div><div class="idx-price" id="idx-vix">—</div><div class="idx-change idx-flat" id="idx-vix-chg">—</div></div>
     <div class="idx-card"><div class="idx-label">BANK NIFTY</div><div class="idx-price" id="idx-banknifty">—</div><div class="idx-change idx-flat" id="idx-banknifty-chg">—</div></div>
-    <div class="idx-card"><div class="idx-label">BNIFTY FUT</div><div class="idx-price" id="idx-bankniftyfut">—</div><div class="idx-change idx-flat" id="idx-bankniftyfut-chg">—</div></div>
+    <div class="idx-card"><div class="idx-label">FIN NIFTY</div><div class="idx-price" id="idx-finnifty">—</div><div class="idx-change idx-flat" id="idx-finnifty-chg">—</div></div>
+    <div class="idx-card"><div class="idx-label">INDIA VIX</div><div class="idx-price" id="idx-vix">—</div><div class="idx-change idx-flat" id="idx-vix-chg">—</div></div>
 </div>
 
 <!-- DATA SOURCE WARNING -->
@@ -684,12 +683,13 @@ function refreshAnalysis() {
     fetch('/dashboard/fno/api/indices').then(function(r){return r.json()}).then(function(res) {
         if (res.success) {
             var d = res.data;
-            setIdx('nifty', d.nifty.price, d.nifty.change, d.nifty.pct);
-            setIdx('sensex', d.sensex.price, d.sensex.change, d.sensex.pct);
-            setIdx('niftyfut', d.nifty_fut.price, d.nifty_fut.change, d.nifty_fut.pct);
-            setIdx('vix', d.vix.price, d.vix.change, d.vix.pct);
-            setIdx('banknifty', d.banknifty.price, d.banknifty.change, d.banknifty.pct);
-            setIdx('bankniftyfut', d.banknifty_fut.price, d.banknifty_fut.change, d.banknifty_fut.pct);
+            setIdx('nifty',    d.nifty.price,    d.nifty.change,    d.nifty.pct);
+            setIdx('sensex',   d.sensex.price,   d.sensex.change,   d.sensex.pct);
+            setIdx('banknifty',d.banknifty.price, d.banknifty.change,d.banknifty.pct);
+            if (d.finnifty && d.finnifty.price) {
+                setIdx('finnifty', d.finnifty.price, d.finnifty.change, d.finnifty.pct);
+            }
+            if (d.vix) setIdx('vix', d.vix.price, 0, 0);
         }
     }).catch(function(){});
 

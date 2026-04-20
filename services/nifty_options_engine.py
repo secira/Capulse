@@ -253,10 +253,17 @@ class NiftyOptionsEngine:
         nifty_change = 0.0
         nifty_pct = 0.0
         bn_price = 0.0
+        bn_change = 0.0
+        bn_pct = 0.0
+        finnifty_price = 0.0
+        finnifty_change = 0.0
+        finnifty_pct = 0.0
         sensex_price = 0.0
+        sensex_change = 0.0
+        sensex_pct = 0.0
         vix_price = 0.0
 
-        # ── Priority 1: Dhan DataApiBroker ──
+        # ── Priority 1: Dhan DataApiBroker — fetch ALL indices in one call ──
         try:
             from services.dhan_service import get_index_quotes
             dhan_data = get_index_quotes(self.user_id)
@@ -266,13 +273,29 @@ class NiftyOptionsEngine:
                 nifty_change = float(d.get('change', 0))
                 nifty_pct    = float(d.get('pct_change', 0))
             if dhan_data.get('BANKNIFTY', {}).get('ltp', 0) > 0:
-                bn_price = float(dhan_data['BANKNIFTY']['ltp'])
-            logger.info(f"Dhan market indices: NIFTY={nifty_price}, BankNIFTY={bn_price}")
+                d = dhan_data['BANKNIFTY']
+                bn_price  = float(d['ltp'])
+                bn_change = float(d.get('change', 0))
+                bn_pct    = float(d.get('pct_change', 0))
+            if dhan_data.get('FINNIFTY', {}).get('ltp', 0) > 0:
+                d = dhan_data['FINNIFTY']
+                finnifty_price  = float(d['ltp'])
+                finnifty_change = float(d.get('change', 0))
+                finnifty_pct    = float(d.get('pct_change', 0))
+            if dhan_data.get('SENSEX', {}).get('ltp', 0) > 0:
+                d = dhan_data['SENSEX']
+                sensex_price  = float(d['ltp'])
+                sensex_change = float(d.get('change', 0))
+                sensex_pct    = float(d.get('pct_change', 0))
+            if dhan_data.get('INDIA VIX', {}).get('ltp', 0) > 0:
+                vix_price = float(dhan_data['INDIA VIX']['ltp'])
+            logger.info(f"Dhan market indices: NIFTY={nifty_price}, BankNIFTY={bn_price}, "
+                        f"FinNIFTY={finnifty_price}, SENSEX={sensex_price}, VIX={vix_price}")
         except Exception as e:
             logger.warning(f"Dhan market indices error: {e}")
 
-        # ── Priority 2: yfinance for any missing values ──
-        if not nifty_price or not bn_price or not sensex_price:
+        # ── Priority 2: yfinance for any still-missing values ──
+        if not nifty_price or not bn_price or not sensex_price or not vix_price:
             try:
                 import yfinance as yf
                 if not nifty_price:
@@ -280,24 +303,34 @@ class NiftyOptionsEngine:
                     nifty_price  = float(getattr(ni, 'last_price', 0) or 0)
                     prev = float(getattr(ni, 'previous_close', 0) or 0)
                     if nifty_price and prev:
-                        nifty_pct = round((nifty_price - prev) / prev * 100, 2)
+                        nifty_pct    = round((nifty_price - prev) / prev * 100, 2)
                         nifty_change = round(nifty_price - prev, 2)
                 if not bn_price:
-                    bn_price = float(getattr(yf.Ticker("^NSEBANK").fast_info, 'last_price', 0) or 0)
+                    bn = yf.Ticker("^NSEBANK").fast_info
+                    bn_price = float(getattr(bn, 'last_price', 0) or 0)
+                    prev_bn = float(getattr(bn, 'previous_close', 0) or 0)
+                    if bn_price and prev_bn:
+                        bn_change = round(bn_price - prev_bn, 2)
+                        bn_pct    = round((bn_price - prev_bn) / prev_bn * 100, 2)
                 if not sensex_price:
-                    sensex_price = float(getattr(yf.Ticker("^BSESN").fast_info, 'last_price', 0) or 0)
+                    sx = yf.Ticker("^BSESN").fast_info
+                    sensex_price  = float(getattr(sx, 'last_price', 0) or 0)
+                    prev_sx = float(getattr(sx, 'previous_close', 0) or 0)
+                    if sensex_price and prev_sx:
+                        sensex_change = round(sensex_price - prev_sx, 2)
+                        sensex_pct    = round((sensex_price - prev_sx) / prev_sx * 100, 2)
                 if not vix_price:
                     vix_price = float(getattr(yf.Ticker("^INDIAVIX").fast_info, 'last_price', 0) or 0)
             except Exception as e:
                 logger.warning(f"yfinance fallback error: {e}")
 
         return {
-            'nifty':       {'price': round(float(nifty_price or 23500), 2),  'change': round(float(nifty_change), 2), 'pct': round(float(nifty_pct), 2)},
-            'sensex':      {'price': round(float(sensex_price or 77500), 2), 'change': 0, 'pct': 0},
-            'banknifty':   {'price': round(float(bn_price or 50200), 2),     'change': 0, 'pct': 0},
-            'vix':         {'price': round(float(vix_price or 13.5), 2),     'change': 0, 'pct': 0},
-            'nifty_fut':   {'price': round(float(nifty_price or 23500) + 15, 2), 'change': 0, 'pct': 0},
-            'banknifty_fut':{'price': round(float(bn_price or 50200) + 25, 2),   'change': 0, 'pct': 0},
+            'nifty':     {'price': round(float(nifty_price), 2),    'change': round(float(nifty_change), 2),    'pct': round(float(nifty_pct), 2)},
+            'sensex':    {'price': round(float(sensex_price), 2),   'change': round(float(sensex_change), 2),   'pct': round(float(sensex_pct), 2)},
+            'banknifty': {'price': round(float(bn_price), 2),       'change': round(float(bn_change), 2),       'pct': round(float(bn_pct), 2)},
+            'finnifty':  {'price': round(float(finnifty_price), 2), 'change': round(float(finnifty_change), 2), 'pct': round(float(finnifty_pct), 2)},
+            'vix':       {'price': round(float(vix_price), 2),      'change': 0, 'pct': 0},
+            'nifty_fut': {'price': round(float(nifty_price), 2),    'change': round(float(nifty_change), 2),    'pct': round(float(nifty_pct), 2), 'is_spot': True},
         }
 
     def _get_nse_option_chain_raw(self) -> dict:

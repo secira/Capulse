@@ -11,6 +11,8 @@ from typing import Dict, List, Optional, Any
 import yfinance as yf
 from services.nse_service import NSEService
 
+logger = logging.getLogger(__name__)
+
 class MarketDataService:
     def __init__(self):
         self.alpha_vantage_key = os.environ.get('ALPHA_VANTAGE_API_KEY')
@@ -184,13 +186,15 @@ class MarketDataService:
             ('^VIX', 'VIX')
         ]
         
-        # Major Indian indices
-        indian_indices = [
-            ('NIFTY', 'NIFTY 50'),
-            ('BANKNIFTY', 'BANK NIFTY'),
-            ('SENSEX', 'BSE SENSEX')
-        ]
-        
+        # Major Indian indices — Dhan symbol → display name
+        _indian_map = {
+            'NIFTY':     'NIFTY 50',
+            'BANKNIFTY': 'BANK NIFTY',
+            'FINNIFTY':  'NIFTY FIN SERVICE',
+            'SENSEX':    'BSE SENSEX',
+            'INDIA VIX': 'INDIA VIX',
+        }
+
         # Fetch US indices
         for symbol, name in us_indices:
             try:
@@ -198,38 +202,68 @@ class MarketDataService:
                 if quote:
                     quote['index_name'] = name
                     indices.append(quote)
-            except:
+            except Exception:
                 continue
-                
-        # Fetch Indian indices
-        for symbol, name in indian_indices:
+
+        # Fetch Indian indices — Priority 1: Dhan DataApiBroker
+        dhan_filled = set()
+        try:
+            from services.dhan_service import get_index_quotes
+            dhan_data = get_index_quotes()
+            if dhan_data:
+                for dhan_key, display_name in _indian_map.items():
+                    entry = dhan_data.get(dhan_key, {})
+                    if entry.get('ltp', 0) > 0:
+                        ltp   = float(entry['ltp'])
+                        close = float(entry.get('close', 0))
+                        chg   = float(entry.get('change', ltp - close if close else 0))
+                        pct   = float(entry.get('pct_change', (chg / close * 100) if close else 0))
+                        indices.append({
+                            'symbol':        dhan_key,
+                            'index_name':    display_name,
+                            'current_price': ltp,
+                            'change':        round(chg, 2),
+                            'change_percent': f"{pct:.2f}",
+                            'source':        'Dhan',
+                            'exchange':      'NSE',
+                            'last_updated':  datetime.now(timezone.utc).isoformat(),
+                        })
+                        dhan_filled.add(dhan_key)
+        except Exception as e:
+            logger.warning(f"market_data_service Dhan index fetch failed: {e}")
+
+        # Priority 2: NSE API / yfinance for any still-missing Indian indices
+        _yf_fallback = {
+            'NIFTY':     '^NSEI',
+            'BANKNIFTY': '^NSEBANK',
+            'SENSEX':    '^BSESN',
+        }
+        for dhan_key, display_name in _indian_map.items():
+            if dhan_key in dhan_filled:
+                continue
             try:
-                # Try NSE first
-                nse_data = self.nse_service.get_indices()
-                if nse_data:
-                    for index_data in nse_data.get('data', []):
-                        if symbol.lower() in index_data.get('index', '').lower():
-                            indices.append({
-                                'symbol': symbol,
-                                'index_name': name,
-                                'current_price': float(index_data.get('last', 0)),
-                                'change': float(index_data.get('variation', 0)),
-                                'change_percent': f"{index_data.get('percentChange', 0):.2f}",
-                                'source': 'NSE India',
-                                'exchange': 'NSE',
-                                'last_updated': datetime.now(timezone.utc).isoformat()
-                            })
-                            break
-                
-                # Fallback to Yahoo Finance for Indian indices
-                if not any(idx['symbol'] == symbol for idx in indices):
-                    quote = self._get_yahoo_finance_quote(f"^{symbol}", 'India')
-                    if quote:
-                        quote['index_name'] = name
-                        indices.append(quote)
-            except:
+                yf_sym = _yf_fallback.get(dhan_key)
+                if yf_sym:
+                    import yfinance as yf
+                    fi = yf.Ticker(yf_sym).fast_info
+                    ltp  = float(getattr(fi, 'last_price', 0) or 0)
+                    prev = float(getattr(fi, 'previous_close', 0) or 0)
+                    if ltp > 0:
+                        chg = round(ltp - prev, 2) if prev else 0
+                        pct = round(chg / prev * 100, 2) if prev else 0
+                        indices.append({
+                            'symbol':        dhan_key,
+                            'index_name':    display_name,
+                            'current_price': ltp,
+                            'change':        chg,
+                            'change_percent': f"{pct:.2f}",
+                            'source':        'yfinance',
+                            'exchange':      'NSE',
+                            'last_updated':  datetime.now(timezone.utc).isoformat(),
+                        })
+            except Exception:
                 continue
-                
+
         return indices
     
     def get_trending_stocks(self, market: str = 'US', limit: int = 10) -> List[Dict[str, Any]]:
