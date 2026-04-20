@@ -126,32 +126,70 @@ class DhanBroker(BrokerBase):
             return 0.0
 
     def get_index_ohlc(self, symbols: List[str]) -> Dict[str, Dict]:
-        """Get OHLC + LTP for a list of index symbols in one call."""
+        """Get OHLC + LTP for a list of index symbols in one call.
+
+        Dhan /v2/marketfeed/ohlc returns a dict keyed by security_id (string):
+            {"IDX_I": {"13": {"last_price": 24500.5,
+                              "ohlc": {"open":..,"high":..,"low":..,"close":..}}}}
+        Dhan does NOT return net_change / percent_change for indices —
+        we compute change = ltp - close and pct = (change/close)*100.
+        """
         try:
             sec_map = {INDEX_SECURITY_IDS[s.upper()]: s for s in symbols if s.upper() in INDEX_SECURITY_IDS}
             if not sec_map:
                 return {}
             resp = self._get_sdk().ohlc_data({"IDX_I": list(sec_map.keys())})
             result = {}
-            if resp.get("status") == "success":
-                items = _unwrap(resp, "IDX_I")
-                logger.debug(f"Dhan get_index_ohlc items: {items}")
-                for item in (items if isinstance(items, list) else []):
-                    sid = int(item.get("security_id", -1))
-                    sym = sec_map.get(sid, str(sid))
-                    ltp = float(item.get("ltp", item.get("last_price", 0)))
-                    result[sym] = {
-                        "ltp":        ltp,
-                        "open":       float(item.get("open", 0)),
-                        "high":       float(item.get("high", 0)),
-                        "low":        float(item.get("low", 0)),
-                        "close":      float(item.get("previous_close", item.get("close", 0))),
-                        "change":     float(item.get("net_change", item.get("change", 0))),
-                        "pct_change": float(item.get("percent_change", 0)),
-                    }
+            if resp.get("status") != "success":
+                logger.warning(f"Dhan get_index_ohlc non-success: {resp.get('remarks','')}")
+                return {}
+
+            items = _unwrap(resp, "IDX_I")
+            logger.debug(f"Dhan get_index_ohlc raw items type={type(items).__name__}: {items}")
+
+            # Normalize to list of (sid_int, item_dict) tuples
+            pairs = []
+            if isinstance(items, dict):
+                for sid_str, itm in items.items():
+                    try:
+                        pairs.append((int(sid_str), itm))
+                    except (ValueError, TypeError):
+                        continue
+            elif isinstance(items, list):
+                for itm in items:
+                    try:
+                        pairs.append((int(itm.get("security_id", -1)), itm))
+                    except (ValueError, TypeError):
+                        continue
+
+            for sid, item in pairs:
+                sym = sec_map.get(sid)
+                if not sym:
+                    continue
+                ltp = float(item.get("last_price", item.get("ltp", 0)) or 0)
+                ohlc = item.get("ohlc", {}) if isinstance(item.get("ohlc"), dict) else {}
+                o = float(ohlc.get("open",  item.get("open",  0)) or 0)
+                h = float(ohlc.get("high",  item.get("high",  0)) or 0)
+                lo = float(ohlc.get("low",   item.get("low",   0)) or 0)
+                c = float(ohlc.get("close", item.get("previous_close", item.get("close", 0))) or 0)
+
+                change = (ltp - c) if (ltp > 0 and c > 0) else 0.0
+                pct    = ((change / c) * 100.0) if c > 0 else 0.0
+
+                result[sym] = {
+                    "ltp":        ltp,
+                    "open":       o,
+                    "high":       h,
+                    "low":        lo,
+                    "close":      c,
+                    "change":     change,
+                    "pct_change": pct,
+                }
+            logger.info(f"Dhan get_index_ohlc parsed {len(result)} symbols: "
+                        + ", ".join([f"{k}={v['ltp']}({v['pct_change']:+.2f}%)" for k, v in result.items()]))
             return result
         except Exception as e:
-            logger.error(f"Dhan get_index_ohlc error: {e}")
+            logger.error(f"Dhan get_index_ohlc error: {e}", exc_info=True)
             return {}
 
     def get_expiry_list(self, symbol: str = "NIFTY") -> List[str]:

@@ -539,11 +539,24 @@ function fmt(n) { return n ? n.toLocaleString('en-IN', {minimumFractionDigits:2,
 function fmtOI(n) { if (!n) return '—'; if (n >= 10000000) return (n/10000000).toFixed(2) + ' Cr'; if (n >= 100000) return (n/100000).toFixed(1) + ' L'; if (n >= 1000) return (n/1000).toFixed(1) + ' K'; return n.toString(); }
 
 function setIdx(id, price, change, pct) {
-    document.getElementById('idx-'+id).textContent = fmt(price);
+    var priceEl = document.getElementById('idx-'+id);
     var el = document.getElementById('idx-'+id+'-chg');
-    var sign = change >= 0 ? '+' : '';
-    el.textContent = sign + fmt(change) + ' (' + sign + (pct||0).toFixed(2) + '%)';
-    el.className = 'idx-change ' + (change > 0 ? 'idx-up' : change < 0 ? 'idx-down' : 'idx-flat');
+    if (price === null || price === undefined || price === 0) {
+        priceEl.textContent = 'No Data';
+        priceEl.style.color = '#9ca3af';
+        priceEl.style.fontSize = '0.85em';
+        el.textContent = '—';
+        el.className = 'idx-change idx-flat';
+        return;
+    }
+    priceEl.style.color = '';
+    priceEl.style.fontSize = '';
+    priceEl.textContent = fmt(price);
+    var c = change || 0;
+    var p = pct || 0;
+    var sign = c >= 0 ? '+' : '';
+    el.textContent = sign + fmt(c) + ' (' + sign + p.toFixed(2) + '%)';
+    el.className = 'idx-change ' + (c > 0 ? 'idx-up' : c < 0 ? 'idx-down' : 'idx-flat');
 }
 
 function setTrafficLight(elId, status, label) {

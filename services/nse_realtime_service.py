@@ -83,36 +83,10 @@ class NSERealTimeService:
         except Exception as e:
             logger.warning(f"NSE API failed: {e}")
 
-        # ── Priority 3: yfinance ─────────────────────────────────────────────
-        try:
-            import yfinance as yf
-            _yf_map = {
-                'NIFTY 50':   '^NSEI',
-                'NIFTY BANK': '^NSEBANK',
-                'SENSEX':     '^BSESN',
-                'INDIA VIX':  '^INDIAVIX',
-            }
-            indices_data = {}
-            for display_name, ticker_sym in _yf_map.items():
-                try:
-                    fi = yf.Ticker(ticker_sym).fast_info
-                    ltp  = float(getattr(fi, 'last_price', 0) or 0)
-                    prev = float(getattr(fi, 'previous_close', 0) or 0)
-                    if ltp > 0:
-                        chg = round(ltp - prev, 2) if prev else 0
-                        pct = round(chg / prev * 100, 2) if prev else 0
-                        indices_data[display_name] = {
-                            'value': ltp, 'change': chg, 'change_percent': pct,
-                            'timestamp': current_time.isoformat(), 'source': 'yfinance',
-                        }
-                except Exception:
-                    pass
-            if indices_data:
-                logger.info(f"Live Market Pulse: yfinance returned {list(indices_data.keys())}")
-                return {'success': True, 'data': indices_data, 'timestamp': current_time.isoformat(), 'source': 'yfinance'}
-        except Exception as e:
-            logger.warning(f"yfinance indices fallback failed: {e}")
-
+        # NO yfinance fallback — yfinance returns stale weekend close prices
+        # masquerading as live data. If Dhan + NSE both fail, return empty
+        # and the UI shows "No Data".
+        logger.warning("Live Market Pulse: no live data from Dhan or NSE")
         return {'success': False, 'data': {}, 'timestamp': current_time.isoformat(), 'source': 'none'}
 
     def get_fallback_indices_data(self) -> Dict:

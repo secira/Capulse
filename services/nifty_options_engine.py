@@ -294,43 +294,26 @@ class NiftyOptionsEngine:
         except Exception as e:
             logger.warning(f"Dhan market indices error: {e}")
 
-        # ── Priority 2: yfinance for any still-missing values ──
-        if not nifty_price or not bn_price or not sensex_price or not vix_price:
-            try:
-                import yfinance as yf
-                if not nifty_price:
-                    ni = yf.Ticker("^NSEI").fast_info
-                    nifty_price  = float(getattr(ni, 'last_price', 0) or 0)
-                    prev = float(getattr(ni, 'previous_close', 0) or 0)
-                    if nifty_price and prev:
-                        nifty_pct    = round((nifty_price - prev) / prev * 100, 2)
-                        nifty_change = round(nifty_price - prev, 2)
-                if not bn_price:
-                    bn = yf.Ticker("^NSEBANK").fast_info
-                    bn_price = float(getattr(bn, 'last_price', 0) or 0)
-                    prev_bn = float(getattr(bn, 'previous_close', 0) or 0)
-                    if bn_price and prev_bn:
-                        bn_change = round(bn_price - prev_bn, 2)
-                        bn_pct    = round((bn_price - prev_bn) / prev_bn * 100, 2)
-                if not sensex_price:
-                    sx = yf.Ticker("^BSESN").fast_info
-                    sensex_price  = float(getattr(sx, 'last_price', 0) or 0)
-                    prev_sx = float(getattr(sx, 'previous_close', 0) or 0)
-                    if sensex_price and prev_sx:
-                        sensex_change = round(sensex_price - prev_sx, 2)
-                        sensex_pct    = round((sensex_price - prev_sx) / prev_sx * 100, 2)
-                if not vix_price:
-                    vix_price = float(getattr(yf.Ticker("^INDIAVIX").fast_info, 'last_price', 0) or 0)
-            except Exception as e:
-                logger.warning(f"yfinance fallback error: {e}")
+        # NO yfinance / hardcoded fallbacks — if Dhan returns nothing,
+        # we return zeros and the UI shows "No Data". Stale weekend prices
+        # masquerading as live data are worse than no data at all.
+
+        def _idx(price, change, pct):
+            if not price or price <= 0:
+                return {'price': None, 'change': None, 'pct': None, 'available': False}
+            return {
+                'price': round(float(price), 2),
+                'change': round(float(change), 2),
+                'pct':    round(float(pct), 2),
+                'available': True,
+            }
 
         return {
-            'nifty':     {'price': round(float(nifty_price), 2),    'change': round(float(nifty_change), 2),    'pct': round(float(nifty_pct), 2)},
-            'sensex':    {'price': round(float(sensex_price), 2),   'change': round(float(sensex_change), 2),   'pct': round(float(sensex_pct), 2)},
-            'banknifty': {'price': round(float(bn_price), 2),       'change': round(float(bn_change), 2),       'pct': round(float(bn_pct), 2)},
-            'finnifty':  {'price': round(float(finnifty_price), 2), 'change': round(float(finnifty_change), 2), 'pct': round(float(finnifty_pct), 2)},
-            'vix':       {'price': round(float(vix_price), 2),      'change': 0, 'pct': 0},
-            'nifty_fut': {'price': round(float(nifty_price), 2),    'change': round(float(nifty_change), 2),    'pct': round(float(nifty_pct), 2), 'is_spot': True},
+            'nifty':     _idx(nifty_price,    nifty_change,    nifty_pct),
+            'sensex':    _idx(sensex_price,   sensex_change,   sensex_pct),
+            'banknifty': _idx(bn_price,       bn_change,       bn_pct),
+            'finnifty':  _idx(finnifty_price, finnifty_change, finnifty_pct),
+            'vix':       _idx(vix_price,      0,               0),
         }
 
     def _get_nse_option_chain_raw(self) -> dict:
