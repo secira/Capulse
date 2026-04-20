@@ -413,16 +413,20 @@
     <p class="sec-label">Indices · Today</p>
     <div class="row g-3 mb-4">
         {% for key, icon in [('nifty_50','chart-line'),('nifty_bank','university'),('sensex','chart-bar'),('nifty_it','microchip'),('india_vix','bolt')] %}
-        {% set d   = market_indices.get(key, {}) %}
-        {% set val = d.get('value', 0) | float %}
-        {% set chg = d.get('change_percent', 0) | float %}
-        {% set vix = (key == 'india_vix') %}
-        {% set state = 'nu' if vix else ('up' if chg >= 0 else 'dn') %}
-        {% set bar_c = '#ca8a04' if vix else ('#16a34a' if chg >= 0 else '#dc2626') %}
+        {% set d        = market_indices.get(key, {}) %}
+        {% set raw_val  = d.get('value') %}
+        {% set raw_chg  = d.get('change_percent') %}
+        {% set has_data = raw_val is not none and (raw_val|float) > 0 %}
+        {% set val      = (raw_val|float) if has_data else 0 %}
+        {% set chg      = (raw_chg|float) if (raw_chg is not none) else 0 %}
+        {% set vix      = (key == 'india_vix') %}
+        {% set state    = 'nu' if vix or not has_data else ('up' if chg >= 0 else 'dn') %}
+        {% set bar_c    = '#9ca3af' if not has_data else ('#ca8a04' if vix else ('#16a34a' if chg >= 0 else '#dc2626')) %}
         <div class="col">
             <div class="idx-card">
                 <div class="idx-border" style="background:{{ bar_c }};"></div>
                 <div class="idx-label">{{ d.get('label', key|upper) }}</div>
+                {% if has_data %}
                 <div class="idx-val">
                     {% if vix %}{{ "%.2f"|format(val) }}
                     {% else %}{{ "{:,.0f}".format(val) }}{% endif %}
@@ -434,6 +438,10 @@
                     {% else %}<span style="font-size:10px; font-weight:500; color:#ca8a04;">Volatility Index</span>{% endif %}
                     {% if d.get('live') %}<span class="idx-live" title="Live data"></span>{% endif %}
                 </div>
+                {% else %}
+                <div class="idx-val" style="color:#9ca3af; font-size:0.85em;">No Data</div>
+                <div class="idx-chg nu" style="color:#9ca3af;">—</div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

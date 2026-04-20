@@ -116,7 +116,9 @@ def _analysis_for_index(index_id: str):
 def fno_indices_api():
     try:
         from services.nifty_options_engine import NiftyOptionsEngine
-        engine = NiftyOptionsEngine()
+        from flask_login import current_user
+        uid = getattr(current_user, 'id', None) if current_user and current_user.is_authenticated else None
+        engine = NiftyOptionsEngine(user_id=uid)
         indices = engine.get_market_indices()
         return jsonify({'success': True, 'data': indices})
     except Exception as e:

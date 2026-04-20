@@ -299,25 +299,29 @@ def dashboard_daily_signals():
     summary_stats = calculate_daily_summary(selected_date)
 
     # ── Market data: Dhan (indices) + Perplexity (movers + treemap), parallel ──
-    FALLBACK_INDICES = {
-        'nifty_50':   {'label': 'NIFTY 50',   'value': 22331.40, 'change_percent': -2.14, 'live': False},
-        'nifty_bank': {'label': 'BANK NIFTY', 'value': 50275.35, 'change_percent': -3.82, 'live': False},
-        'sensex':     {'label': 'SENSEX',     'value': 71947.55, 'change_percent': -2.22, 'live': False},
-        'nifty_it':   {'label': 'NIFTY IT',   'value': 29062.60, 'change_percent': -1.62, 'live': False},
-        'india_vix':  {'label': 'INDIA VIX',  'value': 27.89,    'change_percent': +4.06, 'live': False},
+    # NO hardcoded values — start with empty placeholders. UI shows "No Data"
+    # if Dhan + NSE + yfinance all fail.
+    market_indices = {
+        'nifty_50':   {'label': 'NIFTY 50',   'value': None, 'change_percent': None, 'live': False},
+        'nifty_bank': {'label': 'BANK NIFTY', 'value': None, 'change_percent': None, 'live': False},
+        'sensex':     {'label': 'SENSEX',     'value': None, 'change_percent': None, 'live': False},
+        'nifty_it':   {'label': 'NIFTY IT',   'value': None, 'change_percent': None, 'live': False},
+        'india_vix':  {'label': 'INDIA VIX',  'value': None, 'change_percent': None, 'live': False},
     }
-    market_indices = {k: dict(v) for k, v in FALLBACK_INDICES.items()}
     top_gainers = []
     top_losers  = []
     most_active = []
     nifty50_data = []
 
     def _fetch_dhan_indices():
-        """Fetch all 5 index prices via Dhan in one API call. 60-second cache."""
+        """Fetch index prices: Dhan → NSE allIndices → yfinance. 60-second cache."""
         cached = _market_cache_get('indices', ttl=_CACHE_TTL_INDICES)
         if cached is not None:
             return cached
         result = {}
+        ALL_KEYS = {'nifty_50', 'nifty_bank', 'sensex', 'nifty_it', 'india_vix'}
+
+        # Priority 1: Dhan
         try:
             from services.dhan_service import get_index_quotes
             dhan_data = get_index_quotes(_captured_uid)
@@ -326,7 +330,6 @@ def dashboard_daily_signals():
                 'BANKNIFTY': 'nifty_bank',
                 'SENSEX':    'sensex',
                 'INDIA VIX': 'india_vix',
-                'FINNIFTY':  'nifty_it',
             }
             for dhan_sym, key in DHAN_KEY_MAP.items():
                 d = dhan_data.get(dhan_sym, {})
@@ -340,6 +343,59 @@ def dashboard_daily_signals():
             logger.info(f"Dhan indices fetched: {list(result.keys())}")
         except Exception as e:
             logger.warning(f"Dhan index fetch failed: {e}")
+
+        # Priority 2: NSE allIndices for missing
+        missing = ALL_KEYS - set(result.keys())
+        if missing:
+            try:
+                import requests
+                sess = requests.Session()
+                sess.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
+                    'Accept': 'application/json',
+                    'Referer': 'https://www.nseindia.com/',
+                })
+                sess.get('https://www.nseindia.com', timeout=5)
+                r = sess.get('https://www.nseindia.com/api/allIndices', timeout=8)
+                if r.status_code == 200:
+                    nse_lookup = {row['index']: row for row in r.json().get('data', [])}
+                    NSE_KEY_MAP = {
+                        'nifty_50': 'NIFTY 50', 'nifty_bank': 'NIFTY BANK',
+                        'sensex': 'SENSEX', 'nifty_it': 'NIFTY IT', 'india_vix': 'INDIA VIX',
+                    }
+                    for key in list(missing):
+                        row = nse_lookup.get(NSE_KEY_MAP[key])
+                        if row:
+                            ltp = float(row.get('last', 0) or 0)
+                            chg = float(row.get('percentChange', row.get('pChange', 0)) or 0)
+                            if ltp > 0:
+                                result[key] = {'value': round(ltp, 2), 'change_percent': chg, 'live': True, 'source': 'NSE'}
+                logger.info(f"NSE fallback merged: now have {list(result.keys())}")
+            except Exception as e:
+                logger.warning(f"NSE allIndices fallback failed: {e}")
+
+        # Priority 3: yfinance for missing
+        missing = ALL_KEYS - set(result.keys())
+        if missing:
+            try:
+                import yfinance as yf
+                YF_MAP = {
+                    'nifty_50': '^NSEI', 'nifty_bank': '^NSEBANK',
+                    'sensex': '^BSESN', 'nifty_it': '^CNXIT', 'india_vix': '^INDIAVIX',
+                }
+                for key in list(missing):
+                    try:
+                        fi = yf.Ticker(YF_MAP[key]).fast_info
+                        ltp  = float(getattr(fi, 'last_price', 0) or 0)
+                        prev = float(getattr(fi, 'previous_close', 0) or 0)
+                        if ltp > 0:
+                            chg = round((ltp - prev) / prev * 100, 2) if prev else 0
+                            result[key] = {'value': round(ltp, 2), 'change_percent': chg, 'live': True, 'source': 'yfinance'}
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.warning(f"yfinance fallback failed: {e}")
+
         if result:
             _market_cache_set('indices', result)
         return result
@@ -438,9 +494,14 @@ def market_pulse_commentary():
         idx_cache  = _market_cache_get('indices', ttl=_CACHE_TTL_INDICES) or {}
         plex_cache = _market_cache_get('perplexity_market', ttl=300) or {}
 
-        nifty_val  = idx_cache.get('nifty_50', {}).get('value', 22331.0)
-        nifty_chg  = idx_cache.get('nifty_50', {}).get('change_percent', 0)
-        bnifty_chg = idx_cache.get('nifty_bank', {}).get('change_percent', 0)
+        nifty_val  = idx_cache.get('nifty_50', {}).get('value')
+        nifty_chg  = idx_cache.get('nifty_50', {}).get('change_percent')
+        bnifty_chg = idx_cache.get('nifty_bank', {}).get('change_percent')
+
+        nifty_str  = (f"{float(nifty_val):,.0f} ({'+' if float(nifty_chg or 0) >= 0 else ''}{float(nifty_chg or 0):.2f}%)"
+                      if nifty_val else "N/A (data unavailable)")
+        bnifty_str = (f"{'+' if float(bnifty_chg) >= 0 else ''}{float(bnifty_chg):.2f}%"
+                      if bnifty_chg is not None else "N/A")
 
         gainers = plex_cache.get('top_gainers', [])
         losers  = plex_cache.get('top_losers',  [])
@@ -457,8 +518,8 @@ def market_pulse_commentary():
         prompt = (
             f"You are a concise Indian market analyst writing for retail traders.\n\n"
             f"Today's Indian market snapshot:\n"
-            f"• Nifty 50: {nifty_val:,.0f} ({'+' if nifty_chg >= 0 else ''}{nifty_chg:.2f}%)\n"
-            f"• Bank Nifty change: {'+' if bnifty_chg >= 0 else ''}{bnifty_chg:.2f}%\n"
+            f"• Nifty 50: {nifty_str}\n"
+            f"• Bank Nifty change: {bnifty_str}\n"
             f"• Top gainers: {top_g or 'N/A'}\n"
             f"• Top losers: {top_l or 'N/A'}\n\n"
             "Write a concise 2-paragraph market commentary (max 120 words total) for an Indian retail trader. "
@@ -495,12 +556,17 @@ def market_pulse_query():
         idx_cache  = _market_cache_get('indices', ttl=_CACHE_TTL_INDICES) or {}
         plex_cache = _market_cache_get('perplexity_market', ttl=300) or {}
 
-        nifty_val  = idx_cache.get('nifty_50',   {}).get('value',          22331.0)
-        nifty_chg  = idx_cache.get('nifty_50',   {}).get('change_percent', 0)
-        bnifty_val = idx_cache.get('nifty_bank',  {}).get('value',          50275.0)
-        bnifty_chg = idx_cache.get('nifty_bank',  {}).get('change_percent', 0)
-        sensex_val = idx_cache.get('sensex',      {}).get('value',          71947.0)
-        sensex_chg = idx_cache.get('sensex',      {}).get('change_percent', 0)
+        def _ix_str(key):
+            d = idx_cache.get(key, {}) or {}
+            v = d.get('value')
+            c = d.get('change_percent')
+            if not v:
+                return "N/A (data unavailable)"
+            cf = float(c or 0)
+            return f"{float(v):,.0f} ({'+' if cf >= 0 else ''}{cf:.2f}%)"
+        nifty_line  = _ix_str('nifty_50')
+        bnifty_line = _ix_str('nifty_bank')
+        sensex_line = _ix_str('sensex')
 
         gainers = plex_cache.get('top_gainers', [])
         losers  = plex_cache.get('top_losers',  [])
@@ -520,9 +586,9 @@ def market_pulse_query():
             "Be concise, clear, and actionable. Keep responses under 200 words unless the question needs detail. "
             "Never give guaranteed predictions.\n\n"
             f"Today's Indian market snapshot:\n"
-            f"• Nifty 50: {nifty_val:,.0f} ({'+' if nifty_chg >= 0 else ''}{nifty_chg:.2f}%)\n"
-            f"• Bank Nifty: {bnifty_val:,.0f} ({'+' if bnifty_chg >= 0 else ''}{bnifty_chg:.2f}%)\n"
-            f"• Sensex: {sensex_val:,.0f} ({'+' if sensex_chg >= 0 else ''}{sensex_chg:.2f}%)\n"
+            f"• Nifty 50: {nifty_line}\n"
+            f"• Bank Nifty: {bnifty_line}\n"
+            f"• Sensex: {sensex_line}\n"
             f"• Top gainers today: {top_g or 'N/A'}\n"
             f"• Top losers today: {top_l or 'N/A'}\n\n"
             f"User question: {query}{lang_instr}"
