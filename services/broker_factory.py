@@ -39,22 +39,44 @@ def get_broker(broker_name: str, credentials: Dict[str, str]) -> Optional[Broker
 
 
 def get_data_broker_for_user(user_id: int) -> Optional[BrokerBase]:
+    """
+    Return a broker instance to use for market data for the given user.
+    Priority:
+      1. BrokerAccount with is_data_broker=True (user picked from their connected brokers)
+      2. DataApiBroker row (legacy separate-credentials model)
+    """
     try:
         from app import db
+        from models_broker import BrokerAccount
+        account = BrokerAccount.query.filter_by(
+            user_id=user_id,
+            is_data_broker=True,
+            is_active=True,
+        ).first()
+
+        if account:
+            creds = account.get_credentials()
+            broker_type = account.broker_type.value if hasattr(account.broker_type, 'value') else str(account.broker_type)
+            broker = get_broker(broker_type, creds)
+            if broker:
+                logger.info(f"Data API broker for user {user_id}: {account.broker_name} (account id={account.id})")
+            return broker
+    except Exception as e:
+        logger.error(f"Failed to get data broker from BrokerAccount for user {user_id}: {e}")
+
+    try:
         from models_broker import DataApiBroker
-        account = DataApiBroker.query.filter_by(
+        legacy = DataApiBroker.query.filter_by(
             user_id=user_id,
             is_active=True,
             connection_status='connected',
         ).first()
-
-        if not account:
+        if not legacy:
             return None
-
-        creds = account.get_credentials()
-        broker = get_broker(account.broker_type, creds)
+        creds = legacy.get_credentials()
+        broker = get_broker(legacy.broker_type, creds)
         if broker:
-            logger.info(f"Data API broker for user {user_id}: {account.broker_name} (id={account.id})")
+            logger.info(f"Data API broker (legacy) for user {user_id}: {legacy.broker_name}")
         return broker
     except Exception as e:
         logger.error(f"Failed to get data broker for user {user_id}: {e}")

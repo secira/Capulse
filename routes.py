@@ -437,6 +437,124 @@ def broker_management():
                          brokers=added_brokers,
                          broker_types=broker_types)
 
+
+@app.route('/dashboard/data-api-broker')
+@login_required
+def dashboard_data_api_broker():
+    """Data API Broker page — pick one of your connected trading brokers to use for market data."""
+    from models_broker import BrokerAccount
+
+    connected_brokers = BrokerAccount.query.filter_by(
+        user_id=current_user.id,
+        is_active=True,
+    ).filter(
+        BrokerAccount.connection_status.in_(['connected', 'disconnected'])
+    ).order_by(BrokerAccount.broker_name).all()
+
+    current_data_broker = next(
+        (b for b in connected_brokers if b.is_data_broker), None
+    )
+
+    return render_template(
+        'dashboard/data_api_broker.html',
+        connected_brokers=connected_brokers,
+        current_data_broker=current_data_broker,
+        active_section='data_api_broker',
+    )
+
+
+@app.route('/api/data-api-broker/set', methods=['POST'])
+@login_required
+def api_data_api_broker_set():
+    """Mark an existing connected BrokerAccount as the Data API broker."""
+    from models_broker import BrokerAccount
+    data = request.get_json(silent=True) or {}
+    broker_account_id = data.get('broker_account_id')
+
+    if not broker_account_id:
+        return jsonify(success=False, message='broker_account_id is required'), 400
+
+    try:
+        target = BrokerAccount.query.filter_by(
+            id=broker_account_id, user_id=current_user.id, is_active=True
+        ).first()
+        if not target:
+            return jsonify(success=False, message='Broker account not found'), 404
+
+        BrokerAccount.query.filter_by(user_id=current_user.id, is_data_broker=True).update(
+            {'is_data_broker': False}
+        )
+        target.is_data_broker = True
+        db.session.commit()
+
+        return jsonify(
+            success=True,
+            message=f'{target.broker_name} is now your Data API broker.',
+            broker_name=target.broker_name,
+        )
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"api_data_api_broker_set error: {e}")
+        return jsonify(success=False, message='Failed to update Data API broker'), 500
+
+
+@app.route('/api/data-api-broker/test', methods=['POST'])
+@login_required
+def api_data_api_broker_test():
+    """Test the currently selected Data API broker connection."""
+    from models_broker import BrokerAccount
+    import concurrent.futures
+
+    account = BrokerAccount.query.filter_by(
+        user_id=current_user.id, is_data_broker=True, is_active=True
+    ).first()
+
+    if not account:
+        return jsonify(success=False, message='No Data API broker selected.'), 404
+
+    try:
+        from services.broker_factory import get_broker
+        creds = account.get_credentials()
+        broker_type = account.broker_type.value if hasattr(account.broker_type, 'value') else str(account.broker_type)
+        broker = get_broker(broker_type, creds)
+        if not broker:
+            return jsonify(success=False, message='Could not create broker instance.')
+
+        def _test():
+            return broker.connect()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(_test)
+            try:
+                ok = future.result(timeout=8)
+            except concurrent.futures.TimeoutError:
+                return jsonify(success=False, message='Connection timed out (8s). The broker API may be slow.')
+
+        if ok:
+            return jsonify(success=True, message=f'{account.broker_name} connected successfully.')
+        return jsonify(success=False, message=f'{account.broker_name} connection failed — check if your token is still valid.')
+    except Exception as e:
+        logger.error(f"api_data_api_broker_test error: {e}")
+        return jsonify(success=False, message=f'Test error: {str(e)}')
+
+
+@app.route('/api/data-api-broker/remove', methods=['POST'])
+@login_required
+def api_data_api_broker_remove():
+    """Remove the Data API broker selection (clears is_data_broker flag)."""
+    from models_broker import BrokerAccount
+    try:
+        BrokerAccount.query.filter_by(
+            user_id=current_user.id, is_data_broker=True
+        ).update({'is_data_broker': False})
+        db.session.commit()
+        return jsonify(success=True, message='Data API broker removed. F&O engine will use NSE fallback.')
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"api_data_api_broker_remove error: {e}")
+        return jsonify(success=False, message='Failed to remove Data API broker'), 500
+
+
 @app.route('/add-broker', methods=['POST'])
 @login_required
 def add_broker():

@@ -2,254 +2,271 @@
 
 {% block title %}Data API Broker - Target Capital{% endblock %}
 {% block dashboard_title %}Data API Broker{% endblock %}
-{% block dashboard_subtitle %}Configure a broker for live market data (option chain, prices). This is separate from your trading brokers.{% endblock %}
+{% block dashboard_subtitle %}Choose which of your connected brokers to use for live market data (option chain, F&O prices).{% endblock %}
 
 {% block dashboard_content %}
 <div class="container-fluid px-0">
+  <div class="row g-4">
 
-    <div class="row g-4">
-        <div class="col-lg-8">
+    <div class="col-lg-8">
 
-            {% if data_broker %}
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-white border-bottom">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-database me-2 text-info"></i>Active Data API Broker</h5>
-                        <span class="badge bg-{{ 'success' if data_broker.connection_status == 'connected' else 'warning' }}">
-                            {{ data_broker.connection_status | title }}
-                        </span>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-6">
-                            <div class="d-flex align-items-center gap-3">
-                                <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
-                                     style="width:48px;height:48px;background:#0f766e;font-size:1.1rem;">
-                                    {{ data_broker.broker_name[0] }}
-                                </div>
-                                <div>
-                                    <h5 class="mb-0 fw-bold">{{ data_broker.broker_name }}</h5>
-                                    <small class="text-muted">
-                                        Client ID: {{ masked_creds.client_id if masked_creds else '***' }}
-                                        &middot;
-                                        Token: {% if masked_creds and masked_creds.has_access_token %}✓{% else %}✗{% endif %}
-                                        {% if masked_creds and masked_creds.has_api_secret %}
-                                        &middot; Secret: ✓
-                                        {% endif %}
-                                    </small>
-                                    {% if data_broker.last_connected %}
-                                    <br><small class="text-muted">Last connected: {{ data_broker.last_connected.strftime('%d %b %Y, %I:%M %p') }}</small>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6 text-md-end mt-3 mt-md-0">
-                            <button class="btn btn-outline-success btn-sm me-2" onclick="testConnection()">
-                                <i class="fas fa-plug me-1"></i>Test Connection
-                            </button>
-                            <button class="btn btn-outline-primary btn-sm me-2" onclick="showChangeForm()">
-                                <i class="fas fa-edit me-1"></i>Update
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" onclick="removeDataBroker()">
-                                <i class="fas fa-trash me-1"></i>Remove
-                            </button>
-                        </div>
-                    </div>
-                    <div id="testResult" class="mt-3" style="display:none;"></div>
-                </div>
+      {% if current_data_broker %}
+      <div class="card shadow-sm mb-4 border-success">
+        <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <i class="fas fa-check-circle text-success me-2"></i>Active Data API Broker
+          </h5>
+          <span class="badge bg-success px-3 py-2">Active</span>
+        </div>
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                 style="width:52px;height:52px;background:#0f766e;font-size:1.2rem;">
+              {{ current_data_broker.broker_name[0] }}
             </div>
+            <div class="flex-grow-1">
+              <h5 class="mb-0 fw-bold">{{ current_data_broker.broker_name }}</h5>
+              <small class="text-muted">
+                Using existing trading connection — no separate credentials needed.
+                {% if current_data_broker.last_connected %}
+                  &middot; Last connected: {{ current_data_broker.last_connected.strftime('%d %b %Y, %I:%M %p') }}
+                {% endif %}
+              </small>
+            </div>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-success btn-sm" onclick="testConnection()" id="testBtn">
+              <i class="fas fa-plug me-1"></i>Test Connection
+            </button>
+            <button class="btn btn-outline-danger btn-sm" onclick="removeDataBroker()">
+              <i class="fas fa-times me-1"></i>Remove
+            </button>
+          </div>
+          <div id="testResult" class="mt-3" style="display:none;"></div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-white border-bottom">
+          <h5 class="mb-0">
+            <i class="fas fa-exchange-alt me-2 text-primary"></i>
+            {% if current_data_broker %}Change Data API Broker{% else %}Select Data API Broker{% endif %}
+          </h5>
+          <small class="text-muted">Pick one of your already-connected trading brokers — no credentials needed.</small>
+        </div>
+        <div class="card-body">
+
+          {% if connected_brokers %}
+          <div class="row g-3">
+            {% for broker in connected_brokers %}
+            {% set is_selected = current_data_broker and current_data_broker.id == broker.id %}
+            <div class="col-12 col-md-6">
+              <div class="broker-card p-3 rounded-3 border d-flex align-items-center gap-3
+                           {{ 'selected border-primary shadow-sm' if is_selected else '' }}"
+                   style="cursor:pointer;transition:all 0.2s;"
+                   onclick="selectBroker({{ broker.id }}, '{{ broker.broker_name }}')"
+                   id="broker-{{ broker.id }}">
+                <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                     style="width:44px;height:44px;background:
+                     {% if 'dhan' in broker.broker_name.lower() %}#0f766e
+                     {% elif 'zerodha' in broker.broker_name.lower() %}#387ed1
+                     {% elif 'upstox' in broker.broker_name.lower() %}#5a3fc0
+                     {% elif 'angel' in broker.broker_name.lower() %}#e03c31
+                     {% elif 'fyers' in broker.broker_name.lower() %}#1a73e8
+                     {% elif 'shoonya' in broker.broker_name.lower() or 'finvasia' in broker.broker_name.lower() %}#6d28d9
+                     {% elif 'alice' in broker.broker_name.lower() %}#1e3a8a
+                     {% elif '5 paisa' in broker.broker_name.lower() or '5paisa' in broker.broker_name.lower() %}#e65100
+                     {% else %}#374151{% endif %}
+                     ;font-size:0.9rem;">
+                  {{ broker.broker_name[0] }}
+                </div>
+                <div class="flex-grow-1 min-width-0">
+                  <div class="fw-semibold">{{ broker.broker_name }}</div>
+                  <small class="text-muted d-flex align-items-center gap-1">
+                    <span class="badge badge-sm
+                      {{ 'bg-success' if broker.connection_status == 'connected' else 'bg-secondary' }}"
+                      style="font-size:0.65rem;">
+                      {{ broker.connection_status | title }}
+                    </span>
+                    {% if broker.is_data_broker %}
+                    <span class="badge bg-primary" style="font-size:0.65rem;">
+                      <i class="fas fa-database me-1"></i>Data API
+                    </span>
+                    {% endif %}
+                  </small>
+                </div>
+                <div class="flex-shrink-0">
+                  {% if is_selected %}
+                  <i class="fas fa-check-circle text-primary fs-5"></i>
+                  {% else %}
+                  <i class="far fa-circle text-muted fs-5"></i>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="mt-4 d-flex gap-2">
+            <button class="btn btn-primary" id="setBtn" onclick="confirmSet()" disabled>
+              <i class="fas fa-save me-1"></i>Set as Data API Broker
+            </button>
+            {% if current_data_broker %}
+            <small class="text-muted d-flex align-items-center ms-2">
+              Currently using <strong class="mx-1">{{ current_data_broker.broker_name }}</strong> — click a different broker to change.
+            </small>
             {% endif %}
+          </div>
 
-            <div class="card shadow-sm" id="setupCard" {% if data_broker %}style="display:none;"{% endif %}>
-                <div class="card-header bg-white border-bottom">
-                    <h5 class="mb-0"><i class="fas fa-plus-circle me-2 text-primary"></i>
-                        {% if data_broker %}Update Data API Broker{% else %}Set Up Data API Broker{% endif %}
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold">Select Broker</label>
-                        <div class="row g-2">
-                            {% for b in supported_brokers %}
-                            <div class="col-6 col-md-3">
-                                <div class="broker-select-card p-3 rounded-3 border text-center"
-                                     style="cursor:pointer;transition:all 0.2s;"
-                                     onclick="selectBroker('{{ b.key }}', '{{ b.name }}')"
-                                     id="broker-card-{{ b.key }}">
-                                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center text-white fw-bold mb-2"
-                                         style="width:40px;height:40px;background:{{ b.color }};">
-                                        {{ b.name[0] }}
-                                    </div>
-                                    <div class="small fw-semibold">{{ b.name }}</div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
+          {% else %}
+          <div class="text-center py-5">
+            <i class="fas fa-plug fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No brokers connected yet</h5>
+            <p class="text-muted small mb-3">Connect a trading broker first, then come back here to select it as your Data API source.</p>
+            <a href="{{ url_for('broker_management') }}" class="btn btn-primary btn-sm">
+              <i class="fas fa-plus me-1"></i>Connect a Broker
+            </a>
+          </div>
+          {% endif %}
 
-                    <div id="credentialFields" style="display:none;">
-                        <h6 class="fw-semibold mb-3" id="selectedBrokerLabel">Enter Credentials</h6>
-                        <div id="dynamicFields"></div>
-                        <div class="d-flex gap-2 mt-3">
-                            <button class="btn btn-primary" onclick="saveDataBroker()">
-                                <i class="fas fa-save me-1"></i>Save Data API Broker
-                            </button>
-                            {% if data_broker %}
-                            <button class="btn btn-outline-secondary" onclick="hideChangeForm()">Cancel</button>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
-
-        <div class="col-lg-4">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-white border-bottom">
-                    <h6 class="mb-0"><i class="fas fa-info-circle me-2 text-info"></i>How it works</h6>
-                </div>
-                <div class="card-body">
-                    <div class="small">
-                        <p><strong>Data API Broker</strong> is used only for fetching live market data — option chain, spot prices, and quotes.</p>
-                        <p>This is completely separate from your <strong>Trading Brokers</strong> which handle order placement and portfolio sync.</p>
-                        <hr>
-                        <p class="mb-2"><i class="fas fa-check text-success me-2"></i>One data broker for market data</p>
-                        <p class="mb-2"><i class="fas fa-check text-success me-2"></i>Multiple trading brokers for orders</p>
-                        <p class="mb-2"><i class="fas fa-check text-success me-2"></i>Credentials are encrypted</p>
-                        <p class="mb-0"><i class="fas fa-check text-success me-2"></i>F&O engine uses this automatically</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card shadow-sm">
-                <div class="card-header bg-white border-bottom">
-                    <h6 class="mb-0"><i class="fas fa-star me-2 text-warning"></i>Recommended Brokers</h6>
-                </div>
-                <div class="card-body">
-                    <div class="small">
-                        <p class="mb-2"><strong>Dhan</strong> — Best option chain API. Fast and reliable.</p>
-                        <p class="mb-2"><strong>Fyers</strong> — Good data API with direct chain support.</p>
-                        <p class="mb-2"><strong>Upstox</strong> — Full option chain with greeks.</p>
-                        <p class="mb-0"><strong>Angel One</strong> — Wide market data coverage.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
+
+    <div class="col-lg-4">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white border-bottom">
+          <h6 class="mb-0"><i class="fas fa-info-circle me-2 text-info"></i>How it works</h6>
+        </div>
+        <div class="card-body small">
+          <p>The <strong>Data API Broker</strong> is used exclusively for fetching live market data — option chains, spot prices, and real-time quotes for F&O signals.</p>
+          <p>You only need to connect a broker <strong>once</strong> for trading. That same connection is reused here for data — no re-entering credentials.</p>
+          <hr>
+          <p class="mb-2"><i class="fas fa-check text-success me-2"></i>One broker for data, many for trading</p>
+          <p class="mb-2"><i class="fas fa-check text-success me-2"></i>Existing credentials reused securely</p>
+          <p class="mb-2"><i class="fas fa-check text-success me-2"></i>F&O engine uses this automatically</p>
+          <p class="mb-0"><i class="fas fa-check text-success me-2"></i>Falls back to NSE if not set</p>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-white border-bottom">
+          <h6 class="mb-0"><i class="fas fa-star me-2 text-warning"></i>Recommended for Data</h6>
+        </div>
+        <div class="card-body small">
+          <p class="mb-2"><strong>Dhan</strong> — Best option chain API. Fast and reliable.</p>
+          <p class="mb-2"><strong>Upstox</strong> — Full option chain with greeks.</p>
+          <p class="mb-2"><strong>Fyers</strong> — Good market data coverage.</p>
+          <p class="mb-0"><strong>Angel One</strong> — Wide coverage via SmartAPI.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <style>
-.broker-select-card:hover {
-    border-color: #0d6efd !important;
-    background: #f0f7ff;
+.broker-card:hover {
+  border-color: #0d6efd !important;
+  background: #f0f7ff;
 }
-.broker-select-card.selected {
-    border-color: #0d6efd !important;
-    background: #e7f1ff;
-    box-shadow: 0 0 0 2px #0d6efd;
+.broker-card.selected {
+  border-color: #0d6efd !important;
+  background: #e7f1ff;
 }
 </style>
 
 <script>
-var selectedBrokerKey = '';
-var brokerFields = {{ supported_brokers | tojson }};
+var selectedAccountId = null;
+var currentDataBrokerId = {{ current_data_broker.id if current_data_broker else 'null' }};
 
-function selectBroker(key, name) {
-    selectedBrokerKey = key;
-    document.querySelectorAll('.broker-select-card').forEach(c => c.classList.remove('selected'));
-    document.getElementById('broker-card-' + key).classList.add('selected');
-    document.getElementById('selectedBrokerLabel').textContent = name + ' — Enter Credentials';
-
-    var broker = brokerFields.find(b => b.key === key);
-    var html = '';
-    if (broker) {
-        broker.fields.forEach(function(f) {
-            html += '<div class="mb-3">';
-            html += '<label class="form-label small fw-semibold">' + f.label + '</label>';
-            html += '<input type="password" class="form-control" id="field-' + f.id + '" placeholder="' + f.placeholder + '">';
-            html += '</div>';
-        });
+function selectBroker(accountId, brokerName) {
+  selectedAccountId = accountId;
+  document.querySelectorAll('.broker-card').forEach(function(el) {
+    el.classList.remove('selected');
+    var icon = el.querySelector('.fa-check-circle, .fa-circle');
+    if (icon) {
+      icon.classList.remove('fa-check-circle', 'text-primary');
+      icon.classList.add('fa-circle', 'text-muted');
     }
-    document.getElementById('dynamicFields').innerHTML = html;
-    document.getElementById('credentialFields').style.display = 'block';
+  });
+  var card = document.getElementById('broker-' + accountId);
+  if (card) {
+    card.classList.add('selected');
+    var icon = card.querySelector('.fa-circle');
+    if (icon) {
+      icon.classList.remove('fa-circle', 'text-muted');
+      icon.classList.add('fa-check-circle', 'text-primary');
+    }
+  }
+
+  var setBtn = document.getElementById('setBtn');
+  if (accountId === currentDataBrokerId) {
+    setBtn.disabled = true;
+    setBtn.textContent = 'Already selected';
+  } else {
+    setBtn.disabled = false;
+    setBtn.innerHTML = '<i class="fas fa-save me-1"></i>Set ' + brokerName + ' as Data API Broker';
+  }
 }
 
-function saveDataBroker() {
-    if (!selectedBrokerKey) {
-        alert('Please select a broker first.');
-        return;
+function confirmSet() {
+  if (!selectedAccountId) return;
+  fetch('/api/data-api-broker/set', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({broker_account_id: selectedAccountId})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      location.reload();
+    } else {
+      alert('Error: ' + data.message);
     }
-    var payload = { broker_type: selectedBrokerKey };
-    var broker = brokerFields.find(b => b.key === selectedBrokerKey);
-    broker.fields.forEach(function(f) {
-        var val = document.getElementById('field-' + f.id).value.trim();
-        payload[f.id] = val;
-    });
-
-    if (!payload.client_id || !payload.access_token) {
-        alert('Client ID and Access Token are required.');
-        return;
-    }
-
-    fetch('/api/data-api-broker/save', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            location.reload();
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(err => alert('Failed to save: ' + err));
+  })
+  .catch(function(err) { alert('Request failed: ' + err); });
 }
 
 function testConnection() {
-    var resultDiv = document.getElementById('testResult');
-    resultDiv.style.display = 'block';
-    resultDiv.innerHTML = '<div class="alert alert-info mb-0"><i class="fas fa-spinner fa-spin me-2"></i>Testing connection...</div>';
+  var btn = document.getElementById('testBtn');
+  var resultDiv = document.getElementById('testResult');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Testing...';
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = '<div class="alert alert-info mb-0 py-2"><i class="fas fa-spinner fa-spin me-2"></i>Connecting to broker API…</div>';
 
-    fetch('/api/data-api-broker/test', { method: 'POST' })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            resultDiv.innerHTML = '<div class="alert alert-success mb-0"><i class="fas fa-check-circle me-2"></i>' + data.message + '</div>';
-        } else {
-            resultDiv.innerHTML = '<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-2"></i>' + data.message + '</div>';
-        }
-    })
-    .catch(err => {
-        resultDiv.innerHTML = '<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-2"></i>Connection test failed.</div>';
-    });
-}
-
-function showChangeForm() {
-    document.getElementById('setupCard').style.display = 'block';
-    document.getElementById('setupCard').scrollIntoView({behavior: 'smooth'});
-}
-
-function hideChangeForm() {
-    document.getElementById('setupCard').style.display = 'none';
+  fetch('/api/data-api-broker/test', {method: 'POST'})
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plug me-1"></i>Test Connection';
+    if (data.success) {
+      resultDiv.innerHTML = '<div class="alert alert-success mb-0 py-2"><i class="fas fa-check-circle me-2"></i>' + data.message + '</div>';
+    } else {
+      resultDiv.innerHTML = '<div class="alert alert-danger mb-0 py-2"><i class="fas fa-times-circle me-2"></i>' + data.message + '</div>';
+    }
+  })
+  .catch(function(err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plug me-1"></i>Test Connection';
+    resultDiv.innerHTML = '<div class="alert alert-danger mb-0 py-2"><i class="fas fa-times-circle me-2"></i>Connection test failed.</div>';
+  });
 }
 
 function removeDataBroker() {
-    if (!confirm('Remove your Data API broker? F&O engine will fall back to estimated data.')) return;
-    fetch('/api/data-api-broker/remove', { method: 'POST' })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            location.reload();
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(err => alert('Failed to remove: ' + err));
+  if (!confirm('Remove Data API broker selection? The F&O engine will fall back to NSE data.')) return;
+  fetch('/api/data-api-broker/remove', {method: 'POST'})
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      location.reload();
+    } else {
+      alert('Error: ' + data.message);
+    }
+  })
+  .catch(function(err) { alert('Request failed: ' + err); });
 }
 </script>
 {% endblock %}
