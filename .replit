@@ -55,7 +55,7 @@ integrations = ["perplexity_v0:1.0.0", "flask_google_oauth:1.0.0", "twilio_send_
 [userenv]
 
 [userenv.shared]
-TELEGRAM_CHAT_ID = "-1002780721096"
+TELEGRAM_CHAT_ID = "8153935781"
 ADMIN_EMAILS = "udayid@gmail.com,admin@targetcapital.ai,tech@targetcapital.ai"
 BROKER_ENCRYPTION_KEY = "Qw5q7nYOK8d2GqKEWKZEE1QHwtedlczlbU6qXpbEwPQ="
 
