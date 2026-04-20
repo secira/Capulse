@@ -173,6 +173,8 @@
 .risk-live-item{text-align:center;flex:1;min-width:100px}
 .risk-live-val{font-size:20px;font-weight:800;color:#1e293b}
 .risk-live-lbl{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.3px}
+@keyframes fno-pulse-bg{0%,100%{background:#dc2626}50%{background:#b91c1c}}
+@keyframes fno-dot-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.6)}}
 </style>
 
 <div class="spinner-overlay" id="loadingOverlay">
@@ -213,10 +215,7 @@
 </div>
 
 <!-- DATA SOURCE WARNING -->
-<div id="dataSourceWarning" style="display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:13px;color:#92400e;display:none">
-    <i class="fas fa-exclamation-triangle me-2"></i>
-    <strong>Estimated Data:</strong> NSE live option chain is unavailable. Prices shown are estimated from the spot price. Deploy on an Indian server for live NSE data.
-</div>
+<div id="dataSourceWarning" style="display:none;margin-bottom:16px;"></div>
 
 <!-- FINAL DECISION BANNER -->
 <div class="decision-banner decision-notrade" id="decisionBanner" style="display:none">
@@ -703,13 +702,38 @@ function refreshAnalysis() {
         var dsWarn = document.getElementById('dataSourceWarning');
         if (d.data_source === 'estimated') {
             dsWarn.style.display = 'block';
-            dsWarn.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i><strong>Estimated Data:</strong> No broker Data API or NSE live feed available. Prices are estimated. Connect a broker and set it as Data API source in Broker Settings.';
+            dsWarn.innerHTML =
+                '<div style="background:#dc2626;color:#fff;border-radius:10px;padding:16px 20px;' +
+                'border-left:6px solid #991b1b;animation:fno-pulse-bg 2s infinite;">' +
+                '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">' +
+                '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#fff;animation:fno-dot-pulse 1s infinite;flex-shrink:0;"></span>' +
+                '<strong style="font-size:15px;">⛔ NO LIVE DATA — F&amp;O SIGNALS ARE UNRELIABLE</strong>' +
+                '</div>' +
+                '<div style="font-size:13px;line-height:1.5;margin-bottom:10px;">' +
+                'All option chain prices, spot levels, and trade recommendations shown below are <strong>simulated / estimated</strong> — not from a live market feed. ' +
+                'Trading real money based on this data can cause significant losses.' +
+                '</div>' +
+                '<a href="/dashboard/data-api-broker" style="display:inline-block;background:#fff;color:#dc2626;font-weight:700;' +
+                'border-radius:6px;padding:6px 16px;text-decoration:none;font-size:13px;">' +
+                '→ Connect a Data API Broker to get live data</a>' +
+                '</div>';
         } else if (d.data_source && d.data_source.startsWith('broker:')) {
+            var bname = d.data_source.replace('broker:', '');
             dsWarn.style.display = 'block';
-            dsWarn.style.background = '#d1fae5';
-            dsWarn.style.borderColor = '#10b981';
-            dsWarn.style.color = '#065f46';
-            dsWarn.innerHTML = '<i class="fas fa-check-circle me-2"></i><strong>Live Data:</strong> Using ' + d.data_source.replace('broker:', '') + ' Data API for real-time prices.';
+            dsWarn.innerHTML =
+                '<div style="background:#d1fae5;border:1px solid #10b981;border-radius:8px;padding:8px 16px;' +
+                'font-size:13px;color:#065f46;display:flex;align-items:center;gap:8px;">' +
+                '<i class="fas fa-check-circle"></i>' +
+                '<strong>Live Data:</strong> Using ' + bname + ' broker API for real-time prices.' +
+                '</div>';
+        } else if (d.data_source === 'live') {
+            dsWarn.style.display = 'block';
+            dsWarn.innerHTML =
+                '<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;padding:8px 16px;' +
+                'font-size:13px;color:#065f46;display:flex;align-items:center;gap:8px;">' +
+                '<i class="fas fa-check-circle"></i>' +
+                '<strong>NSE Live Data</strong> — option chain loaded from NSE.' +
+                '</div>';
         } else {
             dsWarn.style.display = 'none';
         }

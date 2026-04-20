@@ -5408,6 +5408,73 @@ def api_trade_execute_confirmed():
             'error': f'Trade execution failed: {str(e)}'
         }), 500
 
+@app.route('/api/live-data-status', methods=['GET'])
+@login_required
+def api_live_data_status():
+    """
+    Fast (no external calls) check of live market data availability.
+    Returns overall status used by dashboard and F&O page banners.
+    """
+    from datetime import datetime, timezone, timedelta
+    from models_broker import BrokerAccount, DataApiBroker
+
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(IST)
+
+    weekday = now_ist.weekday()  # 0=Mon … 6=Sun
+    market_start = now_ist.replace(hour=9, minute=15, second=0, microsecond=0)
+    market_end   = now_ist.replace(hour=15, minute=30, second=0, microsecond=0)
+    market_open  = (weekday < 5) and (market_start <= now_ist <= market_end)
+
+    data_broker_name = None
+    has_data_broker  = False
+
+    try:
+        acct = BrokerAccount.query.filter_by(
+            user_id=current_user.id, is_data_broker=True, is_active=True
+        ).first()
+        if acct:
+            has_data_broker = True
+            data_broker_name = acct.broker_name
+        else:
+            legacy = DataApiBroker.query.filter_by(
+                user_id=current_user.id, is_active=True, connection_status='connected'
+            ).first()
+            if legacy:
+                has_data_broker = True
+                data_broker_name = legacy.broker_name
+    except Exception:
+        pass
+
+    if not has_data_broker:
+        status = 'no_broker'
+        message = 'No Data API broker connected. F&O signals are using estimated/simulated data — DO NOT trade on these.'
+        severity = 'critical'
+    elif not market_open:
+        if weekday >= 5:
+            reason = 'Market is closed (weekend).'
+        else:
+            reason = f"Market hours are 9:15 AM – 3:30 PM IST. Current IST: {now_ist.strftime('%I:%M %p')}."
+        status = 'market_closed'
+        message = f'{data_broker_name} is connected. {reason} Signals shown are from last session.'
+        severity = 'info'
+    else:
+        status = 'live'
+        message = f'Live data from {data_broker_name}. Market open.'
+        severity = 'ok'
+
+    return jsonify({
+        'success': True,
+        'status': status,
+        'severity': severity,
+        'message': message,
+        'has_data_broker': has_data_broker,
+        'data_broker_name': data_broker_name,
+        'market_open': market_open,
+        'ist_time': now_ist.strftime('%I:%M %p IST'),
+    })
+
+
 @app.route('/api/data-quality', methods=['GET'])
 @login_required
 def api_data_quality():

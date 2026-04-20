@@ -43,6 +43,9 @@
             </div>
         </header>
 
+        <!-- Live Data Status Banner (injected by JS, shown only when data is missing/degraded) -->
+        <div id="liveDataBanner" style="display:none;"></div>
+
         <!-- Dashboard Content -->
         <section class="dashboard-content">
             <div class="content-container">
@@ -124,6 +127,14 @@
     padding: 3px 10px;
     white-space: nowrap;
     vertical-align: middle;
+}
+@keyframes pulse-red {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.75); }
+}
+@keyframes pulse-red-bg {
+    0%, 100% { background: #dc2626; }
+    50%       { background: #b91c1c; }
 }
 </style>
 
@@ -249,6 +260,40 @@ function _istStr(ts, timeOnly) {
             }
         });
     });
+
+    // ── Live Data Status Banner ──────────────────────────────────────────────
+    (function checkLiveDataStatus() {
+        var banner = document.getElementById('liveDataBanner');
+        if (!banner) return;
+        fetch('/api/live-data-status')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (!d.success) return;
+                if (d.status === 'no_broker') {
+                    banner.innerHTML =
+                        '<div style="background:#dc2626;color:#fff;padding:10px 20px;font-size:13px;font-weight:600;' +
+                        'display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:3px solid #991b1b;' +
+                        'animation:pulse-red-bg 2s infinite;">' +
+                        '<span class="data-status-pulse" style="display:inline-block;width:12px;height:12px;border-radius:50%;' +
+                        'background:#fff;animation:pulse-red 1s infinite;flex-shrink:0;"></span>' +
+                        '<span>⚠ NO LIVE DATA — F&amp;O signals are estimated/simulated. DO NOT trade on these.</span>' +
+                        '<a href="/dashboard/data-api-broker" style="color:#fde68a;font-weight:700;text-decoration:underline;white-space:nowrap;">Fix: Set Data API Broker →</a>' +
+                        '</div>';
+                    banner.style.display = 'block';
+                } else if (d.status === 'market_closed') {
+                    banner.innerHTML =
+                        '<div style="background:#78350f;color:#fef3c7;padding:8px 20px;font-size:12px;font-weight:500;' +
+                        'display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+                        '<i class="fas fa-clock" style="color:#f59e0b;"></i>' +
+                        '<span><strong>' + (d.data_broker_name || 'Broker') + ' connected.</strong> ' + d.message + '</span>' +
+                        '</div>';
+                    banner.style.display = 'block';
+                } else if (d.status === 'live') {
+                    banner.style.display = 'none';
+                }
+            })
+            .catch(function() {});
+    })();
 
 }());
 </script>
