@@ -320,14 +320,19 @@ with app.app_context():
     import models_vector  # Import vector database models for RAG
     import routes_mobile  # Import mobile OTP routes
     
-    # Always run db.create_all() — it is idempotent (only creates tables that
-    # don't already exist) and ensures the app boots successfully even on a
-    # fresh Railway deployment without needing a separate migration script.
-    try:
-        db.create_all()
-        logging.info("✅ Database tables ensured via db.create_all()")
-    except Exception as _e:
-        logging.error(f"db.create_all() failed: {_e}", exc_info=True)
+    # In production, all tables already exist and are populated — DO NOT call
+    # db.create_all().  The incremental column-migration block below handles
+    # any additive schema changes (ADD COLUMN IF NOT EXISTS, CREATE TABLE IF
+    # NOT EXISTS) safely on every startup.
+    # In development, db.create_all() bootstraps the local DB.
+    if not is_production:
+        try:
+            db.create_all()
+            logging.info("✅ Database tables created (development mode)")
+        except Exception as _e:
+            logging.error(f"db.create_all() failed: {_e}", exc_info=True)
+    else:
+        logging.info("⏭️  Production: skipping db.create_all() — only additive migrations will run")
 
     # ── Incremental column migrations (safe to run on every startup) ──────────
     # ADD COLUMN IF NOT EXISTS is idempotent — no-op when column already exists.
