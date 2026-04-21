@@ -23,6 +23,7 @@ TRADE_MAX_DURATION_MIN  = 30
 ENTRY_COOLDOWN_MINUTES  = 15
 TRADE_MIN_CONFIDENCE    = 80
 TRADE_MIN_ADX           = 25
+ACTIVE_UPDATE_INTERVAL_MIN = 5   # How often to send Telegram updates while trade is live
 
 # All indices to scan (order determines scan priority)
 SCAN_INDICES = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX']
@@ -61,6 +62,7 @@ _confirmation_dir     = _make_per_index(None)
 _active_trade         = _make_per_index(None)
 _last_exit_time       = _make_per_index(None)
 _recent_confidences   = _make_per_index([])
+_last_active_alert    = _make_per_index(None)   # Timestamp of last TRADE_ACTIVE Telegram update
 
 _scheduler_started = False
 
@@ -157,7 +159,14 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         signal_type = signal_data.get('signal_type', 'TRADE')
 
         dir_emoji  = '🟢' if direction == 'BULLISH' else '🔴' if direction == 'BEARISH' else '🟡'
-        type_emoji = '🔒' if signal_type == 'TRADE_TRIGGER' else '🚪' if signal_type == 'TRADE_EXIT' else '📡'
+        if signal_type == 'TRADE_TRIGGER':
+            type_emoji = '🔒'
+        elif signal_type == 'TRADE_EXIT':
+            type_emoji = '🚪'
+        elif signal_type == 'TRADE_ACTIVE':
+            type_emoji = '📍'
+        else:
+            type_emoji = '📡'
 
         msg  = f"{type_emoji} <b>{display} F&amp;O — {signal_type.replace('_', ' ')}</b>\n\n"
         msg += f"{dir_emoji} <b>Direction:</b> {direction}\n"
@@ -165,17 +174,37 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         msg += f"🎯 <b>Entry Mode:</b> {entry_mode}\n"
         msg += f"💰 <b>Spot:</b> ₹{spot:,.2f} | ATM: {atm}\n\n"
 
-        trades = signal_data.get('trades', [])
-        if trades:
-            msg += f"<b>Trades ({len(trades)}):</b>\n"
-            for t in trades[:3]:
-                t_emoji = '📗' if t.get('type') == 'CE' else '📕'
-                msg += (
-                    f"{t_emoji} {t.get('symbol', '')} — "
-                    f"Entry ₹{t.get('entry_price', 0):,.0f}, "
-                    f"Target ₹{t.get('target', 0):,.0f}, "
-                    f"SL ₹{t.get('sl', 0):,.0f}\n"
-                )
+        # For TRADE_ACTIVE updates, show live trade details with elapsed time
+        if signal_type == 'TRADE_ACTIVE':
+            active = signal_data.get('active_trade', {})
+            if active:
+                elapsed = active.get('elapsed_min', 0)
+                remaining = active.get('remaining_min', TRADE_MAX_DURATION_MIN)
+                entry_px  = active.get('entry_price', 0)
+                sl_px     = active.get('sl', 0)
+                tgt_px    = active.get('target', 0)
+                ltp       = active.get('ltp', 0)
+                pnl_pts   = round(ltp - entry_px, 2) if ltp and entry_px else 0
+                pnl_emoji = '📈' if pnl_pts >= 0 else '📉'
+                opt_type  = active.get('type', '')
+                msg += f"<b>Active Trade ({opt_type}):</b>\n"
+                msg += f"  ⏱ Running: {elapsed} min | {remaining} min left\n"
+                msg += f"  🏷 Entry: ₹{entry_px:,.0f}\n"
+                if ltp:
+                    msg += f"  {pnl_emoji} LTP: ₹{ltp:,.0f} ({'+' if pnl_pts >= 0 else ''}{pnl_pts:.0f} pts)\n"
+                msg += f"  🛑 SL: ₹{sl_px:,.0f}  |  🎯 Target: ₹{tgt_px:,.0f}\n"
+        else:
+            trades = signal_data.get('trades', [])
+            if trades:
+                msg += f"<b>Trades ({len(trades)}):</b>\n"
+                for t in trades[:3]:
+                    t_emoji = '📗' if t.get('type') == 'CE' else '📕'
+                    msg += (
+                        f"{t_emoji} {t.get('symbol', '')} — "
+                        f"Entry ₹{t.get('entry_price', 0):,.0f}, "
+                        f"Target ₹{t.get('target', 0):,.0f}, "
+                        f"SL ₹{t.get('sl', 0):,.0f}\n"
+                    )
 
         if signal_type == 'TRADE_EXIT':
             msg += f"\n🚪 <b>Exit Reason:</b> {signal_data.get('exit_reason', 'Unknown')}\n"
@@ -392,11 +421,50 @@ def _scan_index(app, idx: str, data_broker_user_id):
                     if _should_send_alert(analysis, idx):
                         alert_sent = _send_telegram_alert(analysis, idx)
                 else:
-                    at = _active_trade[idx]
+                    at   = _active_trade[idx]
+                    now  = _now_ist()
+                    entry_time = at.get('entry_time')
+                    elapsed    = int((now - entry_time).total_seconds() / 60) if entry_time else 0
+                    remaining  = max(0, TRADE_MAX_DURATION_MIN - elapsed)
                     logger.info(
                         f"[{idx}] Trade ACTIVE: {at.get('direction')} "
-                        f"since {at.get('entry_time').strftime('%H:%M')} IST"
+                        f"since {entry_time.strftime('%H:%M')} IST "
+                        f"({elapsed} min elapsed)"
                     )
+
+                    # Send periodic TRADE_ACTIVE update to Telegram
+                    last_alert = _last_active_alert[idx]
+                    due = (
+                        last_alert is None or
+                        (now - last_alert).total_seconds() >= ACTIVE_UPDATE_INTERVAL_MIN * 60
+                    )
+                    if due:
+                        # Find current LTP of the tracked option from trades list
+                        atm_key = at.get('atm_key', '')
+                        ltp = 0.0
+                        for t in analysis.get('trades', []):
+                            if t.get('symbol') == atm_key:
+                                ltp = float(t.get('ltp', 0))
+                                break
+
+                        active_info = {
+                            'direction':   at.get('direction'),
+                            'type':        at.get('type', ''),
+                            'entry_price': at.get('entry_price', 0),
+                            'sl':          at.get('sl', 0),
+                            'target':      at.get('target', 0),
+                            'ltp':         ltp,
+                            'elapsed_min': elapsed,
+                            'remaining_min': remaining,
+                        }
+                        active_analysis = dict(analysis)
+                        active_analysis['signal_type']    = 'TRADE_ACTIVE'
+                        active_analysis['trade_direction'] = at.get('direction', analysis.get('trade_direction'))
+                        active_analysis['confidence']      = at.get('confidence', analysis.get('confidence'))
+                        active_analysis['active_trade']    = active_info
+                        if _send_telegram_alert(active_analysis, idx):
+                            _last_active_alert[idx] = now
+                            logger.info(f"[{idx}] 📍 TRADE_ACTIVE Telegram update sent ({elapsed} min in)")
                     return
 
             else:
