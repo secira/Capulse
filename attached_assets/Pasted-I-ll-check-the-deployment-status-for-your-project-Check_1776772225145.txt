@@ -1,0 +1,79 @@
+I'll check the deployment status for your project.
+
+Checked environment status
+
+Hide result
+1 of 3 services with issues
+•
+5 recent failures
+TargetCapital
+5
+Online
+Your TargetCapital service has recent deployment failures. Let me get details on the most recent one.
+
+Diagnosed deployment
+The deployment is failing at the healthcheck stage. The service starts but fails the health check. Let me look at the build and runtime logs to see what's happening.
+
+Searched build logs
+
+Hide result
+17:11:09
+17:11:10
+[35m[Region: us-west1][0m
+17:11:10
+[35m=========================
+17:11:10
+Using Detected Dockerfile
+17:11:10
+=========================
+17:11:10
+[0m
+17:11:10
+context: 6w79-p8mD
+17:11:11
+[internal] load build definition from Dockerfile
+17:11:11
+[internal] load build definition from Dockerfile
+17:11:11
+[internal] load build definition from Dockerfile
+...and 48 more logs
+Searched deploy logs
+
+Hide result
+17:11:38
+======================================
+17:11:38
+Target Capital — Deployment Startup
+17:11:38
+======================================
+17:11:38
+17:11:38
+[0/5] Checking required environment variables...
+17:11:38
+✅ DATABASE_URL — set
+17:11:38
+✅ SESSION_SECRET — set
+17:11:38
+✅ BROKER_ENCRYPTION_KEY — set
+17:11:38
+✅ ANTHROPIC_API_KEY — set
+17:11:38
+✅ GOOGLE_OAUTH_CLIENT_ID — set
+...and 28 more logs
+Problem: The healthcheck is failing. The service starts but never responds to the /health endpoint.
+
+Looking at the logs:
+
+Build succeeds
+Startup script runs (migrations, env checks all pass)
+Container starts but never becomes healthy — the /health endpoint returns "service unavailable" repeatedly
+Root cause: The application is likely crashing or hanging during startup after the initial logs. The startup script completes, but the Flask/web server never actually starts listening.
+
+Check your entrypoint.sh — it probably runs migrations and then exits without starting the actual web server. The last log shows "Stopping Container" at 11:47:22, which means the process exited.
+
+Fix: Ensure your entrypoint script starts the web server after migrations. It should look something like:
+
+#!/bin/bash
+python migrate.py  # or your migration command
+exec python -m flask run --host=0.0.0.0 --port=$PORT
+The exec ensures the Flask process replaces the shell, so it receives signals properly. Without it, the shell exits after Flask starts, causing the container to stop.
