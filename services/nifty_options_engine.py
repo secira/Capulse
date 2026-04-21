@@ -765,18 +765,20 @@ class NiftyOptionsEngine:
             if df is None or df.empty:
                 try:
                     import yfinance as yf
-                    df_src = yf.Ticker(src_cfg['yf_ticker']).history(period="1d", interval="5m")
+                    df_src = yf.Ticker(src_cfg['yf_ticker']).history(period="5d", interval="5m")
                     if df_src is not None and not df_src.empty and len(df_src) >= 5:
                         df = df_src
-                        logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from yfinance/{self.candle_source}")
+                        logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from yfinance/{self.candle_source} (5d)")
                 except Exception as e:
                     logger.warning(f"yfinance candles error for {self.index} (source={self.candle_source}): {e}")
 
-            # Scale source candles to this index's price level so VWAP is meaningful
+            # Scale source candles to this index's price level so VWAP is meaningful.
+            # Use the latest close of the source candles as the reference price,
+            # so the scale factor reflects the actual current price ratio.
             if df is not None and not df.empty:
-                src_avg = float(df['Close'].mean())
-                if src_avg > 0:
-                    scale = float(self.default_spot) / src_avg
+                src_last_close = float(df['Close'].iloc[-1])
+                if src_last_close > 0:
+                    scale = float(self.default_spot) / src_last_close
                     df = df.copy()
                     for col in ['Open', 'High', 'Low', 'Close']:
                         if col in df.columns:
@@ -801,14 +803,16 @@ class NiftyOptionsEngine:
                     logger.warning(f"Dhan intraday candles error ({self.index}): {e}")
 
             # ── Priority 2: yfinance fallback ─────────────────────────────────────
+            # Fetch 5 days to provide historical warm-up for EWM-based indicators
+            # (RSI, ADX, SuperTrend). VWAP is filtered to today's session only.
             if df is None or df.empty:
                 try:
                     import yfinance as yf
                     ticker = yf.Ticker(self.yf_ticker)
-                    df_yf = ticker.history(period="1d", interval="5m")
+                    df_yf = ticker.history(period="5d", interval="5m")
                     if df_yf is not None and not df_yf.empty and len(df_yf) >= 5:
                         df = df_yf
-                        logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from yfinance")
+                        logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from yfinance (5d)")
                     else:
                         logger.warning(f"_fetch_intraday_candles({self.index}): yfinance also returned no data")
                 except Exception as e:
@@ -819,8 +823,23 @@ class NiftyOptionsEngine:
         return result
 
     def _calculate_vwap(self, df) -> float:
-        """Cumulative VWAP from today's candles."""
+        """Cumulative VWAP from today's candles only.
+        When df spans multiple days (5d warmup fetch), filters to today first.
+        """
         try:
+            import pandas as pd
+            # Filter to today's trading session so VWAP is intraday-accurate
+            try:
+                idx = df.index
+                if hasattr(idx, 'tz') and idx.tz is not None:
+                    today_date = pd.Timestamp.now(tz=idx.tz).normalize()
+                else:
+                    today_date = pd.Timestamp.now().normalize()
+                df_today = df[df.index >= today_date]
+                if len(df_today) >= 3:
+                    df = df_today
+            except Exception:
+                pass
             tp = (df['High'] + df['Low'] + df['Close']) / 3
             vol = df['Volume'].replace(0, 1)
             vwap = (tp * vol).cumsum() / vol.cumsum()
@@ -850,7 +869,7 @@ class NiftyOptionsEngine:
             dm_p = dm_p.dropna()
             dm_m = dm_m.dropna()
 
-            if len(tr) < max(period, di_period) * 2:
+            if len(tr) < di_period + 2:
                 return 22.0, 22.0, 22.0, False
 
             # Wilder smoothing: first window = simple sum, subsequent = prev - prev/n + current
@@ -1183,12 +1202,12 @@ class NiftyOptionsEngine:
     def _strength_engine(self, spot: float) -> Dict[str, Any]:
         df = self._fetch_intraday_candles()
         if df is not None and len(df) >= 10:
-            adx, _, _, adx_rising = self._calculate_adx(df)
+            adx, _, _, adx_rising = self._calculate_adx(df, period=14, di_period=14)
             atr, atr_rising = self._calculate_atr(df)
             # ADX falling check — useful for caution flag after entry
             try:
-                _, _, _, adx_rising_now = self._calculate_adx(df)
-                _, _, _, adx_rising_prev = self._calculate_adx(df.iloc[:-1]) if len(df) > 11 else (None, None, None, False)
+                _, _, _, adx_rising_now = self._calculate_adx(df, period=14, di_period=14)
+                _, _, _, adx_rising_prev = self._calculate_adx(df.iloc[:-1], period=14, di_period=14) if len(df) > 11 else (None, None, None, False)
                 adx_falling = (not adx_rising_now) and (not adx_rising_prev)
             except Exception:
                 adx_falling = False
