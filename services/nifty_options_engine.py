@@ -558,7 +558,7 @@ class NiftyOptionsEngine:
         try:
             from services.options_service import OptionsService
             svc = OptionsService()
-            data = svc.get_option_chain('NIFTY')
+            data = svc.get_option_chain(self.nse_symbol)
             if data and data.get('option_chain'):
                 return data
         except Exception as e:
@@ -569,8 +569,20 @@ class NiftyOptionsEngine:
         si = self.strike_interval
         atm = round(spot / si) * si
         chain = {}
-        base_iv = 13.0
-        days_to_expiry = 4
+        # Per-index annualised IV estimates (typical market conditions)
+        _iv_map = {'NIFTY': 13.0, 'BANKNIFTY': 20.0, 'FINNIFTY': 17.0, 'SENSEX': 13.0}
+        base_iv = _iv_map.get(self.index, 15.0)
+        # Estimate DTE: find days to next weekly expiry
+        # BANKNIFTY expires Wednesday, NIFTY/FINNIFTY Thursday, SENSEX Friday
+        _expiry_weekday = {'NIFTY': 3, 'BANKNIFTY': 2, 'FINNIFTY': 3, 'SENSEX': 4}
+        try:
+            from datetime import date as _date
+            today = _date.today()
+            target_wd = _expiry_weekday.get(self.index, 3)
+            days_ahead = (target_wd - today.weekday()) % 7
+            days_to_expiry = max(1, days_ahead if days_ahead > 0 else 7)
+        except Exception:
+            days_to_expiry = 5
         time_val = (base_iv / 100) * spot * (days_to_expiry / 365) ** 0.5 * 0.4
 
         for i in range(-6, 7):
@@ -1606,9 +1618,12 @@ class NiftyOptionsEngine:
                     spot = float(hist['Close'].iloc[-1])
             except Exception:
                 pass
-            logger.warning(f"All data sources unavailable — using estimated data ({self.index}). Spot: {spot}")
+            logger.warning(f"All data sources unavailable — using estimated data ({self.index}). Spot: {spot}. Trade signals BLOCKED.")
             current_chain = self._get_sample_chain(spot)
             next_chain = {}
+
+        # ── HARD BLOCK: never generate trade signals on estimated option prices ──
+        _estimated_data = (data_source == 'estimated')
 
         atm = int(round(spot / self.strike_interval) * self.strike_interval)
 
@@ -1639,9 +1654,16 @@ class NiftyOptionsEngine:
             else:
                 entry_mode = 'EARLY'
 
+        # HARD BLOCK: if option prices are estimated (no live data), never signal a trade.
+        # Estimated premiums can be 30–100% off real market prices, making entry/SL/target useless.
+        if _estimated_data:
+            entry_mode = 'NO TRADE'
+
         trade_direction = direction['direction']
 
         block_reasons = []
+        if _estimated_data:
+            block_reasons.append("No live option data — connect a Data API broker or check NSE connectivity")
         if not time_check['pass']:
             block_reasons.append(time_check['reason'])
         # Regime filter reasons (chop / vwap-distance / compression / overlap)
