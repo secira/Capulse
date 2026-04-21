@@ -249,6 +249,121 @@ def fno_signal_history():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@fno_bp.route('/pnl-analysis')
+@login_required
+@paid_plan_required
+def fno_pnl_analysis():
+    resp = make_response(render_template(
+        'dashboard/fno_pnl_analysis.html',
+        fno_active_tab='pnl',
+    ))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
+
+
+@fno_bp.route('/api/pnl-history')
+@login_required
+def fno_pnl_history():
+    try:
+        from app import db
+        from datetime import datetime, timedelta
+        from collections import OrderedDict
+
+        months_back  = min(int(request.args.get('months', 6)), 24)
+        index_filter = request.args.get('index_id', 'ALL').upper()
+
+        ist_now        = datetime.utcnow() + timedelta(hours=5, minutes=30)
+        # Start of the first day of (months_back) months ago
+        m              = ist_now.month - months_back
+        y              = ist_now.year + (m - 1) // 12
+        m              = ((m - 1) % 12) + 1
+        from_ist       = ist_now.replace(year=y, month=m, day=1,
+                                         hour=0, minute=0, second=0, microsecond=0)
+        utc_from       = from_ist - timedelta(hours=5, minutes=30)
+
+        index_clause = "AND COALESCE(index_id,'NIFTY') = :index_id" if index_filter != 'ALL' else ""
+        params = {'from_date': utc_from}
+        if index_filter != 'ALL':
+            params['index_id'] = index_filter
+
+        rows = db.session.execute(db.text(f"""
+            SELECT index_id, direction, confidence, atm_strike, trades_json,
+                   created_at, trade_code, outcome, exit_spot, exit_time
+            FROM   fno_signal_history
+            WHERE  signal_type = 'TRADE_TRIGGER'
+              AND  outcome IS NOT NULL
+              AND  created_at >= :from_date
+              {index_clause}
+            ORDER  BY created_at DESC
+        """), params).fetchall()
+
+        trades = []
+        for r in rows:
+            atm = _parse_atm_trade(getattr(r, 'trades_json', None))
+            outcome = r.outcome or ''
+            entry_p, exit_p, pnl_pct = _calc_trade_pnl(atm, outcome)
+            points = round(exit_p - entry_p, 1) if (exit_p is not None and entry_p) else None
+
+            opt_type = 'CE' if r.direction == 'BULLISH' else ('PE' if r.direction == 'BEARISH' else '—')
+
+            entry_ist = r.created_at.replace(tzinfo=timezone.utc).astimezone(IST) if r.created_at else None
+            exit_ist  = r.exit_time.replace(tzinfo=timezone.utc).astimezone(IST)  if r.exit_time  else None
+
+            trades.append({
+                'trade_code':    r.trade_code or '—',
+                'index_id':      (r.index_id or 'NIFTY'),
+                'direction':     r.direction or '—',
+                'option_type':   opt_type,
+                'strike':        r.atm_strike,
+                'confidence':    r.confidence,
+                'outcome':       outcome,
+                'entry_premium': entry_p,
+                'exit_premium':  exit_p,
+                'points':        points,
+                'pnl_pct':       pnl_pct,
+                'exit_spot':     r.exit_spot,
+                'date':          entry_ist.strftime('%d %b %Y') if entry_ist else '—',
+                'entry_time':    entry_ist.strftime('%I:%M %p')  if entry_ist else '—',
+                'exit_time':     exit_ist.strftime('%I:%M %p')   if exit_ist  else '—',
+                'month_key':     entry_ist.strftime('%Y-%m')     if entry_ist else '0000-00',
+                'month_label':   entry_ist.strftime('%B %Y')     if entry_ist else 'Unknown',
+            })
+
+        # Group by month (most-recent first)
+        by_month: OrderedDict = OrderedDict()
+        for t in trades:
+            mk = t['month_key']
+            if mk not in by_month:
+                by_month[mk] = {'month_label': t['month_label'], 'month_key': mk, 'trades': []}
+            by_month[mk]['trades'].append(t)
+
+        result_months = []
+        for mk, data in by_month.items():
+            mt = data['trades']
+            with_pnl  = [t for t in mt if t['pnl_pct'] is not None]
+            wins      = [t for t in with_pnl if t['pnl_pct'] > 0]
+            losses    = [t for t in with_pnl if t['pnl_pct'] <= 0]
+            tot_pts   = round(sum(t['points'] for t in with_pnl if t['points']), 1)
+            cum_pnl   = round(sum(t['pnl_pct'] for t in with_pnl), 1) if with_pnl else None
+            data['summary'] = {
+                'total_trades': len(mt),
+                'wins':         len(wins),
+                'losses':       len(losses),
+                'time_exits':   len(mt) - len(with_pnl),
+                'win_rate':     round(len(wins) / len(with_pnl) * 100, 1) if with_pnl else None,
+                'total_points': tot_pts,
+                'cum_pnl_pct':  cum_pnl,
+            }
+            result_months.append(data)
+
+        return jsonify({'success': True, 'months': result_months, 'total_trades': len(trades)})
+    except Exception as e:
+        logger.error(f"P&L history error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @fno_bp.route('/api/active-trade')
 @login_required
 def fno_active_trade():
