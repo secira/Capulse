@@ -81,7 +81,7 @@ Strong breakout above resistance level with high volume...
 
 ⏰ Signal Time: 20/08/2024 02:30 PM
 
-_Join Target Capital for more signals: https://tcapital.com_
+_Join Target Capital for more signals: https://www.targetcapital.ai_
 ```
 
 **Telegram Message Example:**

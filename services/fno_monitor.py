@@ -282,7 +282,7 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
 
         page_path = _INDEX_PAGE_PATH.get(index_id, 'nifty')
         msg += f"\n⏰ <i>{_now_ist().strftime('%d/%m/%Y %I:%M %p')} IST</i>"
-        msg += f"\n\n<a href='https://tcapital.com/dashboard/fno/{page_path}'>View on Target Capital</a>"
+        msg += f"\n\n<a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital</a>"
 
         resp = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",

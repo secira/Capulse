@@ -147,8 +147,8 @@ class EmailService:
                 
                 <div style="text-align: center; margin: 30px 0; padding: 20px; background-color: white; border-radius: 5px;">
                     <h3 style="color: #00091a;">Need Immediate Assistance?</h3>
-                    <p>Visit our <a href="https://tcapital.com/help" style="color: #007bff;">Help Center</a> for instant answers</p>
-                    <p>Or explore our <a href="https://tcapital.com/pricing" style="color: #007bff;">Trading Plans</a></p>
+                    <p>Visit our <a href="https://www.targetcapital.ai/help" style="color: #007bff;">Help Center</a> for instant answers</p>
+                    <p>Or explore our <a href="https://www.targetcapital.ai/pricing" style="color: #007bff;">Trading Plans</a></p>
                 </div>
                 
                 <p>Best regards,<br>
@@ -181,8 +181,8 @@ class EmailService:
         - For urgent matters, you can call us directly
         
         Need Immediate Assistance?
-        Visit our Help Center: https://tcapital.com/help
-        Or explore our Trading Plans: https://tcapital.com/pricing
+        Visit our Help Center: https://www.targetcapital.ai/help
+        Or explore our Trading Plans: https://www.targetcapital.ai/pricing
         
         Best regards,
         The Target Capital Team

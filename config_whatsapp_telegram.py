@@ -61,7 +61,7 @@ class WhatsAppService:
                 message += "..."
         
         message += f"\n\n⏰ Signal Time: {signal.created_at.strftime('%d/%m/%Y %I:%M %p')}"
-        message += f"\n\n_Join Target Capital for more signals: https://tcapital.com_"
+        message += f"\n\n_Join Target Capital for more signals: https://www.targetcapital.ai_"
         
         return message
     
@@ -146,7 +146,7 @@ class TelegramService:
             message += "</i>"
         
         message += f"\n\n⏰ <i>Signal Time: {signal.created_at.strftime('%d/%m/%Y %I:%M %p')}</i>"
-        message += f"\n\n<a href='https://tcapital.com'>Join Target Capital for more signals</a>"
+        message += f"\n\n<a href='https://www.targetcapital.ai'>Join Target Capital for more signals</a>"
         
         return message
     
