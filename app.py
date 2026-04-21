@@ -435,23 +435,40 @@ with app.app_context():
             WHERE NOT EXISTS (SELECT 1 FROM data_api_plan)''',
         'ALTER TABLE research_list ADD COLUMN IF NOT EXISTS hist_data_source VARCHAR(50)',
     ]
-    try:
-        with db.engine.connect() as _conn:
-            for _sql in _pending_migrations:
-                _conn.execute(db.text(_sql))
-            _conn.commit()
-        logging.info("✅ Incremental column migrations applied")
-    except Exception as _e:
-        logging.warning(f"⚠️ Column migration skipped (table may not exist yet): {_e}")
+    # In production, column migrations are GATED behind RUN_MIGRATIONS=1.
+    # Reason: with gunicorn --preload, this block runs in the master process
+    # during app load.  An ALTER TABLE that needs to wait for a lock (held by
+    # any other live connection) will hang the master forever — workers never
+    # get forked, /health never responds, Railway healthcheck times out.
+    # On Railway: set RUN_MIGRATIONS=1 for ONE deploy when you ship a new
+    # column or table, watch it complete, then unset it.  Normal redeploys
+    # skip this entire block and boot in seconds.
+    # In development we always run them so the local DB stays in sync.
+    _should_run_migrations = (not is_production) or (os.environ.get("RUN_MIGRATIONS") == "1")
+    if _should_run_migrations:
+        try:
+            with db.engine.connect() as _conn:
+                for _i, _sql in enumerate(_pending_migrations, 1):
+                    logging.info(f"  [migration {_i}/{len(_pending_migrations)}] running…")
+                    _conn.execute(db.text(_sql))
+                _conn.commit()
+            logging.info("✅ Incremental column migrations applied")
+        except Exception as _e:
+            logging.warning(f"⚠️ Column migration skipped (table may not exist yet): {_e}")
+    else:
+        logging.info("⏭️  Production: skipping column migrations (set RUN_MIGRATIONS=1 to apply)")
     # ─────────────────────────────────────────────────────────────────────────
 
     # Initialize default 'live' tenant (Target Capital) - only if tables exist
+    logging.info("→ initializing default tenant…")
     try:
         models.Tenant.get_or_create_default()
+        logging.info("✅ Default tenant ready")
     except Exception as e:
         logging.warning(f"⚠️ Could not initialize default tenant (tables may not exist yet): {e}")
-    
+
     # Initialize tenant-aware SQLAlchemy infrastructure
+    logging.info("→ setting up tenant-aware SQLAlchemy…")
     try:
         from middleware.tenant_sqlalchemy import setup_tenant_sqlalchemy, init_tenant_scoped_models
         setup_tenant_sqlalchemy(db)
