@@ -241,22 +241,45 @@ def ensure_missing_columns(session):
     cols = [
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                                     "portfolio.tenant_id"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS broker_account_id INTEGER",                                                  "portfolio.broker_account_id"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS broker_id INTEGER",                                                          "portfolio.broker_id"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS ticker_symbol VARCHAR(50)",                                                   "portfolio.ticker_symbol"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS stock_name VARCHAR(200)",                                                    "portfolio.stock_name"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS asset_type VARCHAR(50) DEFAULT 'stocks'",                                   "portfolio.asset_type"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS asset_category VARCHAR(50)",                                                 "portfolio.asset_category"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS exchange VARCHAR(20)",                                                       "portfolio.exchange"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS isin VARCHAR(20)",                                                           "portfolio.isin"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS contract_type VARCHAR(20)",                                                  "portfolio.contract_type"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS expiry_date DATE",                                                           "portfolio.expiry_date"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS lot_size INTEGER",                                                           "portfolio.lot_size"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS option_type VARCHAR(10)",                                                    "portfolio.option_type"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS nps_scheme VARCHAR(100)",                                                    "portfolio.nps_scheme"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS pension_fund_manager VARCHAR(100)",                                          "portfolio.pension_fund_manager"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS tier VARCHAR(10)",                                                           "portfolio.tier"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS property_type VARCHAR(50)",                                                  "portfolio.property_type"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS property_location VARCHAR(200)",                                             "portfolio.property_location"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS area_sqft FLOAT",                                                            "portfolio.area_sqft"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS interest_rate FLOAT",                                                        "portfolio.interest_rate"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS gold_form VARCHAR(50)",                                                      "portfolio.gold_form"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS gold_purity VARCHAR(20)",                                                    "portfolio.gold_purity"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS grams FLOAT",                                                                "portfolio.grams"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS folio_number VARCHAR(50)",                                                   "portfolio.folio_number"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS nav FLOAT",                                                                  "portfolio.nav"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS units FLOAT",                                                                "portfolio.units"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS face_value FLOAT",                                                           "portfolio.face_value"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS coupon_rate FLOAT",                                                          "portfolio.coupon_rate"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS maturity_date DATE",                                                         "portfolio.maturity_date"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS date_purchased DATE",                                                        "portfolio.date_purchased"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS purchase_price FLOAT",                                                       "portfolio.purchase_price"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS purchased_value FLOAT",                                                      "portfolio.purchased_value"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS current_value FLOAT",                                                        "portfolio.current_value"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS market_value FLOAT",                                                         "portfolio.market_value"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS unrealized_pnl FLOAT",                                                       "portfolio.unrealized_pnl"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS unrealized_pnl_pct FLOAT",                                                   "portfolio.unrealized_pnl_pct"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS day_change FLOAT DEFAULT 0.0",                                               "portfolio.day_change"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS day_change_pct FLOAT DEFAULT 0.0",                                           "portfolio.day_change_pct"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS trade_type VARCHAR(20)",                                                     "portfolio.trade_type"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS data_source VARCHAR(50) DEFAULT 'manual'",                                   "portfolio.data_source"),
+        ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS last_sync_date TIMESTAMP",                                                   "portfolio.last_sync_date"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP",                                                   "portfolio.last_synced_at"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE",                                             "portfolio.is_active"),
         ("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()",                                         "portfolio.updated_at"),
@@ -362,9 +385,26 @@ def ensure_missing_columns(session):
     for ddl, label in cols:
         _col(session, ddl, label)
 
+    # ── tenants ───────────────────────────────────────────────
+    cols = [
+        ("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS slug VARCHAR(100)",                                                           "tenants.slug"),
+        ("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS domain VARCHAR(255)",                                                          "tenants.domain"),
+        ("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS logo_url VARCHAR(500)",                                                        "tenants.logo_url"),
+        ("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS primary_color VARCHAR(20)",                                                    "tenants.primary_color"),
+        ("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS secondary_color VARCHAR(20)",                                                  "tenants.secondary_color"),
+        ("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS features JSONB",                                                              "tenants.features"),
+        ("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS contact_email VARCHAR(120)",                                                   "tenants.contact_email"),
+        ("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(20)",                                                    "tenants.contact_phone"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
     # ── trading_signals (LangGraphSignal) ─────────────────────
     cols = [
         ("ALTER TABLE trading_signal ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                                "trading_signal.tenant_id"),
+        ("ALTER TABLE trading_signal ADD COLUMN IF NOT EXISTS timeframe VARCHAR(20)",                                                "trading_signal.timeframe"),
+        ("ALTER TABLE trading_signal ADD COLUMN IF NOT EXISTS rationale TEXT",                                                       "trading_signal.rationale"),
+        ("ALTER TABLE trading_signal ADD COLUMN IF NOT EXISTS pipeline_metadata JSONB",                                              "trading_signal.pipeline_metadata"),
         ("ALTER TABLE trading_signal ADD COLUMN IF NOT EXISTS signal_data JSONB",                                                     "trading_signal.signal_data"),
         ("ALTER TABLE trading_signal ADD COLUMN IF NOT EXISTS pipeline_state JSONB",                                                  "trading_signal.pipeline_state"),
         ("ALTER TABLE trading_signal ADD COLUMN IF NOT EXISTS error_message TEXT",                                                    "trading_signal.error_message"),
