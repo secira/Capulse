@@ -112,6 +112,13 @@
                                 <span class="nav-text">SENSEX</span>
                             </a>
                         </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'fno.fno_pnl_analysis' else '' }}"
+                               href="{{ url_for('fno.fno_pnl_analysis') }}">
+                                <i class="nav-icon fas fa-chart-pie"></i>
+                                <span class="nav-text">P&amp;L Analysis</span>
+                            </a>
+                        </li>
                     </ul>
                 </li>
 
