@@ -72,6 +72,7 @@ def ensure_raw_tables(session):
 
         ("""CREATE TABLE IF NOT EXISTS fno_signal_history (
             id SERIAL PRIMARY KEY,
+            index_id VARCHAR(20) DEFAULT 'NIFTY',
             signal_type VARCHAR(20) DEFAULT 'SCAN',
             direction VARCHAR(20),
             confidence INTEGER DEFAULT 0,
@@ -83,6 +84,10 @@ def ensure_raw_tables(session):
             layers_json TEXT,
             alert_sent BOOLEAN DEFAULT FALSE,
             data_source VARCHAR(50) DEFAULT 'nse_python',
+            trade_code VARCHAR(20),
+            outcome VARCHAR(50),
+            exit_spot FLOAT,
+            exit_time TIMESTAMP,
             created_at TIMESTAMP DEFAULT NOW()
         )""", "fno_signal_history"),
 
@@ -624,6 +629,18 @@ def ensure_missing_columns(session):
          "ALTER TABLE portfolio_events ADD COLUMN IF NOT EXISTS amount FLOAT",
          "portfolio_events.amount")
 
+    # ── fno_signal_history ────────────────────────────────────
+    # Columns added for multi-index support and trade-code / outcome tracking
+    cols = [
+        ("ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS index_id VARCHAR(20) DEFAULT 'NIFTY'",  "fno_signal_history.index_id"),
+        ("ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS trade_code VARCHAR(20)",                 "fno_signal_history.trade_code"),
+        ("ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS outcome VARCHAR(50)",                    "fno_signal_history.outcome"),
+        ("ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS exit_spot FLOAT",                        "fno_signal_history.exit_spot"),
+        ("ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS exit_time TIMESTAMP",                    "fno_signal_history.exit_time"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
     # Fix FK constraints pointing to old 'broker_accounts' table — should be 'user_brokers'
     fk_fixes = [
         ("broker_holdings",  "broker_holdings_broker_account_id_fkey"),
@@ -680,6 +697,8 @@ def ensure_indexes(session):
         ("CREATE INDEX IF NOT EXISTS idx_workflow_exec_user ON workflow_executions(user_id)",                 "idx_workflow_exec_user"),
         ("CREATE INDEX IF NOT EXISTS idx_workflow_exec_id ON workflow_executions(execution_id)",              "idx_workflow_exec_id"),
         ("CREATE INDEX IF NOT EXISTS idx_fno_signal_created ON fno_signal_history(created_at DESC)",        "idx_fno_signal_created"),
+        ("CREATE INDEX IF NOT EXISTS idx_fno_signal_index_id ON fno_signal_history(index_id)",              "idx_fno_signal_index_id"),
+        ("CREATE INDEX IF NOT EXISTS idx_fno_signal_trade_code ON fno_signal_history(trade_code)",          "idx_fno_signal_trade_code"),
     ]
     for ddl, label in indexes:
         try:
