@@ -200,46 +200,139 @@ def _fetch_perplexity_market_data() -> dict:
     return {}
 
 
-def _get_live_nifty50_data(plex_nifty50: dict = None) -> list:
+def _fetch_nse_nifty50_stocks() -> dict:
     """
-    Build Nifty50 treemap list.
-    Uses Perplexity-provided % changes when available; day-seeded random fallback otherwise.
-    Cached 5 minutes.
+    Fetch live Nifty 50 stock data from NSE equity-stockIndices API.
+    Returns dict keyed by symbol:
+      { "RELIANCE": {"change_percent": 1.2, "price": 2500.0, "volume": 1234567}, ... }
+    Cached 2 minutes.
     """
-    cached = _market_cache_get('nifty50')
+    cached = _market_cache_get('nse_nifty50_stocks', ttl=120)
     if cached is not None:
         return cached
+    try:
+        import requests as _req
+        sess = _req.Session()
+        sess.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.nseindia.com/',
+            'Origin': 'https://www.nseindia.com',
+        })
+        # Establish session cookie first
+        sess.get('https://www.nseindia.com', timeout=6)
+        r = sess.get(
+            'https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050',
+            timeout=8,
+        )
+        if r.status_code == 200:
+            rows = r.json().get('data', [])
+            result = {}
+            for row in rows:
+                sym = row.get('symbol', '')
+                if not sym or sym in ('NIFTY 50',):  # skip the index row itself
+                    continue
+                pchg = row.get('pChange') or row.get('percentChange', 0)
+                price = row.get('lastPrice') or row.get('last', 0)
+                vol   = row.get('totalTradedVolume') or row.get('volume', 0)
+                result[sym] = {
+                    'change_percent': round(float(pchg), 2),
+                    'price':          round(float(price), 2),
+                    'volume':         int(vol or 0),
+                }
+            if result:
+                _market_cache_set('nse_nifty50_stocks', result)
+                logger.info(f"NSE Nifty50 live stocks fetched: {len(result)} symbols")
+                return result
+    except Exception as e:
+        logger.warning(f"NSE Nifty50 stock fetch failed: {e}")
+    return {}
 
-    if plex_nifty50 is None:
-        plex_nifty50 = _market_cache_get('perplexity_market', ttl=300)
-        if isinstance(plex_nifty50, dict):
-            plex_nifty50 = plex_nifty50.get('nifty50', {})
-        else:
-            plex_nifty50 = {}
 
-    import random as _random, hashlib as _hashlib
-    day_seed = int(_hashlib.md5(_today_ist().isoformat().encode()).hexdigest(), 16) % (2 ** 31)
-    rng = _random.Random(day_seed)
+def _get_live_nifty50_data(nse_data: dict = None) -> tuple:
+    """
+    Build Nifty50 treemap list using NSE live data.
+    Falls back to yfinance per-symbol if NSE unavailable.
+    Never uses random/seeded fake values — shows 0.0 with data_available=False when
+    no real source is reachable.
+
+    Returns (list_of_stocks, source_label) where source_label is one of:
+      'nse'  — live from NSE equity-stockIndices API
+      'yfinance' — fallback individual fetches
+      'unavailable' — no live data; all changes shown as 0.0
+    """
+    cached = _market_cache_get('nifty50_v2')
+    if cached is not None:
+        return cached  # already a (list, source) tuple
+
+    # Priority 1: NSE
+    if nse_data is None:
+        nse_data = _fetch_nse_nifty50_stocks()
 
     result = []
+    if nse_data:
+        for stock in NIFTY50_STOCKS:
+            d = nse_data.get(stock['symbol'], {})
+            result.append({
+                'symbol':          stock['symbol'],
+                'name':            stock['name'],
+                'sector':          stock['sector'],
+                'weight':          stock['weight'],
+                'change_percent':  d.get('change_percent', 0.0),
+                'price':           d.get('price', 0.0),
+                'data_available':  bool(d),
+            })
+        _market_cache_set('nifty50_v2', (result, 'nse'))
+        return result, 'nse'
+
+    # Priority 2: yfinance individual fetches
+    try:
+        import yfinance as _yf
+        yf_result = {}
+        symbols_ns = [s['symbol'] + '.NS' for s in NIFTY50_STOCKS]
+        tickers = _yf.Tickers(' '.join(symbols_ns))
+        for stock in NIFTY50_STOCKS:
+            key = stock['symbol'] + '.NS'
+            try:
+                fi    = tickers.tickers[key].fast_info
+                ltp   = float(getattr(fi, 'last_price', 0) or 0)
+                prev  = float(getattr(fi, 'previous_close', 0) or 0)
+                if ltp > 0 and prev > 0:
+                    pchg = round((ltp - prev) / prev * 100, 2)
+                    yf_result[stock['symbol']] = {'change_percent': pchg, 'price': ltp}
+            except Exception:
+                pass
+        if yf_result:
+            for stock in NIFTY50_STOCKS:
+                d = yf_result.get(stock['symbol'], {})
+                result.append({
+                    'symbol':         stock['symbol'],
+                    'name':           stock['name'],
+                    'sector':         stock['sector'],
+                    'weight':         stock['weight'],
+                    'change_percent': d.get('change_percent', 0.0),
+                    'price':          d.get('price', 0.0),
+                    'data_available': bool(d),
+                })
+            _market_cache_set('nifty50_v2', (result, 'yfinance'))
+            return result, 'yfinance'
+    except Exception as e:
+        logger.warning(f"yfinance Nifty50 fallback failed: {e}")
+
+    # No data available — return all tiles with 0.0, clearly marked
     for stock in NIFTY50_STOCKS:
-        sym = stock['symbol']
-        raw_chg = plex_nifty50.get(sym)
-        try:
-            chg = float(raw_chg) if raw_chg is not None else round(rng.uniform(-3.0, 3.0), 2)
-        except (TypeError, ValueError):
-            chg = round(rng.uniform(-3.0, 3.0), 2)
         result.append({
-            'symbol':         sym,
+            'symbol':         stock['symbol'],
             'name':           stock['name'],
             'sector':         stock['sector'],
             'weight':         stock['weight'],
-            'change_percent': chg,
+            'change_percent': 0.0,
             'price':          0.0,
+            'data_available': False,
         })
-
-    _market_cache_set('nifty50', result)
-    return result
+    _market_cache_set('nifty50_v2', (result, 'unavailable'))
+    return result, 'unavailable'
 
 
 def _get_sector_summary(nifty50_data):
@@ -407,31 +500,30 @@ def dashboard_daily_signals():
         _captured_uid = None
 
     import concurrent.futures as _cf
+    nifty50_source = 'unavailable'
     try:
+        # Fetch index prices (Dhan→NSE→yfinance) and Nifty50 stock data (NSE) in parallel
         pool = _cf.ThreadPoolExecutor(max_workers=2)
         f_dhan = pool.submit(_fetch_dhan_indices)
-        f_plex = pool.submit(_fetch_perplexity_market_data)
+        f_nse  = pool.submit(_fetch_nse_nifty50_stocks)
 
-        # Both run in parallel — shared 12-second wall-clock deadline.
-        # We must NOT use a context manager here: the 'with' block calls
-        # shutdown(wait=True) on exit, which blocks until all futures finish.
-        done, _ = _cf.wait([f_dhan, f_plex], timeout=12)
-        pool.shutdown(wait=False)   # abandon any still-running futures
+        done, _ = _cf.wait([f_dhan, f_nse], timeout=14)
+        pool.shutdown(wait=False)
 
         dhan_result = {}
-        plex_result = {}
+        nse_stocks  = {}
         try:
             if f_dhan in done:
                 dhan_result = f_dhan.result() or {}
         except Exception as e:
             logger.warning(f"Dhan future error: {e}")
         try:
-            if f_plex in done:
-                plex_result = f_plex.result() or {}
+            if f_nse in done:
+                nse_stocks = f_nse.result() or {}
         except Exception as e:
-            logger.warning(f"Perplexity future error: {e}")
+            logger.warning(f"NSE future error: {e}")
 
-        # Merge Dhan index data over fallback
+        # Merge Dhan index data
         for key in ('nifty_50', 'nifty_bank', 'sensex', 'nifty_it', 'india_vix'):
             d = dhan_result.get(key, {})
             v = d.get('value', 0)
@@ -442,26 +534,30 @@ def dashboard_daily_signals():
                     market_indices[key]['change_percent'] = float(c)
                 market_indices[key]['live'] = True
 
-        # Movers from Perplexity
-        def _normalise_mover(row: dict) -> dict:
-            return {
-                'symbol':         str(row.get('symbol', '')),
-                'company_name':   str(row.get('company', row.get('company_name', row.get('name', row.get('symbol', ''))))),
-                'change_percent': float(row.get('change_percent', row.get('pChange', 0))),
-                'current_price':  float(row.get('price', row.get('current_price', row.get('lastPrice', 0)))),
-                'volume':         str(row.get('volume', '')),
-            }
-        top_gainers = [_normalise_mover(r) for r in plex_result.get('top_gainers', [])[:8]]
-        top_losers  = [_normalise_mover(r) for r in plex_result.get('top_losers',  [])[:8]]
-        most_active = [_normalise_mover(r) for r in plex_result.get('most_active', [])[:8]]
+        # Build Nifty50 treemap from real NSE data
+        nifty50_data, nifty50_source = _get_live_nifty50_data(nse_stocks)
 
-        # Nifty50 treemap from Perplexity data
-        plex_nifty50 = plex_result.get('nifty50', {})
-        nifty50_data = _get_live_nifty50_data(plex_nifty50)
+        # Derive top gainers / losers / most active from NSE live data (accurate, no AI)
+        if nse_stocks:
+            sym_map = {s['symbol']: s for s in NIFTY50_STOCKS}
+            all_nse = []
+            for sym, d in nse_stocks.items():
+                meta = sym_map.get(sym, {})
+                all_nse.append({
+                    'symbol':         sym,
+                    'company_name':   meta.get('name', sym),
+                    'change_percent': d.get('change_percent', 0.0),
+                    'current_price':  d.get('price', 0.0),
+                    'volume':         str(d.get('volume', '')),
+                })
+            sorted_by_chg = sorted(all_nse, key=lambda x: x['change_percent'], reverse=True)
+            top_gainers = [r for r in sorted_by_chg if r['change_percent'] > 0][:8]
+            top_losers  = list(reversed([r for r in sorted_by_chg if r['change_percent'] < 0]))[:8]
+            most_active = sorted(all_nse, key=lambda x: float(x['volume'] or 0), reverse=True)[:8]
 
     except Exception as e:
         logger.warning(f"Market data parallel fetch error: {e}")
-        nifty50_data = _get_live_nifty50_data()
+        nifty50_data, nifty50_source = _get_live_nifty50_data()
 
     sector_data = _get_sector_summary(nifty50_data)
 
@@ -479,6 +575,7 @@ def dashboard_daily_signals():
         top_losers=top_losers,
         most_active=most_active,
         nifty50_data=nifty50_data,
+        nifty50_source=nifty50_source,
         sector_data=sector_data,
     )
 

@@ -528,6 +528,19 @@
                 <i class="fas fa-th-large" style="font-size:12px; color:#666666;"></i>
                 Nifty 50 Heat Map
                 <span class="lmp-card-sub">· sized by index weight, coloured by day change</span>
+                {% if nifty50_source == 'nse' %}
+                <span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#15803d;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:6px;">
+                    <span style="width:6px;height:6px;background:#16a34a;border-radius:50%;display:inline-block;"></span>Live · NSE
+                </span>
+                {% elif nifty50_source == 'yfinance' %}
+                <span style="display:inline-flex;align-items:center;gap:4px;background:#fef9c3;color:#854d0e;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:6px;">
+                    <span style="width:6px;height:6px;background:#ca8a04;border-radius:50%;display:inline-block;"></span>Delayed · yfinance
+                </span>
+                {% else %}
+                <span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;color:#64748b;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:6px;">
+                    <i class="fas fa-exclamation-circle" style="font-size:9px;"></i> No Data
+                </span>
+                {% endif %}
             </h6>
             <div class="hm-legend">
                 <div class="hm-leg"><div class="hm-sq" style="background:#14532d;"></div>&gt;+2%</div>
@@ -537,9 +550,17 @@
                 <div class="hm-leg"><div class="hm-sq" style="background:#7f1d1d;"></div>&lt;-2%</div>
             </div>
         </div>
+        {% if nifty50_source == 'unavailable' %}
+        <div style="padding:48px 24px;text-align:center;color:#94a3b8;">
+            <i class="fas fa-satellite-dish" style="font-size:32px;display:block;margin-bottom:12px;opacity:.4;"></i>
+            <div style="font-size:14px;font-weight:600;color:#64748b;">Heat map data unavailable</div>
+            <div style="font-size:12px;margin-top:4px;">NSE API could not be reached. Please refresh the page to retry.</div>
+        </div>
+        {% else %}
         <div style="background:#ffffff;">
             <div id="treemapWrap" style="width:100%;"></div>
         </div>
+        {% endif %}
     </div>
 </div>
 
