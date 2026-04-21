@@ -455,25 +455,31 @@ with app.app_context():
         logging.warning(f"⚠️ Could not initialize tenant SQLAlchemy: {e}")
 
 # Initialize multi-tenant middleware
-from middleware.tenant_middleware import init_tenant_middleware
-init_tenant_middleware(app)
+try:
+    from middleware.tenant_middleware import init_tenant_middleware
+    init_tenant_middleware(app)
+except Exception as _e:
+    logging.error(f"❌ Tenant middleware init failed: {_e}", exc_info=True)
 
 # Import and register Google OAuth blueprint (from blueprint:flask_google_oauth)
-from google_auth import google_auth
-app.register_blueprint(google_auth)
+try:
+    from google_auth import google_auth
+    app.register_blueprint(google_auth)
+except Exception as _e:
+    logging.error(f"❌ Google OAuth blueprint failed: {_e}", exc_info=True)
 
 # Register admin blueprint (import after routes to avoid conflicts)
 try:
     from admin_routes import admin_bp
     app.register_blueprint(admin_bp)
-except ImportError as e:
-    logging.warning(f"Admin blueprint not available: {e}")
+except Exception as e:
+    logging.warning(f"Admin blueprint not available: {e}", exc_info=True)
 
 try:
     from routes_fno import fno_bp
     app.register_blueprint(fno_bp)
-except ImportError as e:
-    logging.warning(f"F&O blueprint not available: {e}")
+except Exception as e:
+    logging.warning(f"F&O blueprint not available: {e}", exc_info=True)
 
 try:
     from services.fno_monitor import start_scheduler as start_fno_monitor
@@ -646,7 +652,17 @@ def liveness_check():
     return 'OK', 200
 
 # Import routes
-import routes
+import traceback as _traceback
+try:
+    import routes
+    logging.info("✅ Routes loaded successfully")
+except Exception as _routes_err:
+    logging.critical(
+        f"❌ FATAL: Failed to import routes — app will have no routes!\n"
+        f"Error: {_routes_err}\n"
+        f"Traceback:\n{_traceback.format_exc()}"
+    )
+    # Do NOT re-raise — let gunicorn start so /health and Railway logs are visible
 
 # ── 30-DAY TRIAL EXPIRY GUARD ─────────────────────────────────────────────────
 # FREE-plan users get full access for 30 days after registration.

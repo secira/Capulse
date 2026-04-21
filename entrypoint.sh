@@ -81,9 +81,8 @@ echo ""
 echo "[5/5] Starting gunicorn..."
 exec gunicorn \
     --bind "0.0.0.0:${PORT:-8080}" \
-    --workers 2 \
-    --threads 4 \
+    --workers 1 \
+    --threads 8 \
     --worker-class gthread \
     --timeout 120 \
-    --preload \
     main:app
