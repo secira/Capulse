@@ -320,13 +320,14 @@ with app.app_context():
     import models_vector  # Import vector database models for RAG
     import routes_mobile  # Import mobile OTP routes
     
-    # Only create tables in development mode
-    # Production should use Alembic migrations
-    if not is_production:
+    # Always run db.create_all() — it is idempotent (only creates tables that
+    # don't already exist) and ensures the app boots successfully even on a
+    # fresh Railway deployment without needing a separate migration script.
+    try:
         db.create_all()
-        logging.info("✅ Database tables created (development mode)")
-    else:
-        logging.info("⚠️ Skipping db.create_all() in production - use Alembic migrations")
+        logging.info("✅ Database tables ensured via db.create_all()")
+    except Exception as _e:
+        logging.error(f"db.create_all() failed: {_e}", exc_info=True)
 
     # ── Incremental column migrations (safe to run on every startup) ──────────
     # ADD COLUMN IF NOT EXISTS is idempotent — no-op when column already exists.
