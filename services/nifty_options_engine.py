@@ -85,6 +85,12 @@ INDEX_CONFIGS = {
 _candle_cache: dict = {}
 _CANDLE_CACHE_TTL = 300
 
+# Module-level analysis result cache — per-index dict {index_key: (result, timestamp)}
+# Prevents concurrent browser requests from racing against the FNO monitor's Dhan call.
+# Only caches live-broker results (never 'estimated'). TTL must be < monitor interval (60s).
+_analysis_cache: dict = {}
+_ANALYSIS_CACHE_TTL = 58   # Just under the 60s monitor interval — covers the full cycle
+
 
 class NiftyOptionsEngine:
 
@@ -202,25 +208,39 @@ class NiftyOptionsEngine:
             if hasattr(broker, 'get_expiry_list'):
                 try:
                     broker_expiries = broker.get_expiry_list(self.dhan_symbol) or []
-                except Exception:
-                    pass
+                except Exception as ex:
+                    logger.warning(f"get_expiry_list({self.dhan_symbol}) failed: {ex}")
 
-            # For brokers that return a direct option chain (Dhan), we use the
-            # first available expiry so that spot+chain are always consistent.
-            if broker_expiries:
-                nearest_expiry = broker_expiries[0]
-                chain_raw = broker.get_option_chain(self.dhan_symbol, nearest_expiry)
-                # Spot is embedded in each chain row
-                spot = float(chain_raw[0].get("spot", 0)) if chain_raw else 0.0
-                if not spot or spot <= 0:
-                    # Fall back to separate price call
+            import time as _time_retry
+            for attempt in range(2):
+                # For brokers that return a direct option chain (Dhan), we use the
+                # first available expiry so that spot+chain are always consistent.
+                if broker_expiries:
+                    nearest_expiry = broker_expiries[0]
+                    chain_raw = broker.get_option_chain(self.dhan_symbol, nearest_expiry)
+                    # Spot is embedded in each chain row
+                    spot = float(chain_raw[0].get("spot", 0)) if chain_raw else 0.0
+                    if not spot or spot <= 0:
+                        # Fall back to separate price call
+                        spot = broker.get_price(self.dhan_symbol)
+                else:
                     spot = broker.get_price(self.dhan_symbol)
-            else:
-                spot = broker.get_price(self.dhan_symbol)
-                chain_raw = broker.get_option_chain(self.dhan_symbol) if spot and spot > 0 else []
+                    chain_raw = broker.get_option_chain(self.dhan_symbol) if spot and spot > 0 else []
+
+                if chain_raw and spot and spot > 0:
+                    break  # success — no retry needed
+
+                if attempt == 0:
+                    # Dhan sometimes returns a null-error when concurrent requests are
+                    # made with the same client ID. A brief pause resolves it.
+                    logger.warning(
+                        f"_get_broker_data({self.index}): Dhan returned empty/no-spot on attempt 1 "
+                        f"(spot={spot}, chain_len={len(chain_raw) if chain_raw else 0}) — retrying in 0.5s"
+                    )
+                    _time_retry.sleep(0.5)
 
             if not spot or spot <= 0:
-                logger.warning(f"Data broker {broker.BROKER_NAME} returned no spot price")
+                logger.warning(f"Data broker {broker.BROKER_NAME} returned no spot price after retry")
                 return None, None, None, []
 
             if chain_raw:
@@ -232,7 +252,7 @@ class NiftyOptionsEngine:
                 )
                 return float(spot), engine_chain, broker.BROKER_NAME, broker_expiries
             else:
-                logger.warning(f"Data broker {broker.BROKER_NAME} returned empty chain")
+                logger.warning(f"Data broker {broker.BROKER_NAME} returned empty chain after retry")
                 return None, None, None, []
         except Exception as e:
             logger.error(f"Broker data API error: {e}")
@@ -1510,6 +1530,20 @@ class NiftyOptionsEngine:
         return enriched
 
     def generate_analysis(self) -> Dict[str, Any]:
+        global _analysis_cache
+        now_ts = _time_mod.time()
+
+        # Return cached live result if it exists and is fresh enough.
+        # This prevents concurrent browser requests from racing against the
+        # FNO monitor's Dhan API calls (cold-start HTTPS connection contention).
+        cached = _analysis_cache.get(self.index)
+        if cached is not None:
+            cached_result, cached_ts = cached
+            age = now_ts - cached_ts
+            if age < _ANALYSIS_CACHE_TTL and cached_result.get('data_source', 'estimated') != 'estimated':
+                logger.debug(f"generate_analysis({self.index}): returning cached result (age={age:.1f}s, src={cached_result['data_source']})")
+                return cached_result
+
         now = datetime.now(IST)
         time_check = self._time_filter()
 
@@ -1706,7 +1740,7 @@ class NiftyOptionsEngine:
             'oi': oi_status,
         }
 
-        return {
+        result = {
             'timestamp': now.strftime('%Y-%m-%d %H:%M:%S IST'),
             'data_source': data_source,
             'spot_price': spot,
@@ -1750,3 +1784,11 @@ class NiftyOptionsEngine:
             'strike_interval':   self.strike_interval,
             'display_name':      self.display_name,
         }
+
+        # Cache live-broker results so concurrent browser requests reuse them
+        # instead of firing competing Dhan connections (cold-start race condition).
+        if data_source != 'estimated':
+            _analysis_cache[self.index] = (result, _time_mod.time())
+            logger.debug(f"generate_analysis({self.index}): cached live result (src={data_source})")
+
+        return result
