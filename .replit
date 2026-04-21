@@ -6,7 +6,7 @@ packages = ["cargo", "glibcLocales", "libev", "libiconv", "libxcrypt", "nodejs",
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
+run = ["gunicorn", "--bind", "0.0.0.0:5000", "--reuse-port", "--workers", "2", "--threads", "4", "--worker-class", "gthread", "--timeout", "120", "main:app"]
 
 [workflows]
 runButton = "Project"
