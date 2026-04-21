@@ -115,6 +115,20 @@ def ensure_raw_tables(session):
             updated_at TIMESTAMP DEFAULT NOW(),
             updated_by VARCHAR(100)
         )""", "data_api_plan"),
+
+        ("""CREATE TABLE IF NOT EXISTS behavioural_alerts (
+            id SERIAL PRIMARY KEY,
+            tenant_id VARCHAR(255) DEFAULT 'live',
+            user_id INTEGER NOT NULL,
+            alert_type VARCHAR(50) NOT NULL,
+            severity VARCHAR(10) NOT NULL,
+            title VARCHAR(200),
+            description TEXT,
+            advice TEXT,
+            acknowledged BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            acknowledged_at TIMESTAMP
+        )""", "behavioural_alerts"),
     ]
 
     for ddl, label in raw_tables:
@@ -218,6 +232,7 @@ def ensure_missing_columns(session):
         ("ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS last_sync TIMESTAMP",                                                     "user_brokers.last_sync"),
         ("ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()",                                      "user_brokers.updated_at"),
         ("ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS sync_status VARCHAR(20) DEFAULT 'pending'",                                  "user_brokers.sync_status"),
+        ("ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS is_data_broker BOOLEAN DEFAULT FALSE",                                         "user_brokers.is_data_broker"),
     ]
     for ddl, label in cols:
         _col(session, ddl, label)
@@ -275,6 +290,7 @@ def ensure_missing_columns(session):
         ("ALTER TABLE research_list ADD COLUMN IF NOT EXISTS last_requested_at TIMESTAMP",                                            "research_list.last_requested_at"),
         ("ALTER TABLE research_list ADD COLUMN IF NOT EXISTS computation_source VARCHAR(50) DEFAULT 'nightly'",                       "research_list.computation_source"),
         ("ALTER TABLE research_list ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()",                                     "research_list.updated_at"),
+        ("ALTER TABLE research_list ADD COLUMN IF NOT EXISTS hist_data_source VARCHAR(50)",                                               "research_list.hist_data_source"),
     ]
     for ddl, label in cols:
         _col(session, ddl, label)
