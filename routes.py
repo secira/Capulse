@@ -1623,7 +1623,7 @@ def seed_demo_data():
         if not demo_user:
             demo_user = User(
                 username='demo',
-                email='demo@tcapital.com',
+                email='demo@targetcapital.ai',
                 first_name='Demo',
                 last_name='User'
             )

@@ -22,8 +22,8 @@
 2. Click **Verify a Single Sender**
 3. Fill in your business details:
    - From Name: "Target Capital Support"
-   - From Email: "noreply@tcapital.com" (use your domain)
-   - Reply To: "support@tcapital.com"
+   - From Email: "noreply@targetcapital.ai" (use your domain)
+   - Reply To: "support@targetcapital.ai"
    - Company: "Target Capital"
    - Address: Your business address
 4. Click **Create**

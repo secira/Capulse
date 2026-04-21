@@ -9,9 +9,9 @@ from datetime import datetime
 
 # Configuration
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
-FROM_EMAIL = 'noreply@tcapital.com'  # Replace with your verified sender email
-ADMIN_EMAIL = 'admin@tcapital.com'   # Replace with your admin email
-SUPPORT_EMAIL = 'support@tcapital.com'  # Replace with your support email
+FROM_EMAIL = 'noreply@targetcapital.ai'  # Replace with your verified sender email
+ADMIN_EMAIL = 'admin@targetcapital.ai'   # Replace with your admin email
+SUPPORT_EMAIL = 'support@targetcapital.ai'  # Replace with your support email
 
 class EmailService:
     def __init__(self):
