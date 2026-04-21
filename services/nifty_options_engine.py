@@ -847,10 +847,12 @@ class NiftyOptionsEngine:
         except Exception:
             return float(df['Close'].iloc[-1])
 
-    def _calculate_adx(self, df, period: int = 3, di_period: int = 7):
+    def _calculate_adx(self, df, period: int = 14, di_period: int = 14):
         """Wilder's ADX, +DI, -DI. Returns (adx, dmi_plus, dmi_minus, adx_rising).
 
-        New rules use ADX(7,3): DI smoothing = 7 candles, ADX smoothing = 3.
+        Standard ADX(14,14): DI smoothing = 14 candles, ADX smoothing = 14.
+        Matches TradingView / Zerodha Kite / Dhan default DMI settings.
+        Both _direction_engine (+DI/-DI) and _strength_engine (ADX) use this.
         """
         try:
             import pandas as pd
@@ -883,7 +885,7 @@ class NiftyOptionsEngine:
                     out[i] = out[i - 1] - out[i - 1] / n + vals[i]
                 return pd.Series(out, index=series.index)
 
-            # DI components smoothed with di_period (3)
+            # +DI / -DI: Wilder-smooth TR and DM over di_period (default 14)
             atr_w = wilder_smooth(tr, di_period)
             dmp_w = wilder_smooth(dm_p, di_period)
             dmm_w = wilder_smooth(dm_m, di_period)
@@ -892,7 +894,7 @@ class NiftyOptionsEngine:
             di_p = (100 * dmp_w / safe_atr).clip(0, 100)
             di_m = (100 * dmm_w / safe_atr).clip(0, 100)
             dx = (100 * (di_p - di_m).abs() / (di_p + di_m).replace(0, 0.01)).clip(0, 100)
-            # ADX = EMA of DX over the ADX smoothing period (7)
+            # ADX: Wilder-smoothed DX over period (default 14), using EWM com=period-1
             adx_s = dx.dropna().ewm(com=max(period - 1, 1), adjust=False).mean()
 
             valid = adx_s.dropna()
