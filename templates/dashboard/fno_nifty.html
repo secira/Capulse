@@ -493,6 +493,7 @@ var FNO_API_URL   = '/dashboard/fno/api/analysis/' + FNO_INDEX_ID;
 var tradingCapital = 100000;
 var cachedAnalysis = null;
 var isBlocked = false;
+var _activeTradeData = null;   // set when trade_state === 'ACTIVE'; freezes key display fields
 
 function parseCapital(str) {
     return parseInt(str.replace(/[^0-9]/g, ''), 10) || 0;
@@ -783,27 +784,38 @@ function refreshAnalysis() {
 
         var banner = document.getElementById('decisionBanner');
         banner.style.display = 'block';
-        if (finalDecision === 'TRADE') {
+
+        if (_activeTradeData) {
+            // Trade is locked — override banner with locked-trade display regardless of scan result
             banner.className = 'decision-banner decision-trade';
-            document.getElementById('decisionIcon').textContent = '✅';
-            document.getElementById('decisionText').textContent = 'TRADE ACTIVE';
+            document.getElementById('decisionIcon').textContent = '🔒';
+            document.getElementById('decisionText').textContent = 'TRADE ACTIVE — DIRECTION LOCKED';
+            document.getElementById('decisionDir').textContent = _activeTradeData.direction || '—';
+            document.getElementById('decisionConf').textContent = (_activeTradeData.confidence || 0) + '%';
+            document.getElementById('decisionStatus').textContent = 'Managing position — exit via SL / Target / Time';
         } else {
-            banner.className = 'decision-banner decision-notrade';
-            document.getElementById('decisionIcon').textContent = '🚫';
-            document.getElementById('decisionText').textContent = 'NO TRADE';
+            if (finalDecision === 'TRADE') {
+                banner.className = 'decision-banner decision-trade';
+                document.getElementById('decisionIcon').textContent = '✅';
+                document.getElementById('decisionText').textContent = 'TRADE ACTIVE';
+            } else {
+                banner.className = 'decision-banner decision-notrade';
+                document.getElementById('decisionIcon').textContent = '🚫';
+                document.getElementById('decisionText').textContent = 'NO TRADE';
+            }
+            document.getElementById('decisionDir').textContent = d.trade_direction || '—';
+            document.getElementById('decisionConf').textContent = d.confidence + '%';
+            var statusText = d.entry_mode;
+            var setupState = d.setup_state || '';
+            if (setupState === 'SETUP_READY_WAIT_TRIGGER') {
+                statusText = 'SETUP READY — WAIT FOR TRIGGER';
+            } else if (setupState === 'SETUP_FORMING') {
+                statusText = 'SETUP FORMING';
+            } else if (isBlocked && d.block_reasons && d.block_reasons.length > 0) {
+                statusText = 'BLOCKED';
+            }
+            document.getElementById('decisionStatus').textContent = statusText;
         }
-        document.getElementById('decisionDir').textContent = d.trade_direction || '—';
-        document.getElementById('decisionConf').textContent = d.confidence + '%';
-        var statusText = d.entry_mode;
-        var setupState = d.setup_state || '';
-        if (setupState === 'SETUP_READY_WAIT_TRIGGER') {
-            statusText = 'SETUP READY — WAIT FOR TRIGGER';
-        } else if (setupState === 'SETUP_FORMING') {
-            statusText = 'SETUP FORMING';
-        } else if (isBlocked && d.block_reasons && d.block_reasons.length > 0) {
-            statusText = 'BLOCKED';
-        }
-        document.getElementById('decisionStatus').textContent = statusText;
 
         var brContainer = document.getElementById('blockReasons');
         if (d.block_reasons && d.block_reasons.length > 0) {
@@ -951,15 +963,30 @@ function refreshAnalysis() {
             ldText.innerHTML = '<span style="color:#16a34a">✅ TRADE ACTIVE</span> — All layers passed';
         }
 
-        document.getElementById('confScore').textContent = d.confidence;
-        var fill = document.getElementById('confFill');
-        fill.style.width = d.confidence + '%';
-        fill.className = 'conf-fill ' + (d.confidence >= 80 ? 'conf-high' : d.confidence >= 60 ? 'conf-med' : 'conf-low');
-        document.getElementById('confGrade').textContent = d.confidence_grade + ' Signal';
-        document.getElementById('tradeDir').textContent = d.trade_direction;
-        document.getElementById('tradeDir').style.color = d.trade_direction === 'BULLISH' ? '#16a34a' : d.trade_direction === 'BEARISH' ? '#dc2626' : '#64748b';
-        document.getElementById('entryMode').textContent = d.entry_mode;
-        document.getElementById('entryMode').style.color = d.entry_mode === 'CONFIRMED' ? '#16a34a' : d.entry_mode === 'EARLY' ? '#d97706' : '#dc2626';
+        if (_activeTradeData) {
+            // Freeze confidence/direction/entry mode to the locked trade values
+            var atConf = _activeTradeData.confidence || 0;
+            document.getElementById('confScore').textContent = atConf;
+            var fill = document.getElementById('confFill');
+            fill.style.width = atConf + '%';
+            fill.className = 'conf-fill ' + (atConf >= 80 ? 'conf-high' : atConf >= 60 ? 'conf-med' : 'conf-low');
+            document.getElementById('confGrade').textContent = 'Locked Signal';
+            var atDir = _activeTradeData.direction || '—';
+            document.getElementById('tradeDir').textContent = atDir;
+            document.getElementById('tradeDir').style.color = atDir === 'BULLISH' ? '#16a34a' : atDir === 'BEARISH' ? '#dc2626' : '#64748b';
+            document.getElementById('entryMode').textContent = 'ACTIVE TRADE';
+            document.getElementById('entryMode').style.color = '#2563eb';
+        } else {
+            document.getElementById('confScore').textContent = d.confidence;
+            var fill = document.getElementById('confFill');
+            fill.style.width = d.confidence + '%';
+            fill.className = 'conf-fill ' + (d.confidence >= 80 ? 'conf-high' : d.confidence >= 60 ? 'conf-med' : 'conf-low');
+            document.getElementById('confGrade').textContent = d.confidence_grade + ' Signal';
+            document.getElementById('tradeDir').textContent = d.trade_direction;
+            document.getElementById('tradeDir').style.color = d.trade_direction === 'BULLISH' ? '#16a34a' : d.trade_direction === 'BEARISH' ? '#dc2626' : '#64748b';
+            document.getElementById('entryMode').textContent = d.entry_mode;
+            document.getElementById('entryMode').style.color = d.entry_mode === 'CONFIRMED' ? '#16a34a' : d.entry_mode === 'EARLY' ? '#d97706' : '#dc2626';
+        }
 
         document.getElementById('spotPrice').textContent = fmt(d.spot_price);
         document.getElementById('atmStrike').textContent = d.atm_strike;
@@ -1071,14 +1098,15 @@ function loadActiveTrade() {
         var panel = document.getElementById('activeTradePanel');
         var state = res.trade_state || 'NONE';
         var at = res.active_trade;
+        var prevActive = _activeTradeData;
 
         if (state === 'ACTIVE' && at) {
+            _activeTradeData = at;   // freeze analysis display to locked trade
             wrap.style.display = 'block';
             panel.className = 'active-trade-panel';
             document.getElementById('atIcon').textContent = '🔒';
             document.getElementById('atTitle').textContent = at.direction + ' — ' + at.type + ' TRADE ACTIVE';
             document.getElementById('atSubtitle').textContent = 'Direction locked since ' + at.entry_time + ' · No new entries until this exits';
-            var dirColor = at.direction === 'BULLISH' ? '#16a34a' : '#dc2626';
             var grid = [
                 {lbl:'Direction', val: at.direction, cls: at.direction === 'BULLISH' ? 'green' : 'red'},
                 {lbl:'Entry Price', val: '₹' + (at.entry_price||0).toFixed(0)},
@@ -1096,6 +1124,7 @@ function loadActiveTrade() {
             document.getElementById('atTimer').innerHTML = '⏱ Auto-exit in <strong>' + at.remaining_min + ' min</strong> · SL: ₹' + (at.sl||0).toFixed(0) + ' · Target: ₹' + (at.target||0).toFixed(0);
 
         } else if (state === 'CONFIRMING') {
+            _activeTradeData = null;
             wrap.style.display = 'block';
             panel.className = 'active-trade-panel confirming-mode';
             document.getElementById('atIcon').textContent = '⏳';
@@ -1107,6 +1136,7 @@ function loadActiveTrade() {
             document.getElementById('atTimer').innerHTML = '';
 
         } else if (res.cooldown_remaining_min > 0) {
+            _activeTradeData = null;
             wrap.style.display = 'block';
             panel.className = 'active-trade-panel cooldown-mode';
             document.getElementById('atIcon').textContent = '⏸';
@@ -1115,27 +1145,91 @@ function loadActiveTrade() {
             document.getElementById('atGrid').innerHTML = '<div style="color:#64748b;font-size:13px;padding:8px 0">Previous trade exited. 15-minute cooldown prevents overtrading.</div>';
             document.getElementById('atTimer').innerHTML = '';
         } else {
+            _activeTradeData = null;
             wrap.style.display = 'none';
         }
+
+        // Refresh signal history whenever active-trade state changes (trade started or ended)
+        var nowActive = _activeTradeData !== null;
+        var wasActive = prevActive !== null;
+        if (nowActive !== wasActive) { loadSignalHistory(); }
+
     }).catch(function(){});
 }
 
 function loadSignalHistory() {
     fetch('/dashboard/fno/api/signal-history?limit=20&index_id=' + FNO_INDEX_ID).then(function(r){return r.json()}).then(function(res) {
         var container = document.getElementById('signalHistoryContainer');
+        var html = '';
+
+        // ── Live Active Trade card (pinned at top while trade is running) ──
+        if (_activeTradeData) {
+            var at = _activeTradeData;
+            var dirColor   = at.direction === 'BULLISH' ? '#15803d' : '#dc2626';
+            var dirBg      = at.direction === 'BULLISH' ? '#dcfce7' : '#fee2e2';
+            var dirEmoji   = at.direction === 'BULLISH' ? '▲' : '▼';
+            var optType    = at.type || '';
+            var elapsed    = at.elapsed_min  || 0;
+            var remaining  = at.remaining_min != null ? at.remaining_min : '—';
+            var progressPct = Math.min(100, Math.round(elapsed / 30 * 100));
+            html += '<div style="border:2px solid #2563eb;border-radius:12px;padding:16px 18px;margin-bottom:16px;background:linear-gradient(135deg,#eff6ff,#dbeafe)">';
+            html +=   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+            html +=     '<div style="display:flex;align-items:center;gap:10px">';
+            html +=       '<span style="font-size:18px">🔒</span>';
+            html +=       '<div>';
+            html +=         '<div style="font-size:13px;font-weight:700;color:#1e40af">TRADE IN PROGRESS</div>';
+            html +=         '<div style="font-size:11px;color:#64748b">Locked at ' + (at.entry_time || '—') + ' · Managing position</div>';
+            html +=       '</div>';
+            html +=     '</div>';
+            html +=     '<span style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;animation:pulse-dot 1.5s infinite">🔴 LIVE</span>';
+            html +=   '</div>';
+            // Key trade details grid
+            html +=   '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">';
+            var cells = [
+                {lbl:'Direction', val: dirEmoji + ' ' + at.direction, bg: dirBg, color: dirColor},
+                {lbl:'Option Type', val: optType, bg: '#f8fafc', color: '#1e293b'},
+                {lbl:'Entry Price', val: '₹' + (at.entry_price||0).toFixed(0), bg: '#f8fafc', color: '#1e293b'},
+                {lbl:'ATM Strike', val: at.atm_strike || '—', bg: '#f8fafc', color: '#1e293b'},
+                {lbl:'Stop Loss', val: '₹' + (at.sl||0).toFixed(0), bg: '#fef2f2', color: '#dc2626'},
+                {lbl:'Target', val: '₹' + (at.target||0).toFixed(0), bg: '#f0fdf4', color: '#15803d'},
+                {lbl:'Time In Trade', val: elapsed + ' min', bg: '#f8fafc', color: '#1e293b'},
+                {lbl:'Time Remaining', val: remaining + ' min', bg: '#fefce8', color: '#a16207'},
+            ];
+            cells.forEach(function(c) {
+                html += '<div style="background:' + c.bg + ';border-radius:8px;padding:8px 10px;text-align:center">';
+                html +=   '<div style="font-size:10px;color:#64748b;font-weight:600;margin-bottom:3px">' + c.lbl + '</div>';
+                html +=   '<div style="font-size:14px;font-weight:700;color:' + c.color + '">' + c.val + '</div>';
+                html += '</div>';
+            });
+            html +=   '</div>';
+            // Progress bar (elapsed / 30 min max)
+            html +=   '<div style="margin-top:4px">';
+            html +=     '<div style="display:flex;justify-content:space-between;font-size:10px;color:#64748b;margin-bottom:4px">';
+            html +=       '<span>Trade duration</span><span>' + elapsed + ' / 30 min</span>';
+            html +=     '</div>';
+            html +=     '<div style="background:#e2e8f0;border-radius:4px;height:6px">';
+            html +=       '<div style="background:#2563eb;height:6px;border-radius:4px;width:' + progressPct + '%"></div>';
+            html +=     '</div>';
+            html +=   '</div>';
+            html += '</div>';
+        }
+
         if (!res.success || !res.data || res.data.length === 0) {
-            container.innerHTML = '<p class="text-muted text-center py-3" style="font-size:13px">No trade recommendations today. Recommendations appear when confidence ≥ 60 and conditions are met (CONFIRMED or EARLY entry mode).</p>';
+            html += '<p class="text-muted text-center py-3" style="font-size:13px">No trade recommendations today. Recommendations appear when confidence ≥ 60 and conditions are met (CONFIRMED or EARLY entry mode).</p>';
+            container.innerHTML = html;
             return;
         }
-        var html = '<div style="max-height:300px;overflow-y:auto"><table class="signal-history-table"><thead><tr>';
+
+        html += '<div style="max-height:300px;overflow-y:auto"><table class="signal-history-table"><thead><tr>';
         html += '<th>Time</th><th>Event</th><th>Direction</th><th>Confidence</th><th>Spot</th><th>ATM</th><th>Alert</th><th>Source</th>';
         html += '</tr></thead><tbody>';
         res.data.forEach(function(s) {
             var dirClass = s.direction === 'BULLISH' ? 'badge-bullish' : s.direction === 'BEARISH' ? 'badge-bearish' : 'badge-neutral';
             var dirEmoji = s.direction === 'BULLISH' ? '▲' : s.direction === 'BEARISH' ? '▼' : '●';
-            var eventTag, eventBg;
+            var eventTag;
             if (s.signal_type === 'TRADE_TRIGGER') {
-                eventTag = '<span class="signal-event-trigger">🔒 TRADE LOCKED</span>';
+                var liveBadge = _activeTradeData ? ' <span style="background:#ef4444;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;vertical-align:middle">LIVE</span>' : '';
+                eventTag = '<span class="signal-event-trigger">🔒 TRADE LOCKED</span>' + liveBadge;
             } else if (s.signal_type === 'TRADE_EXIT') {
                 eventTag = '<span class="signal-event-exit">🚪 EXIT</span>';
             } else {
