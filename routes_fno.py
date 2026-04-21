@@ -145,41 +145,45 @@ def fno_signal_history():
     try:
         from app import db
         from datetime import datetime, timedelta
-        limit = request.args.get('limit', 20, type=int)
         ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
         ist_today_start = ist_now.replace(hour=0, minute=0, second=0, microsecond=0)
         utc_today_start = ist_today_start - timedelta(hours=5, minutes=30)
         index_id = request.args.get('index_id', 'NIFTY').upper()
+
+        # Return only TRADE_TRIGGER and TRADE_EXIT rows (max 6 — 3 trades + 3 outcomes)
         rows = db.session.execute(db.text("""
             SELECT h.id, h.signal_type, h.direction, h.confidence, h.confidence_grade,
                    h.entry_mode, h.spot_price, h.atm_strike, h.alert_sent, h.data_source,
-                   h.created_at,
+                   h.created_at, h.trade_code, h.outcome, h.exit_spot, h.exit_time,
                    COALESCE(d.display_name, h.data_source) AS source_display_name
             FROM fno_signal_history h
             LEFT JOIN data_source_config d ON d.source_key = h.data_source
             WHERE h.created_at >= :today_start
-              AND h.entry_mode != 'NO TRADE'
-              AND h.confidence >= 60
+              AND h.signal_type IN ('TRADE_TRIGGER', 'TRADE_EXIT')
               AND COALESCE(h.index_id, 'NIFTY') = :index_id
-            ORDER BY h.created_at DESC
-            LIMIT :limit
-        """), {'today_start': utc_today_start, 'limit': min(limit, 50), 'index_id': index_id}).fetchall()
+            ORDER BY h.created_at ASC
+            LIMIT 6
+        """), {'today_start': utc_today_start, 'index_id': index_id}).fetchall()
 
         signals = []
         for r in rows:
             signals.append({
-                'id': r.id,
-                'signal_type': r.signal_type,
-                'direction': r.direction,
-                'confidence': r.confidence,
+                'id':           r.id,
+                'signal_type':  r.signal_type,
+                'direction':    r.direction,
+                'confidence':   r.confidence,
                 'confidence_grade': r.confidence_grade,
-                'entry_mode': r.entry_mode,
-                'spot_price': r.spot_price,
-                'atm_strike': r.atm_strike,
-                'alert_sent': r.alert_sent,
-                'data_source': r.data_source,
+                'entry_mode':   r.entry_mode,
+                'spot_price':   r.spot_price,
+                'atm_strike':   r.atm_strike,
+                'alert_sent':   r.alert_sent,
+                'data_source':  r.data_source,
                 'source_display_name': r.source_display_name,
-                'created_at': r.created_at.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%d/%m %I:%M %p') if r.created_at else '',
+                'trade_code':   r.trade_code or '',
+                'outcome':      r.outcome or '',
+                'exit_spot':    r.exit_spot,
+                'exit_time':    r.exit_time.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%I:%M %p') if r.exit_time else '',
+                'created_at':   r.created_at.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%I:%M %p') if r.created_at else '',
             })
         return jsonify({'success': True, 'data': signals})
     except Exception as e:

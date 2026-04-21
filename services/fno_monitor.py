@@ -42,6 +42,14 @@ _INDEX_PAGE_PATH = {
     'SENSEX':    'sensex',
 }
 
+# Short prefix used to build trade codes: NIFTYT01, BNKTT01, FINTT01, SNXTT01
+_INDEX_TRADE_PREFIX = {
+    'NIFTY':     'NIFTY',
+    'BANKNIFTY': 'BNKT',
+    'FINNIFTY':  'FINT',
+    'SENSEX':    'SNXT',
+}
+
 # ── Per-index mutable state ───────────────────────────────────────────────────
 # Each dict maps index_id → value.
 def _make_per_index(default):
@@ -63,6 +71,7 @@ _active_trade         = _make_per_index(None)
 _last_exit_time       = _make_per_index(None)
 _recent_confidences   = _make_per_index([])
 _last_active_alert    = _make_per_index(None)   # Timestamp of last TRADE_ACTIVE Telegram update
+_active_trade_code    = _make_per_index(None)   # Current trade code (e.g. NIFTYT01)
 
 _scheduler_started = False
 
@@ -99,7 +108,47 @@ def _smoothed_confidence(idx: str, raw: int) -> int:
 
 # ── Database ───────────────────────────────────────────────────────────────────
 
-def _save_signal_to_db(app, signal_data: dict, index_id: str):
+def _generate_trade_code(app, index_id: str) -> str:
+    """Return the next sequential trade code for today, e.g. NIFTYT01."""
+    from app import db
+    prefix = _INDEX_TRADE_PREFIX.get(index_id, index_id[:4])
+    try:
+        with app.app_context():
+            from datetime import datetime, timedelta
+            now             = datetime.utcnow()
+            ist_now         = now + IST_OFFSET
+            ist_today_start = ist_now.replace(hour=0, minute=0, second=0, microsecond=0)
+            utc_today_start = ist_today_start - IST_OFFSET
+            count = db.session.execute(db.text("""
+                SELECT COUNT(*) FROM fno_signal_history
+                WHERE index_id  = :idx
+                  AND signal_type = 'TRADE_TRIGGER'
+                  AND created_at >= :today_start
+            """), {'idx': index_id, 'today_start': utc_today_start}).scalar() or 0
+            return f"{prefix}T{count + 1:02d}"
+    except Exception as e:
+        logger.error(f"[{index_id}] trade_code generation error: {e}")
+        return f"{prefix}T01"
+
+
+def _exit_reason_to_outcome(exit_reason: str) -> str:
+    """Map raw exit_reason string to a clean outcome label."""
+    if not exit_reason:
+        return 'EXITED'
+    r = exit_reason.lower()
+    if 'target' in r:
+        return 'TARGET HIT'
+    if 'stop' in r or 'sl' in r:
+        return 'SL HIT'
+    if 'time limit' in r or 'time' in r:
+        return 'TIME EXIT'
+    if 'closed' in r:
+        return 'MARKET CLOSED'
+    return exit_reason[:50]
+
+
+def _save_signal_to_db(app, signal_data: dict, index_id: str,
+                       trade_code: str = None, outcome: str = None):
     try:
         from app import db
         with app.app_context():
@@ -107,11 +156,11 @@ def _save_signal_to_db(app, signal_data: dict, index_id: str):
                 INSERT INTO fno_signal_history
                     (index_id, signal_type, direction, confidence, confidence_grade,
                      entry_mode, spot_price, atm_strike, trades_json, layers_json,
-                     alert_sent, data_source)
+                     alert_sent, data_source, trade_code, outcome)
                 VALUES
                     (:index_id, :signal_type, :direction, :confidence, :confidence_grade,
                      :entry_mode, :spot_price, :atm_strike, :trades_json, :layers_json,
-                     :alert_sent, :data_source)
+                     :alert_sent, :data_source, :trade_code, :outcome)
             """), {
                 'index_id':        index_id,
                 'signal_type':     signal_data.get('signal_type', 'SCAN'),
@@ -130,7 +179,27 @@ def _save_signal_to_db(app, signal_data: dict, index_id: str):
                 }),
                 'alert_sent':  signal_data.get('alert_sent', False),
                 'data_source': signal_data.get('data_source', 'nse_python'),
+                'trade_code':  trade_code,
+                'outcome':     outcome,
             })
+
+            # On exit: also update the TRIGGER record with the outcome
+            if signal_data.get('signal_type') == 'TRADE_EXIT' and trade_code and outcome:
+                db.session.execute(db.text("""
+                    UPDATE fno_signal_history
+                       SET outcome   = :outcome,
+                           exit_spot = :exit_spot,
+                           exit_time = NOW()
+                     WHERE trade_code  = :trade_code
+                       AND signal_type = 'TRADE_TRIGGER'
+                       AND index_id    = :index_id
+                """), {
+                    'outcome':    outcome,
+                    'exit_spot':  signal_data.get('spot_price', 0),
+                    'trade_code': trade_code,
+                    'index_id':   index_id,
+                })
+
             db.session.commit()
     except Exception as e:
         logger.error(f"[{index_id}] Failed to save signal to DB: {e}")
@@ -168,7 +237,9 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         else:
             type_emoji = '📡'
 
-        msg  = f"{type_emoji} <b>{display} F&amp;O — {signal_type.replace('_', ' ')}</b>\n\n"
+        trade_code = signal_data.get('trade_code', '')
+        code_tag   = f" <code>{trade_code}</code>" if trade_code else ''
+        msg  = f"{type_emoji} <b>{display} F&amp;O — {signal_type.replace('_', ' ')}</b>{code_tag}\n\n"
         msg += f"{dir_emoji} <b>Direction:</b> {direction}\n"
         msg += f"📊 <b>Confidence:</b> {confidence}/100 ({signal_data.get('confidence_grade', '')})\n"
         msg += f"🎯 <b>Entry Mode:</b> {entry_mode}\n"
@@ -409,15 +480,20 @@ def _scan_index(app, idx: str, data_broker_user_id):
             if _trade_state[idx] == 'ACTIVE':
                 should_exit, exit_reason = _check_active_trade_exit(analysis, idx)
                 if should_exit:
-                    logger.info(f"[{idx}] 🚪 Trade EXIT: {exit_reason}")
+                    outcome    = _exit_reason_to_outcome(exit_reason)
+                    trade_code = _active_trade_code[idx]
+                    logger.info(f"[{idx}] 🚪 Trade EXIT: {exit_reason} → {outcome} ({trade_code})")
                     analysis['signal_type']    = 'TRADE_EXIT'
                     analysis['exit_reason']    = exit_reason
+                    analysis['outcome']        = outcome
+                    analysis['trade_code']     = trade_code
                     analysis['trade_direction'] = _active_trade[idx].get('direction', analysis.get('trade_direction'))
                     analysis['confidence']      = _active_trade[idx].get('confidence', analysis.get('confidence'))
-                    _last_exit_time[idx]  = _now_ist()
-                    _active_trade[idx]    = None
-                    _trade_state[idx]     = 'NONE'
-                    signal_type           = 'TRADE_EXIT'
+                    _last_exit_time[idx]    = _now_ist()
+                    _active_trade[idx]      = None
+                    _active_trade_code[idx] = None
+                    _trade_state[idx]       = 'NONE'
+                    signal_type             = 'TRADE_EXIT'
                     if _should_send_alert(analysis, idx):
                         alert_sent = _send_telegram_alert(analysis, idx)
                 else:
@@ -462,6 +538,7 @@ def _scan_index(app, idx: str, data_broker_user_id):
                         active_analysis['trade_direction'] = at.get('direction', analysis.get('trade_direction'))
                         active_analysis['confidence']      = at.get('confidence', analysis.get('confidence'))
                         active_analysis['active_trade']    = active_info
+                        active_analysis['trade_code']      = _active_trade_code[idx]
                         if _send_telegram_alert(active_analysis, idx):
                             _last_active_alert[idx] = now
                             logger.info(f"[{idx}] 📍 TRADE_ACTIVE Telegram update sent ({elapsed} min in)")
@@ -472,6 +549,12 @@ def _scan_index(app, idx: str, data_broker_user_id):
                 if trigger == 'TRADE_TRIGGER':
                     signal_type            = 'TRADE_TRIGGER'
                     analysis['signal_type'] = 'TRADE_TRIGGER'
+                    # Generate and persist the trade code
+                    trade_code = _generate_trade_code(app, idx)
+                    _active_trade_code[idx]              = trade_code
+                    _active_trade[idx]['trade_code']     = trade_code
+                    analysis['trade_code']               = trade_code
+                    logger.info(f"[{idx}] 🆔 Trade code assigned: {trade_code}")
                     if _should_send_alert(analysis, idx):
                         alert_sent = _send_telegram_alert(analysis, idx)
                         if alert_sent:
@@ -487,7 +570,11 @@ def _scan_index(app, idx: str, data_broker_user_id):
 
         analysis['alert_sent'] = alert_sent
         if signal_type:
-            _save_signal_to_db(app, analysis, idx)
+            _save_signal_to_db(
+                app, analysis, idx,
+                trade_code=analysis.get('trade_code'),
+                outcome=analysis.get('outcome'),
+            )
 
     except Exception as e:
         logger.error(f"[{idx}] Scan error: {e}", exc_info=True)
@@ -559,6 +646,7 @@ def get_monitor_status(index_id: str = 'NIFTY') -> dict:
             'remaining_min': remaining,
             'confidence':  trade.get('confidence'),
             'data_source': trade.get('data_source'),
+            'trade_code':  _active_trade_code[idx],
         }
 
     last_exit = _last_exit_time[idx]

@@ -476,7 +476,7 @@
         <button class="btn btn-sm btn-outline-secondary" onclick="loadSignalHistory()"><i class="fas fa-refresh me-1"></i>Refresh</button>
     </div>
     <div style="font-size:11px;color:#64748b;margin-bottom:12px">
-        Shows only confirmed trade recommendations (CONFIRMED or EARLY entry, confidence ≥ 60). Background scans are not shown.
+        Each trade gets a unique code (e.g. NIFTYT01). Max 3 recommendations per day. Outcome is recorded after each trade closes via SL, Target, or Time Exit.
     </div>
     <div id="signalHistoryContainer">
         <p class="text-muted text-center py-3" style="font-size:13px">Loading recommendations...</p>
@@ -1177,7 +1177,10 @@ function loadSignalHistory() {
             html +=     '<div style="display:flex;align-items:center;gap:10px">';
             html +=       '<span style="font-size:18px">🔒</span>';
             html +=       '<div>';
-            html +=         '<div style="font-size:13px;font-weight:700;color:#1e40af">TRADE IN PROGRESS</div>';
+            html +=         '<div style="display:flex;align-items:center;gap:8px">';
+            html +=           '<span style="font-size:13px;font-weight:700;color:#1e40af">TRADE IN PROGRESS</span>';
+            if (at.trade_code) html += '<span style="background:#1e293b;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:5px">' + at.trade_code + '</span>';
+            html +=         '</div>';
             html +=         '<div style="font-size:11px;color:#64748b">Locked at ' + (at.entry_time || '—') + ' · Managing position</div>';
             html +=       '</div>';
             html +=     '</div>';
@@ -1215,48 +1218,79 @@ function loadSignalHistory() {
         }
 
         if (!res.success || !res.data || res.data.length === 0) {
-            html += '<p class="text-muted text-center py-3" style="font-size:13px">No trade recommendations today. Recommendations appear when confidence ≥ 60 and conditions are met (CONFIRMED or EARLY entry mode).</p>';
+            if (!_activeTradeData) {
+                html += '<p class="text-muted text-center py-3" style="font-size:13px">No trade recommendations today. Up to 3 recommendations (max) will appear here once a strong signal is locked.</p>';
+            }
             container.innerHTML = html;
             return;
         }
 
-        html += '<div style="max-height:300px;overflow-y:auto"><table class="signal-history-table"><thead><tr>';
-        html += '<th>Time</th><th>Event</th><th>Direction</th><th>Confidence</th><th>Spot</th><th>ATM</th><th>Alert</th><th>Source</th>';
-        html += '</tr></thead><tbody>';
         res.data.forEach(function(s) {
-            var dirClass = s.direction === 'BULLISH' ? 'badge-bullish' : s.direction === 'BEARISH' ? 'badge-bearish' : 'badge-neutral';
-            var dirEmoji = s.direction === 'BULLISH' ? '▲' : s.direction === 'BEARISH' ? '▼' : '●';
-            var eventTag;
             if (s.signal_type === 'TRADE_TRIGGER') {
-                var liveBadge = _activeTradeData ? ' <span style="background:#ef4444;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;vertical-align:middle">LIVE</span>' : '';
-                eventTag = '<span class="signal-event-trigger">🔒 TRADE LOCKED</span>' + liveBadge;
+                // ── Recommendation card ──
+                var dirColor  = s.direction === 'BULLISH' ? '#15803d' : '#dc2626';
+                var dirBg     = s.direction === 'BULLISH' ? '#dcfce7'  : '#fee2e2';
+                var dirEmoji  = s.direction === 'BULLISH' ? '▲' : '▼';
+                var isLive    = _activeTradeData && _activeTradeData.trade_code === s.trade_code;
+                var hasDone   = s.outcome ? true : false;
+                var cardBg    = hasDone ? '#f8fafc' : 'linear-gradient(135deg,#f0fdf4,#dcfce7)';
+                var cardBdr   = hasDone ? '#e2e8f0' : '#16a34a';
+                if (isLive) { cardBg = 'linear-gradient(135deg,#eff6ff,#dbeafe)'; cardBdr = '#2563eb'; }
+
+                html += '<div style="border:2px solid ' + cardBdr + ';border-radius:10px;padding:14px 16px;margin-bottom:10px;background:' + cardBg + '">';
+                html +=   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+                html +=     '<div style="display:flex;align-items:center;gap:8px">';
+                html +=       '<span style="background:#1e293b;color:#fff;font-size:11px;font-weight:800;padding:3px 9px;border-radius:6px;letter-spacing:.5px">' + (s.trade_code || '—') + '</span>';
+                html +=       '<span style="background:' + dirBg + ';color:' + dirColor + ';font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">' + dirEmoji + ' ' + s.direction + '</span>';
+                if (isLive) html += '<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">🔴 LIVE</span>';
+                html +=     '</div>';
+                html +=     '<span style="color:#94a3b8;font-size:11px">🔒 Locked ' + s.created_at + '</span>';
+                html +=   '</div>';
+                // Detail row
+                html +=   '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">';
+                var det = [
+                    {lbl:'Confidence', val: s.confidence + '/100'},
+                    {lbl:'Spot', val: '₹' + fmt(s.spot_price)},
+                    {lbl:'ATM Strike', val: s.atm_strike || '—'},
+                    {lbl:'Entry Mode', val: s.entry_mode || '—'},
+                    {lbl:'Alert', val: s.alert_sent ? '✅ Sent' : '—'},
+                ];
+                det.forEach(function(d) {
+                    html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;text-align:center">';
+                    html +=   '<div style="font-size:9px;color:#94a3b8;font-weight:600;margin-bottom:2px">' + d.lbl + '</div>';
+                    html +=   '<div style="font-size:12px;font-weight:700;color:#1e293b">' + d.val + '</div>';
+                    html += '</div>';
+                });
+                html +=   '</div>';
+                html += '</div>';
+
             } else if (s.signal_type === 'TRADE_EXIT') {
-                eventTag = '<span class="signal-event-exit">🚪 EXIT</span>';
-            } else {
-                eventTag = '<span class="signal-event-scan">' + s.entry_mode + '</span>';
+                // ── Outcome card ──
+                var outcome = s.outcome || 'EXITED';
+                var isTarget = outcome === 'TARGET HIT';
+                var isSL     = outcome === 'SL HIT';
+                var outcomeColor = isTarget ? '#15803d' : isSL ? '#dc2626' : '#d97706';
+                var outcomeBg    = isTarget ? '#dcfce7' : isSL ? '#fee2e2' : '#fef3c7';
+                var outcomeBdr   = isTarget ? '#16a34a' : isSL ? '#dc2626' : '#f59e0b';
+                var outcomeIcon  = isTarget ? '✅' : isSL ? '❌' : '⏱';
+
+                html += '<div style="border:2px solid ' + outcomeBdr + ';border-radius:10px;padding:12px 16px;margin-bottom:10px;margin-left:20px;background:' + outcomeBg + '">';
+                html +=   '<div style="display:flex;align-items:center;justify-content:space-between">';
+                html +=     '<div style="display:flex;align-items:center;gap:8px">';
+                html +=       '<span style="font-size:16px">' + outcomeIcon + '</span>';
+                html +=       '<div>';
+                html +=         '<div style="font-size:12px;font-weight:800;color:' + outcomeColor + '">' + (s.trade_code || '') + ' — ' + outcome + '</div>';
+                html +=         '<div style="font-size:10px;color:#64748b">Exited at ' + (s.exit_time || s.created_at);
+                if (s.exit_spot) html += ' · Spot ₹' + fmt(s.exit_spot);
+                html +=         '</div>';
+                html +=       '</div>';
+                html +=     '</div>';
+                html +=     '<span style="background:#1e293b;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px">' + (s.trade_code || '') + ' CLOSED</span>';
+                html +=   '</div>';
+                html += '</div>';
             }
-            var srcRaw = (s.data_source || '').toLowerCase();
-            var srcLabel = s.source_display_name || s.data_source || 'estimated';
-            var srcStyle;
-            if (srcRaw.indexOf('dhan') !== -1 || srcRaw.indexOf('truedata') !== -1 || srcRaw.indexOf('broker') !== -1) {
-                srcStyle = 'background:#dcfce7;color:#15803d;border:1px solid #bbf7d0';
-            } else if (srcRaw.indexOf('nse') !== -1) {
-                srcStyle = 'background:#fef9c3;color:#a16207;border:1px solid #fde68a';
-            } else {
-                srcStyle = 'background:#fee2e2;color:#b91c1c;border:1px solid #fecaca';
-            }
-            html += '<tr>';
-            html += '<td style="white-space:nowrap">' + s.created_at + '</td>';
-            html += '<td>' + eventTag + '</td>';
-            html += '<td><span class="layer-badge ' + dirClass + '">' + dirEmoji + ' ' + s.direction + '</span></td>';
-            html += '<td><strong>' + s.confidence + '</strong><span style="color:#94a3b8">/100</span></td>';
-            html += '<td>₹' + fmt(s.spot_price) + '</td>';
-            html += '<td>' + s.atm_strike + '</td>';
-            html += '<td><span class="alert-badge ' + (s.alert_sent ? 'alert-sent' : 'alert-none') + '">' + (s.alert_sent ? 'SENT' : '—') + '</span></td>';
-            html += '<td><span style="' + srcStyle + ';padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap">' + srcLabel + '</span></td>';
-            html += '</tr>';
         });
-        html += '</tbody></table></div>';
+
         container.innerHTML = html;
     }).catch(function(){
         document.getElementById('signalHistoryContainer').innerHTML = '<p class="text-muted text-center py-3" style="font-size:13px">Could not load signal history.</p>';
