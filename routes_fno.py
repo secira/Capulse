@@ -139,6 +139,49 @@ def fno_monitor_status():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _parse_atm_trade(trades_json_str):
+    """Extract the ATM option trade dict from a stored trades_json string."""
+    if not trades_json_str:
+        return None
+    try:
+        import ast
+        trades = ast.literal_eval(trades_json_str)
+        if isinstance(trades, list) and trades:
+            for t in trades:
+                if isinstance(t, dict) and str(t.get('option_type', '')).upper() == 'ATM':
+                    return t
+            return trades[0] if isinstance(trades[0], dict) else None
+    except Exception:
+        pass
+    return None
+
+
+def _calc_trade_pnl(atm_trade, outcome):
+    """
+    Return (entry_premium, exit_premium, pnl_pct) for a closed trade.
+    - TARGET HIT → exit at the ATM target price
+    - SL HIT     → exit at the ATM SL price
+    - TIME EXIT  → exit price unknown; returns None for pnl_pct
+    """
+    if not atm_trade:
+        return None, None, None
+    entry_premium = atm_trade.get('entry_price') or 0
+    sl            = atm_trade.get('sl')           or 0
+    target        = atm_trade.get('target')       or 0
+    if not entry_premium:
+        return None, None, None
+
+    if outcome == 'TARGET HIT' and target:
+        exit_premium = target
+    elif outcome == 'SL HIT' and sl:
+        exit_premium = sl
+    else:
+        return round(entry_premium, 1), None, None   # TIME EXIT — no exact exit price
+
+    pnl_pct = round((exit_premium - entry_premium) / entry_premium * 100, 1)
+    return round(entry_premium, 1), round(exit_premium, 1), pnl_pct
+
+
 @fno_bp.route('/api/signal-history')
 @login_required
 def fno_signal_history():
@@ -150,14 +193,21 @@ def fno_signal_history():
         utc_today_start = ist_today_start - timedelta(hours=5, minutes=30)
         index_id = request.args.get('index_id', 'NIFTY').upper()
 
-        # Return only TRADE_TRIGGER and TRADE_EXIT rows (max 6 — 3 trades + 3 outcomes)
+        # Fetch TRIGGER + EXIT rows; for EXIT rows, join the matching TRIGGER to
+        # obtain its trades_json (which holds the original ATM entry/sl/target prices).
         rows = db.session.execute(db.text("""
             SELECT h.id, h.signal_type, h.direction, h.confidence, h.confidence_grade,
                    h.entry_mode, h.spot_price, h.atm_strike, h.alert_sent, h.data_source,
                    h.created_at, h.trade_code, h.outcome, h.exit_spot, h.exit_time,
-                   COALESCE(d.display_name, h.data_source) AS source_display_name
+                   COALESCE(d.display_name, h.data_source) AS source_display_name,
+                   CASE WHEN h.signal_type = 'TRADE_TRIGGER' THEN h.trades_json
+                        ELSE trig.trades_json END AS atm_trades_json
             FROM fno_signal_history h
             LEFT JOIN data_source_config d ON d.source_key = h.data_source
+            LEFT JOIN fno_signal_history trig
+                   ON h.signal_type = 'TRADE_EXIT'
+                  AND trig.trade_code = h.trade_code
+                  AND trig.signal_type = 'TRADE_TRIGGER'
             WHERE h.created_at >= :today_start
               AND h.signal_type IN ('TRADE_TRIGGER', 'TRADE_EXIT')
               AND COALESCE(h.index_id, 'NIFTY') = :index_id
@@ -167,23 +217,31 @@ def fno_signal_history():
 
         signals = []
         for r in rows:
+            atm = _parse_atm_trade(getattr(r, 'atm_trades_json', None))
+            outcome = r.outcome or ''
+            entry_premium, exit_premium, pnl_pct = _calc_trade_pnl(atm, outcome)
+
             signals.append({
-                'id':           r.id,
-                'signal_type':  r.signal_type,
-                'direction':    r.direction,
-                'confidence':   r.confidence,
-                'confidence_grade': r.confidence_grade,
-                'entry_mode':   r.entry_mode,
-                'spot_price':   r.spot_price,
-                'atm_strike':   r.atm_strike,
-                'alert_sent':   r.alert_sent,
-                'data_source':  r.data_source,
+                'id':                  r.id,
+                'signal_type':         r.signal_type,
+                'direction':           r.direction,
+                'confidence':          r.confidence,
+                'confidence_grade':    r.confidence_grade,
+                'entry_mode':          r.entry_mode,
+                'spot_price':          r.spot_price,
+                'atm_strike':          r.atm_strike,
+                'alert_sent':          r.alert_sent,
+                'data_source':         r.data_source,
                 'source_display_name': r.source_display_name,
-                'trade_code':   r.trade_code or '',
-                'outcome':      r.outcome or '',
-                'exit_spot':    r.exit_spot,
-                'exit_time':    r.exit_time.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%I:%M %p') if r.exit_time else '',
-                'created_at':   r.created_at.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%I:%M %p') if r.created_at else '',
+                'trade_code':          r.trade_code or '',
+                'outcome':             outcome,
+                'exit_spot':           r.exit_spot,
+                'exit_time':           r.exit_time.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%I:%M %p') if r.exit_time else '',
+                'created_at':          r.created_at.replace(tzinfo=timezone.utc).astimezone(IST).strftime('%I:%M %p') if r.created_at else '',
+                # P&L fields (ATM option)
+                'entry_premium':       entry_premium,
+                'exit_premium':        exit_premium,
+                'pnl_pct':             pnl_pct,
             })
         return jsonify({'success': True, 'data': signals})
     except Exception as e:

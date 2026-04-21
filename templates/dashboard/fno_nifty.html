@@ -1225,6 +1225,9 @@ function loadSignalHistory() {
             return;
         }
 
+        // Track closed-trade P&L for cumulative summary
+        var cumPnl = [];   // array of {pnl_pct, pnl_sign} for trades with known P&L
+
         res.data.forEach(function(s) {
             if (s.signal_type === 'TRADE_TRIGGER') {
                 // ── Recommendation card ──
@@ -1248,12 +1251,13 @@ function loadSignalHistory() {
                 html +=   '</div>';
                 // Detail row
                 html +=   '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">';
+                var entryPremLabel = s.entry_premium ? '₹' + s.entry_premium.toFixed(0) : '—';
                 var det = [
                     {lbl:'Confidence', val: s.confidence + '/100'},
                     {lbl:'Spot', val: '₹' + fmt(s.spot_price)},
                     {lbl:'ATM Strike', val: s.atm_strike || '—'},
                     {lbl:'Entry Mode', val: s.entry_mode || '—'},
-                    {lbl:'Alert', val: s.alert_sent ? '✅ Sent' : '—'},
+                    {lbl:'ATM Entry ₹', val: entryPremLabel},
                 ];
                 det.forEach(function(d) {
                     html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;text-align:center">';
@@ -1274,8 +1278,22 @@ function loadSignalHistory() {
                 var outcomeBdr   = isTarget ? '#16a34a' : isSL ? '#dc2626' : '#f59e0b';
                 var outcomeIcon  = isTarget ? '✅' : isSL ? '❌' : '⏱';
 
+                // P&L badge
+                var pnlHtml = '';
+                if (s.pnl_pct !== null && s.pnl_pct !== undefined) {
+                    var pnlPos  = s.pnl_pct >= 0;
+                    var pnlSign = pnlPos ? '+' : '';
+                    var pnlBg   = pnlPos ? '#15803d' : '#dc2626';
+                    pnlHtml = '<span style="background:' + pnlBg + ';color:#fff;font-size:12px;font-weight:800;padding:3px 10px;border-radius:8px">'
+                            + pnlSign + s.pnl_pct.toFixed(1) + '% ATM</span>';
+                    cumPnl.push(s.pnl_pct);
+                } else if (outcome === 'TIME EXIT') {
+                    pnlHtml = '<span style="background:#6b7280;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px">P&L N/A (Time Exit)</span>';
+                }
+
                 html += '<div style="border:2px solid ' + outcomeBdr + ';border-radius:10px;padding:12px 16px;margin-bottom:10px;margin-left:20px;background:' + outcomeBg + '">';
-                html +=   '<div style="display:flex;align-items:center;justify-content:space-between">';
+                // Top row: icon + trade info + P&L badge
+                html +=   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:' + (s.entry_premium ? '8' : '0') + 'px">';
                 html +=     '<div style="display:flex;align-items:center;gap:8px">';
                 html +=       '<span style="font-size:16px">' + outcomeIcon + '</span>';
                 html +=       '<div>';
@@ -1285,11 +1303,52 @@ function loadSignalHistory() {
                 html +=         '</div>';
                 html +=       '</div>';
                 html +=     '</div>';
-                html +=     '<span style="background:#1e293b;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px">' + (s.trade_code || '') + ' CLOSED</span>';
+                html +=     '<div style="display:flex;align-items:center;gap:6px">';
+                if (pnlHtml) html += pnlHtml;
+                html +=     '</div>';
                 html +=   '</div>';
+                // Premium detail row (entry → exit)
+                if (s.entry_premium) {
+                    var exitLabel = s.exit_premium ? '₹' + s.exit_premium.toFixed(0) : 'N/A';
+                    var arrowColor = (s.exit_premium && s.exit_premium >= s.entry_premium) ? '#15803d' : '#dc2626';
+                    html += '<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:rgba(255,255,255,0.6);border-radius:6px;font-size:11px">';
+                    html +=   '<span style="color:#64748b">ATM Option Premium:</span>';
+                    html +=   '<span style="font-weight:700;color:#1e293b">₹' + s.entry_premium.toFixed(0) + '</span>';
+                    html +=   '<span style="color:#94a3b8">→</span>';
+                    html +=   '<span style="font-weight:700;color:' + arrowColor + '">' + exitLabel + '</span>';
+                    if (s.pnl_pct !== null && s.pnl_pct !== undefined) {
+                        var diff = s.exit_premium - s.entry_premium;
+                        var diffSign = diff >= 0 ? '+' : '';
+                        html += '<span style="color:' + arrowColor + ';font-weight:600">(' + diffSign + diff.toFixed(0) + ' pts)</span>';
+                    }
+                    html += '</div>';
+                }
                 html += '</div>';
             }
         });
+
+        // ── Cumulative P&L summary ─────────────────────────────────
+        if (cumPnl.length > 0) {
+            var totalPnl = cumPnl.reduce(function(a, b) { return a + b; }, 0);
+            var wins     = cumPnl.filter(function(p) { return p > 0; }).length;
+            var losses   = cumPnl.filter(function(p) { return p < 0; }).length;
+            var totalPos = totalPnl >= 0;
+            var cumBg    = totalPos ? '#f0fdf4' : '#fef2f2';
+            var cumBdr   = totalPos ? '#16a34a' : '#dc2626';
+            var cumColor = totalPos ? '#15803d' : '#dc2626';
+            var cumSign  = totalPos ? '+' : '';
+            var winRate  = Math.round(wins / cumPnl.length * 100);
+
+            html += '<div style="border:2px solid ' + cumBdr + ';border-radius:10px;padding:12px 16px;margin-top:4px;background:' + cumBg + '">';
+            html +=   '<div style="display:flex;align-items:center;justify-content:space-between">';
+            html +=     '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Today\'s Cumulative P&L (ATM)</div>';
+            html +=     '<div style="display:flex;align-items:center;gap:10px">';
+            html +=       '<span style="font-size:16px;font-weight:800;color:' + cumColor + '">' + cumSign + totalPnl.toFixed(1) + '%</span>';
+            html +=       '<span style="font-size:11px;color:#64748b">' + wins + 'W / ' + losses + 'L · ' + winRate + '% Win Rate</span>';
+            html +=     '</div>';
+            html +=   '</div>';
+            html += '</div>';
+        }
 
         container.innerHTML = html;
     }).catch(function(){
