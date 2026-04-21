@@ -5,6 +5,53 @@ echo "======================================"
 echo "Target Capital — Deployment Startup"
 echo "======================================"
 
+# ── Environment variable health check ──────────────────────────────────────
+echo ""
+echo "[0/5] Checking required environment variables..."
+
+MISSING_VARS=0
+
+check_var() {
+  local name="$1"
+  local required="$2"
+  if [ -z "${!name}" ]; then
+    if [ "$required" = "required" ]; then
+      echo "  ❌  $name — NOT SET (REQUIRED)"
+      MISSING_VARS=$((MISSING_VARS + 1))
+    else
+      echo "  ⚠️   $name — not set (optional but recommended)"
+    fi
+  else
+    echo "  ✅  $name — set"
+  fi
+}
+
+check_var DATABASE_URL      required
+check_var SESSION_SECRET    required
+check_var BROKER_ENCRYPTION_KEY optional
+check_var ANTHROPIC_API_KEY optional
+check_var GOOGLE_OAUTH_CLIENT_ID optional
+check_var GOOGLE_OAUTH_CLIENT_SECRET optional
+check_var TELEGRAM_BOT_TOKEN optional
+check_var TELEGRAM_CHAT_ID  optional
+
+if [ -z "$BROKER_ENCRYPTION_KEY" ]; then
+  echo ""
+  echo "  ℹ️   BROKER_ENCRYPTION_KEY not set — encryption key will be derived"
+  echo "       from SESSION_SECRET (stable, works across restarts)."
+  echo "       For maximum security, copy BROKER_ENCRYPTION_KEY from Replit"
+  echo "       Secrets into Railway → Variables."
+fi
+
+if [ "$MISSING_VARS" -gt 0 ]; then
+  echo ""
+  echo "❌ $MISSING_VARS required variable(s) are missing. Aborting startup."
+  exit 1
+fi
+
+echo "Environment check passed."
+# ───────────────────────────────────────────────────────────────────────────
+
 # Step 1: Run database migrations (creates tables, tenant, etc.)
 echo ""
 echo "[1/5] Running database migrations..."

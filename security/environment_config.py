@@ -58,30 +58,51 @@ class SecureEnvironmentConfig:
         return session_secret
     
     def _get_encryption_key(self) -> bytes:
-        """Get secure encryption key for broker credentials"""
+        """Get secure encryption key for broker credentials.
+
+        Priority:
+          1. BROKER_ENCRYPTION_KEY env var  (best — copy same value to all envs)
+          2. Derived from SESSION_SECRET    (stable across restarts/deployments)
+          3. Random key                     (last-resort dev only — never survives restart)
+        """
+        import hashlib
+
         encryption_key = os.environ.get("BROKER_ENCRYPTION_KEY")
-        
-        if not encryption_key:
-            # Generate a key if not provided (warn in production)
-            encryption_key = Fernet.generate_key()
+
+        if encryption_key:
+            # Handle string keys properly for Fernet
+            if isinstance(encryption_key, str):
+                encryption_key = encryption_key.encode()
+            try:
+                Fernet(encryption_key)
+                return encryption_key
+            except Exception as e:
+                raise ValueError(f"Invalid BROKER_ENCRYPTION_KEY format: {e}")
+
+        # Fallback 1: derive a stable 32-byte key from SESSION_SECRET.
+        # Same SESSION_SECRET → same encryption key on every startup and every
+        # server, so credentials encrypted on Replit are readable on Railway.
+        session_secret = os.environ.get("SESSION_SECRET", "")
+        if session_secret:
+            derived = hashlib.sha256(
+                (session_secret + "_broker_key_v1").encode()
+            ).digest()                              # 32 raw bytes
+            stable_key = base64.urlsafe_b64encode(derived)  # Fernet needs URL-safe b64
             if self.is_production:
-                logger.warning("⚠️ BROKER_ENCRYPTION_KEY not set - generated temporary key. Set this in production for persistent broker credential encryption.")
-            else:
-                logger.warning("Generated encryption key for development")
-            return encryption_key
-        
-        # Handle string keys properly for Fernet
-        if isinstance(encryption_key, str):
-            # Fernet expects the key as base64-encoded bytes
-            encryption_key = encryption_key.encode()
-        
-        # Validate key format
-        try:
-            Fernet(encryption_key)
-        except Exception as e:
-            raise ValueError(f"Invalid encryption key format: {e}")
-        
-        return encryption_key
+                logger.warning(
+                    "⚠️  BROKER_ENCRYPTION_KEY not set — deriving encryption key from "
+                    "SESSION_SECRET. Add BROKER_ENCRYPTION_KEY to Railway Variables "
+                    "(copy from Replit Secrets) for explicit key management."
+                )
+            return stable_key
+
+        # Fallback 2: random key — credentials won't survive restarts. Dev only.
+        logger.error(
+            "❌ Neither BROKER_ENCRYPTION_KEY nor SESSION_SECRET is set. "
+            "Broker credentials will be unreadable after restart. "
+            "Set BROKER_ENCRYPTION_KEY in your environment variables."
+        )
+        return Fernet.generate_key()
     
     def _get_database_config(self) -> Dict[str, Any]:
         """Get secure database configuration"""
