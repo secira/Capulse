@@ -66,6 +66,7 @@ class DhanBroker(BrokerBase):
         self.client_id = credentials.get("client_id", "")
         self.access_token = credentials.get("access_token", "")
         self._sdk = None
+        self.last_error: str = ""  # set by connect() so callers can surface it
 
     # ------------------------------------------------------------------
     # SDK helper — creates / reuses dhanhq instance
@@ -80,15 +81,25 @@ class DhanBroker(BrokerBase):
     # BrokerBase interface
     # ------------------------------------------------------------------
     def connect(self) -> bool:
+        self.last_error = ""
         try:
             resp = self._get_sdk().get_fund_limits()
             if resp.get("status") == "success":
                 self._connected = True
                 logger.info("Dhan connected successfully")
                 return True
-            logger.warning(f"Dhan connect failed: {resp.get('remarks', '')}")
+            remarks = resp.get("remarks", "")
+            # remarks can be a dict or a string depending on SDK version
+            if isinstance(remarks, dict):
+                err_msg = remarks.get("error_msg", "") or remarks.get("message", "") or str(remarks)
+                err_code = remarks.get("error_code", "") or remarks.get("code", "")
+                self.last_error = f"{err_msg} (code: {err_code})" if err_code else err_msg
+            else:
+                self.last_error = str(remarks)
+            logger.warning(f"Dhan connect failed: {self.last_error} | full resp: {resp}")
             return False
         except Exception as e:
+            self.last_error = str(e)
             logger.error(f"Dhan connect error: {e}")
             return False
 

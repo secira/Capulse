@@ -528,11 +528,31 @@ def api_data_api_broker_test():
             try:
                 ok = future.result(timeout=8)
             except concurrent.futures.TimeoutError:
-                return jsonify(success=False, message='Connection timed out (8s). The broker API may be slow.')
+                return jsonify(success=False, message='Connection timed out (8s). The broker API may be slow or blocked by firewall.')
 
         if ok:
             return jsonify(success=True, message=f'{account.broker_name} connected successfully.')
-        return jsonify(success=False, message=f'{account.broker_name} connection failed — check if your token is still valid.')
+
+        # Surface the actual broker error so the user knows exactly what failed
+        api_error = getattr(broker, 'last_error', '') or ''
+        if api_error:
+            detail = f' Reason: {api_error}'
+        else:
+            detail = ''
+
+        broker_name = account.broker_name or broker_type
+        # Give broker-specific guidance
+        if broker_type == 'dhan':
+            fix_hint = (' Your Dhan access token may have expired. '
+                        'Go to app.dhan.co → Profile → Generate Access Token, '
+                        'then re-save your credentials here.')
+        else:
+            fix_hint = ' Please re-enter your API credentials.'
+
+        return jsonify(
+            success=False,
+            message=f'{broker_name} connection failed.{detail}{fix_hint}'
+        )
     except Exception as e:
         logger.error(f"api_data_api_broker_test error: {e}")
         return jsonify(success=False, message=f'Test error: {str(e)}')
