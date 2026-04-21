@@ -82,6 +82,17 @@ class DhanBroker(BrokerBase):
     # ------------------------------------------------------------------
     def connect(self) -> bool:
         self.last_error = ""
+        # Pre-flight: both fields must be present and non-empty
+        if not self.client_id or not str(self.client_id).strip():
+            self.last_error = ("Client ID is missing. "
+                               "Dhan needs your numeric Client ID (e.g. 1100012345), "
+                               "not the API key string.")
+            logger.warning(f"Dhan connect pre-flight: {self.last_error}")
+            return False
+        if not self.access_token or not str(self.access_token).strip():
+            self.last_error = "Access token is missing. Generate a new one at app.dhan.co → Profile → Access Token."
+            logger.warning(f"Dhan connect pre-flight: {self.last_error}")
+            return False
         try:
             resp = self._get_sdk().get_fund_limits()
             if resp.get("status") == "success":
@@ -91,12 +102,23 @@ class DhanBroker(BrokerBase):
             remarks = resp.get("remarks", "")
             # remarks can be a dict or a string depending on SDK version
             if isinstance(remarks, dict):
-                err_msg = remarks.get("error_msg", "") or remarks.get("message", "") or str(remarks)
+                err_msg = (remarks.get("error_message", "")
+                           or remarks.get("error_msg", "")
+                           or remarks.get("message", "")
+                           or str(remarks))
                 err_code = remarks.get("error_code", "") or remarks.get("code", "")
-                self.last_error = f"{err_msg} (code: {err_code})" if err_code else err_msg
+                # DH-905 = bad/missing fields — add specific guidance
+                if err_code == "DH-905":
+                    self.last_error = (
+                        f"DH-905: Invalid credentials. "
+                        f"Make sure Client ID is your numeric Dhan ID (not API key) "
+                        f"and the Access Token is freshly generated from app.dhan.co."
+                    )
+                else:
+                    self.last_error = f"{err_msg} (code: {err_code})" if err_code else err_msg
             else:
                 self.last_error = str(remarks)
-            logger.warning(f"Dhan connect failed: {self.last_error} | full resp: {resp}")
+            logger.warning(f"Dhan connect failed: {self.last_error} | cid_len={len(str(self.client_id))} | full resp: {resp}")
             return False
         except Exception as e:
             self.last_error = str(e)

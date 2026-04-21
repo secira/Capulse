@@ -32,7 +32,7 @@
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label class="form-label">Broker <span class="text-danger">*</span></label>
-                    <select class="form-select" name="broker_name" required>
+                    <select class="form-select" name="broker_name" required onchange="updateBrokerFieldLabels(this.value, 'add')">
                         <option value="">Select Broker</option>
                         <optgroup label="✅ Available Now">
                             <option value="dhan">Dhan</option>
@@ -51,23 +51,28 @@
                 </div>
                 
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">API Key <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" name="api_key" required placeholder="Enter your API Key">
-                    <small class="form-text text-muted">Found in your broker's API settings</small>
+                    <label class="form-label" id="addApiKeyLabel">API Key <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" name="api_key" id="addApiKeyInput" required placeholder="Enter your API Key">
+                    <small class="form-text text-muted" id="addApiKeyHint">Found in your broker's API settings</small>
                 </div>
+            </div>
+
+            <!-- Broker-specific info banner (shown when a broker is selected) -->
+            <div id="brokerInfoBanner" class="alert alert-info py-2 mb-3" style="display:none; font-size:0.85rem;">
+                <i class="fas fa-circle-info me-1"></i><span id="brokerInfoText"></span>
             </div>
             
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">API Secret <span class="text-danger">*</span></label>
-                    <input type="password" class="form-control" name="api_secret" required placeholder="Enter your API Secret">
-                    <small class="form-text text-muted">Keep this secret and never share it</small>
+                    <label class="form-label" id="addApiSecretLabel">API Secret <span class="text-danger">*</span></label>
+                    <input type="password" class="form-control" name="api_secret" id="addApiSecretInput" required placeholder="Enter your API Secret">
+                    <small class="form-text text-muted" id="addApiSecretHint">Keep this secret and never share it</small>
                 </div>
                 
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Request Token (Optional)</label>
-                    <input type="text" class="form-control" name="request_token" placeholder="Enter Request Token">
-                    <small class="form-text text-muted">Required for some brokers</small>
+                    <label class="form-label" id="addRequestTokenLabel">Request Token (Optional)</label>
+                    <input type="text" class="form-control" name="request_token" id="addRequestTokenInput" placeholder="Enter Request Token">
+                    <small class="form-text text-muted" id="addRequestTokenHint">Required for some brokers</small>
                 </div>
             </div>
             
@@ -368,20 +373,27 @@
                         <input type="text" class="form-control" id="editBrokerName" readonly>
                     </div>
                     
+                    <!-- Broker-specific info banner for edit modal -->
+                    <div id="editBrokerInfoBanner" class="alert alert-info py-2 mb-3" style="display:none; font-size:0.85rem;">
+                        <i class="fas fa-circle-info me-1"></i><span id="editBrokerInfoText"></span>
+                    </div>
+
                     <div class="mb-3">
-                        <label class="form-label">API Key <span class="text-danger">*</span></label>
+                        <label class="form-label" id="editApiKeyLabel">API Key <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" name="api_key" id="editApiKey" required>
+                        <small class="form-text text-muted" id="editApiKeyHint">Leave blank to keep current value</small>
+                    </div>
+                    
+                    <div class="mb-3" id="editApiSecretRow">
+                        <label class="form-label" id="editApiSecretLabel">API Secret</label>
+                        <input type="password" class="form-control" name="api_secret" id="editApiSecret">
+                        <small class="form-text text-muted" id="editApiSecretHint">Leave blank to keep current secret</small>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">API Secret <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" name="api_secret" id="editApiSecret" required>
-                        <small class="form-text text-muted">Leave blank to keep current secret</small>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Request Token</label>
+                        <label class="form-label" id="editRequestTokenLabel">Request Token</label>
                         <input type="text" class="form-control" name="request_token" id="editRequestToken">
+                        <small class="form-text text-muted" id="editRequestTokenHint">Leave blank to keep current token</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -457,6 +469,82 @@
 </div>
 
 <script>
+// Broker-specific field configuration
+var BROKER_FIELDS = {
+  dhan: {
+    apiKeyLabel: 'Client ID (Numeric) <span class="text-danger">*</span>',
+    apiKeyPlaceholder: 'Your numeric Dhan Client ID, e.g. 1100012345',
+    apiKeyHint: 'Found at <strong>app.dhan.co → Profile</strong>. This is a short numeric ID, NOT the API key string.',
+    apiSecretLabel: 'API Secret (any value for Dhan)',
+    apiSecretPlaceholder: 'Enter any value — Dhan does not use API Secret',
+    apiSecretHint: 'Dhan uses Client ID + Access Token only. You can enter any placeholder here.',
+    requestTokenLabel: 'Access Token <span class="text-danger">*</span>',
+    requestTokenPlaceholder: 'Paste your Access Token from app.dhan.co',
+    requestTokenHint: 'Generate at <strong>app.dhan.co → Profile → Access Token</strong>. Regenerate if expired.',
+    infoBanner: 'Dhan uses <strong>Client ID</strong> (numeric, e.g. 1100012345) + <strong>Access Token</strong>. ' +
+                'Do NOT enter an API key string as the Client ID.'
+  },
+  zerodha: {
+    apiKeyLabel: 'API Key <span class="text-danger">*</span>',
+    apiKeyPlaceholder: 'Your Zerodha API Key',
+    apiKeyHint: 'Found at kite.trade → My Apps',
+    apiSecretLabel: 'API Secret <span class="text-danger">*</span>',
+    apiSecretPlaceholder: 'Your Zerodha API Secret',
+    apiSecretHint: 'Keep this private and never share it.',
+    requestTokenLabel: 'Request Token',
+    requestTokenPlaceholder: 'Paste the request_token after login redirect',
+    requestTokenHint: 'Generated after OAuth login via Kite.',
+    infoBanner: null
+  }
+};
+
+function updateBrokerFieldLabels(broker, formPrefix) {
+  var cfg = BROKER_FIELDS[broker] || null;
+  var prefix = (formPrefix === 'add') ? 'add' : 'edit';
+
+  var keyLabel     = document.getElementById(prefix + 'ApiKeyLabel');
+  var keyInput     = document.getElementById(prefix + 'ApiKeyInput') || document.getElementById(prefix + 'ApiKey');
+  var keyHint      = document.getElementById(prefix + 'ApiKeyHint');
+  var secLabel     = document.getElementById(prefix + 'ApiSecretLabel');
+  var secInput     = document.getElementById(prefix + 'ApiSecretInput') || document.getElementById(prefix + 'ApiSecret');
+  var secHint      = document.getElementById(prefix + 'ApiSecretHint');
+  var tokLabel     = document.getElementById(prefix + 'RequestTokenLabel');
+  var tokInput     = document.getElementById(prefix + 'RequestTokenInput') || document.getElementById(prefix + 'RequestToken');
+  var tokHint      = document.getElementById(prefix + 'RequestTokenHint');
+  var banner       = document.getElementById(prefix === 'add' ? 'brokerInfoBanner' : 'editBrokerInfoBanner');
+  var bannerText   = document.getElementById(prefix === 'add' ? 'brokerInfoText' : 'editBrokerInfoText');
+
+  if (cfg) {
+    if (keyLabel)   keyLabel.innerHTML   = cfg.apiKeyLabel;
+    if (keyInput)   keyInput.placeholder = cfg.apiKeyPlaceholder;
+    if (keyHint)    keyHint.innerHTML    = cfg.apiKeyHint;
+    if (secLabel)   secLabel.innerHTML   = cfg.apiSecretLabel;
+    if (secInput)   secInput.placeholder = cfg.apiSecretPlaceholder;
+    if (secHint)    secHint.innerHTML    = cfg.apiSecretHint;
+    if (tokLabel)   tokLabel.innerHTML   = cfg.requestTokenLabel;
+    if (tokInput)   tokInput.placeholder = cfg.requestTokenPlaceholder;
+    if (tokHint)    tokHint.innerHTML    = cfg.requestTokenHint;
+    if (banner && bannerText && cfg.infoBanner) {
+      bannerText.innerHTML = cfg.infoBanner;
+      banner.style.display = '';
+    } else if (banner) {
+      banner.style.display = 'none';
+    }
+  } else {
+    // Reset to defaults
+    if (keyLabel)   keyLabel.innerHTML   = 'API Key <span class="text-danger">*</span>';
+    if (keyInput)   keyInput.placeholder = 'Enter your API Key';
+    if (keyHint)    keyHint.textContent  = "Found in your broker's API settings";
+    if (secLabel)   secLabel.innerHTML   = 'API Secret <span class="text-danger">*</span>';
+    if (secInput)   secInput.placeholder = 'Enter your API Secret';
+    if (secHint)    secHint.textContent  = 'Keep this secret and never share it';
+    if (tokLabel)   tokLabel.innerHTML   = 'Request Token (Optional)';
+    if (tokInput)   tokInput.placeholder = 'Enter Request Token';
+    if (tokHint)    tokHint.textContent  = 'Required for some brokers';
+    if (banner)     banner.style.display = 'none';
+  }
+}
+
 function editBroker(brokerId) {
     fetch(`/api/broker/${brokerId}`)
         .then(response => response.json())
@@ -470,6 +558,8 @@ function editBroker(brokerId) {
                 if (data.broker.has_credentials) {
                     document.getElementById('editApiKey').placeholder = `Current: ${data.broker.api_key_masked}`;
                 }
+                // Apply broker-specific labels in the edit modal
+                updateBrokerFieldLabels(data.broker.broker_name.toLowerCase(), 'edit');
                 new bootstrap.Modal(document.getElementById('editBrokerModal')).show();
             } else {
                 alert('Error loading broker details: ' + data.message);
