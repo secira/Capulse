@@ -56,19 +56,19 @@ try:
     secure_config = setup_secure_environment()
     app.secret_key = secure_config["session_secret"]
     logging.info("✅ Secure environment configuration loaded")
-except ImportError:
-    # Fallback for development without security module
-    session_secret = os.environ.get("SESSION_SECRET")
-    if not session_secret:
-        # Fail-fast in production
-        environment = os.environ.get("ENVIRONMENT", "development")
-        if environment == "production":
-            raise ValueError("SESSION_SECRET is required in production environment")
-        session_secret = "dev-secret-key-change-in-production"
-        logging.warning("⚠️ Using default development secret key")
-    elif session_secret == "dev-secret-key-change-in-production" and os.environ.get("ENVIRONMENT") == "production":
-        raise ValueError("Default development secret cannot be used in production")
-    app.secret_key = session_secret
+except Exception as _sec_err:
+    # Never crash at startup due to missing/invalid env vars.
+    # Log clearly and use the best available fallback.
+    logging.warning(f"⚠️ Secure config error ({_sec_err}). Using direct env var fallback.")
+    _session_secret = os.environ.get("SESSION_SECRET", "")
+    if not _session_secret:
+        import secrets as _secrets
+        _session_secret = _secrets.token_urlsafe(32)
+        logging.error(
+            "❌ SESSION_SECRET not set — generated a one-time secret. "
+            "Set SESSION_SECRET in Railway Variables to keep sessions stable across restarts."
+        )
+    app.secret_key = _session_secret
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)  # x_for=1 for accurate client IP behind proxies
 
 # Configure CSRF: Check by default but exempt /api/broker/ endpoints

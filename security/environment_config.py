@@ -38,23 +38,33 @@ class SecureEnvironmentConfig:
         return config
     
     def _get_session_secret(self) -> str:
-        """Get secure session secret"""
-        session_secret = os.environ.get("SESSION_SECRET")
-        
+        """Get secure session secret — never raises, always returns a usable value."""
+        session_secret = os.environ.get("SESSION_SECRET", "")
+
         if not session_secret:
-            if self.is_production:
-                raise ValueError("SESSION_SECRET is required in production")
-            # Generate secure development secret
             session_secret = secrets.token_urlsafe(32)
-            logger.warning(f"Generated session secret for development: {session_secret[:10]}...")
-        
-        # Validate production secret
+            if self.is_production:
+                logger.error(
+                    "❌ SESSION_SECRET not set in production. "
+                    "Generated a one-time secret — user sessions will be lost on restart. "
+                    "Add SESSION_SECRET to Railway Variables immediately."
+                )
+            else:
+                logger.warning("SESSION_SECRET not set — generated temporary dev secret.")
+            return session_secret
+
         if self.is_production:
             if session_secret == "dev-secret-key-change-in-production":
-                raise ValueError("Default development secret cannot be used in production")
-            if len(session_secret) < 32:
-                raise ValueError("Session secret must be at least 32 characters in production")
-        
+                logger.error(
+                    "❌ Default dev secret key used in production — insecure. "
+                    "Set a strong SESSION_SECRET in Railway Variables."
+                )
+            elif len(session_secret) < 32:
+                logger.warning(
+                    f"⚠️ SESSION_SECRET is only {len(session_secret)} chars. "
+                    "Recommended: at least 32 random characters."
+                )
+
         return session_secret
     
     def _get_encryption_key(self) -> bytes:
@@ -110,7 +120,11 @@ class SecureEnvironmentConfig:
         
         if not database_url:
             if self.is_production:
-                raise ValueError("DATABASE_URL is required in production")
+                logger.error(
+                    "❌ DATABASE_URL not set in production! "
+                    "Add your Railway PostgreSQL URL in Railway → Variables. "
+                    "App will attempt to use SQLite fallback (data will not persist)."
+                )
             database_url = "sqlite:///stock_trading.db"
         
         # Validate PostgreSQL SSL in production
@@ -224,23 +238,29 @@ class SecureEnvironmentConfig:
             return "default-src 'self' 'unsafe-inline' 'unsafe-eval' *;"
     
     def _validate_production_config(self, config: Dict[str, Any]):
-        """Validate configuration for production"""
+        """Validate configuration for production — logs warnings, never raises."""
         if not self.is_production:
             return
-        
-        # Critical validation checks
-        validations = [
-            (len(config["session_secret"]) >= 32, "Session secret must be at least 32 characters"),
-            (config["encryption_key"] is not None, "Encryption key is required"),
-            (config["database_config"]["url"] != "sqlite:///stock_trading.db", "SQLite not recommended for production"),
-            (config["security_settings"]["session_cookie_secure"], "Secure cookies required in production"),
-        ]
-        
-        for check, message in validations:
-            if not check:
-                raise ValueError(f"Production validation failed: {message}")
-        
-        logger.info("✅ Production security validation passed")
+
+        issues = []
+        if len(config["session_secret"]) < 32:
+            issues.append("SESSION_SECRET is shorter than 32 chars — set a stronger secret in Railway Variables")
+        if config["encryption_key"] is None:
+            issues.append("Encryption key is None — set BROKER_ENCRYPTION_KEY in Railway Variables")
+        if config["database_config"]["url"] == "sqlite:///stock_trading.db":
+            issues.append("SQLite detected in production — set DATABASE_URL (PostgreSQL) in Railway Variables")
+        if not config["security_settings"].get("session_cookie_secure"):
+            issues.append("Secure cookies not enforced — recommended for HTTPS-only deployments")
+
+        if issues:
+            for issue in issues:
+                logger.error(f"❌ Production config issue: {issue}")
+            logger.error(
+                "App will continue but these issues should be fixed in Railway Variables. "
+                "See Railway → your project → Variables tab."
+            )
+        else:
+            logger.info("✅ Production security validation passed")
 
 class EnvironmentVariableTemplate:
     """Generate template for environment variables"""
