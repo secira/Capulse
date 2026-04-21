@@ -1,0 +1,71 @@
+ investigate the actual startup error by checking the deployment logs more carefully.
+
+Searched deploy logs
+
+Hide result
+17:38:06
+======================================
+17:38:06
+2026-04-21 12:08:06,715 - alembic.runtime.plugins - INFO - setup plugin alembic.autogenerate.defaults
+17:38:06
+Target Capital — Deployment Startup
+17:38:06
+2026-04-21 12:08:06,630 - __main__ - INFO - Starting database migration…
+17:38:06
+======================================
+17:38:06
+2026-04-21 12:08:06,715 - alembic.runtime.plugins - INFO - setup plugin alembic.autogenerate.comments
+17:38:06
+2026-04-21 12:08:06,715 - alembic.runtime.plugins - INFO - setup plugin alembic.autogenerate.schemas
+17:38:06
+2026-04-21 12:08:06 - root - INFO - [app.py:30] - ✅ Structured logging configured successfully
+17:38:06
+17:38:06
+2026-04-21 12:08:06,715 - alembic.runtime.plugins - INFO - setup plugin alembic.autogenerate.tables
+...and 17 more logs
+Found it! The logs show:
+
+Starting Container at 12:08:07
+Stopping Container at 12:18:00 (10 minutes later)
+The container is crashing silently. There are no error logs between startup and shutdown. This means:
+
+The entrypoint script runs and completes
+Gunicorn starts
+But then the process exits without logging anything
+This is a gunicorn worker crash — likely an unhandled exception during app initialization that's not being logged. Let me check if there's a /health endpoint defined:
+
+Read file: app.py
+The file is truncated. Let me search for the health endpoint:
+
+Read file: routes.py
+The file is too large. Let me search for /health specifically:
+
+Searched repository: **/*.py
+Let me check the Dockerfile to see what the start command is:
+
+Read file: Dockerfile
+Now let me create a PR to add a /health endpoint and fix the gunicorn startup issue. The problem is clear: the app is crashing silently after gunicorn starts, and there's no /health endpoint defined.
+
+Created pull request
+Perfect! I've created PR #2 with the fixes. Now let me update your working memory:
+
+Summary of the problem:
+
+The container starts but crashes silently after ~10 minutes. Here's what's happening:
+
+No /health endpoint — Railway expects one but it doesn't exist
+gunicorn --preload masks errors — If app.py fails during initialization, the master process dies silently before workers start, the port is never bound, and no error is logged
+App initialization is hanging or crashing — The logs show "Starting Container" then 10 minutes later "Stopping Container" with zero error output in between
+PR #2 fixes this by:
+
+✅ Removing --preload so startup errors surface in logs
+✅ Adding a /health endpoint that returns 200 OK
+✅ Adding --error-logfile - to capture stderr
+✅ Increasing timeout to 300s
+✅ Adding a final log statement to confirm initialization completes
+Next steps:
+
+Merge PR #2
+Deploy it
+Watch the logs — they'll now show the actual error preventing the app from starting
+Once deployed, share the new logs and we'll see exactly what's crashing.

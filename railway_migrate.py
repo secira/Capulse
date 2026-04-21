@@ -935,6 +935,22 @@ def run_migrations():
     seed_defaults()
     seed_research_list()
 
+    # Seed I-Score pre-computed data (reuses already-loaded app module)
+    try:
+        import seed_iscore_data as _iscore_mod
+        _iscore_mod.seed()
+        logger.info("I-Score data seed complete.")
+    except Exception as exc:
+        logger.warning("I-Score seed skipped: %s", exc)
+
+    # Seed blog posts (reuses already-loaded app module)
+    try:
+        import seed_blog_posts as _blog_mod
+        _blog_mod.seed()
+        logger.info("Blog posts seed complete.")
+    except Exception as exc:
+        logger.warning("Blog posts seed skipped: %s", exc)
+
 
 # ─────────────────────────────────────────────
 # Connectivity check

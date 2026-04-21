@@ -481,11 +481,16 @@ try:
 except Exception as e:
     logging.warning(f"F&O blueprint not available: {e}", exc_info=True)
 
-try:
-    from services.fno_monitor import start_scheduler as start_fno_monitor
-    start_fno_monitor(app)
-except Exception as e:
-    logging.warning(f"F&O monitor not started: {e}")
+# Guard: seed/migration subprocesses set SKIP_SCHEDULER=1 so that APScheduler
+# (which spawns non-daemon threads) never starts inside them.  Without this
+# guard the seed process can never exit, entrypoint.sh hangs forever, and
+# gunicorn never starts — causing the Railway healthcheck to time out.
+if not os.environ.get("SKIP_SCHEDULER"):
+    try:
+        from services.fno_monitor import start_scheduler as start_fno_monitor
+        start_fno_monitor(app)
+    except Exception as e:
+        logging.warning(f"F&O monitor not started: {e}")
 
 
 # WebSocket Server Management

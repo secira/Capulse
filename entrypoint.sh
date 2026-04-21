@@ -55,37 +55,30 @@ echo "Environment check passed."
 # ───────────────────────────────────────────────────────────────────────────
 
 # Step 1: Run database migrations (creates tables, tenant, etc.)
-echo ""
-echo "[1/5] Running database migrations..."
-python railway_migrate.py || echo "⚠️  Migrations exited non-zero — app will attempt incremental migrations on startup."
-echo "Migrations step done."
+# SKIP_SCHEDULER prevents APScheduler from starting inside the migration/seed
+# subprocess.  APScheduler uses daemon threads, but this is a belt-and-braces
+# guard so the migration process always exits cleanly and quickly.
+export SKIP_SCHEDULER=1
 
-# Step 2: Seed research list stocks (501 stocks)
+# All seeding (research list, I-Score, blog posts) is consolidated inside
+# railway_migrate.py so that app.py is loaded ONLY ONCE during the setup
+# phase.  Previously, 4 separate Python processes each loaded app.py (~30-60 s
+# each) = 120-240 s overhead before gunicorn even started, blowing the 300 s
+# Railway healthcheck window.
 echo ""
-echo "[2/5] Seeding research list..."
-python seed_research_list.py || echo "⚠️  Research list seed failed — continuing anyway."
-echo "Research list seed step done."
+echo "[1/2] Running migrations + seeding all data..."
+python railway_migrate.py || echo "⚠️  Migrations/seeds exited non-zero — app will handle the rest on startup."
+echo "Migrations + seeds done."
 
-# Step 3: Seed pre-computed I-Score data
-echo ""
-echo "[3/5] Seeding I-Score data..."
-python seed_iscore_data.py || echo "⚠️  I-Score seed failed — continuing anyway."
-echo "I-Score seed step done."
+# Clear the guard before gunicorn so APScheduler and all background tasks run.
+unset SKIP_SCHEDULER
 
-# Step 4: Seed blog posts (5 articles)
+# Step 2: Start the app.
+# --preload loads app.py ONCE in the master process.  Workers are then forked
+# (copy-on-write, <1 s), so /health is available within seconds of gunicorn
+# starting — well inside Railway's 300 s healthcheck window.
 echo ""
-echo "[4/5] Seeding blog posts..."
-python seed_blog_posts.py || echo "⚠️  Blog post seed failed — continuing anyway."
-echo "Blog seed step done."
-
-# Step 5: Start the app
-# --preload loads app.py ONCE in the master process before forking workers.
-# Workers are then forked from the pre-loaded master (fast, via copy-on-write),
-# so they are ready to serve /health almost immediately.
-# Without --preload each worker independently loads the full app which takes
-# 60-120 s, causing Railway's healthcheck to time out before they are ready.
-echo ""
-echo "[5/5] Starting gunicorn (preload enabled for fast worker readiness)..."
+echo "[2/2] Starting gunicorn (preload + scheduler enabled)..."
 exec gunicorn \
     --bind "0.0.0.0:${PORT:-8080}" \
     --workers 2 \
