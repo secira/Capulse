@@ -62,7 +62,7 @@ INDEX_CONFIGS = {
         'truedata_chain_sym':'FINNIFTY',
         'default_spot':     21000,
         'display_name':     'Fin Nifty',
-        'dhan_security_id': None,       # Dhan security ID not confirmed; falls back to yfinance
+        'dhan_security_id': 27,         # Dhan security ID for NIFTY FIN SERVICE index
         'exchange_segment': 'IDX_I',
     },
     'SENSEX': {
@@ -75,8 +75,9 @@ INDEX_CONFIGS = {
         'truedata_chain_sym':'SENSEX',
         'default_spot':     77500,
         'display_name':     'SENSEX',
-        'dhan_security_id': None,       # BSE index; yfinance used for candles
+        'dhan_security_id': None,       # BSE index — indicators sourced from scaled NIFTY candles
         'exchange_segment': 'IDX_I',
+        'candle_source':    'NIFTY',    # Use NIFTY candles (scaled) for SENSEX indicators
     },
 }
 
@@ -104,6 +105,7 @@ class NiftyOptionsEngine:
         self.display_name           = cfg['display_name']
         self.dhan_security_id       = cfg.get('dhan_security_id')
         self.exchange_segment       = cfg.get('exchange_segment', 'IDX_I')
+        self.candle_source          = cfg.get('candle_source', None)   # e.g. 'NIFTY' for SENSEX
         self.data_source            = self._get_active_data_source()
         self.user_id                = user_id
         self._broker_adapter        = None
@@ -738,35 +740,79 @@ class NiftyOptionsEngine:
 
         df = None
 
-        # ── Priority 1: Dhan intraday candles (NIFTY only — security ID confirmed) ─
-        if self.dhan_security_id is not None:
+        # ── SENSEX: use scaled NIFTY candles (per user directive) ──────────────────
+        # SENSEX is a BSE index with limited intraday data availability.
+        # NIFTY candles are fetched instead and scaled to SENSEX price level so that
+        # VWAP, SuperTrend, and ADX indicators remain meaningful for SENSEX analysis.
+        if self.candle_source and self.candle_source in INDEX_CONFIGS:
+            src_cfg = INDEX_CONFIGS[self.candle_source]
             try:
                 from services.dhan_service import get_index_intraday_candles
-                df_dhan = get_index_intraday_candles(
-                    security_id=self.dhan_security_id,
-                    exchange_segment=self.exchange_segment,
-                    interval=5, user_id=self.user_id,
-                    index_label=self.index,
-                )
-                if df_dhan is not None and not df_dhan.empty and len(df_dhan) >= 5:
-                    df = df_dhan
-                    logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from Dhan")
+                src_id = src_cfg.get('dhan_security_id')
+                if src_id is not None:
+                    df_src = get_index_intraday_candles(
+                        security_id=src_id,
+                        exchange_segment=src_cfg.get('exchange_segment', 'IDX_I'),
+                        interval=5, user_id=self.user_id,
+                        index_label=self.candle_source,
+                    )
+                    if df_src is not None and not df_src.empty and len(df_src) >= 5:
+                        df = df_src
+                        logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from Dhan/{self.candle_source}")
             except Exception as e:
-                logger.warning(f"Dhan intraday candles error ({self.index}): {e}")
+                logger.warning(f"Dhan candles error for {self.index} (source={self.candle_source}): {e}")
 
-        # ── Priority 2: yfinance fallback ──────────────────────────────
-        if df is None or df.empty:
-            try:
-                import yfinance as yf
-                ticker = yf.Ticker(self.yf_ticker)
-                df_yf = ticker.history(period="1d", interval="5m")
-                if df_yf is not None and not df_yf.empty and len(df_yf) >= 5:
-                    df = df_yf
-                    logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from yfinance")
-                else:
-                    logger.warning(f"_fetch_intraday_candles({self.index}): yfinance also returned no data")
-            except Exception as e:
-                logger.warning(f"yfinance intraday candles error ({self.index}): {e}")
+            if df is None or df.empty:
+                try:
+                    import yfinance as yf
+                    df_src = yf.Ticker(src_cfg['yf_ticker']).history(period="1d", interval="5m")
+                    if df_src is not None and not df_src.empty and len(df_src) >= 5:
+                        df = df_src
+                        logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from yfinance/{self.candle_source}")
+                except Exception as e:
+                    logger.warning(f"yfinance candles error for {self.index} (source={self.candle_source}): {e}")
+
+            # Scale source candles to this index's price level so VWAP is meaningful
+            if df is not None and not df.empty:
+                src_avg = float(df['Close'].mean())
+                if src_avg > 0:
+                    scale = float(self.default_spot) / src_avg
+                    df = df.copy()
+                    for col in ['Open', 'High', 'Low', 'Close']:
+                        if col in df.columns:
+                            df[col] = df[col] * scale
+                    logger.info(f"_fetch_intraday_candles({self.index}): scaled {self.candle_source} candles by {scale:.2f}x")
+
+        else:
+            # ── Priority 1: Dhan intraday candles (confirmed security IDs) ────────
+            if self.dhan_security_id is not None:
+                try:
+                    from services.dhan_service import get_index_intraday_candles
+                    df_dhan = get_index_intraday_candles(
+                        security_id=self.dhan_security_id,
+                        exchange_segment=self.exchange_segment,
+                        interval=5, user_id=self.user_id,
+                        index_label=self.index,
+                    )
+                    if df_dhan is not None and not df_dhan.empty and len(df_dhan) >= 5:
+                        df = df_dhan
+                        logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from Dhan")
+                except Exception as e:
+                    logger.warning(f"Dhan intraday candles error ({self.index}): {e}")
+
+            # ── Priority 2: yfinance fallback ─────────────────────────────────────
+            if df is None or df.empty:
+                try:
+                    import yfinance as yf
+                    ticker = yf.Ticker(self.yf_ticker)
+                    df_yf = ticker.history(period="1d", interval="5m")
+                    if df_yf is not None and not df_yf.empty and len(df_yf) >= 5:
+                        df = df_yf
+                        logger.info(f"_fetch_intraday_candles({self.index}): {len(df)} candles from yfinance")
+                    else:
+                        logger.warning(f"_fetch_intraday_candles({self.index}): yfinance also returned no data")
+                except Exception as e:
+                    logger.warning(f"yfinance intraday candles error ({self.index}): {e}")
 
         result = df if (df is not None and not df.empty) else None
         _candle_cache[self.index] = (result, now_ts)
