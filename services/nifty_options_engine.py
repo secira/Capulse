@@ -4,9 +4,10 @@ NIFTY Options Trading Engine — MVLA Model (Momentum-Validated, Loss-Averse)
 
 Layers:
   1. Time Filter (mandatory)
-  2. Direction Engine (VWAP + Supertrend + DMI)
-  3. Strength & Momentum (ADX + ATR + OI confirmation)
+  2. Direction Engine (VWAP + Supertrend + EMA trend alignment)
+  3. Strength & Momentum (EMA 9/21 crossover + distance momentum + ATR + OI)
 
+Bull market → CE calls  |  Bear market → PE calls
 Outputs 3 trade recommendations (ATM, OTM, ITM) per expiry with confidence scoring.
 """
 
@@ -1041,19 +1042,96 @@ class NiftyOptionsEngine:
             logger.warning(f"RSI calculation error: {e}")
             return 50.0, False, False
 
-    def _market_regime_filter(self, df, spot: float, vwap: float, adx: float) -> Dict[str, Any]:
+    def _calculate_ema_momentum(self, df) -> dict:
+        """EMA 9 / EMA 21 crossover and distance-momentum indicator.
+
+        Replaces ADX (Layer 3) for trend-strength classification.
+
+        Logic:
+          - Fresh crossover in last 3 candles  = momentum starting point
+          - Distance increasing on latest candle = momentum confirmation
+          - distance_pct = |EMA9 - EMA21| / close * 100
+
+        Tiers (replaces old ADX tiers):
+          NO_TRADE_ZONE  : gap < 0.05% — flat market, no edge
+          WEAK_TREND     : gap 0.05–0.12%, no fresh crossover/momentum
+          TRADABLE_TREND : gap 0.05–0.12% WITH fresh crossover + distance increasing
+          STRONG_TREND   : gap > 0.12% and distance increasing
+        """
+        try:
+            c = df['Close'].astype(float)
+            if len(c) < 22:
+                return {
+                    'ema9': 0.0, 'ema21': 0.0, 'trend': 'NEUTRAL',
+                    'crossover': False, 'distance_pct': 0.0,
+                    'distance_increasing': False, 'tier': 'WEAK_TREND', 'no_trade_zone': True,
+                }
+
+            ema9_s  = c.ewm(span=9,  adjust=False).mean()
+            ema21_s = c.ewm(span=21, adjust=False).mean()
+
+            ema9  = float(ema9_s.iloc[-1])
+            ema21 = float(ema21_s.iloc[-1])
+
+            trend = 'BULLISH' if ema9 > ema21 else ('BEARISH' if ema9 < ema21 else 'NEUTRAL')
+
+            crossover = False
+            for i in range(1, min(4, len(ema9_s))):
+                prev_diff = float(ema9_s.iloc[-i - 1]) - float(ema21_s.iloc[-i - 1])
+                curr_diff = float(ema9_s.iloc[-i])     - float(ema21_s.iloc[-i])
+                if (prev_diff <= 0 < curr_diff) or (prev_diff >= 0 > curr_diff):
+                    crossover = True
+                    break
+
+            price_ref        = float(c.iloc[-1]) or 1.0
+            curr_dist        = abs(ema9 - ema21)
+            prev_dist        = abs(float(ema9_s.iloc[-2]) - float(ema21_s.iloc[-2]))
+            distance_pct     = curr_dist / price_ref * 100.0
+            distance_increasing = curr_dist > prev_dist
+
+            if distance_pct < 0.05:
+                tier          = 'NO_TRADE_ZONE'
+                no_trade_zone = True
+            elif distance_pct < 0.12:
+                active        = crossover and distance_increasing
+                tier          = 'TRADABLE_TREND' if active else 'WEAK_TREND'
+                no_trade_zone = not active
+            else:
+                tier          = 'STRONG_TREND'
+                no_trade_zone = False
+
+            return {
+                'ema9':               round(ema9, 2),
+                'ema21':              round(ema21, 2),
+                'trend':              trend,
+                'crossover':          crossover,
+                'distance_pct':       round(distance_pct, 3),
+                'distance_increasing': distance_increasing,
+                'tier':               tier,
+                'no_trade_zone':      no_trade_zone,
+            }
+        except Exception as e:
+            logger.warning(f"EMA momentum calculation error: {e}")
+            return {
+                'ema9': 0.0, 'ema21': 0.0, 'trend': 'NEUTRAL',
+                'crossover': False, 'distance_pct': 0.0,
+                'distance_increasing': False, 'tier': 'WEAK_TREND', 'no_trade_zone': True,
+            }
+
+    def _market_regime_filter(self, df, spot: float, vwap: float, ema_data: dict = None) -> Dict[str, Any]:
         """Block trades during choppy / compressed / low-edge conditions.
 
         Checks:
-          1. ADX < 18 → chop
+          1. EMA 9/21 gap < 0.05% → chop (replaces ADX < 18)
           2. |spot - vwap| / spot * 100 < 0.10  → too close to VWAP
           3. Last 3 candles overlap > 50% AND body below recent avg → sideways
           4. Current candle range < 0.6 × avg range of last 5 → compression
         """
         reasons = []
         try:
-            if adx < 18:
-                reasons.append("Choppy market — ADX below 18")
+            ema_gap = (ema_data or {}).get('distance_pct', 0.10)
+            if ema_gap < 0.05:
+                reasons.append("Choppy market — EMA 9/21 gap below 0.05% (flat trend)")
 
             if vwap > 0:
                 vwap_dist_pct = abs(spot - vwap) / spot * 100.0
@@ -1167,12 +1245,18 @@ class NiftyOptionsEngine:
             logger.warning(f"Entry trigger validation error: {e}")
         return {'triggered': False, 'mode': 'NONE', 'reason': 'Trigger evaluation unavailable'}
 
-    def _direction_engine(self, spot: float, oi_window_diff: float = 0.0, adx: float = 22.0) -> Dict[str, Any]:
+    def _direction_engine(self, spot: float, oi_window_diff: float = 0.0,
+                          adx: float = 22.0, ema_data: dict = None) -> Dict[str, Any]:
+        """Layer 2 — Direction Engine.
+
+        Uses EMA 9/21 trend alignment (from Layer 3) to replace the old
+        'adx >= 20' gate. Supertrend, VWAP, and RSI(7) remain as confirming
+        filters for both CE (bull) and PE (bear) calls.
+        """
         df = self._fetch_intraday_candles()
         if df is not None and len(df) >= 10:
             vwap = self._calculate_vwap(df)
             supertrend_signal = self._calculate_supertrend(df)
-            # Standard DMI(14) for +DI / -DI to match broker-chart values
             _, dmi_plus, dmi_minus, _ = self._calculate_adx(df, period=14, di_period=14)
             rsi, rsi_up, rsi_down = self._calculate_rsi(df, period=7)
         else:
@@ -1182,24 +1266,32 @@ class NiftyOptionsEngine:
             dmi_minus = 22.0
             rsi, rsi_up, rsi_down = 50.0, False, False
 
+        # EMA momentum from Layer 3
+        ema = ema_data or {}
+        ema_trend        = ema.get('trend', 'NEUTRAL')
+        ema_crossover    = ema.get('crossover', False)
+        ema_dist_rising  = ema.get('distance_increasing', False)
+        # EMA momentum active = EMA trend present AND (fresh crossover OR distance growing)
+        ema_bull_active  = ema_trend == 'BULLISH' and (ema_crossover or ema_dist_rising)
+        ema_bear_active  = ema_trend == 'BEARISH' and (ema_crossover or ema_dist_rising)
+
         # OI is confirmation, not a hard gate. It blocks only when strongly opposite.
         bull_oi = self._classify_oi(oi_window_diff, 'BULLISH')
         bear_oi = self._classify_oi(oi_window_diff, 'BEARISH')
 
-        # New trade-selection rules:
-        # Calls:  +DI > -DI, ADX >= 20, Supertrend BUY,  spot > VWAP, RSI(7) > 55, OI not strongly bearish
-        # Puts :  +DI < -DI, ADX >= 20, Supertrend SELL, spot < VWAP, RSI(7) < 45, OI not strongly bullish
+        # CE (bull) signal rules:
+        #   EMA 9 above EMA 21 with momentum, Supertrend BUY, spot > VWAP, RSI > 55
+        # PE (bear) signal rules:
+        #   EMA 9 below EMA 21 with momentum, Supertrend SELL, spot < VWAP, RSI < 45
         bullish = (
-            dmi_plus > dmi_minus
-            and adx >= 20
+            ema_bull_active
             and supertrend_signal == 'BUY'
             and spot > vwap
             and rsi > 55
             and not bull_oi['block']
         )
         bearish = (
-            dmi_plus < dmi_minus
-            and adx >= 20
+            ema_bear_active
             and supertrend_signal == 'SELL'
             and spot < vwap
             and rsi < 45
@@ -1231,57 +1323,76 @@ class NiftyOptionsEngine:
             'oi_role': oi_role,
             'oi_blocks_candidate': oi_block_dir,
             'indicators_aligned': bullish or bearish,
+            # EMA momentum used for direction decision
+            'ema_trend': ema_trend,
+            'ema_crossover': ema_crossover,
+            'ema_dist_rising': ema_dist_rising,
         }
 
     def _strength_engine(self, spot: float) -> Dict[str, Any]:
+        """Layer 3 — Strength & Momentum.
+
+        Primary gate: EMA 9/21 crossover + distance momentum.
+        ADX still calculated but only for informational display; it no longer
+        gates trade entry.
+        """
         df = self._fetch_intraday_candles()
+
+        # ── EMA 9/21 momentum (primary gate) ──────────────────────────────────
+        if df is not None and len(df) >= 22:
+            ema = self._calculate_ema_momentum(df)
+        else:
+            ema = {
+                'ema9': 0.0, 'ema21': 0.0, 'trend': 'NEUTRAL',
+                'crossover': False, 'distance_pct': 0.0,
+                'distance_increasing': False, 'tier': 'WEAK_TREND', 'no_trade_zone': True,
+            }
+
+        # ── ADX (informational only — not used to gate trades) ─────────────────
         if df is not None and len(df) >= 10:
             adx, _, _, adx_rising = self._calculate_adx(df, period=14, di_period=14)
             atr, atr_rising = self._calculate_atr(df)
-            # ADX falling check — useful for caution flag after entry
-            try:
-                _, _, _, adx_rising_now = self._calculate_adx(df, period=14, di_period=14)
-                _, _, _, adx_rising_prev = self._calculate_adx(df.iloc[:-1], period=14, di_period=14) if len(df) > 11 else (None, None, None, False)
-                adx_falling = (not adx_rising_now) and (not adx_rising_prev)
-            except Exception:
-                adx_falling = False
         else:
             adx, adx_rising = 22.0, False
             atr, atr_rising = 100.0, False
-            adx_falling = False
 
-        # Refined ADX tiers per new rules
-        if adx < 18:
-            tier = 'NO_TRADE_ZONE'
-            strength = 'WEAK'
-            no_trade_zone = True
+        # Map EMA tier to readable strength label
+        tier = ema['tier']
+        no_trade_zone = ema['no_trade_zone']
+        if tier == 'STRONG_TREND':
+            strength_label = 'STRONG'
             caution = False
-        elif adx < 20:
-            tier = 'WEAK_TREND'
-            strength = 'WEAK'
-            no_trade_zone = True
+        elif tier == 'TRADABLE_TREND':
+            strength_label = 'MODERATE'
+            caution = False
+        elif tier == 'WEAK_TREND':
+            strength_label = 'WEAK'
             caution = True
-        elif adx < 25:
-            tier = 'TRADABLE_TREND'
-            strength = 'MODERATE'
-            no_trade_zone = False
-            caution = False
         else:
-            tier = 'STRONG_TREND'
-            strength = 'STRONG'
-            no_trade_zone = False
+            strength_label = 'WEAK'
             caution = False
 
         return {
-            'adx': round(adx, 1),
-            'adx_rising': adx_rising,
-            'adx_falling': adx_falling,
-            'atr': round(atr, 2),
-            'atr_rising': atr_rising,
-            'strength': strength,
-            'tier': tier,
-            'no_trade_zone': no_trade_zone,
-            'caution': caution,
+            # EMA momentum fields (primary)
+            'ema9':               ema['ema9'],
+            'ema21':              ema['ema21'],
+            'ema_trend':          ema['trend'],
+            'ema_crossover':      ema['crossover'],
+            'ema_distance_pct':   ema['distance_pct'],
+            'ema_distance_increasing': ema['distance_increasing'],
+            # Tier / gate (driven by EMA)
+            'tier':               tier,
+            'no_trade_zone':      no_trade_zone,
+            'strength':           strength_label,
+            'caution':            caution,
+            # ADX kept for display / logging only
+            'adx':                round(adx, 1),
+            'adx_rising':         adx_rising,
+            'adx_falling':        False,
+            'atr':                round(atr, 2),
+            'atr_rising':         atr_rising,
+            # Convenience alias for callers that still reference 'ema'
+            'ema':                ema,
         }
 
     def _confidence_score(self, direction: dict, strength: dict, oi_diff: float,
@@ -1296,14 +1407,21 @@ class NiftyOptionsEngine:
         if direction['dmi_plus'] != direction['dmi_minus']:
             score += 10
 
-        # ADX magnitude
-        if strength['adx'] >= 25:
+        # EMA momentum strength (replaces ADX magnitude scoring)
+        ema_dist = strength.get('ema_distance_pct', 0.0)
+        if ema_dist >= 0.20:
             score += 20
-        elif strength['adx'] >= 20:
+        elif ema_dist >= 0.12:
+            score += 15
+        elif ema_dist >= 0.05:
             score += 10
 
-        # ADX rising bonus (reduced from +20 to +10)
-        if strength.get('adx_rising'):
+        # EMA crossover bonus — fresh crossover is a strong momentum signal
+        if strength.get('ema_crossover'):
+            score += 10
+
+        # Distance increasing — momentum is building
+        if strength.get('ema_distance_increasing'):
             score += 10
 
         # RSI alignment with direction (+10 if expanding in trade direction)
@@ -1395,12 +1513,17 @@ class NiftyOptionsEngine:
         m = trade.get('moneyness', '')
         if direction['indicators_aligned']:
             reasons.append(f"Confluence aligned ({direction['direction']})")
-        if strength['adx'] >= 25:
-            reasons.append(f"Strong trend — ADX {strength['adx']}")
-        elif strength['adx'] >= 20:
-            reasons.append(f"Tradable trend — ADX {strength['adx']}")
-        if strength.get('adx_rising'):
-            reasons.append("ADX rising — trend gaining strength")
+        # EMA momentum reasons
+        ema_dist = strength.get('ema_distance_pct', 0.0)
+        ema_tier = strength.get('tier', '')
+        if ema_tier == 'STRONG_TREND':
+            reasons.append(f"Strong EMA momentum — 9/21 gap {ema_dist:.2f}%")
+        elif ema_tier == 'TRADABLE_TREND':
+            reasons.append(f"EMA 9/21 crossover confirmed — momentum building ({ema_dist:.2f}%)")
+        if strength.get('ema_crossover'):
+            reasons.append("Fresh EMA 9/21 crossover — trend just started")
+        if strength.get('ema_distance_increasing'):
+            reasons.append("EMA gap widening — trend gaining strength")
         # RSI
         rsi = direction.get('rsi', 50)
         if direction['direction'] == 'BULLISH' and rsi > 55:
@@ -1468,20 +1591,12 @@ class NiftyOptionsEngine:
                 logger.info(f"Skipping {key}: premium overheated ({pct_chg:.1f}%)")
                 continue
 
-            # New rules: default Target = +30 pts, SL = -20 pts (option-premium).
-            # Adaptive override: when option premium volatility is high (proxy by recent
-            # absolute change vs LTP), widen SL/target proportionally so the stop is not
-            # caught by routine swings.
-            sl_points = 20
-            target_points = 30
-            try:
-                avg_swing_proxy = abs(float(opt_data.get('change', 0) or 0))
-                # If recent move > 12 pts, scale SL/target
-                if avg_swing_proxy > 12:
-                    sl_points = max(20, int(round(1.2 * avg_swing_proxy)))
-                    target_points = int(round(1.5 * sl_points))
-            except Exception:
-                pass
+            # Dynamic Target = max(30, 15% of option premium LTP)
+            # Dynamic SL     = max(20, 10% of option premium LTP)
+            # This scales with the actual premium so high-premium options get
+            # proportionally wider targets/stops while cheap options stay floored.
+            sl_points     = max(20, round(ltp * 0.10))
+            target_points = max(30, round(ltp * 0.15))
 
             entry_price = ltp
             # Floor SL so it never crosses zero (cap at 0.05 minimum tick).
@@ -1632,11 +1747,20 @@ class NiftyOptionsEngine:
         oi_window_diff = oi_metrics.get('oi_window_diff', 0.0)
         oi_signal      = oi_metrics['oi_signal']
         strength = self._strength_engine(spot)
-        direction = self._direction_engine(spot, oi_window_diff=oi_window_diff, adx=strength.get('adx', 22.0))
+        # Pass EMA data from Layer 3 into Layer 2 so direction uses EMA trend
+        direction = self._direction_engine(
+            spot,
+            oi_window_diff=oi_window_diff,
+            adx=strength.get('adx', 22.0),
+            ema_data=strength.get('ema', {}),
+        )
 
-        # Market Regime Filter — runs before final approval
+        # Market Regime Filter — uses EMA gap for chop detection
         candles_df = self._fetch_intraday_candles()
-        regime = self._market_regime_filter(candles_df, spot, direction.get('vwap', spot), strength.get('adx', 22.0))
+        regime = self._market_regime_filter(
+            candles_df, spot, direction.get('vwap', spot),
+            ema_data=strength.get('ema', {}),
+        )
 
         # Entry Trigger Validation — runs after direction is decided
         trigger = self._entry_trigger_validation(candles_df, direction['direction'], direction.get('vwap', 0.0))
@@ -1647,10 +1771,8 @@ class NiftyOptionsEngine:
         entry_mode = 'NO TRADE'
         if (time_check['pass'] and not strength['no_trade_zone']
                 and regime['pass'] and direction['indicators_aligned'] and trigger['triggered']):
-            if strength['adx'] > 28:
+            if strength.get('ema_distance_pct', 0) >= 0.20 and strength.get('ema_crossover'):
                 entry_mode = 'CONFIRMED'
-            elif strength['adx'] >= 25:
-                entry_mode = 'EARLY'
             else:
                 entry_mode = 'EARLY'
 
@@ -1669,11 +1791,12 @@ class NiftyOptionsEngine:
         # Regime filter reasons (chop / vwap-distance / compression / overlap)
         for r in regime.get('reasons', []):
             block_reasons.append(r)
-        # ADX tier
+        # EMA momentum tier
+        ema_gap = strength.get('ema_distance_pct', 0.0)
         if strength.get('tier') == 'NO_TRADE_ZONE':
-            block_reasons.append(f"Choppy market — ADX {strength['adx']:.1f} below 18")
+            block_reasons.append(f"Choppy market — EMA 9/21 gap {ema_gap:.3f}% (below 0.05% threshold)")
         elif strength.get('tier') == 'WEAK_TREND':
-            block_reasons.append(f"Weak trend — ADX {strength['adx']:.1f} (18–20 caution zone)")
+            block_reasons.append(f"Weak EMA momentum — gap {ema_gap:.3f}%, no fresh crossover or distance still narrowing")
         # RSI gate
         rsi_v = direction.get('rsi', 50)
         if 45 <= rsi_v <= 55:
@@ -1709,11 +1832,15 @@ class NiftyOptionsEngine:
         if is_blocked and not block_reasons:
             block_reasons.append("Entry conditions not met")
 
+        # Momentum gauge — EMA-based (replaces ADX/40 formula)
+        _ema_dist    = strength.get('ema_distance_pct', 0.0)
+        _ema_xover   = strength.get('ema_crossover', False)
+        _ema_rising  = strength.get('ema_distance_increasing', False)
         momentum_pct = min(100, max(0, int(
-            (strength['adx'] / 40 * 40) +
-            (20 if strength['adx_rising'] else 0) +
-            (20 if strength['atr_rising'] else 0) +
-            (20 if direction['indicators_aligned'] else 0)
+            min(40, _ema_dist / 0.30 * 40) +   # up to 40 pts from EMA gap size
+            (20 if _ema_xover else 0) +          # 20 pts for fresh crossover
+            (20 if _ema_rising else 0) +          # 20 pts for increasing distance
+            (20 if direction['indicators_aligned'] else 0)  # 20 pts for full alignment
         )))
         momentum_label = 'STRONG' if momentum_pct >= 70 else ('MODERATE' if momentum_pct >= 40 else 'WEAK')
 

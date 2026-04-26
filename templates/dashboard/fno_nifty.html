@@ -382,9 +382,13 @@
         </div>
         <div class="collapse" id="layer3Collapse">
             <div class="collapse-body" id="strengthCard">
-                <div class="indicator-row"><span class="indicator-name">ADX</span><span class="indicator-val" id="adxVal">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">ADX Tier</span><span class="indicator-val" id="adxTier">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">ADX Rising</span><span class="indicator-val" id="adxRising">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">EMA 9</span><span class="indicator-val" id="ema9Val">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">EMA 21</span><span class="indicator-val" id="ema21Val">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">EMA Trend</span><span class="indicator-val" id="emaTrend">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">EMA Crossover</span><span class="indicator-val" id="emaCrossover">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">EMA Gap</span><span class="indicator-val" id="emaGap">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">Momentum Tier</span><span class="indicator-val" id="adxTier">—</span></div>
+                <div class="indicator-row"><span class="indicator-name">ADX (ref)</span><span class="indicator-val" id="adxVal">—</span></div>
                 <div class="indicator-row"><span class="indicator-name">Market Regime</span><span class="indicator-val" id="regimeVal">—</span></div>
             </div>
         </div>
@@ -879,15 +883,42 @@ function refreshAnalysis() {
         }
 
         setTrafficLight('strTraffic', ls.strength || 'fail', d.strength.strength);
-        document.getElementById('adxVal').textContent = d.strength.adx;
-        document.getElementById('adxVal').style.color = d.strength.adx >= 25 ? '#16a34a' : (d.strength.adx >= 20 ? '#d97706' : '#dc2626');
+
+        // EMA 9 / EMA 21 momentum display
+        var str = d.strength || {};
+        var e9 = document.getElementById('ema9Val');
+        var e21 = document.getElementById('ema21Val');
+        if (e9)  { e9.textContent  = str.ema9  ? str.ema9.toFixed(2)  : '—'; }
+        if (e21) { e21.textContent = str.ema21 ? str.ema21.toFixed(2) : '—'; }
+
+        var eTrend = document.getElementById('emaTrend');
+        if (eTrend) {
+            var trend = str.ema_trend || 'NEUTRAL';
+            eTrend.textContent = trend;
+            eTrend.style.color = trend === 'BULLISH' ? '#16a34a' : (trend === 'BEARISH' ? '#dc2626' : '#6b7280');
+        }
+        var eCross = document.getElementById('emaCrossover');
+        if (eCross) {
+            eCross.innerHTML = str.ema_crossover
+                ? '<i class="fas fa-bolt text-warning"></i> Yes'
+                : '<i class="fas fa-minus text-secondary"></i> No';
+        }
+        var eGap = document.getElementById('emaGap');
+        if (eGap) {
+            var gapPct = str.ema_distance_pct || 0;
+            eGap.textContent = gapPct.toFixed(3) + '% ' + (str.ema_distance_increasing ? '▲' : '▼');
+            eGap.style.color = gapPct >= 0.12 ? '#16a34a' : (gapPct >= 0.05 ? '#d97706' : '#dc2626');
+        }
+
+        // Momentum tier (now EMA-driven)
+        document.getElementById('adxVal').textContent = d.strength.adx + ' (ref)';
+        document.getElementById('adxVal').style.color = '#6b7280';
         var tierEl = document.getElementById('adxTier');
         if (tierEl && d.strength.tier) {
             var tierLabel = (d.strength.tier || '').replace(/_/g,' ');
             tierEl.textContent = tierLabel;
             tierEl.style.color = d.strength.tier === 'STRONG_TREND' ? '#16a34a' : (d.strength.tier === 'TRADABLE_TREND' ? '#d97706' : '#dc2626');
         }
-        document.getElementById('adxRising').innerHTML = d.strength.adx_rising ? '<i class="fas fa-arrow-up text-success"></i> Yes' : '<i class="fas fa-arrow-down text-danger"></i> No';
 
         // Market regime
         var regEl = document.getElementById('regimeVal');
