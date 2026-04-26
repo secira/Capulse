@@ -635,6 +635,60 @@ def market_pulse_commentary():
         return jsonify({'success': False, 'commentary': ''})
 
 
+# ── Market Direction — 4-index EMA/Supertrend/VWAP/RSI direction bar ──────────
+
+_DIRECTION_INDICES = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX']
+
+def _fetch_one_direction(index: str, user_id: int) -> dict:
+    """Thread-safe worker: fetch direction for a single index."""
+    try:
+        from services.nifty_options_engine import NiftyOptionsEngine
+        eng = NiftyOptionsEngine(user_id=user_id, index=index)
+        return eng.get_market_direction()
+    except Exception as ex:
+        logger.warning(f"market_direction({index}): {ex}")
+        return {
+            'index': index, 'label': index, 'direction': 'SIDEWAYS',
+            'reason': 'Data unavailable', 'score': {'bull': 0, 'bear': 0},
+            'signals': {}, 'data_ok': False,
+        }
+
+
+@app.route('/api/market-pulse/market-direction')
+@login_required
+def api_market_pulse_direction():
+    """Return BULLISH / BEARISH / SIDEWAYS for NIFTY, BANKNIFTY, FINNIFTY, SENSEX.
+
+    Uses the same EMA 9/21 + Supertrend + VWAP + RSI logic as the F&O engine.
+    Candles are shared via the module-level cache, so this is fast after the
+    first call. Results are cached for 58 seconds (matches the F&O monitor cycle).
+    """
+    try:
+        uid = current_user.id
+        results = {}
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = {pool.submit(_fetch_one_direction, idx, uid): idx
+                       for idx in _DIRECTION_INDICES}
+            for fut in as_completed(futures, timeout=12):
+                idx = futures[fut]
+                try:
+                    results[idx] = fut.result()
+                except Exception as ex:
+                    logger.warning(f"market_direction fut({idx}): {ex}")
+                    results[idx] = {
+                        'index': idx, 'label': idx, 'direction': 'SIDEWAYS',
+                        'reason': 'Error', 'score': {'bull': 0, 'bear': 0},
+                        'signals': {}, 'data_ok': False,
+                    }
+
+        now_ist = datetime.now(_IST).strftime('%H:%M:%S IST')
+        return jsonify({'success': True, 'data': results, 'timestamp': now_ist})
+
+    except Exception as e:
+        logger.error(f"api_market_pulse_direction error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/market-pulse/query', methods=['POST'])
 @login_required
 def market_pulse_query():

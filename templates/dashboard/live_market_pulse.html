@@ -383,6 +383,84 @@
     margin-top: 8px; display: none;
 }
 .ai-voice-tip.active { display: block; }
+
+/* ── Market Direction Section ── */
+.mdir-section { margin-bottom: 28px; }
+.mdir-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+}
+.mdir-title {
+    font-size: 11px; font-weight: 600; color: #999999;
+    text-transform: uppercase; letter-spacing: .07em;
+}
+.mdir-ts { font-size: 11px; color: #bbbbbb; }
+.mdir-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+@media (max-width: 768px) {
+    .mdir-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 420px) {
+    .mdir-grid { grid-template-columns: 1fr; }
+}
+.mdir-card {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 14px 16px;
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow .15s;
+}
+.mdir-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.mdir-card-top {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 10px 10px 0 0;
+}
+.mdir-card.bull .mdir-card-top { background: #16a34a; }
+.mdir-card.bear .mdir-card-top { background: #dc2626; }
+.mdir-card.side .mdir-card-top { background: #ca8a04; }
+.mdir-card.load .mdir-card-top { background: #e5e5e5; }
+.mdir-index-name {
+    font-size: 11px; font-weight: 700; color: #666666;
+    text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px;
+}
+.mdir-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 13px; font-weight: 700;
+    padding: 4px 12px; border-radius: 20px; margin-bottom: 8px;
+}
+.mdir-badge.bull { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.mdir-badge.bear { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.mdir-badge.side { background: #fffbeb; color: #ca8a04; border: 1px solid #fde68a; }
+.mdir-badge.load { background: #f8f9fa; color: #999999; border: 1px solid #e5e5e5; }
+.mdir-reason {
+    font-size: 11px; color: #888888; line-height: 1.45; margin-bottom: 10px;
+}
+.mdir-signals {
+    display: flex; flex-wrap: wrap; gap: 4px;
+}
+.mdir-sig {
+    font-size: 10px; font-weight: 600; padding: 2px 7px;
+    border-radius: 20px; white-space: nowrap;
+}
+.mdir-sig.ok  { background: #f0fdf4; color: #16a34a; }
+.mdir-sig.bad { background: #fef2f2; color: #dc2626; }
+.mdir-sig.neu { background: #f8f9fa; color: #888888; }
+.mdir-score {
+    margin-top: 8px; font-size: 10px; color: #bbbbbb;
+    display: flex; align-items: center; gap: 4px;
+}
+.mdir-score-bar {
+    height: 4px; border-radius: 2px; background: #f1f3f4; flex: 1;
+    position: relative; overflow: hidden;
+}
+.mdir-score-fill {
+    position: absolute; top: 0; left: 0; height: 100%; border-radius: 2px;
+    transition: width .4s ease;
+}
 </style>
 <div class="lmp-page">
 
@@ -446,6 +524,29 @@
         </div>
         {% endfor %}
     </div>
+
+    {# ── Market Direction Bar ── #}
+    <section class="mdir-section" id="mdirSection">
+        <div class="mdir-header">
+            <span class="mdir-title"><i class="fas fa-compass me-1"></i> Market Direction · Live</span>
+            <span class="mdir-ts" id="mdirTs">Updating…</span>
+        </div>
+        <div class="mdir-grid" id="mdirGrid">
+            {% for idx_key, idx_label in [('NIFTY','NIFTY 50'),('BANKNIFTY','Bank Nifty'),('FINNIFTY','Fin Nifty'),('SENSEX','SENSEX')] %}
+            <div class="mdir-card load" id="mdirCard{{ idx_key }}">
+                <div class="mdir-card-top"></div>
+                <div class="mdir-index-name">{{ idx_label }}</div>
+                <div class="mdir-badge load"><i class="fas fa-circle-notch fa-spin" style="font-size:10px;"></i> Loading</div>
+                <div class="mdir-reason">Fetching indicators…</div>
+                <div class="mdir-signals"></div>
+                <div class="mdir-score">
+                    <span>0/6</span>
+                    <div class="mdir-score-bar"><div class="mdir-score-fill" style="width:0%;background:#e5e5e5;"></div></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
 
     <p class="sec-label">Scentric AI · Ask anything about the market</p>
     <div class="ai-panel">
@@ -1470,6 +1571,75 @@ function speakBrief() {
 /* resetBriefBtn kept for any legacy calls */
 function resetBriefBtn() { _btnIdle(document.getElementById('speakBriefBtn')); }
 
+/* ── Market Direction ── */
+var _mdirTimer = null;
+
+function renderMdirCard(idx, d) {
+    var card = document.getElementById('mdirCard' + idx);
+    if (!card) return;
+    var dir = d.direction || 'SIDEWAYS';
+    var cls = dir === 'BULLISH' ? 'bull' : (dir === 'BEARISH' ? 'bear' : 'side');
+    var icon = dir === 'BULLISH'
+        ? '<i class="fas fa-arrow-trend-up" style="font-size:11px;"></i>'
+        : (dir === 'BEARISH'
+            ? '<i class="fas fa-arrow-trend-down" style="font-size:11px;"></i>'
+            : '<i class="fas fa-arrows-left-right" style="font-size:11px;"></i>');
+
+    // Colour for score bar
+    var barColor = dir === 'BULLISH' ? '#16a34a' : (dir === 'BEARISH' ? '#dc2626' : '#ca8a04');
+    var bull = (d.score || {}).bull || 0;
+    var bear = (d.score || {}).bear || 0;
+    var max  = (d.score || {}).max  || 6;
+    var fillPct = dir === 'BULLISH' ? Math.round(bull / max * 100)
+                : (dir === 'BEARISH' ? Math.round(bear / max * 100) : 50);
+
+    // Signal pills
+    var sigs = d.signals || {};
+    var pills = '';
+    var emaTrend = sigs.ema_trend || 'NEUTRAL';
+    var emaCls   = emaTrend === 'BULLISH' ? 'ok' : (emaTrend === 'BEARISH' ? 'bad' : 'neu');
+    pills += '<span class="mdir-sig ' + emaCls + '">EMA ' + emaTrend + '</span>';
+    var stCls = sigs.supertrend === 'BUY' ? 'ok' : 'bad';
+    pills += '<span class="mdir-sig ' + stCls + '">ST ' + (sigs.supertrend || '—') + '</span>';
+    var vwapCls = sigs.spot_vs_vwap === 'ABOVE' ? 'ok' : 'bad';
+    pills += '<span class="mdir-sig ' + vwapCls + '">VWAP ' + (sigs.spot_vs_vwap || '—') + '</span>';
+    var rsi = sigs.rsi ? sigs.rsi.toFixed(0) : '—';
+    var rsiCls = sigs.rsi > 55 ? 'ok' : (sigs.rsi < 45 ? 'bad' : 'neu');
+    pills += '<span class="mdir-sig ' + rsiCls + '">RSI ' + rsi + '</span>';
+    if (sigs.ema_crossover) {
+        pills += '<span class="mdir-sig ok"><i class="fas fa-bolt" style="font-size:9px;"></i> XO</span>';
+    }
+
+    card.className = 'mdir-card ' + cls;
+    card.innerHTML =
+        '<div class="mdir-card-top"></div>' +
+        '<div class="mdir-index-name">' + (d.label || idx) + '</div>' +
+        '<div class="mdir-badge ' + cls + '">' + icon + ' ' + dir + '</div>' +
+        '<div class="mdir-reason">' + (d.reason || '') + '</div>' +
+        '<div class="mdir-signals">' + pills + '</div>' +
+        '<div class="mdir-score">' +
+          '<span>' + (dir === 'BULLISH' ? bull : bear) + '/' + max + '</span>' +
+          '<div class="mdir-score-bar"><div class="mdir-score-fill" style="width:' + fillPct + '%;background:' + barColor + ';"></div></div>' +
+        '</div>';
+}
+
+async function loadMarketDirection() {
+    try {
+        var r = await fetch('/api/market-pulse/market-direction');
+        if (!r.ok) return;
+        var json = await r.json();
+        if (!json.success) return;
+        var data = json.data || {};
+        ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX'].forEach(function(idx) {
+            if (data[idx]) renderMdirCard(idx, data[idx]);
+        });
+        var tsEl = document.getElementById('mdirTs');
+        if (tsEl) tsEl.textContent = 'Updated ' + (json.timestamp || '');
+    } catch(e) {
+        console.warn('Market direction fetch failed:', e);
+    }
+}
+
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', () => {
     /* Pre-load voices so pickVoice() has them ready immediately */
@@ -1481,6 +1651,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     loadAI();
     initVoice();
+    loadMarketDirection();
+    // Refresh market direction every 60 s (in sync with F&O monitor interval)
+    _mdirTimer = setInterval(loadMarketDirection, 60000);
     document.getElementById('mpTs').textContent =
         'as of ' + new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour:'2-digit', minute:'2-digit' }) + ' IST';
     const tab = new URLSearchParams(window.location.search).get('tab');

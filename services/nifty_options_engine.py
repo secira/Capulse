@@ -1941,3 +1941,137 @@ class NiftyOptionsEngine:
             logger.debug(f"generate_analysis({self.index}): cached live result (src={data_source})")
 
         return result
+
+    # ------------------------------------------------------------------
+    # Lightweight market direction — no option chain needed
+    # Used by Market Intelligence page for the 4-index direction bar
+    # ------------------------------------------------------------------
+
+    _direction_cache: dict = {}
+    _DIRECTION_CACHE_TTL = 58   # 58 s — just under the 60 s monitor cycle
+
+    def get_market_direction(self) -> dict:
+        """Return BULLISH / BEARISH / SIDEWAYS for this index using the same
+        EMA 9/21 + Supertrend + VWAP + RSI logic as the F&O engine.
+
+        Uses module-level candle cache so repeated calls are nearly free.
+        Returns a compact dict suitable for the Market Intelligence page.
+        """
+        # Check module-level direction cache first
+        now_ts = _time_mod.time()
+        cached = NiftyOptionsEngine._direction_cache.get(self.index)
+        if cached:
+            res_c, ts_c = cached
+            if (now_ts - ts_c) < NiftyOptionsEngine._DIRECTION_CACHE_TTL:
+                return res_c
+
+        df = self._fetch_intraday_candles()
+
+        _no_data = df is None or len(df) < 10
+
+        if _no_data:
+            result = {
+                'index':     self.index,
+                'label':     self.display_name,
+                'direction': 'SIDEWAYS',
+                'reason':    'Insufficient candle data',
+                'score':     {'bull': 0, 'bear': 0},
+                'signals':   {},
+                'data_ok':   False,
+            }
+            NiftyOptionsEngine._direction_cache[self.index] = (result, now_ts)
+            return result
+
+        # ── Indicators ────────────────────────────────────────────────
+        spot  = float(df['Close'].iloc[-1])
+        vwap  = self._calculate_vwap(df)
+        st    = self._calculate_supertrend(df)
+        rsi, rsi_up, rsi_down = self._calculate_rsi(df, period=7)
+
+        ema = {}
+        if len(df) >= 22:
+            ema = self._calculate_ema_momentum(df)
+
+        ema_trend      = ema.get('trend', 'NEUTRAL')
+        ema_crossover  = ema.get('crossover', False)
+        ema_dist_rising = ema.get('distance_increasing', False)
+        ema_dist_pct   = ema.get('distance_pct', 0.0)
+        ema_tier       = ema.get('tier', 'WEAK_TREND')
+
+        ema_bull = ema_trend == 'BULLISH' and (ema_crossover or ema_dist_rising)
+        ema_bear = ema_trend == 'BEARISH' and (ema_crossover or ema_dist_rising)
+
+        # ── Score: max 6 (each signal worth 1–2 pts) ──────────────────
+        bull = 0
+        bear = 0
+
+        # EMA momentum (2 pts — strongest signal)
+        if ema_bull:   bull += 2
+        elif ema_bear: bear += 2
+
+        # Supertrend (2 pts)
+        if st == 'BUY':  bull += 2
+        else:            bear += 2
+
+        # VWAP position (1 pt)
+        if spot > vwap:  bull += 1
+        else:            bear += 1
+
+        # RSI (1 pt)
+        if rsi > 55:     bull += 1
+        elif rsi < 45:   bear += 1
+
+        # ── Decision ──────────────────────────────────────────────────
+        # Need ≥ 4/6 to call a clear direction (Supertrend + EMA agree)
+        if bull >= 4:
+            direction = 'BULLISH'
+        elif bear >= 4:
+            direction = 'BEARISH'
+        else:
+            direction = 'SIDEWAYS'
+
+        # ── Human-readable reason ──────────────────────────────────────
+        if direction == 'BULLISH':
+            if ema_crossover:
+                reason = f"EMA 9 crossed above EMA 21, gap {ema_dist_pct:.2f}% rising"
+            elif ema_bull:
+                reason = f"EMA 9 above EMA 21 ({ema_dist_pct:.2f}%), price above VWAP"
+            else:
+                reason = "Supertrend bullish, price above VWAP"
+        elif direction == 'BEARISH':
+            if ema_crossover:
+                reason = f"EMA 9 crossed below EMA 21, gap {ema_dist_pct:.2f}% widening"
+            elif ema_bear:
+                reason = f"EMA 9 below EMA 21 ({ema_dist_pct:.2f}%), price below VWAP"
+            else:
+                reason = "Supertrend bearish, price below VWAP"
+        else:
+            reason = "EMA 9/21 gap narrow or mixed signals — wait for clarity"
+
+        result = {
+            'index':     self.index,
+            'label':     self.display_name,
+            'direction': direction,
+            'reason':    reason,
+            'score':     {'bull': bull, 'bear': bear, 'max': 6},
+            'signals': {
+                'ema_trend':       ema_trend,
+                'ema_crossover':   ema_crossover,
+                'ema_dist_pct':    round(ema_dist_pct, 3),
+                'ema_dist_rising': ema_dist_rising,
+                'ema_tier':        ema_tier,
+                'supertrend':      st,
+                'spot_vs_vwap':    'ABOVE' if spot > vwap else 'BELOW',
+                'rsi':             rsi,
+                'spot':            round(spot, 2),
+                'vwap':            round(vwap, 2),
+            },
+            'data_ok': True,
+        }
+
+        NiftyOptionsEngine._direction_cache[self.index] = (result, now_ts)
+        logger.info(
+            f"market_direction({self.index}): {direction} "
+            f"bull={bull}/bear={bear} EMA={ema_trend} ST={st} RSI={rsi:.0f}"
+        )
+        return result
