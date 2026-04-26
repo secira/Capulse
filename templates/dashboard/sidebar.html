@@ -45,7 +45,7 @@
                     <a class="nav-link {{ 'active' if request.endpoint in ['dashboard_daily_signals', 'daily_signals_analysis'] else '' }}"
                        href="{{ url_for('dashboard_daily_signals') }}">
                         <i class="nav-icon fas fa-wave-square"></i>
-                        <span class="nav-text">Live Market Pulse</span>
+                        <span class="nav-text">Market Intelligence</span>
                         <span class="nav-badge-new">NEW</span>
                     </a>
                 </li>
@@ -56,7 +56,7 @@
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_my_portfolio' else '' }}"
                        href="{{ url_for('dashboard_my_portfolio') }}">
                         <i class="nav-icon fas fa-briefcase"></i>
-                        <span class="nav-text">Portfolio Analysis</span>
+                        <span class="nav-text">Portfolio & Risk</span>
                     </a>
                 </li>
                 {% endif %}
@@ -72,14 +72,14 @@
                     <a class="nav-link {{ 'active' if 'research' in request.endpoint else '' }}"
                        href="{{ url_for('research_dashboard') }}">
                         <i class="nav-icon fas fa-search-dollar"></i>
-                        <span class="nav-text">Research Co-Pilot</span>
+                        <span class="nav-text">Stock Research</span>
                     </a>
                 </li>
 
                 <li class="nav-item">
                     <div class="nav-link collapsible-header" onclick="toggleFnoMenu()">
                         <i class="nav-icon fas fa-chart-area"></i>
-                        <span class="nav-text">F&O Analysis</span>
+                        <span class="nav-text">F&O Research</span>
                         <span class="nav-badge-new">NEW</span>
                         <i class="fas fa-chevron-down toggle-icon" id="fnoMenuToggle"></i>
                     </div>
@@ -126,14 +126,14 @@
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_trade_now' else '' }}"
                        href="{{ url_for('dashboard_trade_now') }}">
                         <i class="nav-icon fas fa-exchange-alt"></i>
-                        <span class="nav-text">Trade Now</span>
+                        <span class="nav-text">Trade Execution</span>
                     </a>
                 </li>
 
                 <li class="nav-item">
                     <div class="nav-link collapsible-header" onclick="toggleBehaviourMenu()">
                         <i class="nav-icon fas fa-brain"></i>
-                        <span class="nav-text">Behavioural AI</span>
+                        <span class="nav-text">Behavioural Analysis</span>
                         <span class="nav-badge-new">USP</span>
                         <i class="fas fa-chevron-down toggle-icon" id="behaviourToggle"></i>
                     </div>
