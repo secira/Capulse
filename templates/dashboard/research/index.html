@@ -6,21 +6,88 @@
 
 {% block extra_css %}
 <style>
-/* ── Asset Cards ───────────────────────────────────── */
 .hover-card { transition: all .22s ease; }
 .hover-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 24px rgba(0,0,0,.10) !important;
 }
+.dashboard-content { padding-left: 12px !important; padding-right: 12px !important; }
+.header-content    { padding-left: 12px !important; padding-right: 12px !important; }
 
-/* ── Full-width override (match admin container-fluid) ── */
-.dashboard-content {
-    padding-left: 12px !important;
-    padding-right: 12px !important;
+/* Quick-filter pills */
+.qf-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: .8rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    border: 2px solid transparent;
+    transition: all .18s ease;
+    white-space: nowrap;
 }
-.header-content {
-    padding-left: 12px !important;
-    padding-right: 12px !important;
+.qf-pill:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,.12); }
+
+.qf-all      { background:#f0f4ff; color:#4361ee; border-color:#c5d1ff; }
+.qf-all.active  { background:#4361ee; color:#fff; border-color:#4361ee; }
+
+.qf-buy      { background:#edfbf3; color:#198754; border-color:#a3e6bf; }
+.qf-buy.active  { background:#198754; color:#fff; border-color:#198754; }
+
+.qf-sell     { background:#fff2f2; color:#dc3545; border-color:#f5b8bb; }
+.qf-sell.active { background:#dc3545; color:#fff; border-color:#dc3545; }
+
+.qf-conf     { background:#fff8e6; color:#fd7e14; border-color:#fddfa3; }
+.qf-conf.active { background:#fd7e14; color:#fff; border-color:#fd7e14; }
+
+.qf-recent   { background:#f0f9ff; color:#0d6efd; border-color:#b6d9f5; }
+.qf-recent.active { background:#0d6efd; color:#fff; border-color:#0d6efd; }
+
+.qf-unanalyzed   { background:#f5f5f5; color:#6c757d; border-color:#d0d0d0; }
+.qf-unanalyzed.active { background:#6c757d; color:#fff; border-color:#6c757d; }
+
+.pill-count {
+    background: rgba(255,255,255,.3);
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: .72rem;
+}
+.qf-all .pill-count    { background: rgba(67,97,238,.12); color:#4361ee; }
+.qf-buy .pill-count    { background: rgba(25,135,84,.12);  color:#198754; }
+.qf-sell .pill-count   { background: rgba(220,53,69,.12);  color:#dc3545; }
+.qf-conf .pill-count   { background: rgba(253,126,20,.12); color:#fd7e14; }
+.qf-recent .pill-count { background: rgba(13,110,253,.12); color:#0d6efd; }
+.qf-unanalyzed .pill-count { background: rgba(108,117,125,.12); color:#6c757d; }
+
+.qf-all.active .pill-count,
+.qf-buy.active .pill-count,
+.qf-sell.active .pill-count,
+.qf-conf.active .pill-count,
+.qf-recent.active .pill-count,
+.qf-unanalyzed.active .pill-count { background: rgba(255,255,255,.25); color:#fff; }
+
+/* Score badges */
+.badge-iscore-strong  { background:#198754; }
+.badge-iscore-good    { background:#0d6efd; }
+.badge-iscore-avg     { background:#fd7e14; }
+.badge-iscore-weak    { background:#dc3545; }
+
+/* Table tweaks */
+.research-table th { font-size: .72rem; letter-spacing: .5px; text-transform: uppercase; }
+.research-table td { vertical-align: middle; }
+.reco-badge { font-size: .7rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; }
+
+/* Search highlight */
+.search-active-banner {
+    background: #f0f4ff;
+    border: 1px solid #c5d1ff;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: .82rem;
+    color: #4361ee;
 }
 </style>
 {% endblock %}
@@ -28,7 +95,7 @@
 {% block dashboard_content %}
 
 <!-- ── Asset Type Cards ──────────────────────────────── -->
-<div class="row g-4 mb-4">
+<div class="row g-3 mb-4">
     {% for key in allowed_assets %}
         {% if key in asset_types %}
             {% set asset = asset_types[key] %}
@@ -36,8 +103,7 @@
                 <div class="card h-100 border-0 shadow-sm hover-card">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center mb-3">
-                            <div class="rounded-3 p-3 me-3"
-                                 style="background:rgba(124,58,237,.08);">
+                            <div class="rounded-3 p-3 me-3" style="background:rgba(124,58,237,.08);">
                                 <i class="{{ asset.icon }} fa-xl" style="color:#7c3aed;"></i>
                             </div>
                             <h5 class="card-title mb-0 fw-bold">{{ asset.name }}</h5>
@@ -45,16 +111,14 @@
                         <p class="card-text text-muted small mb-4">{{ asset.description }}</p>
                         <div class="mb-4">
                             {% for feature in asset.features[:2] %}
-                                <div class="d-flex align-items-center mb-2">
-                                    <i class="{{ feature.icon }} me-2" style="font-size:.78rem;color:#7c3aed;"></i>
-                                    <span class="small text-muted">{{ feature.title }}</span>
-                                </div>
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="{{ feature.icon }} me-2" style="font-size:.78rem;color:#7c3aed;"></i>
+                                <span class="small text-muted">{{ feature.title }}</span>
+                            </div>
                             {% endfor %}
                         </div>
-                        <a href="{{ url_for('research_' ~ key.replace('-', '_')) }}"
-                           class="btn btn-primary w-100 fw-semibold">
-                            Start Research
-                        </a>
+                        <a href="{{ url_for('research_' ~ key.replace('-','_')) }}"
+                           class="btn btn-primary w-100 fw-semibold">Start Research</a>
                     </div>
                 </div>
             </div>
@@ -62,330 +126,363 @@
     {% endfor %}
 </div>
 
-<!-- ── Research Watch List ──────────────────────────── -->
-{% if research_list %}
+<!-- ══════════════════════════════════════════════════════════
+     NSE STOCK UNIVERSE — Smart Search & Filter
+══════════════════════════════════════════════════════════ -->
+<div class="card border-0 shadow-sm mb-2">
+    <div class="card-body py-3 px-4">
 
-<!-- Filters -->
-<div class="card mb-3">
-    <div class="card-body py-3">
-        <div class="row g-2 align-items-end">
-            <div class="col-md-4">
-                <label class="form-label small mb-1">Search</label>
-                <input type="text" class="form-control form-control-sm" id="wlSearch"
-                       placeholder="Symbol or company…" oninput="wl.filter()" autocomplete="off">
+        <!-- Title row -->
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+            <div>
+                <h5 class="mb-0 fw-bold">
+                    <i class="fas fa-chart-bar me-2 text-primary"></i>NSE Stock Universe
+                </h5>
+                <small class="text-muted">{{ counts.total | default(0) }} stocks · {{ counts.analyzed | default(0) }} analyzed by AI</small>
             </div>
-            <div class="col-md-3">
-                <label class="form-label small mb-1">Asset Type</label>
-                <select class="form-select form-select-sm" id="wlAsset" onchange="wl.filter()">
-                    <option value="">All Types</option>
-                    <option value="stocks">Stocks</option>
-                    <option value="mutual_funds">Mutual Funds</option>
-                    <option value="commodities">Commodities</option>
-                    <option value="futures">Futures</option>
-                    <option value="options">Options</option>
-                    <option value="etf">ETF</option>
-                    <option value="bonds">Bonds</option>
-                    <option value="currency">Currency</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small mb-1">Recommendation</label>
-                <select class="form-select form-select-sm" id="wlReco" onchange="wl.filter()">
-                    <option value="">All Signals</option>
-                    <option value="STRONG_BUY">Strong Buy</option>
-                    <option value="BUY">Buy</option>
-                    <option value="HOLD">Hold</option>
-                    <option value="SELL">Sell</option>
-                    <option value="STRONG_SELL">Strong Sell</option>
-                </select>
-            </div>
-            <div class="col-md-2 d-flex gap-2">
-                <button class="btn btn-primary btn-sm w-100" onclick="wl.filter()">
-                    <i class="fas fa-filter me-1"></i>Filter
-                </button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="wl.clear()">Clear</button>
-            </div>
+            <!-- Search bar -->
+            <form method="GET" action="{{ url_for('research_dashboard') }}" class="d-flex gap-2" id="searchForm">
+                <input type="hidden" name="quick"  value="{{ filter_quick }}">
+                <input type="hidden" name="sector" value="{{ filter_sector }}">
+                <input type="hidden" name="reco"   value="{{ filter_reco }}">
+                <input type="hidden" name="sort"   value="{{ filter_sort }}">
+                <div class="input-group input-group-sm" style="width:260px;">
+                    <span class="input-group-text bg-white border-end-0">
+                        <i class="fas fa-search text-muted"></i>
+                    </span>
+                    <input type="text" name="q" value="{{ filter_q }}"
+                           class="form-control border-start-0 ps-0"
+                           placeholder="Search symbol or company…"
+                           id="searchInput" autocomplete="off">
+                    {% if filter_q %}
+                    <a href="{{ url_for('research_dashboard', quick=filter_quick, sector=filter_sector, reco=filter_reco, sort=filter_sort) }}"
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-times"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm px-3">Search</button>
+            </form>
         </div>
+
+        <!-- ── Quick-filter pills ── -->
+        <div class="d-flex flex-wrap gap-2 mb-3" id="pillsRow">
+            {% set base_url_args = {'q': filter_q, 'sector': filter_sector, 'reco': filter_reco, 'sort': filter_sort} %}
+
+            <a href="{{ url_for('research_dashboard', **base_url_args) }}"
+               class="qf-pill qf-all {{ 'active' if not filter_quick }}">
+                <i class="fas fa-list-ul"></i>All Stocks
+                <span class="pill-count">{{ counts.total | default(0) }}</span>
+            </a>
+
+            <a href="{{ url_for('research_dashboard', quick='best_buys', **base_url_args) }}"
+               class="qf-pill qf-buy {{ 'active' if filter_quick == 'best_buys' }}">
+                <i class="fas fa-arrow-trend-up"></i>Best Buys
+                <span class="pill-count">{{ counts.best_buys | default(0) }}</span>
+            </a>
+
+            <a href="{{ url_for('research_dashboard', quick='sell_alerts', **base_url_args) }}"
+               class="qf-pill qf-sell {{ 'active' if filter_quick == 'sell_alerts' }}">
+                <i class="fas fa-triangle-exclamation"></i>Sell Alerts
+                <span class="pill-count">{{ counts.sell_alerts | default(0) }}</span>
+            </a>
+
+            <a href="{{ url_for('research_dashboard', quick='high_conf', **base_url_args) }}"
+               class="qf-pill qf-conf {{ 'active' if filter_quick == 'high_conf' }}">
+                <i class="fas fa-bullseye"></i>High Confidence
+                <span class="pill-count">{{ counts.high_conf | default(0) }}</span>
+            </a>
+
+            <a href="{{ url_for('research_dashboard', quick='recent', **base_url_args) }}"
+               class="qf-pill qf-recent {{ 'active' if filter_quick == 'recent' }}">
+                <i class="fas fa-clock-rotate-left"></i>Recently Analyzed
+            </a>
+
+            <a href="{{ url_for('research_dashboard', quick='unanalyzed', **base_url_args) }}"
+               class="qf-pill qf-unanalyzed {{ 'active' if filter_quick == 'unanalyzed' }}">
+                <i class="fas fa-circle-question"></i>Not Yet Analyzed
+                <span class="pill-count">{{ counts.unanalyzed | default(0) }}</span>
+            </a>
+        </div>
+
+        <!-- ── Advanced filters row ── -->
+        <form method="GET" action="{{ url_for('research_dashboard') }}" class="row g-2 align-items-end" id="filterForm">
+            <input type="hidden" name="quick" value="{{ filter_quick }}">
+            <input type="hidden" name="q"     value="{{ filter_q }}">
+
+            <!-- Sector -->
+            <div class="col-md-4 col-sm-6">
+                <label class="form-label small mb-1 fw-semibold">Sector</label>
+                <select name="sector" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Sectors ({{ counts.total | default(0) }})</option>
+                    {% for sec_name, sec_cnt in sectors %}
+                    <option value="{{ sec_name }}" {% if filter_sector == sec_name %}selected{% endif %}>
+                        {{ sec_name }} ({{ sec_cnt }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Recommendation -->
+            <div class="col-md-3 col-sm-6">
+                <label class="form-label small mb-1 fw-semibold">Recommendation</label>
+                <select name="reco" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Signals</option>
+                    <option value="STRONG_BUY"  {% if filter_reco == 'STRONG_BUY'  %}selected{% endif %}>Strong Buy</option>
+                    <option value="BUY"          {% if filter_reco == 'BUY'          %}selected{% endif %}>Buy</option>
+                    <option value="HOLD"         {% if filter_reco == 'HOLD'         %}selected{% endif %}>Hold</option>
+                    <option value="SELL"         {% if filter_reco == 'SELL'         %}selected{% endif %}>Sell</option>
+                    <option value="STRONG_SELL"  {% if filter_reco == 'STRONG_SELL'  %}selected{% endif %}>Strong Sell</option>
+                </select>
+            </div>
+
+            <!-- Sort -->
+            <div class="col-md-3 col-sm-6">
+                <label class="form-label small mb-1 fw-semibold">Sort By</label>
+                <select name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="iscore_desc" {% if filter_sort == 'iscore_desc' %}selected{% endif %}>I-Score: High → Low</option>
+                    <option value="iscore_asc"  {% if filter_sort == 'iscore_asc'  %}selected{% endif %}>I-Score: Low → High</option>
+                    <option value="conf_desc"   {% if filter_sort == 'conf_desc'   %}selected{% endif %}>Confidence: High → Low</option>
+                    <option value="recent"      {% if filter_sort == 'recent'      %}selected{% endif %}>Recently Analyzed</option>
+                    <option value="symbol_asc"  {% if filter_sort == 'symbol_asc'  %}selected{% endif %}>Symbol A → Z</option>
+                </select>
+            </div>
+
+            <!-- Clear -->
+            <div class="col-md-2 col-sm-6">
+                <a href="{{ url_for('research_dashboard') }}" class="btn btn-outline-secondary btn-sm w-100">
+                    <i class="fas fa-rotate-left me-1"></i>Reset All
+                </a>
+            </div>
+        </form>
+
+        <!-- Active filter banner -->
+        {% if filter_q or filter_sector or filter_reco or filter_quick %}
+        <div class="search-active-banner mt-3 d-flex align-items-center justify-content-between">
+            <span>
+                <i class="fas fa-filter me-1"></i>
+                Showing <strong>{{ total_stocks }}</strong> stock{{ 's' if total_stocks != 1 }}
+                {% if filter_q %} matching <strong>"{{ filter_q }}"</strong>{% endif %}
+                {% if filter_sector %} in <strong>{{ filter_sector }}</strong>{% endif %}
+                {% if filter_reco %} · Recommendation: <strong>{{ filter_reco | replace('_',' ') | title }}</strong>{% endif %}
+                {% if filter_quick %}
+                    · Quick filter: <strong>
+                    {% if filter_quick == 'best_buys' %}Best Buys
+                    {% elif filter_quick == 'sell_alerts' %}Sell Alerts
+                    {% elif filter_quick == 'high_conf' %}High Confidence
+                    {% elif filter_quick == 'recent' %}Recently Analyzed
+                    {% elif filter_quick == 'unanalyzed' %}Not Yet Analyzed
+                    {% endif %}</strong>
+                {% endif %}
+            </span>
+            <a href="{{ url_for('research_dashboard') }}" class="text-primary small fw-semibold text-decoration-none">Clear All</a>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 
-<!-- Table Card -->
-<div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <i class="fas fa-chart-bar me-2"></i>Research Watch List
-            (<span id="wlTotalBadge">{{ research_list|length }}</span> stocks)
-        </h5>
+<!-- ── Results Table ── -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <span class="fw-semibold text-dark">
+            {% if total_stocks > 0 %}
+                {{ ((pagination.page - 1) * 25 + 1) }}–{{ [pagination.page * 25, total_stocks] | min }}
+                of {{ total_stocks }} stocks
+            {% else %}
+                No stocks found
+            {% endif %}
+        </span>
         <div class="d-flex align-items-center gap-2">
-            <small class="opacity-75">Show</small>
-            <select class="form-select form-select-sm" id="wlPerPage"
-                    style="width:70px;" onchange="wl.setPerPage(+this.value)">
-                <option value="10" selected>10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-            </select>
-            <small class="opacity-75">per page</small>
+            <small class="text-muted">Page {{ pagination.page }} of {{ pagination.pages }}</small>
         </div>
     </div>
+
     <div class="card-body p-0">
+        {% if research_list %}
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-dark">
+            <table class="table table-hover mb-0 research-table">
+                <thead class="table-light">
                     <tr>
-                        <th>Symbol</th>
-                        <th>Company</th>
-                        <th>Type</th>
-                        <th class="text-center">I-Score</th>
-                        <th>Recommendation</th>
-                        <th>Confidence</th>
-                        <th>Last Updated</th>
-                        <th class="text-center">Action</th>
+                        <th style="width:110px;">Symbol</th>
+                        <th>Company / Sector</th>
+                        <th class="text-center" style="width:90px;">I-Score</th>
+                        <th style="width:130px;">Recommendation</th>
+                        <th class="text-center" style="width:90px;">Confidence</th>
+                        <th style="width:100px;">Last Analyzed</th>
+                        <th class="text-center" style="width:140px;">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="wlBody">
-                    {% set _amap = {
-                        'stocks':       '/dashboard/research/stocks',
-                        'mutual_funds': '/dashboard/research/mutual-funds',
-                        'commodities':  '/dashboard/research/commodities',
-                        'futures':      '/dashboard/research/futures',
-                        'options':      '/dashboard/research/options',
-                        'bonds':        '/dashboard/research/bonds',
-                        'currency':     '/dashboard/research/currency',
-                        'etf':          '/dashboard/research/stocks'
-                    } %}
-
+                <tbody>
                     {% for s in research_list %}
-                    {% set overall = s.i_score | float if s.i_score is not none else none %}
-                    {% set _base = _amap.get(s.asset_type, '/dashboard/research/stocks') %}
-
-                    <tr class="wl-row"
-                        data-symbol="{{ s.symbol }}"
-                        data-company="{{ (s.company_name or '') | lower }}"
-                        data-asset="{{ s.asset_type }}"
-                        data-reco="{{ s.recommendation or '' }}">
-
+                    {% set score = s.i_score | float if s.i_score is not none else none %}
+                    <tr>
                         <!-- Symbol -->
                         <td>
-                            <a href="{{ _base }}?symbol={{ s.symbol | urlencode }}"
-                               class="fw-bold text-primary text-decoration-none">
-                                {{ s.symbol }}
-                            </a>
+                            <a href="/dashboard/research/stocks?symbol={{ s.symbol | urlencode }}"
+                               class="fw-bold text-primary text-decoration-none">{{ s.symbol }}</a>
                         </td>
 
                         <!-- Company + Sector -->
                         <td>
-                            {{ s.company_name or '—' }}
+                            <div class="fw-semibold text-dark small">{{ s.company_name or s.symbol }}</div>
                             {% if s.sector %}
-                                <br><small class="text-muted">{{ s.sector }}</small>
+                            <small class="text-muted">{{ s.sector }}</small>
                             {% endif %}
-                        </td>
-
-                        <!-- Type -->
-                        <td>
-                            <span class="badge bg-info">
-                                {{ s.asset_type | replace('_',' ') | title }}
-                            </span>
                         </td>
 
                         <!-- I-Score -->
                         <td class="text-center">
-                            {% if overall is not none %}
-                                <span class="badge fs-6 bg-{{ 'success' if overall >= 65 else ('warning' if overall >= 45 else 'danger') }}">
-                                    {{ '%.1f'|format(overall) }}
-                                </span>
+                            {% if score is not none %}
+                            {% set cls = 'badge-iscore-strong' if score >= 70 else ('badge-iscore-good' if score >= 55 else ('badge-iscore-avg' if score >= 40 else 'badge-iscore-weak')) %}
+                            <span class="badge {{ cls }} rounded-pill px-2 py-1" style="font-size:.8rem;">
+                                {{ '%.1f' | format(score) }}
+                            </span>
                             {% else %}
-                                <span class="text-muted">—</span>
+                            <span class="text-muted small">—</span>
                             {% endif %}
                         </td>
 
                         <!-- Recommendation -->
                         <td>
                             {% if s.recommendation %}
-                                <span class="badge bg-{{ s.recommendation_badge_class }}">
-                                    {{ s.recommendation | replace('_', ' ') }}
-                                </span>
+                            {% set reco_cls = {
+                                'STRONG_BUY':  'bg-success text-white',
+                                'BUY':         'bg-success-subtle text-success border border-success-subtle',
+                                'HOLD':        'bg-warning-subtle text-warning border border-warning-subtle',
+                                'SELL':        'bg-danger-subtle text-danger border border-danger-subtle',
+                                'STRONG_SELL': 'bg-danger text-white'
+                            } %}
+                            <span class="reco-badge {{ reco_cls.get(s.recommendation, 'bg-secondary text-white') }}">
+                                {{ s.recommendation | replace('_', ' ') }}
+                            </span>
                             {% else %}
-                                <span class="text-muted">Not analyzed</span>
+                            <span class="text-muted small">Not analyzed</span>
                             {% endif %}
                         </td>
 
                         <!-- Confidence -->
-                        <td>
+                        <td class="text-center">
                             {% if s.confidence is not none %}
-                                {{ '%.0f'|format(s.confidence|float) }}%
+                            <span class="small fw-semibold {% if s.confidence|float >= 75 %}text-success{% elif s.confidence|float >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ '%.0f' | format(s.confidence | float) }}%
+                            </span>
                             {% else %}
-                                —
+                            <span class="text-muted small">—</span>
                             {% endif %}
                         </td>
 
-                        <!-- Last Updated -->
+                        <!-- Last Analyzed -->
                         <td>
                             {% if s.last_computed_at %}
-                                <small>
-                                    {{ s.last_computed_at.strftime('%d %b %Y') }}<br>
-                                    <span class="{{ 'text-danger' if s.is_stale else 'text-success' }}">
-                                        {{ s.score_age_hours }}h ago
-                                    </span>
-                                </small>
+                            <small class="text-muted">
+                                {{ s.last_computed_at.strftime('%d %b') }}<br>
+                                <span class="{{ 'text-danger' if s.is_stale else 'text-success' }}">{{ s.score_age_hours }}h ago</span>
+                            </small>
                             {% else %}
-                                <span class="text-muted">Never</span>
+                            <span class="badge bg-light text-secondary border" style="font-size:.7rem;">New</span>
                             {% endif %}
                         </td>
 
-                        <!-- Action -->
+                        <!-- Actions -->
                         <td class="text-center">
                             <div class="d-flex gap-1 justify-content-center">
-                                <a href="{{ _base }}?symbol={{ s.symbol | urlencode }}"
-                                   class="btn btn-outline-primary btn-sm">
-                                    <i class="fas fa-search me-1"></i>Analyze
+                                <a href="/dashboard/research/stocks?symbol={{ s.symbol | urlencode }}"
+                                   class="btn btn-outline-primary btn-sm" title="Analyze">
+                                    <i class="fas fa-magnifying-glass-chart me-1"></i>Analyze
                                 </a>
-                                <a href="/dashboard/trade-now?symbol={{ s.symbol | urlencode }}{% if s.current_price and s.current_price > 0 %}&price={{ '%.2f'|format(s.current_price|float) }}{% endif %}&source=research"
-                                   class="btn btn-success btn-sm">
-                                    <i class="fas fa-exchange-alt me-1"></i>Trade
+                                <a href="/dashboard/trade-now?symbol={{ s.symbol | urlencode }}{% if s.current_price and s.current_price > 0 %}&price={{ '%.2f' | format(s.current_price | float) }}{% endif %}&source=research"
+                                   class="btn btn-success btn-sm" title="Trade">
+                                    <i class="fas fa-bolt"></i>
                                 </a>
                             </div>
                         </td>
-
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
 
-        <!-- No results -->
-        <div id="wlNoResults" class="text-center py-5" style="display:none;">
-            <i class="fas fa-search fa-3x text-muted mb-3"></i>
-            <h5 class="text-muted">No stocks match your filter</h5>
-            <p class="text-muted small">Try adjusting your search or clearing filters.</p>
-        </div>
-
-        <!-- Pagination -->
-        <div id="wlPagination" class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
-            <small class="text-muted" id="wlPageInfo"></small>
+        <!-- ── Pagination ── -->
+        {% if pagination.pages > 1 %}
+        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top bg-light">
+            <small class="text-muted">
+                Page {{ pagination.page }} of {{ pagination.pages }}
+            </small>
             <nav>
-                <ul class="pagination pagination-sm mb-0" id="wlPageBtns"></ul>
+                <ul class="pagination pagination-sm mb-0">
+                    <!-- Prev -->
+                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link"
+                           href="{{ url_for('research_dashboard', q=filter_q, sector=filter_sector, reco=filter_reco, sort=filter_sort, quick=filter_quick, page=pagination.prev_num) }}">
+                            &laquo;
+                        </a>
+                    </li>
+
+                    <!-- Pages -->
+                    {% set start_pg = [1, pagination.page - 2] | max %}
+                    {% set end_pg   = [pagination.pages, pagination.page + 2] | min %}
+
+                    {% if start_pg > 1 %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="{{ url_for('research_dashboard', q=filter_q, sector=filter_sector, reco=filter_reco, sort=filter_sort, quick=filter_quick, page=1) }}">1</a>
+                    </li>
+                    {% if start_pg > 2 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+                    {% endif %}
+
+                    {% for p in range(start_pg, end_pg + 1) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link"
+                           href="{{ url_for('research_dashboard', q=filter_q, sector=filter_sector, reco=filter_reco, sort=filter_sort, quick=filter_quick, page=p) }}">{{ p }}</a>
+                    </li>
+                    {% endfor %}
+
+                    {% if end_pg < pagination.pages %}
+                    {% if end_pg < pagination.pages - 1 %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="{{ url_for('research_dashboard', q=filter_q, sector=filter_sector, reco=filter_reco, sort=filter_sort, quick=filter_quick, page=pagination.pages) }}">{{ pagination.pages }}</a>
+                    </li>
+                    {% endif %}
+
+                    <!-- Next -->
+                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link"
+                           href="{{ url_for('research_dashboard', q=filter_q, sector=filter_sector, reco=filter_reco, sort=filter_sort, quick=filter_quick, page=pagination.next_num) }}">
+                            &raquo;
+                        </a>
+                    </li>
+                </ul>
             </nav>
         </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No stocks match your filters</h5>
+            <p class="text-muted small">Try adjusting your search or
+                <a href="{{ url_for('research_dashboard') }}">reset all filters</a>.
+            </p>
+        </div>
+        {% endif %}
     </div>
 </div>
-
-{% else %}
-<div class="text-center py-5">
-    <i class="fas fa-chart-bar fa-4x text-muted mb-3"></i>
-    <h4 class="text-muted">No stocks in your Watch List yet</h4>
-    <p class="text-muted">Run an I-Score analysis on any stock to add it here automatically.</p>
-</div>
-{% endif %}
 
 {% endblock %}
 
 {% block extra_js %}
 <script>
-(function () {
-    const rows     = Array.from(document.querySelectorAll('#wlBody .wl-row'));
-    const noRes    = document.getElementById('wlNoResults');
-    const pageInfo = document.getElementById('wlPageInfo');
-    const pageBtns = document.getElementById('wlPageBtns');
-    const badge    = document.getElementById('wlTotalBadge');
-    const paginationBar = document.getElementById('wlPagination');
-
-    let filtered = rows.slice();
-    let perPage  = 10;
-    let page     = 1;
-
-    window.wl = {
-        filter() {
-            const q  = (document.getElementById('wlSearch').value  || '').toLowerCase();
-            const at = (document.getElementById('wlAsset').value   || '').toLowerCase();
-            const rc = (document.getElementById('wlReco').value    || '').toUpperCase();
-
-            filtered = rows.filter(r => {
-                const sym  = (r.dataset.symbol  || '').toLowerCase();
-                const co   = (r.dataset.company || '').toLowerCase();
-                const ast  = (r.dataset.asset   || '').toLowerCase();
-                const reco = (r.dataset.reco    || '').toUpperCase();
-                if (q  && !sym.includes(q) && !co.includes(q)) return false;
-                if (at && ast !== at)  return false;
-                if (rc && reco !== rc) return false;
-                return true;
-            });
-
-            page = 1;
-            badge.textContent = filtered.length;
-            this.render();
-        },
-
-        clear() {
-            document.getElementById('wlSearch').value = '';
-            document.getElementById('wlAsset').value  = '';
-            document.getElementById('wlReco').value   = '';
-            this.filter();
-        },
-
-        setPerPage(n) { perPage = n; page = 1; this.render(); },
-
-        render() {
-            rows.forEach(r => r.style.display = 'none');
-
-            if (!filtered.length) {
-                noRes.style.display = 'block';
-                pageInfo.textContent = '';
-                pageBtns.innerHTML  = '';
-                if (paginationBar) paginationBar.style.display = 'none';
-                return;
-            }
-
-            noRes.style.display = 'none';
-            if (paginationBar) paginationBar.style.display = 'flex';
-
-            const totalPages = Math.ceil(filtered.length / perPage);
-            if (page > totalPages) page = totalPages;
-
-            const start = (page - 1) * perPage;
-            const end   = Math.min(start + perPage, filtered.length);
-            filtered.slice(start, end).forEach(r => r.style.display = '');
-
-            pageInfo.textContent = `Showing ${start + 1}–${end} of ${filtered.length} stocks`;
-
-            /* Bootstrap pagination */
-            const items = [];
-            const mkLi = (label, pg, disabled, active) => {
-                const li = document.createElement('li');
-                li.className = 'page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '');
-                const a = document.createElement(disabled || active ? 'span' : 'a');
-                a.className = 'page-link';
-                a.innerHTML = label;
-                if (!disabled && !active) {
-                    a.href = '#';
-                    a.onclick = e => { e.preventDefault(); page = pg; wl.render(); };
-                }
-                li.appendChild(a);
-                return li;
-            };
-
-            pageBtns.innerHTML = '';
-            pageBtns.appendChild(mkLi('&laquo;', page - 1, page === 1, false));
-
-            const range = new Set([1, totalPages, page - 1, page, page + 1]
-                .filter(p => p >= 1 && p <= totalPages));
-            let prev = 0;
-            Array.from(range).sort((a, b) => a - b).forEach(p => {
-                if (prev && p - prev > 1) {
-                    const li = document.createElement('li');
-                    li.className = 'page-item disabled';
-                    li.innerHTML = '<span class="page-link">…</span>';
-                    pageBtns.appendChild(li);
-                }
-                pageBtns.appendChild(mkLi(p, p, false, p === page));
-                prev = p;
-            });
-
-            pageBtns.appendChild(mkLi('&raquo;', page + 1, page === totalPages, false));
-        }
-    };
-
-    /* Initial render */
-    wl.render();
+/* Auto-submit search on Enter; debounce on input */
+(function(){
+    const inp = document.getElementById('searchInput');
+    if (!inp) return;
+    let timer;
+    inp.addEventListener('input', function(){
+        clearTimeout(timer);
+        timer = setTimeout(() => document.getElementById('searchForm').submit(), 600);
+    });
 })();
 </script>
 {% endblock %}

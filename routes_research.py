@@ -154,32 +154,137 @@ def get_signals_for_asset(signal_type):
 @login_required
 @paid_plan_required
 def research_dashboard():
-    """Main research dashboard with asset selection"""
-    # Get tenant to check feature flags
-    from models import Tenant
+    """Main research dashboard with asset selection and server-side filtering"""
+    from models import Tenant, ResearchList
+    from sqlalchemy import func
+
+    # ── Tenant feature flags ────────────────────────────────────────────────
     tenant = Tenant.query.get('live')
-    
-    # Default to requested assets if no config
     allowed_keys = ['stocks', 'mutual_funds', 'commodities']
-    
     if tenant and tenant.config:
         research_config = tenant.config.get('research_co_pilot', {})
         if research_config:
             allowed_keys = [k for k in ASSET_TYPES if research_config.get(f'show_{k}', False)]
-    
-    # If allowed_keys is empty after filtering (e.g. all flags false), default to stocks
     if not allowed_keys:
         allowed_keys = ['stocks']
-        
-    from models import ResearchList
-    research_list = ResearchList.query.filter_by(is_active=True).order_by(
-        ResearchList.i_score.desc().nullslast()
-    ).all()
 
-    return render_template('dashboard/research/index.html', 
-                         asset_types=ASSET_TYPES,
-                         allowed_assets=allowed_keys,
-                         research_list=research_list)
+    # ── Filter / sort params from request ──────────────────────────────────
+    q           = request.args.get('q', '').strip()
+    sector      = request.args.get('sector', '').strip()
+    reco        = request.args.get('reco', '').strip().upper()
+    sort_by     = request.args.get('sort', 'iscore_desc')
+    quick       = request.args.get('quick', '').strip()   # best_buys | sell_alerts | high_conf | recent | unanalyzed
+    page        = max(1, int(request.args.get('page', 1) or 1))
+    per_page    = 25
+
+    # ── Base query: only stocks for the main watch list ────────────────────
+    base_q = ResearchList.query.filter(
+        ResearchList.is_active == True,
+        ResearchList.asset_type == 'stocks'
+    )
+
+    # ── Quick-filter presets ───────────────────────────────────────────────
+    if quick == 'best_buys':
+        base_q = base_q.filter(
+            ResearchList.recommendation.in_(['STRONG_BUY', 'BUY']),
+            ResearchList.i_score >= 60
+        )
+    elif quick == 'sell_alerts':
+        base_q = base_q.filter(
+            ResearchList.recommendation.in_(['SELL', 'STRONG_SELL'])
+        )
+    elif quick == 'high_conf':
+        base_q = base_q.filter(
+            ResearchList.confidence >= 75,
+            ResearchList.i_score.isnot(None)
+        )
+    elif quick == 'recent':
+        from datetime import timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        base_q = base_q.filter(ResearchList.last_computed_at >= cutoff)
+    elif quick == 'unanalyzed':
+        base_q = base_q.filter(ResearchList.i_score.is_(None))
+
+    # ── Text search ────────────────────────────────────────────────────────
+    if q:
+        like = f'%{q.lower()}%'
+        base_q = base_q.filter(
+            db.or_(
+                db.func.lower(ResearchList.symbol).like(like),
+                db.func.lower(ResearchList.company_name).like(like)
+            )
+        )
+
+    # ── Sector filter ──────────────────────────────────────────────────────
+    if sector:
+        base_q = base_q.filter(ResearchList.sector == sector)
+
+    # ── Recommendation filter ──────────────────────────────────────────────
+    if reco:
+        base_q = base_q.filter(ResearchList.recommendation == reco)
+
+    # ── Sort ───────────────────────────────────────────────────────────────
+    sort_map = {
+        'iscore_desc':  ResearchList.i_score.desc().nullslast(),
+        'iscore_asc':   ResearchList.i_score.asc().nullsfirst(),
+        'conf_desc':    ResearchList.confidence.desc().nullslast(),
+        'symbol_asc':   ResearchList.symbol.asc(),
+        'recent':       ResearchList.last_computed_at.desc().nullslast(),
+    }
+    base_q = base_q.order_by(sort_map.get(sort_by, sort_map['iscore_desc']))
+
+    # ── Paginate ───────────────────────────────────────────────────────────
+    pagination     = base_q.paginate(page=page, per_page=per_page, error_out=False)
+    research_list  = pagination.items
+    total_stocks   = pagination.total
+
+    # ── Sidebar counts (for quick-filter pills) ────────────────────────────
+    analyzed_q = ResearchList.query.filter(
+        ResearchList.is_active == True,
+        ResearchList.asset_type == 'stocks',
+        ResearchList.i_score.isnot(None)
+    )
+    counts = {
+        'total':      ResearchList.query.filter_by(is_active=True, asset_type='stocks').count(),
+        'best_buys':  analyzed_q.filter(
+                          ResearchList.recommendation.in_(['STRONG_BUY', 'BUY']),
+                          ResearchList.i_score >= 60
+                      ).count(),
+        'sell_alerts': analyzed_q.filter(
+                          ResearchList.recommendation.in_(['SELL', 'STRONG_SELL'])
+                       ).count(),
+        'high_conf':  analyzed_q.filter(ResearchList.confidence >= 75).count(),
+        'analyzed':   analyzed_q.count(),
+        'unanalyzed': ResearchList.query.filter_by(is_active=True, asset_type='stocks').filter(
+                          ResearchList.i_score.is_(None)
+                      ).count(),
+    }
+
+    # ── Available sectors for dropdown ────────────────────────────────────
+    sector_rows = db.session.query(
+        ResearchList.sector,
+        func.count(ResearchList.id).label('cnt')
+    ).filter(
+        ResearchList.is_active == True,
+        ResearchList.asset_type == 'stocks',
+        ResearchList.sector.isnot(None)
+    ).group_by(ResearchList.sector).order_by(func.count(ResearchList.id).desc()).all()
+    sectors = [(row.sector, row.cnt) for row in sector_rows]
+
+    return render_template('dashboard/research/index.html',
+                           asset_types=ASSET_TYPES,
+                           allowed_assets=allowed_keys,
+                           research_list=research_list,
+                           pagination=pagination,
+                           total_stocks=total_stocks,
+                           counts=counts,
+                           sectors=sectors,
+                           # Active filter state (so template can show active pills)
+                           filter_q=q,
+                           filter_sector=sector,
+                           filter_reco=reco,
+                           filter_sort=sort_by,
+                           filter_quick=quick)
 
 @app.route('/dashboard/research/stocks')
 @login_required
