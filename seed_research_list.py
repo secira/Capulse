@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Research List Seeder
-Runs on every Railway deployment to ensure all 501 stocks are present.
+Runs on every Railway deployment to ensure all NSE EQ stocks (~2167) are present.
 Safe to run multiple times — uses INSERT ... ON CONFLICT DO NOTHING logic.
+Uses bulk operations for speed (~2167 stocks in seconds, not minutes).
 """
 
 import os
@@ -41,50 +42,88 @@ def seed():
 
     try:
         from app import app, db
-        from models import ResearchList
+        from sqlalchemy import text
 
         with app.app_context():
-            current_count = ResearchList.query.filter_by(is_active=True).count()
+            # ── Fast path: count active rows ───────────────────────────────
+            current_count = db.session.execute(
+                text("SELECT COUNT(*) FROM research_list WHERE is_active = TRUE")
+            ).scalar()
             logger.info(f"Current research_list active count: {current_count}")
 
             if current_count >= len(RESEARCH_LIST_STOCKS):
                 logger.info("Research list already fully seeded — nothing to do")
                 return
 
-            inserted = 0
-            updated = 0
+            # ── Fetch all existing symbols in one query ────────────────────
+            existing_symbols = set(
+                row[0] for row in db.session.execute(
+                    text("SELECT symbol FROM research_list")
+                ).fetchall()
+            )
+            logger.info(f"Existing symbols in DB: {len(existing_symbols)}")
+
+            # ── Split into inserts and updates ─────────────────────────────
+            to_insert = []
+            to_update = []
             for stock in RESEARCH_LIST_STOCKS:
-                symbol = stock['symbol']
-                existing = ResearchList.query.filter_by(symbol=symbol).first()
-                if existing:
-                    # Update metadata only — never touch i_score
-                    existing.company_name = stock['company_name']
-                    existing.asset_type = stock['asset_type']
-                    existing.sector = stock['sector']
-                    existing.is_active = True
-                    if not existing.tenant_id:
-                        existing.tenant_id = 'live'
-                    updated += 1
+                if stock['symbol'] in existing_symbols:
+                    to_update.append(stock)
                 else:
-                    new_stock = ResearchList(
-                        symbol=symbol,
-                        company_name=stock['company_name'],
-                        asset_type=stock['asset_type'],
-                        sector=stock['sector'],
-                        is_active=True,
-                        tenant_id='live',
+                    to_insert.append(stock)
+
+            logger.info(f"To insert: {len(to_insert)}, To update (metadata only): {len(to_update)}")
+
+            # ── Bulk INSERT new stocks in batches of 500 ───────────────────
+            BATCH = 500
+            inserted = 0
+            for i in range(0, len(to_insert), BATCH):
+                batch = to_insert[i:i + BATCH]
+                if not batch:
+                    continue
+                values_sql = ', '.join(
+                    f"(:sym_{j}, :name_{j}, :atype_{j}, :sector_{j}, TRUE, 'live')"
+                    for j in range(len(batch))
+                )
+                params = {}
+                for j, s in enumerate(batch):
+                    params[f'sym_{j}'] = s['symbol']
+                    params[f'name_{j}'] = s['company_name']
+                    params[f'atype_{j}'] = s['asset_type']
+                    params[f'sector_{j}'] = s['sector']
+                db.session.execute(
+                    text(
+                        f"INSERT INTO research_list (symbol, company_name, asset_type, sector, is_active, tenant_id) "
+                        f"VALUES {values_sql} ON CONFLICT (symbol) DO NOTHING"
+                    ),
+                    params
+                )
+                db.session.commit()
+                inserted += len(batch)
+                logger.info(f"  Inserted batch: {inserted}/{len(to_insert)}")
+
+            # ── Bulk UPDATE existing stocks (metadata only, never i_score) ─
+            updated = 0
+            for i in range(0, len(to_update), BATCH):
+                batch = to_update[i:i + BATCH]
+                for s in batch:
+                    db.session.execute(
+                        text(
+                            "UPDATE research_list SET company_name=:name, asset_type=:atype, "
+                            "sector=:sector, is_active=TRUE, tenant_id=COALESCE(NULLIF(tenant_id,''), 'live') "
+                            "WHERE symbol=:sym"
+                        ),
+                        {'name': s['company_name'], 'atype': s['asset_type'],
+                         'sector': s['sector'], 'sym': s['symbol']}
                     )
-                    db.session.add(new_stock)
-                    inserted += 1
+                db.session.commit()
+                updated += len(batch)
+                logger.info(f"  Updated batch: {updated}/{len(to_update)}")
 
-                # Commit in batches of 50
-                if (inserted + updated) % 50 == 0:
-                    db.session.commit()
-                    logger.info(f"  Progress: {inserted} inserted, {updated} updated so far...")
-
-            db.session.commit()
-            final_count = ResearchList.query.filter_by(is_active=True).count()
-            logger.info(f"Seed complete — {inserted} inserted, {updated} updated. Total active: {final_count}")
+            final_count = db.session.execute(
+                text("SELECT COUNT(*) FROM research_list WHERE is_active = TRUE")
+            ).scalar()
+            logger.info(f"Seed complete — {len(to_insert)} inserted, {len(to_update)} updated. Total active: {final_count}")
 
     except Exception as e:
         logger.error(f"Seed failed: {e}", exc_info=True)

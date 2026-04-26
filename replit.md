@@ -62,6 +62,7 @@ Target Capital employs a dual AI engine approach:
 -   **Comprehensive Trading Signal System**: LangGraph-powered signal pipeline.
 -   **Subscription Model**: Tiered access with 4 plans. DB enum values unchanged (FREE, TARGET_PLUS, TARGET_PRO, HNI) — display names rebranded to Starter, Growth, Pro, Elite. **30-day full-access trial**: FREE users get COMPLETE access to all features for 30 days from `created_at`, including all AI tools, F&O, Trade Now, and 1 broker connection. After 30 days, all requests redirect to /pricing. Enforced via `check_trial_expiry` `@before_request` hook in `app.py` (`_TRIAL_EXEMPT_ENDPOINTS` frozenset covers auth, pricing, payments, settings). Trial logic lives in `User.is_trial_active()`, `User.has_full_access()`, `User.trial_days_remaining()`. `paid_plan_required` decorator and all manual plan checks use `has_full_access()`. Sidebar shows full menu to all users; FREE users in trial see a yellow countdown banner. Admins always exempt.
 -   **Knowledge Base**: Educational trading articles.
+-   **Stock Research Universe**: 2167+ NSE EQ-series stocks in `research_list` table, sourced from NSE EQUITY_L.csv with sector classification. Seeder (`seed_research_list.py`) uses fast bulk SQL (batches of 500) and safe UPSERT — never overwrites I-Score data. `seed_data.py` is the source of truth for the full stock list.
 
 **Mobile App & PWA Support**:
 -   **Mobile REST API (v1)**: Versioned API with JWT authentication.
