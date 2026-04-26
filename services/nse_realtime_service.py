@@ -146,10 +146,10 @@ class NSERealTimeService:
         except Exception as e:
             logger.debug(f"{symbol}: Dhan lookup skipped: {e}")
 
-        # PRIORITY 2: NSE API
+        # PRIORITY 2: NSE API (short timeout — NSE often blocks direct calls)
         try:
             url = f"https://www.nseindia.com/api/quote-equity?symbol={symbol}"
-            response = self.session.get(url, timeout=10)
+            response = self.session.get(url, timeout=3)
             if response.status_code == 200:
                 data = response.json()
                 if 'priceInfo' in data:
@@ -166,36 +166,35 @@ class NSERealTimeService:
                         'timestamp': datetime.now(timezone.utc).isoformat()
                     }
         except Exception as e:
-            logger.warning(f"NSE API failed for {symbol}: {e}")
+            logger.debug(f"NSE API failed for {symbol}: {e}")
 
-        # PRIORITY 3: yfinance fallback
+        # PRIORITY 3: yfinance fallback using fast_info (no OHLCV download — instant)
         return self._yfinance_fallback(symbol)
 
     def _yfinance_fallback(self, symbol: str) -> Dict:
-        """Use yfinance as fallback to get real NSE prices"""
+        """Use yfinance fast_info as fallback — avoids slow history download."""
         try:
             import yfinance as yf
-            ticker = yf.Ticker(f"{symbol}.NS")
-            hist = ticker.history(period="5d")
-            if not hist.empty:
-                latest = hist.iloc[-1]
-                current_price = float(latest['Close'])
-                prev_close = float(hist.iloc[-2]['Close']) if len(hist) >= 2 else current_price
-                change = current_price - prev_close
-                change_pct = (change / prev_close * 100) if prev_close else 0
-                logger.info(f"yfinance fallback for {symbol}: ₹{current_price:.2f}")
+            fi = yf.Ticker(f"{symbol}.NS").fast_info
+            ltp  = float(getattr(fi, 'last_price', 0) or 0)
+            prev = float(getattr(fi, 'previous_close', 0) or 0)
+            if ltp > 0:
+                change     = round(ltp - prev, 2) if prev else 0.0
+                change_pct = round(change / prev * 100, 2) if prev else 0.0
+                logger.info(f"yfinance fast_info for {symbol}: ₹{ltp:.2f}")
                 return {
                     'success': True,
                     'symbol': symbol,
-                    'price': round(current_price, 2),
-                    'change': round(change, 2),
-                    'change_percent': round(change_pct, 2),
-                    'volume': int(latest.get('Volume', 0)),
+                    'price': round(ltp, 2),
+                    'current_price': round(ltp, 2),
+                    'change': change,
+                    'change_percent': change_pct,
+                    'volume': int(getattr(fi, 'three_month_average_volume', 0) or 0),
                     'source': 'yfinance',
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
         except Exception as e:
-            logger.warning(f"yfinance fallback failed for {symbol}: {e}")
+            logger.warning(f"yfinance fast_info failed for {symbol}: {e}")
 
         return {
             'success': False,

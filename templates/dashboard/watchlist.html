@@ -153,6 +153,7 @@
                             <tr>
                                 <th>Symbol</th>
                                 <th>Company</th>
+                                <th>Current Price</th>
                                 <th>Target Price</th>
                                 <th>Added Date</th>
                                 <th>Notes</th>
@@ -161,16 +162,19 @@
                         </thead>
                         <tbody>
                             {% for item in watchlist_items %}
-                            <tr>
+                            <tr data-symbol="{{ item.symbol }}">
                                 <td>
                                     <span class="badge bg-primary fs-6">{{ item.symbol }}</span>
                                 </td>
                                 <td>
                                     <div class="fw-bold">{{ item.company_name or 'Unknown Company' }}</div>
                                 </td>
+                                <td class="wl-price-cell">
+                                    <span class="text-muted small">—</span>
+                                </td>
                                 <td>
                                     {% if item.target_price %}
-                                        <span class="text-success fw-bold">${{ "%.2f"|format(item.target_price) }}</span>
+                                        <span class="text-success fw-bold">₹{{ "%.2f"|format(item.target_price) }}</span>
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}
@@ -251,15 +255,78 @@
 </div>
 
 <style>
-.bg-light {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
 .badge.bg-outline-primary {
     background-color: transparent !important;
     border: 1px solid #0d6efd;
     color: #0d6efd;
 }
 </style>
+
+<script>
+async function refreshPrices() {
+    const btn = document.querySelector('[onclick="refreshPrices()"]');
+    const originalHTML = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Fetching…';
+    }
+
+    const rows = document.querySelectorAll('tr[data-symbol]');
+    if (!rows.length) {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+        return;
+    }
+
+    rows.forEach(row => {
+        const cell = row.querySelector('.wl-price-cell');
+        if (cell) cell.innerHTML = '<i class="fas fa-spinner fa-spin text-muted" style="font-size:11px;"></i>';
+    });
+
+    const symbolMap = {};
+    rows.forEach(row => {
+        const sym = row.dataset.symbol;
+        if (sym) {
+            if (!symbolMap[sym]) symbolMap[sym] = [];
+            symbolMap[sym].push(row);
+        }
+    });
+
+    const symbols = Object.keys(symbolMap);
+    await Promise.all(symbols.map(async (sym) => {
+        try {
+            const resp = await fetch('/api/realtime/stock/' + encodeURIComponent(sym));
+            const data = resp.ok ? await resp.json() : {};
+            const price = parseFloat(data.price || data.current_price || 0);
+            const chgPct = parseFloat(data.change_percent || 0);
+            symbolMap[sym].forEach(row => {
+                const cell = row.querySelector('.wl-price-cell');
+                if (!cell) return;
+                if (price > 0) {
+                    const color = chgPct >= 0 ? 'text-success' : 'text-danger';
+                    const arrow = chgPct >= 0 ? '▲' : '▼';
+                    cell.innerHTML =
+                        '<span class="fw-bold">₹' + price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</span>' +
+                        '<br><small class="' + color + '">' + arrow + ' ' + Math.abs(chgPct).toFixed(2) + '%</small>';
+                } else {
+                    cell.innerHTML = '<span class="text-muted small">—</span>';
+                }
+            });
+        } catch {
+            symbolMap[sym].forEach(row => {
+                const cell = row.querySelector('.wl-price-cell');
+                if (cell) cell.innerHTML = '<span class="text-muted small">—</span>';
+            });
+        }
+    }));
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Updated';
+        setTimeout(() => { btn.innerHTML = originalHTML; }, 2000);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', refreshPrices);
+</script>
 
 {% endblock %}

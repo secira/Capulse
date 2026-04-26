@@ -3025,27 +3025,47 @@ def delete_equity_holding(holding_id):
 @app.route('/api/equities/refresh-prices', methods=['POST'])
 @login_required
 def refresh_equity_prices():
-    """Refresh current market prices for all manual equity holdings"""
+    """Refresh current market prices for all manual equity holdings — parallel fetch."""
     from models import ManualEquityHolding
     from services.nse_realtime_service import get_stock_quote
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     holdings = ManualEquityHolding.query.filter_by(
         user_id=current_user.id,
         is_active=True
     ).all()
 
-    updated = 0
     total = len(holdings)
-    for holding in holdings:
+    if total == 0:
+        return jsonify({'success': True, 'updated': 0, 'total': 0})
+
+    # Deduplicate symbols so we only hit the API once per symbol
+    symbol_to_price: dict = {}
+
+    def _fetch(sym):
         try:
-            data = get_stock_quote(holding.symbol)
+            data = get_stock_quote(sym)
             price = data.get('price') or data.get('current_price') or data.get('lastPrice')
-            if price and float(price) > 0:
-                holding.current_price = float(price)
-                holding.calculate_totals()
-                updated += 1
+            return sym, float(price) if price else None
         except Exception as e:
-            logger.warning(f"Could not refresh price for {holding.symbol}: {e}")
+            logger.warning(f"Could not refresh price for {sym}: {e}")
+            return sym, None
+
+    unique_symbols = list({h.symbol for h in holdings})
+    with ThreadPoolExecutor(max_workers=min(10, len(unique_symbols))) as pool:
+        futures = {pool.submit(_fetch, sym): sym for sym in unique_symbols}
+        for future in as_completed(futures):
+            sym, price = future.result()
+            if price and price > 0:
+                symbol_to_price[sym] = price
+
+    updated = 0
+    for holding in holdings:
+        price = symbol_to_price.get(holding.symbol)
+        if price:
+            holding.current_price = price
+            holding.calculate_totals()
+            updated += 1
 
     try:
         db.session.commit()
