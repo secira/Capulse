@@ -119,57 +119,71 @@ class NSERealTimeService:
         """Kept for backward compatibility — delegates to get_nse_indices."""
         return self.get_nse_indices()
     
-    def get_stock_data(self, symbol: str) -> Dict:
-        """Fetch real-time stock data for a given symbol"""
-        # PRIORITY 1: Dhan OHLC (direct exchange data)
+    def get_stock_data(self, symbol: str, user_id: Optional[int] = None) -> Dict:
+        """Fetch real-time stock data for a given symbol.
+
+        Priority chain (per user directive — data must come from a broker, not NSE):
+          1. User's configured Data API broker:
+               - Dhan     → dedicated NSE_EQ OHLC API (full OHLC + LTP)
+               - Others   → broker.get_price(symbol) for LTP
+          2. System-level Dhan DataApiBroker (any connected account)
+          3. yfinance fast_info (last resort — no API key required)
+        """
+
+        # ── Priority 1: User's configured Data API broker ─────────────────
+        if user_id:
+            try:
+                from services.broker_factory import get_data_broker_for_user
+                from brokers.dhan import DhanBroker
+                broker = get_data_broker_for_user(user_id)
+                if broker:
+                    if isinstance(broker, DhanBroker):
+                        from services.dhan_service import get_eq_quote
+                        dhan_data = get_eq_quote(symbol, user_id)
+                        if dhan_data and dhan_data.get("ltp", 0) > 0:
+                            return self._dhan_dict(symbol, dhan_data)
+                    else:
+                        if broker.connect():
+                            ltp = broker.get_price(symbol)
+                            if ltp and ltp > 0:
+                                broker_name = getattr(broker, 'BROKER_NAME', 'broker').capitalize()
+                                logger.info(f"{symbol}: {broker_name} price ₹{ltp}")
+                                return {
+                                    "success": True, "symbol": symbol,
+                                    "price": round(ltp, 2), "current_price": round(ltp, 2),
+                                    "change": 0.0, "change_percent": 0.0, "volume": 0,
+                                    "source": broker_name,
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                }
+            except Exception as e:
+                logger.debug(f"{symbol}: user data broker failed: {e}")
+
+        # ── Priority 2: System-level Dhan (any connected DataApiBroker) ───
         try:
             from services.dhan_service import get_eq_quote
             dhan_data = get_eq_quote(symbol)
             if dhan_data and dhan_data.get("ltp", 0) > 0:
-                ltp = float(dhan_data["ltp"])
-                prev_close = float(dhan_data.get("close", 0))
-                change_amt = float(dhan_data.get("change", ltp - prev_close if prev_close else 0))
-                change_pct = float(dhan_data.get("pct_change",
-                                   (change_amt / prev_close * 100) if prev_close else 0))
-                logger.info(f"{symbol}: Dhan price ₹{ltp}")
-                return {
-                    "success": True,
-                    "symbol": symbol,
-                    "price": ltp,
-                    "current_price": ltp,
-                    "change": change_amt,
-                    "change_percent": change_pct,
-                    "volume": 0,
-                    "source": "Dhan",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
+                return self._dhan_dict(symbol, dhan_data)
         except Exception as e:
-            logger.debug(f"{symbol}: Dhan lookup skipped: {e}")
+            logger.debug(f"{symbol}: system Dhan lookup skipped: {e}")
 
-        # PRIORITY 2: NSE API (short timeout — NSE often blocks direct calls)
-        try:
-            url = f"https://www.nseindia.com/api/quote-equity?symbol={symbol}"
-            response = self.session.get(url, timeout=3)
-            if response.status_code == 200:
-                data = response.json()
-                if 'priceInfo' in data:
-                    price_info = data['priceInfo']
-                    return {
-                        'success': True,
-                        'symbol': symbol,
-                        'price': float(price_info['lastPrice']),
-                        'current_price': float(price_info['lastPrice']),
-                        'change': float(price_info['change']),
-                        'change_percent': float(price_info['pChange']),
-                        'volume': int(price_info.get('totalTradedVolume', 0)),
-                        'source': 'NSE',
-                        'timestamp': datetime.now(timezone.utc).isoformat()
-                    }
-        except Exception as e:
-            logger.debug(f"NSE API failed for {symbol}: {e}")
-
-        # PRIORITY 3: yfinance fallback using fast_info (no OHLCV download — instant)
+        # ── Priority 3: yfinance fast_info (no API key needed) ────────────
         return self._yfinance_fallback(symbol)
+
+    @staticmethod
+    def _dhan_dict(symbol: str, dhan_data: Dict) -> Dict:
+        """Build a normalised price dict from a dhan_service.get_eq_quote() result."""
+        ltp       = float(dhan_data["ltp"])
+        prev      = float(dhan_data.get("close", 0))
+        change    = float(dhan_data.get("change", ltp - prev if prev else 0))
+        change_pct = float(dhan_data.get("pct_change", (change / prev * 100) if prev else 0))
+        return {
+            "success": True, "symbol": symbol,
+            "price": ltp, "current_price": ltp,
+            "change": change, "change_percent": change_pct, "volume": 0,
+            "source": "Dhan",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     def _yfinance_fallback(self, symbol: str) -> Dict:
         """Use yfinance fast_info as fallback — avoids slow history download."""
@@ -213,6 +227,6 @@ def get_live_market_data():
     """Get comprehensive live market data"""
     return nse_service.get_nse_indices()
 
-def get_stock_quote(symbol: str):
-    """Get live stock quote"""
-    return nse_service.get_stock_data(symbol)
+def get_stock_quote(symbol: str, user_id: Optional[int] = None):
+    """Get live stock quote — routes through user's configured broker if user_id is provided."""
+    return nse_service.get_stock_data(symbol, user_id=user_id)

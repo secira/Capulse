@@ -1604,23 +1604,27 @@ def api_realtime_indices():
 
 @app.route('/api/realtime/stock/<symbol>')
 def api_realtime_stock(symbol):
-    """API endpoint for real-time stock data with caching"""
+    """Real-time stock quote — routes through the user's configured broker."""
     try:
         from caching.redis_cache import get_cache
         cache = get_cache()
-        
+
         symbol_upper = symbol.upper()
-        
+        uid = current_user.id if current_user.is_authenticated else None
+
+        # Cache key is per-user so each user gets data from their own broker
+        cache_key = f"quote:{uid}:{symbol_upper}" if uid else f"quote:{symbol_upper}"
+
         if cache.is_available():
-            cached_data = cache.get_market_data(symbol_upper)
+            cached_data = cache.get(cache_key)
             if cached_data:
                 cached_data['cached'] = True
                 return jsonify(cached_data)
-        
-        data = get_stock_quote(symbol_upper)
-        
+
+        data = get_stock_quote(symbol_upper, user_id=uid)
+
         if cache.is_available():
-            cache.set_market_data(symbol_upper, data, expiry=60)
+            cache.set(cache_key, data, expiry=60)
         data['cached'] = False
         return jsonify(data)
     except Exception as e:
@@ -3041,10 +3045,11 @@ def refresh_equity_prices():
 
     # Deduplicate symbols so we only hit the API once per symbol
     symbol_to_price: dict = {}
+    uid = current_user.id  # captured for thread closure
 
     def _fetch(sym):
         try:
-            data = get_stock_quote(sym)
+            data = get_stock_quote(sym, user_id=uid)
             price = data.get('price') or data.get('current_price') or data.get('lastPrice')
             return sym, float(price) if price else None
         except Exception as e:
