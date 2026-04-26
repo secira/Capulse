@@ -334,8 +334,16 @@
                         <!-- I-Score -->
                         <td class="text-center">
                             {% if score is not none %}
-                            {% set cls = 'badge-iscore-strong' if score >= 70 else ('badge-iscore-good' if score >= 55 else ('badge-iscore-avg' if score >= 40 else 'badge-iscore-weak')) %}
-                            <span class="badge {{ cls }} rounded-pill px-2 py-1" style="font-size:.8rem;">
+                            {% if score >= 70 %}
+                                {% set bg = '#d1f5e0' %}{% set fg = '#0a5c36' %}{% set br = '#a3e6bf' %}
+                            {% elif score >= 55 %}
+                                {% set bg = '#dbeafe' %}{% set fg = '#1e40af' %}{% set br = '#93c5fd' %}
+                            {% elif score >= 40 %}
+                                {% set bg = '#fef3c7' %}{% set fg = '#92400e' %}{% set br = '#fcd34d' %}
+                            {% else %}
+                                {% set bg = '#fee2e2' %}{% set fg = '#991b1b' %}{% set br = '#fca5a5' %}
+                            {% endif %}
+                            <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:.82rem;font-weight:700;background:{{ bg }};color:{{ fg }};border:1px solid {{ br }};">
                                 {{ '%.1f' | format(score) }}
                             </span>
                             {% else %}
