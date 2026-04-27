@@ -1251,16 +1251,17 @@ class NiftyOptionsEngine:
             cur_l, prev_l = float(l[-1]), float(l[-2])
             cur_c, prev_c = float(c[-1]), float(c[-2])
 
-            if direction == 'BULLISH':
+            if direction in ('BULLISH', 'BOTH'):
                 breakout = cur_h > prev_h and cur_c > prev_h
                 retest = vwap > 0 and cur_l <= vwap * 1.0008 and cur_c > vwap
                 if breakout:
                     return {'triggered': True, 'mode': 'BREAKOUT', 'reason': 'Bullish breakout — current high > previous high'}
                 if retest:
                     return {'triggered': True, 'mode': 'RETEST', 'reason': 'Bullish retest of VWAP held'}
-                return {'triggered': False, 'mode': 'WAIT', 'reason': 'Direction aligned, waiting for breakout trigger'}
+                if direction == 'BULLISH':
+                    return {'triggered': False, 'mode': 'WAIT', 'reason': 'Direction aligned, waiting for breakout trigger'}
 
-            if direction == 'BEARISH':
+            if direction in ('BEARISH', 'BOTH'):
                 breakout = cur_l < prev_l and cur_c < prev_l
                 retest = vwap > 0 and cur_h >= vwap * 0.9992 and cur_c < vwap
                 if breakout:
@@ -1324,21 +1325,32 @@ class NiftyOptionsEngine:
             and rsi < 45
             and not bear_oi['block']
         )
-        direction = 'BULLISH' if bullish else ('BEARISH' if bearish else 'NEUTRAL')
+        # Both CE and PE can be active simultaneously
+        if bullish and bearish:
+            direction = 'BOTH'
+        elif bullish:
+            direction = 'BULLISH'
+        elif bearish:
+            direction = 'BEARISH'
+        else:
+            direction = 'NEUTRAL'
 
         oi_role = 'NEUTRAL'
         oi_block_dir = False
-        if direction == 'BULLISH':
+        if direction in ('BULLISH', 'BOTH'):
             oi_role = bull_oi['role']
-        elif direction == 'BEARISH':
-            oi_role = bear_oi['role']
-        else:
-            # If neutral, still report if OI strongly opposes a candidate side
+        if direction in ('BEARISH', 'BOTH'):
+            # For BOTH, show bearish OI only if different from bull OI
+            bear_role = bear_oi['role']
+            oi_role = f"{oi_role}/{bear_role}" if direction == 'BOTH' and bear_role != oi_role else (bear_role if direction == 'BEARISH' else oi_role)
+        if direction == 'NEUTRAL':
             if bull_oi['block'] or bear_oi['block']:
                 oi_block_dir = True
 
         return {
             'direction': direction,
+            'bull_active': bullish,
+            'bear_active': bearish,
             'vwap': round(vwap, 2),
             'spot_vs_vwap': 'ABOVE' if spot > vwap else 'BELOW',
             'supertrend': supertrend_signal,
@@ -1452,11 +1464,13 @@ class NiftyOptionsEngine:
             score += 10
 
         # RSI alignment with direction (+10 if expanding in trade direction)
-        if direction['direction'] == 'BULLISH' and direction.get('rsi', 50) > 55:
+        _dir = direction['direction']
+        _rsi = direction.get('rsi', 50)
+        if _dir in ('BULLISH', 'BOTH') and _rsi > 55:
             score += 5
             if direction.get('rsi_expanding_up'):
                 score += 5
-        elif direction['direction'] == 'BEARISH' and direction.get('rsi', 50) < 45:
+        if _dir in ('BEARISH', 'BOTH') and _rsi < 45:
             score += 5
             if direction.get('rsi_expanding_down'):
                 score += 5
@@ -1551,11 +1565,15 @@ class NiftyOptionsEngine:
             reasons.append("Fresh EMA 9/21 crossover — trend just started")
         if strength.get('ema_distance_increasing'):
             reasons.append("EMA gap widening — trend gaining strength")
-        # RSI
+        # RSI — use trade type (CE/PE) for per-trade reason when direction is BOTH
         rsi = direction.get('rsi', 50)
-        if direction['direction'] == 'BULLISH' and rsi > 55:
+        _trade_type = trade.get('type', '')
+        _eff_dir = direction['direction']
+        if _eff_dir == 'BOTH':
+            _eff_dir = 'BULLISH' if _trade_type == 'CE' else 'BEARISH'
+        if _eff_dir == 'BULLISH' and rsi > 55:
             reasons.append(f"RSI(7) bullish ({rsi})")
-        elif direction['direction'] == 'BEARISH' and rsi < 45:
+        elif _eff_dir == 'BEARISH' and rsi < 45:
             reasons.append(f"RSI(7) bearish ({rsi})")
         # OI confirmation
         oi_role = direction.get('oi_role', 'NEUTRAL')
@@ -1808,6 +1826,8 @@ class NiftyOptionsEngine:
         if _estimated_data:
             entry_mode = 'NO TRADE'
 
+        bull_active    = direction.get('bull_active', False)
+        bear_active    = direction.get('bear_active', False)
         trade_direction = direction['direction']
 
         block_reasons = []
@@ -1873,7 +1893,17 @@ class NiftyOptionsEngine:
 
         current_trades = []
         next_trades = []
-        raw_strikes = self._select_strikes(spot, trade_direction)
+
+        # Build strike list for every active side (Call and/or Put)
+        raw_strikes = []
+        if bull_active:
+            raw_strikes += self._select_strikes(spot, 'BULLISH')
+        if bear_active:
+            raw_strikes += self._select_strikes(spot, 'BEARISH')
+        if not raw_strikes:
+            # No active side — still populate for UI display (will be blocked)
+            fallback_dir = trade_direction if trade_direction not in ('NEUTRAL', 'BOTH') else 'BULLISH'
+            raw_strikes = self._select_strikes(spot, fallback_dir)
 
         current_expiry_info = {
             'date': expiry_picks.get('current_date', ''),

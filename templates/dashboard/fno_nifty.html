@@ -811,7 +811,7 @@ function refreshAnalysis() {
                 document.getElementById('decisionIcon').textContent = '🚫';
                 document.getElementById('decisionText').textContent = 'NO TRADE';
             }
-            document.getElementById('decisionDir').textContent = d.trade_direction || '—';
+            document.getElementById('decisionDir').textContent = d.trade_direction === 'BOTH' ? 'CALL + PUT' : (d.trade_direction || '—');
             document.getElementById('decisionConf').textContent = d.confidence + '%';
             var statusText = d.entry_mode;
             var setupState = d.setup_state || '';
@@ -1017,8 +1017,8 @@ function refreshAnalysis() {
             fill.style.width = d.confidence + '%';
             fill.className = 'conf-fill ' + (d.confidence >= 80 ? 'conf-high' : d.confidence >= 60 ? 'conf-med' : 'conf-low');
             document.getElementById('confGrade').textContent = d.confidence_grade + ' Signal';
-            document.getElementById('tradeDir').textContent = d.trade_direction;
-            document.getElementById('tradeDir').style.color = d.trade_direction === 'BULLISH' ? '#16a34a' : d.trade_direction === 'BEARISH' ? '#dc2626' : '#64748b';
+            document.getElementById('tradeDir').textContent = d.trade_direction === 'BOTH' ? 'CALL + PUT' : d.trade_direction;
+            document.getElementById('tradeDir').style.color = d.trade_direction === 'BULLISH' ? '#16a34a' : d.trade_direction === 'BEARISH' ? '#dc2626' : d.trade_direction === 'BOTH' ? '#7c3aed' : '#64748b';
             document.getElementById('entryMode').textContent = d.entry_mode;
             document.getElementById('entryMode').style.color = d.entry_mode === 'CONFIRMED' ? '#16a34a' : d.entry_mode === 'EARLY' ? '#d97706' : '#dc2626';
         }

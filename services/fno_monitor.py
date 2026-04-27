@@ -227,7 +227,8 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         atm        = signal_data.get('atm_strike', 0)
         signal_type = signal_data.get('signal_type', 'TRADE')
 
-        dir_emoji  = '🟢' if direction == 'BULLISH' else '🔴' if direction == 'BEARISH' else '🟡'
+        dir_label  = 'CALL + PUT' if direction == 'BOTH' else direction
+        dir_emoji  = '🟢' if direction == 'BULLISH' else '🔴' if direction == 'BEARISH' else '🟣' if direction == 'BOTH' else '🟡'
         if signal_type == 'TRADE_TRIGGER':
             type_emoji = '🔒'
         elif signal_type == 'TRADE_EXIT':
@@ -240,7 +241,7 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         trade_code = signal_data.get('trade_code', '')
         code_tag   = f" <code>{trade_code}</code>" if trade_code else ''
         msg  = f"{type_emoji} <b>{display} F&amp;O — {signal_type.replace('_', ' ')}</b>{code_tag}\n\n"
-        msg += f"{dir_emoji} <b>Direction:</b> {direction}\n"
+        msg += f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
         msg += f"📊 <b>Confidence:</b> {confidence}/100 ({signal_data.get('confidence_grade', '')})\n"
         msg += f"🎯 <b>Entry Mode:</b> {entry_mode}\n"
         msg += f"💰 <b>Spot:</b> ₹{spot:,.2f} | ATM: {atm}\n\n"
