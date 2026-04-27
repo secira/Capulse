@@ -434,6 +434,14 @@ with app.app_context():
         '''INSERT INTO data_api_plan (plan_type, is_active) SELECT 'user_data', true
             WHERE NOT EXISTS (SELECT 1 FROM data_api_plan)''',
         'ALTER TABLE research_list ADD COLUMN IF NOT EXISTS hist_data_source VARCHAR(50)',
+        # fno_signal_history — columns added for multi-index support (BANKNIFTY, FINNIFTY, SENSEX)
+        # and trade-lifecycle tracking (trade_code, outcome, exit_spot, exit_time).
+        # The original CREATE TABLE migration only had the base set of columns.
+        "ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS index_id VARCHAR(20) DEFAULT 'NIFTY'",
+        'ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS trade_code VARCHAR(20)',
+        'ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS outcome VARCHAR(50)',
+        'ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS exit_spot FLOAT',
+        'ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS exit_time TIMESTAMP',
     ]
     # In production, column migrations are GATED behind RUN_MIGRATIONS=1.
     # Reason: with gunicorn --preload, this block runs in the master process
