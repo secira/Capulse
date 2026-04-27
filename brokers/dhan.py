@@ -74,7 +74,12 @@ class DhanBroker(BrokerBase):
     def _get_sdk(self):
         if self._sdk is None:
             from dhanhq import dhanhq
-            self._sdk = dhanhq(self.client_id, self.access_token)
+            try:
+                # dhanhq v2.x: __init__(self, client_id, access_token, ...)
+                self._sdk = dhanhq(self.client_id, self.access_token)
+            except TypeError:
+                # dhanhq v1.x: __init__(self, access_token) — no client_id arg
+                self._sdk = dhanhq(self.access_token)
         return self._sdk
 
     # ------------------------------------------------------------------

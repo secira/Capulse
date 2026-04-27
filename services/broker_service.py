@@ -139,8 +139,13 @@ class DhanBrokerClient(BaseBrokerClient):
             if not client_id or not access_token:
                 raise BrokerAPIError("Missing Dhan credentials")
             
-            self._client = dhanhq(client_id, access_token)
-            
+            try:
+                # dhanhq v2.x: __init__(self, client_id, access_token, ...)
+                self._client = dhanhq(client_id, access_token)
+            except TypeError:
+                # dhanhq v1.x: __init__(self, access_token) — no client_id arg
+                self._client = dhanhq(access_token)
+
             # Test connection by getting fund limits (a simple API call)
             # For test credentials, just return True
             if client_id == 'test123':

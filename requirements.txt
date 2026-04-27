@@ -62,3 +62,4 @@ breeze-connect>=1.0.67
 apscheduler>=3.11.2
 pyotp>=2.9.0
 pytz>=2025.2
+dhanhq==2.0.2
