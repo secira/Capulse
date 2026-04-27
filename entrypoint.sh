@@ -1,26 +1,39 @@
 #!/bin/bash
-# Minimal Railway entrypoint.
+# Railway entrypoint for Target Capital.
 #
-# We deliberately do NOT run a separate migration/seed Python process here.
-# app.py itself runs db.create_all() and incremental column migrations on
-# every startup (both are idempotent), so the database schema is always
-# correct as soon as gunicorn loads the app.
+# Schema migrations: app.py runs db.create_all() and ADD COLUMN IF NOT EXISTS
+# on every startup — the schema is always correct when gunicorn loads.
 #
-# Seeding (research list, I-Score, blog posts) is opt-in via RUN_SEEDS=1.
-# Set it once on a fresh database, then unset it.  This keeps normal
-# deploys fast and ensures /health responds well within Railway's
-# healthcheck window.
+# Research list: seed_research_list.py runs on EVERY deploy.  It checks the
+# current row count first and exits in <1 s when the list is already complete
+# (2167 stocks).  Only on a fresh or partial database does it insert the
+# missing rows — so normal redeploys are not slowed down.
+#
+# Heavy seeds (I-Score data, blog posts): opt-in via RUN_SEEDS=1.
+# Set it once on a fresh database, then unset it.
 
 echo "======================================"
 echo "Target Capital — Deployment Startup"
 echo "======================================"
 
-# ─── Optional one-shot seeding (only when RUN_SEEDS=1) ───────────────────
+# ─── Always: ensure all 2167 NSE stocks are in research_list ─────────────
+# seed_research_list.py is idempotent and fast-paths out (<1 s) when the
+# table is already fully populated.  This fixes any Railway DB that received
+# a partial seed on the first deploy.
+echo ""
+echo "Syncing NSE stock universe (research_list)..."
+SKIP_SCHEDULER=1 python seed_research_list.py \
+    || echo "⚠️  Research list seed exited non-zero; continuing to gunicorn."
+
+# ─── Optional: heavy one-shot seeding (only when RUN_SEEDS=1) ────────────
+# Covers: I-Score data, blog posts, and full railway_migrate.py flow.
+# Set RUN_SEEDS=1 on first deploy of a blank database, then unset it.
 if [ "${RUN_SEEDS}" = "1" ]; then
     echo ""
     echo "RUN_SEEDS=1 detected — running railway_migrate.py once."
     echo "After this deploy succeeds, unset RUN_SEEDS in Railway variables."
-    SKIP_SCHEDULER=1 python railway_migrate.py || echo "⚠️  Seed step exited non-zero; continuing to gunicorn."
+    SKIP_SCHEDULER=1 python railway_migrate.py \
+        || echo "⚠️  Seed step exited non-zero; continuing to gunicorn."
 fi
 
 # ─── Start the app ───────────────────────────────────────────────────────
