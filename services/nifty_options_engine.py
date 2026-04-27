@@ -733,16 +733,12 @@ class NiftyOptionsEngine:
         current_time = now.time()
         if now.weekday() >= 5:
             return {'pass': False, 'reason': 'Weekend — market closed', 'status': 'blocked', 'caution': False}
-        # Hard block opening noise (9:15–9:25) and closing noise (15:05–15:15)
+        # No trades before 9:25 AM
         if current_time < dtime(9, 25):
-            return {'pass': False, 'reason': 'Opening noise window — no trades before 9:25 AM', 'status': 'blocked', 'caution': False}
-        if current_time >= dtime(15, 5):
-            return {'pass': False, 'reason': 'Closing noise window — no new trades after 3:05 PM', 'status': 'blocked', 'caution': False}
-        # Existing wider safety guard — keep older 9:30 / 14:45 limits to stay conservative
-        if current_time < dtime(9, 30):
-            return {'pass': False, 'reason': 'Pre-market — no trades before 9:30 AM', 'status': 'blocked', 'caution': False}
-        if current_time > dtime(14, 45):
-            return {'pass': False, 'reason': 'Market closing — no new trades after 2:45 PM', 'status': 'blocked', 'caution': False}
+            return {'pass': False, 'reason': 'No trades before 9:25 AM — opening noise window', 'status': 'blocked', 'caution': False}
+        # No trades after 2:59 PM
+        if current_time >= dtime(15, 0):
+            return {'pass': False, 'reason': 'No trades after 2:59 PM — market closing', 'status': 'blocked', 'caution': False}
         # Mid-session caution: 12:00–12:30 → reduce confidence by 10
         caution = dtime(12, 0) <= current_time <= dtime(12, 30)
         return {

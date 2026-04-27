@@ -86,8 +86,8 @@ def _is_market_hours():
     now = _now_ist()
     if now.weekday() >= 5:
         return False
-    open_  = now.replace(hour=9,  minute=15, second=0, microsecond=0)
-    close_ = now.replace(hour=15, minute=30, second=0, microsecond=0)
+    open_  = now.replace(hour=9,  minute=25, second=0, microsecond=0)
+    close_ = now.replace(hour=14, minute=59, second=0, microsecond=0)
     return open_ <= now <= close_
 
 
