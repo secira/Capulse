@@ -852,13 +852,12 @@ class NiftyOptionsEngine:
         return result
 
     def _calculate_vwap(self, df) -> float:
-        """Cumulative VWAP from today's candles only.
-        When df spans multiple days (5d/7d warmup fetch), filters to today first.
-        Fallback: if date filter cannot identify today, use the last 75 rows
-        (= one full 5-min trading session: 375 min / 5 = 75 candles).
+        """VWAP of the last 3 candles (≤15 min micro-VWAP).
+        Fallback: close price of latest candle.
         """
         try:
             import pandas as pd
+            df = df.tail(3)
             df_today = None
 
             # ── Primary: filter by datetime index (Dhan with parsed timestamps) ──
@@ -904,6 +903,7 @@ class NiftyOptionsEngine:
         try:
             import pandas as pd, numpy as np
 
+            df = df.tail(3)
             h = df['High'].astype(float)
             l = df['Low'].astype(float)
             c = df['Close'].astype(float)
@@ -968,6 +968,7 @@ class NiftyOptionsEngine:
         """EMA-based ATR. Returns (atr, atr_rising)."""
         try:
             import pandas as pd
+            df = df.tail(3)
             h = df['High']
             l = df['Low']
             c = df['Close']
@@ -987,6 +988,7 @@ class NiftyOptionsEngine:
         """
         try:
             import pandas as pd
+            df = df.tail(3)
             h = df['High'].astype(float)
             l = df['Low'].astype(float)
             c = df['Close'].astype(float)
@@ -1045,6 +1047,7 @@ class NiftyOptionsEngine:
         """
         try:
             import pandas as pd
+            df = df.tail(3)
             c = df['Close'].astype(float)
             if len(c) < 2:
                 return 50.0, False, False
@@ -1080,6 +1083,7 @@ class NiftyOptionsEngine:
           STRONG_TREND   : gap > 0.12% and distance increasing
         """
         try:
+            df = df.tail(3)
             c = df['Close'].astype(float)
             if len(c) < 2:
                 return {
