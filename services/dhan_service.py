@@ -346,12 +346,18 @@ def get_index_intraday_candles(security_id: int,
         logger.debug(f"get_index_intraday_candles({index_label}): no Dhan broker available")
         return pd.DataFrame()
     try:
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today      = datetime.now()
+        today_str  = today.strftime("%Y-%m-%d")
+        # Fetch 7 calendar days to cover at least 4-5 trading days worth of
+        # 5-min candles. This gives Wilder's 14-period smoothing enough history
+        # to converge (≥200 candles vs the 16 minimum). VWAP is filtered to
+        # today's session inside _calculate_vwap using the datetime index.
+        from_str   = (today - timedelta(days=7)).strftime("%Y-%m-%d")
         rows = broker.get_intraday_candles(
             security_id=security_id,
             exchange_segment=exchange_segment,
             instrument_type="INDEX",
-            from_date=today_str,
+            from_date=from_str,
             to_date=today_str,
             interval=interval,
         )
@@ -359,13 +365,22 @@ def get_index_intraday_candles(security_id: int,
             logger.warning(f"get_index_intraday_candles({index_label}): Dhan returned no rows")
             return pd.DataFrame()
         df = pd.DataFrame(rows)
+        # Parse timestamp into a tz-aware datetime index so VWAP can filter
+        # to today's session and indicators have proper time context.
+        if "timestamp" in df.columns:
+            try:
+                df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+                df = df.set_index("timestamp")
+            except Exception:
+                df = df.drop(columns=["timestamp"], errors="ignore")
         df = df.rename(columns={
             "open": "Open", "high": "High", "low": "Low",
             "close": "Close", "volume": "Volume",
         })
-        df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
+        keep = [c for c in ["Open", "High", "Low", "Close", "Volume"] if c in df.columns]
+        df = df[keep].copy()
         df = df.dropna(subset=["Close"])
-        logger.info(f"get_index_intraday_candles({index_label}): {len(df)} candles from Dhan")
+        logger.info(f"get_index_intraday_candles({index_label}): {len(df)} candles from Dhan (7d)")
         return df
     except Exception as e:
         logger.error(f"get_index_intraday_candles({index_label}) error: {e}")
