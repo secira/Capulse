@@ -346,18 +346,15 @@ def get_index_intraday_candles(security_id: int,
         logger.debug(f"get_index_intraday_candles({index_label}): no Dhan broker available")
         return pd.DataFrame()
     try:
-        today      = datetime.now()
-        today_str  = today.strftime("%Y-%m-%d")
-        # Fetch 7 calendar days to cover at least 4-5 trading days worth of
-        # 5-min candles. This gives Wilder's 14-period smoothing enough history
-        # to converge (≥200 candles vs the 16 minimum). VWAP is filtered to
-        # today's session inside _calculate_vwap using the datetime index.
-        from_str   = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+        today     = datetime.now()
+        today_str = today.strftime("%Y-%m-%d")
+        # Fetch today's candles only. Indicators are computed on the current
+        # live values (EWM works from the first candle — no warm-up needed).
         rows = broker.get_intraday_candles(
             security_id=security_id,
             exchange_segment=exchange_segment,
             instrument_type="INDEX",
-            from_date=from_str,
+            from_date=today_str,
             to_date=today_str,
             interval=interval,
         )

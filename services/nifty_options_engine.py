@@ -894,65 +894,47 @@ class NiftyOptionsEngine:
     def _calculate_adx(self, df, period: int = 14, di_period: int = 14):
         """Wilder's ADX, +DI, -DI. Returns (adx, dmi_plus, dmi_minus, adx_rising).
 
-        Standard ADX(14,14): DI smoothing = 14 candles, ADX smoothing = 14.
-        Matches TradingView / Zerodha Kite / Dhan default DMI settings.
-        Both _direction_engine (+DI/-DI) and _strength_engine (ADX) use this.
+        Uses EWM with alpha=1/period (mathematically identical to Wilder's
+        smoothing) so the calculation works from the very first candle without
+        requiring a multi-day warm-up window.  Each call returns the current
+        live value of the indicator based on today's available candles.
         """
         try:
             import pandas as pd
-            h = df['High']
-            l = df['Low']
-            c = df['Close']
+            h = df['High'].astype(float)
+            l = df['Low'].astype(float)
+            c = df['Close'].astype(float)
 
-            tr = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(axis=1)
-            up = h.diff()
+            if len(c) < 2:
+                return 0.0, 0.0, 0.0, False
+
+            tr   = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(axis=1).dropna()
+            up   = h.diff()
             down = -l.diff()
-            dm_p = up.where((up > 0) & (up > down), 0.0)
-            dm_m = down.where((down > 0) & (down > up), 0.0)
+            dm_p = up.where((up > 0) & (up > down), 0.0).dropna()
+            dm_m = down.where((down > 0) & (down > up), 0.0).dropna()
 
-            # Drop the initial NaN row from diff so rolling().sum() gives correct first window
-            tr = tr.dropna()
-            dm_p = dm_p.dropna()
-            dm_m = dm_m.dropna()
-
-            if len(tr) < di_period + 2:
-                return 22.0, 22.0, 22.0, False
-
-            # Wilder smoothing: first window = simple sum, subsequent = prev - prev/n + current
-            def wilder_smooth(series, n):
-                vals = series.values.astype(float)
-                out = [float('nan')] * len(vals)
-                if len(vals) < n:
-                    return pd.Series(out, index=series.index)
-                out[n - 1] = float(vals[:n].sum())
-                for i in range(n, len(vals)):
-                    out[i] = out[i - 1] - out[i - 1] / n + vals[i]
-                return pd.Series(out, index=series.index)
-
-            # +DI / -DI: Wilder-smooth TR and DM over di_period (default 14)
-            atr_w = wilder_smooth(tr, di_period)
-            dmp_w = wilder_smooth(dm_p, di_period)
-            dmm_w = wilder_smooth(dm_m, di_period)
+            # EWM with alpha = 1/period is Wilder's smoothing — works with any
+            # number of candles (adjust=False uses first value as the seed)
+            alpha = 1.0 / di_period
+            atr_w = tr.ewm(alpha=alpha, adjust=False).mean()
+            dmp_w = dm_p.ewm(alpha=alpha, adjust=False).mean()
+            dmm_w = dm_m.ewm(alpha=alpha, adjust=False).mean()
 
             safe_atr = atr_w.replace(0, 0.01)
             di_p = (100 * dmp_w / safe_atr).clip(0, 100)
             di_m = (100 * dmm_w / safe_atr).clip(0, 100)
-            dx = (100 * (di_p - di_m).abs() / (di_p + di_m).replace(0, 0.01)).clip(0, 100)
-            # ADX: Wilder-smoothed DX over period (default 14), using EWM com=period-1
-            adx_s = dx.dropna().ewm(com=max(period - 1, 1), adjust=False).mean()
+            dx   = (100 * (di_p - di_m).abs() / (di_p + di_m).replace(0, 0.01)).clip(0, 100)
+            adx_s = dx.ewm(alpha=1.0 / max(period, 1), adjust=False).mean()
 
-            valid = adx_s.dropna()
-            if len(valid) < 2:
-                return 22.0, 22.0, 22.0, False
-
-            adx = min(float(valid.iloc[-1]), 100.0)
-            dmi_p = min(float(di_p.iloc[-1]), 100.0)
-            dmi_m = min(float(di_m.iloc[-1]), 100.0)
-            rising = bool(valid.iloc[-1] > valid.iloc[-3]) if len(valid) >= 3 else False
+            adx   = min(float(adx_s.iloc[-1]),  100.0)
+            dmi_p = min(float(di_p.iloc[-1]),   100.0)
+            dmi_m = min(float(di_m.iloc[-1]),   100.0)
+            rising = bool(adx_s.iloc[-1] > adx_s.iloc[-3]) if len(adx_s) >= 3 else False
             return round(adx, 1), round(dmi_p, 1), round(dmi_m, 1), rising
         except Exception as e:
             logger.warning(f"ADX calculation error: {e}")
-            return 22.0, 22.0, 22.0, False
+            return 0.0, 0.0, 0.0, False
 
     def _calculate_atr(self, df, period: int = 14):
         """EMA-based ATR. Returns (atr, atr_rising)."""
@@ -1030,25 +1012,25 @@ class NiftyOptionsEngine:
     # ------------------------------------------------------------------
 
     def _calculate_rsi(self, df, period: int = 7):
-        """Wilder RSI on Close. Returns (rsi, rsi_expanding_2bars)."""
+        """Wilder RSI on Close. Returns (rsi, rsi_expanding_up, rsi_expanding_down).
+        EWM with alpha=1/period works from the first candle — no warm-up needed.
+        """
         try:
             import pandas as pd
             c = df['Close'].astype(float)
-            delta = c.diff()
+            if len(c) < 2:
+                return 50.0, False, False
+            delta = c.diff().dropna()
             gain = delta.clip(lower=0)
             loss = (-delta).clip(lower=0)
             avg_gain = gain.ewm(alpha=1.0 / period, adjust=False).mean()
             avg_loss = loss.ewm(alpha=1.0 / period, adjust=False).mean()
             rs = avg_gain / avg_loss.replace(0, 1e-9)
             rsi_s = (100 - 100 / (1 + rs)).clip(0, 100)
-            valid = rsi_s.dropna()
-            if len(valid) < 3:
-                return 50.0, False, False
-            rsi = float(valid.iloc[-1])
-            # Expansion: monotonic increase OR decrease over last 2 bars (direction-agnostic flag)
-            expanding_up = bool(valid.iloc[-1] > valid.iloc[-2] > valid.iloc[-3])
-            expanding_down = bool(valid.iloc[-1] < valid.iloc[-2] < valid.iloc[-3])
-            return round(rsi, 1), expanding_up, expanding_down
+            rsi = round(float(rsi_s.iloc[-1]), 1)
+            expanding_up   = bool(len(rsi_s) >= 3 and rsi_s.iloc[-1] > rsi_s.iloc[-2] > rsi_s.iloc[-3])
+            expanding_down = bool(len(rsi_s) >= 3 and rsi_s.iloc[-1] < rsi_s.iloc[-2] < rsi_s.iloc[-3])
+            return rsi, expanding_up, expanding_down
         except Exception as e:
             logger.warning(f"RSI calculation error: {e}")
             return 50.0, False, False
@@ -1071,13 +1053,14 @@ class NiftyOptionsEngine:
         """
         try:
             c = df['Close'].astype(float)
-            if len(c) < 22:
+            if len(c) < 2:
                 return {
                     'ema9': 0.0, 'ema21': 0.0, 'trend': 'NEUTRAL',
                     'crossover': False, 'distance_pct': 0.0,
                     'distance_increasing': False, 'tier': 'WEAK_TREND', 'no_trade_zone': True,
                 }
 
+            # EWM works from the first candle — current live value, no warm-up needed
             ema9_s  = c.ewm(span=9,  adjust=False).mean()
             ema21_s = c.ewm(span=21, adjust=False).mean()
 
@@ -1087,7 +1070,8 @@ class NiftyOptionsEngine:
             trend = 'BULLISH' if ema9 > ema21 else ('BEARISH' if ema9 < ema21 else 'NEUTRAL')
 
             crossover = False
-            for i in range(1, min(4, len(ema9_s))):
+            look_back = min(4, len(ema9_s) - 1)
+            for i in range(1, look_back + 1):
                 prev_diff = float(ema9_s.iloc[-i - 1]) - float(ema21_s.iloc[-i - 1])
                 curr_diff = float(ema9_s.iloc[-i])     - float(ema21_s.iloc[-i])
                 if (prev_diff <= 0 < curr_diff) or (prev_diff >= 0 > curr_diff):
