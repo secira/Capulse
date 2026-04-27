@@ -894,13 +894,16 @@ class NiftyOptionsEngine:
     def _calculate_adx(self, df, period: int = 14, di_period: int = 14):
         """Wilder's ADX, +DI, -DI. Returns (adx, dmi_plus, dmi_minus, adx_rising).
 
-        Uses EWM with alpha=1/period (mathematically identical to Wilder's
-        smoothing) so the calculation works from the very first candle without
-        requiring a multi-day warm-up window.  Each call returns the current
-        live value of the indicator based on today's available candles.
+        Uses proper Wilder sum-based initialisation: seed = sum of first min(n, k)
+        bars, then recursive smoothing.  When fewer than `di_period` candles are
+        available the partial sum is used as the seed — the DM+/TR ratio is
+        preserved because both are seeded from the same number of bars.
+        This matches TradingView / Zerodha Kite DI values without needing
+        multi-day historical warm-up.
         """
         try:
-            import pandas as pd
+            import pandas as pd, numpy as np
+
             h = df['High'].astype(float)
             l = df['Low'].astype(float)
             c = df['Close'].astype(float)
@@ -908,29 +911,54 @@ class NiftyOptionsEngine:
             if len(c) < 2:
                 return 0.0, 0.0, 0.0, False
 
-            tr   = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(axis=1).dropna()
+            tr   = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()],
+                             axis=1).max(axis=1)
             up   = h.diff()
             down = -l.diff()
-            dm_p = up.where((up > 0) & (up > down), 0.0).dropna()
-            dm_m = down.where((down > 0) & (down > up), 0.0).dropna()
+            dm_p = up.where((up > 0) & (up > down), 0.0)
+            dm_m = down.where((down > 0) & (down > up), 0.0)
 
-            # EWM with alpha = 1/period is Wilder's smoothing — works with any
-            # number of candles (adjust=False uses first value as the seed)
-            alpha = 1.0 / di_period
-            atr_w = tr.ewm(alpha=alpha, adjust=False).mean()
-            dmp_w = dm_p.ewm(alpha=alpha, adjust=False).mean()
-            dmm_w = dm_m.ewm(alpha=alpha, adjust=False).mean()
+            # Fill NaN at row-0 (caused by shift/diff) with 0
+            tr   = tr.fillna(0.0)
+            dm_p = dm_p.fillna(0.0)
+            dm_m = dm_m.fillna(0.0)
+
+            def wilder_smooth(series: pd.Series, n: int) -> pd.Series:
+                """Wilder smoothing with partial-sum seed for k < n.
+                Seed = sum(first min(n,k) values); then Wilder recursive formula.
+                Both TR and DM series use the same seed length, so the
+                DI ratio (DM/TR) is correct regardless of candle count.
+                """
+                vals = series.values.astype(float)
+                k = len(vals)
+                out = np.full(k, np.nan)
+                fw = min(n, k)              # first-window length
+                out[fw - 1] = float(np.nansum(vals[:fw]))
+                for i in range(fw, k):
+                    out[i] = out[i - 1] - out[i - 1] / n + vals[i]
+                return pd.Series(out, index=series.index)
+
+            atr_w = wilder_smooth(tr,   di_period)
+            dmp_w = wilder_smooth(dm_p, di_period)
+            dmm_w = wilder_smooth(dm_m, di_period)
 
             safe_atr = atr_w.replace(0, 0.01)
             di_p = (100 * dmp_w / safe_atr).clip(0, 100)
             di_m = (100 * dmm_w / safe_atr).clip(0, 100)
             dx   = (100 * (di_p - di_m).abs() / (di_p + di_m).replace(0, 0.01)).clip(0, 100)
-            adx_s = dx.ewm(alpha=1.0 / max(period, 1), adjust=False).mean()
+            adx_s = wilder_smooth(dx.fillna(0.0), period)
 
-            adx   = min(float(adx_s.iloc[-1]),  100.0)
-            dmi_p = min(float(di_p.iloc[-1]),   100.0)
-            dmi_m = min(float(di_m.iloc[-1]),   100.0)
-            rising = bool(adx_s.iloc[-1] > adx_s.iloc[-3]) if len(adx_s) >= 3 else False
+            valid_adx = adx_s.dropna()
+            valid_dip = di_p.dropna()
+            valid_dim = di_m.dropna()
+
+            if valid_adx.empty or valid_dip.empty or valid_dim.empty:
+                return 0.0, 0.0, 0.0, False
+
+            adx   = min(float(valid_adx.iloc[-1]), 100.0)
+            dmi_p = min(float(valid_dip.iloc[-1]), 100.0)
+            dmi_m = min(float(valid_dim.iloc[-1]), 100.0)
+            rising = bool(len(valid_adx) >= 3 and valid_adx.iloc[-1] > valid_adx.iloc[-3])
             return round(adx, 1), round(dmi_p, 1), round(dmi_m, 1), rising
         except Exception as e:
             logger.warning(f"ADX calculation error: {e}")
