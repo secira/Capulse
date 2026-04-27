@@ -367,11 +367,20 @@ def get_index_intraday_candles(security_id: int,
         df = pd.DataFrame(rows)
         # Parse timestamp into a tz-aware datetime index so VWAP can filter
         # to today's session and indicators have proper time context.
+        # Dhan returns timestamps as Unix seconds (integers). pd.to_datetime
+        # without unit='s' treats them as nanoseconds → wrong dates. Detect
+        # numeric dtype and use unit='s' accordingly.
         if "timestamp" in df.columns:
             try:
-                df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+                ts_col = df["timestamp"]
+                if pd.api.types.is_numeric_dtype(ts_col):
+                    df["timestamp"] = pd.to_datetime(ts_col, unit='s', utc=True)
+                else:
+                    df["timestamp"] = pd.to_datetime(ts_col, utc=True)
                 df = df.set_index("timestamp")
-            except Exception:
+                df = df.sort_index()
+            except Exception as ts_err:
+                logger.warning(f"get_index_intraday_candles({index_label}): timestamp parse failed: {ts_err}")
                 df = df.drop(columns=["timestamp"], errors="ignore")
         df = df.rename(columns={
             "open": "Open", "high": "High", "low": "Low",

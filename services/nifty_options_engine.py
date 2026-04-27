@@ -853,24 +853,39 @@ class NiftyOptionsEngine:
 
     def _calculate_vwap(self, df) -> float:
         """Cumulative VWAP from today's candles only.
-        When df spans multiple days (5d warmup fetch), filters to today first.
+        When df spans multiple days (5d/7d warmup fetch), filters to today first.
+        Fallback: if date filter cannot identify today, use the last 75 rows
+        (= one full 5-min trading session: 375 min / 5 = 75 candles).
         """
         try:
             import pandas as pd
-            # Filter to today's trading session so VWAP is intraday-accurate
+            df_today = None
+
+            # ── Primary: filter by datetime index (Dhan with parsed timestamps) ──
             try:
                 idx = df.index
                 if hasattr(idx, 'tz') and idx.tz is not None:
                     today_date = pd.Timestamp.now(tz=idx.tz).normalize()
-                else:
+                    _today = df[df.index >= today_date]
+                    if len(_today) >= 3:
+                        df_today = _today
+                elif hasattr(idx, 'dtype') and str(idx.dtype).startswith('datetime'):
+                    # tz-naive datetime index (yfinance without tz)
                     today_date = pd.Timestamp.now().normalize()
-                df_today = df[df.index >= today_date]
-                if len(df_today) >= 3:
-                    df = df_today
+                    _today = df[df.index >= today_date]
+                    if len(_today) >= 3:
+                        df_today = _today
             except Exception:
                 pass
-            tp = (df['High'] + df['Low'] + df['Close']) / 3
-            vol = df['Volume'].replace(0, 1)
+
+            # ── Fallback: use the last 75 rows (≈ one full trading session) ──
+            # Handles: integer-indexed df, failed timestamp parsing, holiday edge cases
+            if df_today is None or len(df_today) < 3:
+                n = min(75, len(df))
+                df_today = df.iloc[-n:]
+
+            tp = (df_today['High'] + df_today['Low'] + df_today['Close']) / 3
+            vol = df_today['Volume'].replace(0, 1)
             vwap = (tp * vol).cumsum() / vol.cumsum()
             return float(vwap.iloc[-1])
         except Exception:
