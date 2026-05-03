@@ -503,6 +503,21 @@ with app.app_context():
         'CREATE INDEX IF NOT EXISTS ix_api_alert_log_subscription_id ON api_alert_log (subscription_id)',
         'CREATE INDEX IF NOT EXISTS ix_api_alert_log_symbol ON api_alert_log (symbol)',
         'CREATE INDEX IF NOT EXISTS ix_api_alert_log_created_at ON api_alert_log (created_at)',
+        # ── Performance indexes for high-traffic queries ──────────────────
+        # Watchlist lookups by user + symbol (Co-Pilot, Research filters).
+        'CREATE INDEX IF NOT EXISTS ix_watchlist_item_user_id ON watchlist_item (user_id)',
+        'CREATE INDEX IF NOT EXISTS ix_watchlist_item_symbol ON watchlist_item (symbol)',
+        # Behavioural AI scans manual_trade_imports filtered by user, ordered by time.
+        'CREATE INDEX IF NOT EXISTS ix_manual_trade_imports_user_entry ON manual_trade_imports (user_id, entry_time DESC)',
+        'CREATE INDEX IF NOT EXISTS ix_manual_trade_imports_user_exit ON manual_trade_imports (user_id, exit_time DESC)',
+        # Research cache: most queries filter by symbol+asset_type and validity.
+        'CREATE INDEX IF NOT EXISTS ix_research_cache_symbol_asset ON research_cache (symbol, asset_type, is_valid)',
+        'CREATE INDEX IF NOT EXISTS ix_research_cache_expires ON research_cache (expires_at)',
+        # F&O signal history is queried by index_id+created_at on every page load.
+        'CREATE INDEX IF NOT EXISTS ix_fno_signal_history_idx_created ON fno_signal_history (index_id, created_at DESC)',
+        'CREATE INDEX IF NOT EXISTS ix_fno_signal_history_created ON fno_signal_history (created_at DESC)',
+        # Active broker lookups: user_id + is_active is the hot path.
+        'CREATE INDEX IF NOT EXISTS ix_user_brokers_user_active ON user_brokers (user_id, is_active)',
     ]
     # In production, column migrations are GATED behind RUN_MIGRATIONS=1.
     # Reason: with gunicorn --preload, this block runs in the master process

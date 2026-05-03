@@ -93,11 +93,55 @@ def _is_market_hours():
     return open_ <= now <= close_
 
 
+def _alert_state_key(idx: str) -> str:
+    return f"fno_alert_state:{idx}"
+
+
+def _persist_alert_state(idx: str) -> None:
+    """Mirror per-index alert dedup state to Redis so it survives restarts
+    (and stays consistent if we ever scale beyond a single scheduler worker)."""
+    try:
+        from services import state_store
+        last_ts = _last_signal_time[idx]
+        date_   = _daily_date[idx]
+        state_store.set(_alert_state_key(idx), {
+            'last_signal_time':      last_ts.isoformat() if last_ts else None,
+            'last_signal_direction': _last_signal_direction[idx],
+            'daily_signal_count':    _daily_signal_count[idx],
+            'daily_date':            date_.isoformat() if date_ else None,
+        }, ttl=86400 * 2)  # 2-day TTL — covers weekends + restarts
+    except Exception as e:
+        logger.debug(f"[{idx}] persist_alert_state skipped: {e}")
+
+
+def _restore_alert_state() -> None:
+    """Load alert dedup state for every index from Redis on startup."""
+    try:
+        from services import state_store
+        from datetime import datetime as _dt, date as _date
+    except Exception:
+        return
+    for idx in SCAN_INDICES:
+        data = state_store.get(_alert_state_key(idx))
+        if not data or not isinstance(data, dict):
+            continue
+        try:
+            ts = data.get('last_signal_time')
+            _last_signal_time[idx]      = _dt.fromisoformat(ts) if ts else None
+            _last_signal_direction[idx] = data.get('last_signal_direction')
+            _daily_signal_count[idx]    = int(data.get('daily_signal_count') or 0)
+            d = data.get('daily_date')
+            _daily_date[idx]            = _date.fromisoformat(d) if d else None
+        except Exception as e:
+            logger.warning(f"[{idx}] failed to restore alert state: {e}")
+
+
 def _reset_daily_if_needed(idx: str):
     today = _now_ist().date()
     if _daily_date[idx] != today:
         _daily_date[idx]         = today
         _daily_signal_count[idx] = 0
+        _persist_alert_state(idx)
 
 
 def _smoothed_confidence(idx: str, raw: int) -> int:
@@ -608,6 +652,7 @@ def _scan_index(app, idx: str, data_broker_user_id):
                             _last_signal_time[idx]      = _now_ist()
                             _last_signal_direction[idx] = analysis.get('trade_direction')
                             _daily_signal_count[idx]   += 1
+                            _persist_alert_state(idx)
                     _dispatch_partner_webhook(analysis, idx)
 
                 elif analysis.get('entry_mode') != 'NO TRADE' and smoothed >= 60:
@@ -690,6 +735,9 @@ def start_scheduler(app):
         logger.info("F&O scheduler skipped on this worker (another worker holds the lock)")
         return
     try:
+        # Restore alert dedup state from Redis so a restart doesn't blow
+        # away the daily-cap counter (would otherwise allow re-spamming).
+        _restore_alert_state()
         from apscheduler.schedulers.background import BackgroundScheduler
         scheduler = BackgroundScheduler(daemon=True)
         scheduler.add_job(

@@ -24,18 +24,25 @@ import random
 import os
 import time
 
-# In-memory cache for Portfolio AI insights (2-hour TTL per user)
-_PORTFOLIO_AI_CACHE: dict = {}
+# Cross-worker cache for Portfolio AI insights (2-hour TTL per user).
+# Backed by Redis when REDIS_URL is set, in-memory dict in dev.
+from services import state_store as _state_store
 _PORTFOLIO_AI_TTL = 7200  # seconds
 
 
 def _get_portfolio_ai_insights(portfolio_service, portfolio_summary, user_id: int) -> str:
-    """Return cached AI insights or generate fresh ones (2-hour TTL)."""
-    entry = _PORTFOLIO_AI_CACHE.get(user_id)
-    if entry and (time.time() - entry['ts']) < _PORTFOLIO_AI_TTL:
-        return entry['data']
+    """Return cached AI insights or generate fresh ones (2-hour TTL).
+
+    Cached in Redis so all gunicorn workers share the same result and we
+    don't re-bill Anthropic for every worker the user happens to land on.
+    """
+    cache_key = f"portfolio_ai:{user_id}"
+    cached = _state_store.get(cache_key)
+    if cached and isinstance(cached, dict) and 'data' in cached:
+        return cached['data']
     insights = portfolio_service.generate_ai_insights(portfolio_summary)
-    _PORTFOLIO_AI_CACHE[user_id] = {'data': insights, 'ts': time.time()}
+    _state_store.set(cache_key, {'data': insights, 'ts': time.time()},
+                     ttl=_PORTFOLIO_AI_TTL)
     return insights
 import hmac
 import hashlib
