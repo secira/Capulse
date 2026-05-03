@@ -103,23 +103,56 @@
                     </div>
                     
                     <!-- Social Share Buttons -->
+                    {% set _share_url = request.url|urlencode %}
+                    {% set _share_title = post.title|urlencode %}
                     <div class="social-share mt-5 pt-4 border-top">
                         <h5 class="fw-bold mb-3">Share this article</h5>
-                        <div class="d-flex gap-2">
-                            <a href="#" class="btn btn-outline-primary btn-sm">
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="https://twitter.com/intent/tweet?url={{ _share_url }}&text={{ _share_title }}"
+                               target="_blank" rel="noopener noreferrer"
+                               class="btn btn-outline-primary btn-sm">
                                 <i class="fab fa-twitter me-1"></i>Twitter
                             </a>
-                            <a href="#" class="btn btn-outline-primary btn-sm">
+                            <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ _share_url }}"
+                               target="_blank" rel="noopener noreferrer"
+                               class="btn btn-outline-primary btn-sm">
                                 <i class="fab fa-linkedin me-1"></i>LinkedIn
                             </a>
-                            <a href="#" class="btn btn-outline-primary btn-sm">
+                            <a href="https://www.facebook.com/sharer/sharer.php?u={{ _share_url }}"
+                               target="_blank" rel="noopener noreferrer"
+                               class="btn btn-outline-primary btn-sm">
                                 <i class="fab fa-facebook me-1"></i>Facebook
                             </a>
-                            <a href="#" class="btn btn-outline-secondary btn-sm">
-                                <i class="fas fa-link me-1"></i>Copy Link
-                            </a>
+                            <button type="button" id="copyLinkBtn"
+                                    data-share-url="{{ request.url }}"
+                                    class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-link me-1"></i><span class="copy-link-label">Copy Link</span>
+                            </button>
                         </div>
                     </div>
+                    <script>
+                    (function() {
+                        var btn = document.getElementById('copyLinkBtn');
+                        if (!btn) return;
+                        btn.addEventListener('click', function() {
+                            var url = btn.getAttribute('data-share-url');
+                            var label = btn.querySelector('.copy-link-label');
+                            var done = function() {
+                                if (label) label.textContent = 'Copied!';
+                                setTimeout(function() {
+                                    if (label) label.textContent = 'Copy Link';
+                                }, 1800);
+                            };
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                                navigator.clipboard.writeText(url).then(done).catch(function() {
+                                    window.prompt('Copy this link:', url);
+                                });
+                            } else {
+                                window.prompt('Copy this link:', url);
+                            }
+                        });
+                    })();
+                    </script>
                 </article>
             </div>
             
