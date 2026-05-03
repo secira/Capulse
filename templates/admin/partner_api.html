@@ -1,0 +1,209 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}Partner API — Admin | Target Capital{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="fas fa-code me-2"></i>Partner API</h2>
+        <p class="text-muted mb-0" style="font-size:14px">
+            Issue API keys to brokers and agencies. They use them to query the
+            I-Score and F&amp;O engines and receive push webhooks.
+            <a href="{{ url_for('partner_api.docs') }}" target="_blank" class="ms-2">
+                <i class="fas fa-external-link-alt"></i> Public docs
+            </a>
+        </p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newPartnerModal">
+        <i class="fas fa-plus me-1"></i> New Partner
+    </button>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}{% for category, message in messages %}
+    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}{% endif %}
+{% endwith %}
+
+{% if new_key %}
+<div class="card border-0 shadow-sm mb-4" style="border-radius:12px;border:2px solid #f59e0b !important;background:#fffbeb">
+  <div class="card-body p-4">
+    <h5 class="fw-bold mb-2 text-dark">
+      <i class="fas fa-key text-warning me-2"></i>
+      New API key for "{{ new_partner_name }}"
+    </h5>
+    <p class="text-muted small mb-3">
+      Copy this now — it cannot be shown again. Store it somewhere safe and share it with the partner over a secure channel.
+    </p>
+    <div class="input-group">
+      <input type="text" class="form-control font-monospace" id="newKeyField" value="{{ new_key }}" readonly style="font-size:14px;background:#fff">
+      <button class="btn btn-dark" type="button" onclick="copyNewKey()"><i class="fas fa-copy me-1"></i> Copy</button>
+    </div>
+  </div>
+</div>
+<script>
+function copyNewKey(){
+  const f=document.getElementById('newKeyField');f.select();
+  navigator.clipboard.writeText(f.value).then(()=>{event.target.closest('button').innerHTML='<i class="fas fa-check me-1"></i> Copied'});
+}
+</script>
+{% endif %}
+
+<!-- Partners table -->
+<div class="card border-0 shadow-sm" style="border-radius:12px">
+  <div class="card-body p-0">
+    {% if partners %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead style="background:#f9fafb">
+          <tr>
+            <th class="ps-4">Partner</th>
+            <th>Plan</th>
+            <th>Key prefix</th>
+            <th>Webhook</th>
+            <th class="text-center">Subs</th>
+            <th class="text-center">Alerts (24h)</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th class="text-end pe-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in partners %}
+          <tr>
+            <td class="ps-4">
+              <div class="fw-semibold">{{ p.name }}</div>
+              <div class="text-muted small">
+                {{ p.contact_email }}{% if p.organisation %} · {{ p.organisation }}{% endif %}
+              </div>
+            </td>
+            <td><span class="badge bg-dark text-uppercase">{{ p.plan }}</span></td>
+            <td><code style="font-size:12px">{{ p.api_key_prefix }}…</code></td>
+            <td>
+              {% if p.webhook_url %}
+                <i class="fas fa-link text-success me-1"></i>
+                <span class="small text-muted">{{ p.webhook_url[:32] }}{% if p.webhook_url|length > 32 %}…{% endif %}</span>
+              {% else %}
+                <span class="text-muted small"><i class="fas fa-unlink me-1"></i>Not configured</span>
+              {% endif %}
+            </td>
+            <td class="text-center">{{ stats[p.id].subs }}</td>
+            <td class="text-center">{{ stats[p.id].alerts_24h }}</td>
+            <td>
+              {% if p.is_active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Disabled</span>
+              {% endif %}
+            </td>
+            <td class="text-muted small">{{ p.created_at.strftime('%d %b %Y') if p.created_at else '—' }}</td>
+            <td class="text-end pe-4">
+              <div class="btn-group btn-group-sm">
+                <form method="POST" action="{{ url_for('admin.partner_api_toggle', partner_id=p.id) }}" class="d-inline">
+                  <button class="btn btn-outline-secondary" title="{{ 'Deactivate' if p.is_active else 'Activate' }}">
+                    <i class="fas fa-{{ 'pause' if p.is_active else 'play' }}"></i>
+                  </button>
+                </form>
+                <form method="POST" action="{{ url_for('admin.partner_api_regenerate', partner_id=p.id) }}" class="d-inline"
+                      onsubmit="return confirm('Rotate API key for {{ p.name }}? The current key will stop working immediately.');">
+                  <button class="btn btn-outline-warning" title="Regenerate key">
+                    <i class="fas fa-sync-alt"></i>
+                  </button>
+                </form>
+                <form method="POST" action="{{ url_for('admin.partner_api_delete', partner_id=p.id) }}" class="d-inline"
+                      onsubmit="return confirm('Delete partner {{ p.name }}? All subscriptions and alert logs will be removed.');">
+                  <button class="btn btn-outline-danger" title="Delete">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+      <i class="fas fa-handshake fa-3x text-muted mb-3"></i>
+      <h5 class="text-dark">No partners yet</h5>
+      <p class="text-muted">Click <strong>New Partner</strong> to issue your first API key.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Onboarding flow explainer -->
+<div class="card border-0 shadow-sm mt-4" style="border-radius:12px">
+  <div class="card-body p-4">
+    <h5 class="fw-bold mb-3"><i class="fas fa-route me-2"></i>How partners onboard</h5>
+    <ol class="text-muted" style="line-height:2;font-size:14px">
+      <li>Broker emails <code>partners@targetcapital.in</code> with their use case and webhook URL.</li>
+      <li>You click <strong>New Partner</strong> above and fill in their details.</li>
+      <li>The platform shows the API key <strong>once</strong> — you copy it and email it to them securely.</li>
+      <li>They authenticate every request with <code>Authorization: Bearer &lt;key&gt;</code>.</li>
+      <li>They subscribe to symbols/indices via <code>POST /api/partner/v1/subscriptions</code>.</li>
+      <li>Whenever a qualifying signal fires, our server POSTs it to their webhook with an HMAC signature.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- New Partner modal -->
+<div class="modal fade" id="newPartnerModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <form method="POST" action="{{ url_for('admin.partner_api_create') }}" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold">New Partner</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Partner name *</label>
+            <input type="text" name="name" class="form-control" required placeholder="Acme Brokers Pvt Ltd">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Contact email *</label>
+            <input type="email" name="contact_email" class="form-control" required placeholder="ops@acme.in">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Organisation</label>
+            <input type="text" name="organisation" class="form-control" placeholder="Acme Group">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Plan</label>
+            <select name="plan" class="form-select">
+              <option value="basic">Basic</option>
+              <option value="pro">Pro</option>
+              <option value="elite">Elite</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-semibold">Rate limit / min</label>
+            <input type="number" name="rate_limit_per_min" class="form-control" value="60" min="1">
+          </div>
+          <div class="col-12"><hr class="my-2"></div>
+          <div class="col-md-8">
+            <label class="form-label small fw-semibold">Webhook URL <span class="text-muted">(optional)</span></label>
+            <input type="url" name="webhook_url" class="form-control" placeholder="https://acme.in/webhooks/tc">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Webhook secret</label>
+            <input type="text" name="webhook_secret" class="form-control" placeholder="for HMAC signing">
+          </div>
+        </div>
+        <div class="alert alert-info mt-3 mb-0 small">
+          <i class="fas fa-info-circle me-1"></i>
+          The API key is generated automatically and shown only once after creation.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-key me-1"></i> Create &amp; Generate Key</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

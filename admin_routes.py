@@ -1557,3 +1557,122 @@ def set_data_api_plan():
         flash(f'Error updating Data API Plan: {e}', 'error')
 
     return redirect(url_for('admin.data_api_plan'))
+
+# ── B2B Partner API Management ────────────────────────────────────────────────
+
+@admin_bp.route('/partner-api')
+@admin_required
+def partner_api():
+    """List all B2B partners and show the create form."""
+    from models_partner_api import ApiPartner, ApiAlertLog
+    partners = ApiPartner.query.order_by(ApiPartner.created_at.desc()).all()
+
+    # Per-partner stats: subscription count + last 24h alert count
+    stats = {}
+    for p in partners:
+        sub_count = p.subscriptions.filter_by(is_active=True).count()
+        recent = ApiAlertLog.query.filter(
+            ApiAlertLog.partner_id == p.id,
+            ApiAlertLog.created_at >= datetime.utcnow() - timedelta(days=1),
+        ).count()
+        stats[p.id] = {'subs': sub_count, 'alerts_24h': recent}
+
+    new_key = session.pop('partner_api_new_key', None)
+    new_partner_name = session.pop('partner_api_new_name', None)
+    return render_template('admin/partner_api.html',
+                           partners=partners, stats=stats,
+                           new_key=new_key, new_partner_name=new_partner_name)
+
+
+@admin_bp.route('/partner-api/create', methods=['POST'])
+@admin_required
+def partner_api_create():
+    """Create a new partner and stash the raw key in session for one-time display."""
+    from models_partner_api import ApiPartner
+    from services.partner_auth import generate_api_key
+
+    name  = (request.form.get('name') or '').strip()
+    email = (request.form.get('contact_email') or '').strip().lower()
+    if not name or not email:
+        flash('Name and contact email are required.', 'error')
+        return redirect(url_for('admin.partner_api'))
+
+    raw, prefix, hashed = generate_api_key()
+    p = ApiPartner(
+        name=name,
+        contact_email=email,
+        organisation=(request.form.get('organisation') or '').strip() or None,
+        api_key_prefix=prefix,
+        api_key_hash=hashed,
+        plan=(request.form.get('plan') or 'basic').lower(),
+        rate_limit_per_min=int(request.form.get('rate_limit_per_min') or 60),
+        webhook_url=(request.form.get('webhook_url') or '').strip() or None,
+        webhook_secret=(request.form.get('webhook_secret') or '').strip() or None,
+        is_active=True,
+        tenant_id='live',
+    )
+    try:
+        db.session.add(p)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Could not create partner: {e}', 'error')
+        return redirect(url_for('admin.partner_api'))
+
+    session['partner_api_new_key']  = raw
+    session['partner_api_new_name'] = name
+    flash(f'Partner "{name}" created. Copy the API key now — it will not be shown again.', 'success')
+    return redirect(url_for('admin.partner_api'))
+
+
+@admin_bp.route('/partner-api/<int:partner_id>/toggle', methods=['POST'])
+@admin_required
+def partner_api_toggle(partner_id):
+    from models_partner_api import ApiPartner
+    p = ApiPartner.query.get_or_404(partner_id)
+    p.is_active = not p.is_active
+    try:
+        db.session.commit()
+        flash(f'Partner "{p.name}" {"activated" if p.is_active else "deactivated"}.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Could not update partner: {e}', 'error')
+    return redirect(url_for('admin.partner_api'))
+
+
+@admin_bp.route('/partner-api/<int:partner_id>/regenerate', methods=['POST'])
+@admin_required
+def partner_api_regenerate(partner_id):
+    """Rotate the API key. Old key stops working immediately."""
+    from models_partner_api import ApiPartner
+    from services.partner_auth import generate_api_key
+
+    p = ApiPartner.query.get_or_404(partner_id)
+    raw, prefix, hashed = generate_api_key()
+    p.api_key_prefix = prefix
+    p.api_key_hash   = hashed
+    try:
+        db.session.commit()
+        session['partner_api_new_key']  = raw
+        session['partner_api_new_name'] = p.name
+        flash(f'New API key generated for "{p.name}". The old key is now revoked.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Could not rotate key: {e}', 'error')
+    return redirect(url_for('admin.partner_api'))
+
+
+@admin_bp.route('/partner-api/<int:partner_id>/delete', methods=['POST'])
+@admin_required
+def partner_api_delete(partner_id):
+    from models_partner_api import ApiPartner
+    p = ApiPartner.query.get_or_404(partner_id)
+    name = p.name
+    try:
+        db.session.delete(p)
+        db.session.commit()
+        flash(f'Partner "{name}" deleted along with all subscriptions and logs.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Could not delete partner: {e}', 'error')
+    return redirect(url_for('admin.partner_api'))
