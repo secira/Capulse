@@ -24,7 +24,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 
-from flask import Blueprint, g, jsonify, render_template_string, request
+from flask import Blueprint, g, jsonify, render_template, request
 from flask_login import current_user, login_required
 
 from app import db
@@ -306,69 +306,6 @@ def list_alerts():
 
 # ── Public docs page ─────────────────────────────────────────────────────────
 
-_DOCS = """
-<!doctype html><meta charset=utf-8>
-<title>Target Capital — Partner API v1</title>
-<style>
- body{font-family:'Poppins',system-ui,sans-serif;max-width:880px;margin:40px auto;padding:0 20px;color:#111;background:#fff}
- h1,h2{font-weight:600}h1{border-bottom:2px solid #00091a;padding-bottom:8px}
- code,pre{background:#f4f5f7;border-radius:6px;font-family:ui-monospace,Menlo,monospace}
- code{padding:2px 6px}pre{padding:14px;overflow:auto;font-size:13px;line-height:1.45}
- .pill{display:inline-block;background:#00091a;color:#fff;padding:2px 10px;border-radius:999px;font-size:12px;margin-right:6px}
- table{border-collapse:collapse;width:100%}td,th{border:1px solid #e3e5e8;padding:8px 10px;text-align:left}
-</style>
-<h1>Target Capital — Partner API v1</h1>
-<p>Sell I-Score and MVLA F&amp;O signals to your customers. All endpoints under
-<code>/api/partner/v1</code>. Authenticate with
-<code>Authorization: Bearer &lt;api_key&gt;</code>.</p>
-
-<h2>Endpoints</h2>
-<table>
- <tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
- <tr><td>GET</td><td>/me</td><td>Your partner profile</td></tr>
- <tr><td>GET</td><td>/fno/signals/live?index=NIFTY</td><td>Current MVLA signal + score breakdown</td></tr>
- <tr><td>GET</td><td>/fno/signals/history?index=NIFTY&amp;days=7</td><td>Recent signals from monitor</td></tr>
- <tr><td>GET</td><td>/iscore/&lt;symbol&gt;</td><td>Full I-Score with components &amp; explainability</td></tr>
- <tr><td>POST</td><td>/iscore/batch</td><td>Up to 25 symbols at once</td></tr>
- <tr><td>GET / POST</td><td>/subscriptions</td><td>List or create push subscription</td></tr>
- <tr><td>DELETE</td><td>/subscriptions/&lt;id&gt;</td><td>Unsubscribe</td></tr>
- <tr><td>GET</td><td>/alerts</td><td>Webhook delivery log</td></tr>
-</table>
-
-<h2>Webhook payload (F&amp;O)</h2>
-<pre>POST &lt;your_webhook_url&gt;
-X-TC-Event: fno.signal
-X-TC-Signature: sha256=&lt;hmac of body using your webhook_secret&gt;
-
-{
-  "engine": "fno", "symbol": "NIFTY", "score": 82, "tier": "HIGH",
-  "trade_direction": "BULLISH", "entry_mode": "BREAKOUT",
-  "atm_strike": 22500, "entry_price": 120, "sl": 105, "target": 145,
-  "subscription_id": 7, "timestamp": "2026-05-03T05:21:00Z"
-}</pre>
-
-<h2>Webhook payload (I-Score)</h2>
-<pre>POST &lt;your_webhook_url&gt;
-X-TC-Event: iscore.update
-
-{
-  "engine": "iscore", "symbol": "RELIANCE", "score": 72.4,
-  "tier": "BUY", "recommendation": "BUY",
-  "components": { "...": "..." },
-  "subscription_id": 12, "timestamp": "2026-05-03T05:30:00Z"
-}</pre>
-
-<h2>Subscribe to a symbol</h2>
-<pre>POST /api/partner/v1/subscriptions
-{ "engine": "iscore", "symbol": "RELIANCE",
-  "min_confidence": 65, "delta_threshold": 5,
-  "channels": ["webhook"] }</pre>
-
-<p style="margin-top:32px;color:#666">
-<span class="pill">v1</span> Stable. Breaking changes will ship as <code>/v2</code>.</p>
-"""
-
-
 @partner_api.route('/docs', methods=['GET'])
 def docs():
-    return render_template_string(_DOCS)
+    return render_template('partner_api_docs.html')

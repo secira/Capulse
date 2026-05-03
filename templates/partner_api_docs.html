@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}Partner API Documentation | Target Capital{% endblock %}
+{% block description %}Integrate the Target Capital I-Score and MVLA F&O signal engines into your broker or advisory platform. REST endpoints, push webhooks, code examples.{% endblock %}
+
+{% block content %}
+<style>
+ .docs-hero{background:#00091a;color:#fff;padding:120px 0 60px}
+ .docs-hero h1{font-weight:700;letter-spacing:-.02em}
+ .docs-hero .pill{display:inline-block;background:rgba(255,255,255,.12);color:#fff;padding:4px 14px;border-radius:999px;font-size:13px;margin-right:6px}
+ .docs-wrap{display:flex;gap:48px;max-width:1200px;margin:0 auto;padding:50px 24px}
+ .docs-side{position:sticky;top:100px;align-self:flex-start;width:240px;flex-shrink:0;font-size:14px}
+ .docs-side h6{font-weight:600;color:#00091a;margin:18px 0 8px;text-transform:uppercase;font-size:11px;letter-spacing:.06em}
+ .docs-side a{display:block;padding:6px 10px;color:#444;text-decoration:none;border-left:2px solid transparent;border-radius:0 6px 6px 0}
+ .docs-side a:hover,.docs-side a.active{color:#00091a;border-left-color:#00091a;background:#f6f7f9}
+ .docs-main{flex:1;min-width:0}
+ .docs-main h2{font-weight:700;margin-top:48px;margin-bottom:14px;color:#00091a;scroll-margin-top:90px}
+ .docs-main h3{font-weight:600;margin-top:28px;margin-bottom:10px;color:#111;font-size:1.15rem;scroll-margin-top:90px}
+ .docs-main p{color:#374151;line-height:1.7}
+ .docs-main code{background:#f3f4f6;color:#b91c1c;padding:2px 6px;border-radius:4px;font-size:.9em;font-family:ui-monospace,Menlo,monospace}
+ .docs-main pre{background:#0b1220;color:#e5e7eb;padding:18px 20px;border-radius:10px;overflow:auto;font-size:13px;line-height:1.55;font-family:ui-monospace,Menlo,monospace;position:relative}
+ .docs-main pre code{background:transparent;color:inherit;padding:0}
+ .docs-main pre .copy-btn{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.08);color:#cbd5e1;border:0;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer}
+ .docs-main pre .copy-btn:hover{background:rgba(255,255,255,.18)}
+ .endpoint{display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin:8px 0;font-family:ui-monospace,Menlo,monospace;font-size:14px}
+ .method{display:inline-block;font-weight:700;padding:2px 10px;border-radius:4px;font-size:11px;letter-spacing:.05em}
+ .method-get{background:#dbeafe;color:#1e40af}
+ .method-post{background:#dcfce7;color:#166534}
+ .method-patch{background:#fef3c7;color:#92400e}
+ .method-delete{background:#fee2e2;color:#991b1b}
+ .table-clean{width:100%;border-collapse:collapse;margin:14px 0}
+ .table-clean th,.table-clean td{padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:14px}
+ .table-clean th{background:#f9fafb;font-weight:600;color:#111}
+ .callout{background:#eff6ff;border-left:4px solid #2563eb;padding:14px 18px;border-radius:6px;margin:16px 0;color:#1e3a8a;font-size:14px}
+ .callout-warn{background:#fffbeb;border-left-color:#f59e0b;color:#78350f}
+ @media(max-width:900px){.docs-wrap{flex-direction:column}.docs-side{position:static;width:100%}}
+</style>
+
+<section class="docs-hero">
+  <div class="container">
+    <span class="pill">v1 — Stable</span>
+    <span class="pill">REST + Webhooks</span>
+    <h1 class="mt-3 mb-3">Partner API Documentation</h1>
+    <p class="lead mb-0" style="color:#cbd5e1;max-width:720px">
+      Embed Target Capital's I-Score and MVLA F&amp;O signal engines into your
+      broker, advisory, or fintech platform. Pull on demand or receive
+      real-time push alerts to your webhook.
+    </p>
+  </div>
+</section>
+
+<div class="docs-wrap">
+  <!-- Sidebar -->
+  <nav class="docs-side">
+    <h6>Get started</h6>
+    <a href="#overview">Overview</a>
+    <a href="#auth">Authentication</a>
+    <a href="#signup">Getting an API key</a>
+    <a href="#errors">Errors &amp; rate limits</a>
+
+    <h6>F&amp;O signals</h6>
+    <a href="#fno-live">Live signal</a>
+    <a href="#fno-history">History</a>
+
+    <h6>I-Score</h6>
+    <a href="#iscore-one">Single stock</a>
+    <a href="#iscore-batch">Batch</a>
+
+    <h6>Push alerts</h6>
+    <a href="#subs">Subscriptions</a>
+    <a href="#webhooks">Webhook payloads</a>
+    <a href="#hmac">Verifying signatures</a>
+    <a href="#alerts-log">Delivery log</a>
+
+    <h6>Reference</h6>
+    <a href="#changelog">Changelog</a>
+    <a href="#support">Support</a>
+  </nav>
+
+  <!-- Content -->
+  <main class="docs-main">
+
+    <h2 id="overview">Overview</h2>
+    <p>The Partner API exposes two engines as a service:</p>
+    <ul>
+      <li><strong>I-Score</strong> — a 6-component score (0–100) per NSE stock with
+        explainability factors. Subscribe per <em>symbol</em>.</li>
+      <li><strong>MVLA F&amp;O</strong> — momentum-validated, loss-averse intraday
+        signals for NIFTY, BANKNIFTY, FINNIFTY and SENSEX with confidence
+        tiers, ATM strike selection and risk levels. Subscribe per <em>index</em>.</li>
+    </ul>
+    <p>All endpoints are mounted under <code>/api/partner/v1</code> and respond with JSON.</p>
+
+    <div class="endpoint"><span class="method method-get">GET</span><span>https://app.targetcapital.in/api/partner/v1/docs</span></div>
+
+    <h2 id="auth">Authentication</h2>
+    <p>Every protected endpoint requires a Bearer token in the
+       <code>Authorization</code> header:</p>
+    <pre><button class="copy-btn">Copy</button><code>curl https://app.targetcapital.in/api/partner/v1/me \
+  -H "Authorization: Bearer tc_live_YOUR_API_KEY"</code></pre>
+    <p>Keys begin with <code>tc_live_</code>. We never store the raw key — only a salted
+       hash — so a key shown to you at creation cannot be retrieved later. Lose it,
+       rotate it.</p>
+
+    <h2 id="signup">Getting an API key</h2>
+    <p>Email <a href="mailto:partners@targetcapital.in">partners@targetcapital.in</a>
+       with your organisation, intended use and a webhook URL. Our team
+       provisions an account and returns the key once. The first response also
+       contains <code>has_webhook_secret</code> — store the secret to verify push payloads.</p>
+    <div class="callout">
+      <strong>Sandbox vs live.</strong> All keys today are <code>tc_live_</code>.
+      A separate <code>tc_test_</code> namespace with synthetic data is on the roadmap.
+    </div>
+
+    <h2 id="errors">Errors &amp; rate limits</h2>
+    <p>Errors return a JSON body with a stable <code>code</code> string:</p>
+    <pre><button class="copy-btn">Copy</button><code>{
+  "success": false,
+  "error":   "Invalid or revoked API key",
+  "code":    "INVALID_API_KEY"
+}</code></pre>
+    <table class="table-clean">
+      <tr><th>HTTP</th><th>Code</th><th>Meaning</th></tr>
+      <tr><td>400</td><td>INVALID_REQUEST / INVALID_INDEX / INVALID_SYMBOL</td><td>Malformed input</td></tr>
+      <tr><td>401</td><td>NO_API_KEY / INVALID_API_KEY</td><td>Missing or bad bearer token</td></tr>
+      <tr><td>403</td><td>FORBIDDEN</td><td>Endpoint requires admin</td></tr>
+      <tr><td>404</td><td>NOT_FOUND</td><td>Subscription does not exist</td></tr>
+      <tr><td>500</td><td>ENGINE_ERROR / DB_ERROR</td><td>Server-side problem (retry safe)</td></tr>
+    </table>
+    <p>Default plan limit is <strong>60 requests/minute per key</strong>.
+       Pro and Elite plans raise this — see <a href="{{ url_for('pricing') }}">pricing</a>.</p>
+
+    <hr class="my-5">
+
+    <h2 id="fno-live">F&amp;O — live signal</h2>
+    <div class="endpoint"><span class="method method-get">GET</span><span>/api/partner/v1/fno/signals/live?index=NIFTY</span></div>
+    <p>Runs the MVLA engine on the latest spot + option-chain snapshot and returns the
+       full analysis: direction, confidence (0–100), entry mode, ATM strike, three
+       ranked option trades, layer-by-layer scoring breakdown and the data source.</p>
+    <h3>Query parameters</h3>
+    <table class="table-clean">
+      <tr><th>Name</th><th>Required</th><th>Description</th></tr>
+      <tr><td>index</td><td>yes</td><td>One of <code>NIFTY</code>, <code>BANKNIFTY</code>, <code>FINNIFTY</code>, <code>SENSEX</code></td></tr>
+    </table>
+    <h3>Example</h3>
+    <pre><button class="copy-btn">Copy</button><code>curl "https://app.targetcapital.in/api/partner/v1/fno/signals/live?index=NIFTY" \
+  -H "Authorization: Bearer tc_live_YOUR_API_KEY"</code></pre>
+    <pre><button class="copy-btn">Copy</button><code>{
+  "success": true,
+  "index":   "NIFTY",
+  "analysis": {
+    "trade_direction": "BULLISH",
+    "confidence":      82,
+    "confidence_grade":"Strong",
+    "entry_mode":      "BREAKOUT",
+    "atm_strike":      22500,
+    "spot_price":      22487.4,
+    "trades": [
+      { "type": "ATM", "strike": 22500, "ltp": 118.4, "risk": "MEDIUM" },
+      { "type": "OTM", "strike": 22550, "ltp":  78.1, "risk": "HIGH" },
+      { "type": "ITM", "strike": 22400, "ltp": 175.6, "risk": "LOW" }
+    ],
+    "layers": { "direction": {...}, "strength": {...}, "filters": {...} },
+    "data_source": "broker"
+  }
+}</code></pre>
+
+    <h2 id="fno-history">F&amp;O — history</h2>
+    <div class="endpoint"><span class="method method-get">GET</span><span>/api/partner/v1/fno/signals/history?index=NIFTY&amp;days=7</span></div>
+    <p>Returns past signals captured by our continuous monitor (60-second scans during
+       market hours). Useful for backtests and dashboard "today's signals" rails.</p>
+    <table class="table-clean">
+      <tr><th>Name</th><th>Default</th><th>Range</th></tr>
+      <tr><td>index</td><td>NIFTY</td><td>Required, one of the four</td></tr>
+      <tr><td>days</td><td>7</td><td>1–30</td></tr>
+      <tr><td>limit</td><td>100</td><td>1–500</td></tr>
+    </table>
+
+    <hr class="my-5">
+
+    <h2 id="iscore-one">I-Score — single stock</h2>
+    <div class="endpoint"><span class="method method-get">GET</span><span>/api/partner/v1/iscore/&lt;symbol&gt;?asset_type=stocks</span></div>
+    <p>Computes the full 6-component I-Score with confidence, recommendation tier
+       (<code>STRONG_BUY</code> / <code>BUY</code> / <code>HOLD</code> / <code>SELL</code>) and "Why this
+       score?" factors. Result is cached till midnight IST.</p>
+    <pre><button class="copy-btn">Copy</button><code>curl "https://app.targetcapital.in/api/partner/v1/iscore/RELIANCE" \
+  -H "Authorization: Bearer tc_live_YOUR_API_KEY"</code></pre>
+    <pre><button class="copy-btn">Copy</button><code>{
+  "success": true,
+  "symbol":  "RELIANCE",
+  "result": {
+    "iscore":         72.4,
+    "confidence":     0.81,
+    "recommendation": "BUY",
+    "summary":        "Strong fundamentals, improving trend, low risk regime.",
+    "components": {
+      "qualitative":    { "score": 70, "weight": 15, ... },
+      "quantitative":   { "score": 78, "weight": 35, ... },
+      "trend":          { "score": 75, "weight": 20, ... },
+      "risk":           { "score": 65, "weight": 15, ... },
+      "search":         { "score": 60, "weight": 10, ... },
+      "market_context": { "score": 55, "weight":  5, ... }
+    },
+    "score_factors": [
+      "Wilder RSI(14) = 62 — bullish bias",
+      "Price > 50-EMA, EMA stack rising",
+      "Drawdown 6% — well below 20% penalty band"
+    ]
+  }
+}</code></pre>
+
+    <h2 id="iscore-batch">I-Score — batch</h2>
+    <div class="endpoint"><span class="method method-post">POST</span><span>/api/partner/v1/iscore/batch</span></div>
+    <p>Up to 25 symbols per call.</p>
+    <pre><button class="copy-btn">Copy</button><code>curl -X POST https://app.targetcapital.in/api/partner/v1/iscore/batch \
+  -H "Authorization: Bearer tc_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "symbols": ["RELIANCE","TCS","HDFCBANK","INFY"] }'</code></pre>
+
+    <hr class="my-5">
+
+    <h2 id="subs">Subscriptions — push alerts</h2>
+    <p>Subscribe a symbol or index and we will POST every qualifying signal to the
+       <code>webhook_url</code> on your partner profile.</p>
+    <div class="endpoint"><span class="method method-get">GET</span><span>/api/partner/v1/subscriptions</span></div>
+    <div class="endpoint"><span class="method method-post">POST</span><span>/api/partner/v1/subscriptions</span></div>
+    <div class="endpoint"><span class="method method-delete">DELETE</span><span>/api/partner/v1/subscriptions/&lt;id&gt;</span></div>
+
+    <h3>Body</h3>
+    <table class="table-clean">
+      <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+      <tr><td>engine</td><td>string</td><td><code>fno</code> or <code>iscore</code></td></tr>
+      <tr><td>symbol</td><td>string</td><td>Index (NIFTY, BANKNIFTY, …) for F&amp;O; NSE stock symbol for I-Score</td></tr>
+      <tr><td>min_confidence</td><td>int</td><td>Only fire when score ≥ this. Default 75 (F&amp;O) / 60 (I-Score)</td></tr>
+      <tr><td>delta_threshold</td><td>int</td><td>I-Score only. Re-fire when score moves by this many points. Default 5</td></tr>
+      <tr><td>channels</td><td>array</td><td>Currently <code>["webhook"]</code>. Email coming soon</td></tr>
+      <tr><td>is_active</td><td>bool</td><td>Pause without deleting</td></tr>
+    </table>
+    <pre><button class="copy-btn">Copy</button><code>curl -X POST https://app.targetcapital.in/api/partner/v1/subscriptions \
+  -H "Authorization: Bearer tc_live_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "engine":         "fno",
+    "symbol":         "NIFTY",
+    "min_confidence": 75
+  }'</code></pre>
+    <div class="callout">POST is <strong>idempotent</strong> on
+       <code>(engine, symbol)</code> — repeating with new thresholds updates the
+       existing subscription instead of erroring.</div>
+
+    <h2 id="webhooks">Webhook payloads</h2>
+    <h3>F&amp;O signal</h3>
+    <pre><button class="copy-btn">Copy</button><code>POST https://your-platform.com/webhooks/tc
+Content-Type: application/json
+X-TC-Event: fno.signal
+X-TC-Signature: sha256=&lt;hex hmac of body&gt;
+
+{
+  "engine":          "fno",
+  "event":           "TRADE_TRIGGER",
+  "index":           "NIFTY",
+  "symbol":          "NIFTY",
+  "score":           82,
+  "confidence":      82,
+  "tier":            "HIGH",
+  "trade_direction": "BULLISH",
+  "entry_mode":      "BREAKOUT",
+  "atm_strike":      22500,
+  "entry_price":     120,
+  "sl":              105,
+  "target":          145,
+  "trade_code":      "NIFTY-2026-05-03-001",
+  "data_source":     "broker",
+  "subscription_id": 17,
+  "timestamp":       "2026-05-03T05:21:00Z"
+}</code></pre>
+    <p>Tier maps directly to confidence: <code>HIGH</code> ≥ 75, <code>REGULAR</code> 60–74, <code>AGGRESSIVE</code> 50–59.</p>
+
+    <h3>I-Score update</h3>
+    <p>Fires on new subscription, recommendation tier change, or score delta ≥ <code>delta_threshold</code>:</p>
+    <pre><button class="copy-btn">Copy</button><code>POST https://your-platform.com/webhooks/tc
+X-TC-Event: iscore.update
+
+{
+  "engine":         "iscore",
+  "symbol":         "RELIANCE",
+  "score":          72.4,
+  "confidence":     0.81,
+  "tier":           "BUY",
+  "recommendation": "BUY",
+  "summary":        "...",
+  "components":     { ... },
+  "subscription_id": 12,
+  "timestamp":       "2026-05-03T05:30:00Z"
+}</code></pre>
+
+    <h2 id="hmac">Verifying signatures</h2>
+    <p>Every webhook carries an HMAC-SHA256 of the raw request body keyed by your
+       <code>webhook_secret</code>. Always verify before trusting the payload.</p>
+    <pre><button class="copy-btn">Copy</button><code>import hmac, hashlib
+
+def verify(req_body: bytes, header_sig: str, secret: str) -> bool:
+    expected = "sha256=" + hmac.new(
+        secret.encode(), req_body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, header_sig or "")</code></pre>
+    <div class="callout callout-warn">
+      Respond with <code>2xx</code> within 5 seconds. We retry once on 5xx; 4xx is
+      treated as permanent rejection. All attempts are logged.
+    </div>
+
+    <h2 id="alerts-log">Delivery log</h2>
+    <div class="endpoint"><span class="method method-get">GET</span><span>/api/partner/v1/alerts?limit=50&amp;engine=fno</span></div>
+    <p>Returns the last <em>n</em> webhook attempts with HTTP status, error and the
+       exact payload sent. Filter by <code>engine</code>.</p>
+
+    <hr class="my-5">
+
+    <h2 id="changelog">Changelog</h2>
+    <table class="table-clean">
+      <tr><th>Date</th><th>Change</th></tr>
+      <tr><td>2026-05-03</td><td>v1 launch — F&amp;O + I-Score engines, push webhooks, HMAC signing.</td></tr>
+    </table>
+
+    <h2 id="support">Support</h2>
+    <p>Questions, integration help or to request a sandbox key:
+       <a href="mailto:partners@targetcapital.in">partners@targetcapital.in</a>.
+       For platform issues see the
+       <a href="{{ url_for('help_center') }}">Help Center</a> or
+       <a href="{{ url_for('contact') }}">contact our team</a>.</p>
+
+  </main>
+</div>
+
+<script>
+document.querySelectorAll('.copy-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const code=btn.parentElement.querySelector('code').innerText;
+    navigator.clipboard.writeText(code).then(()=>{
+      const t=btn.innerText;btn.innerText='Copied';setTimeout(()=>btn.innerText=t,1200);
+    });
+  });
+});
+// Sidebar active-link on scroll
+const links=document.querySelectorAll('.docs-side a');
+const sections=[...links].map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+window.addEventListener('scroll',()=>{
+  const y=window.scrollY+120;let cur=null;
+  sections.forEach((s,i)=>{ if(s.offsetTop<=y) cur=i; });
+  links.forEach(l=>l.classList.remove('active'));
+  if(cur!=null) links[cur].classList.add('active');
+});
+</script>
+{% endblock %}
