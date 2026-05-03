@@ -1,320 +1,446 @@
 {% extends "base.html" %}
 
-{% block title %}Target Capital — AI Portfolio Co-Pilot for Indian Traders | I-Score, Multi-Broker, Behavioural AI{% endblock %}
-{% block description %}India's #1 AI-powered investment platform. Get I-Score ratings, multi-broker portfolio management across Dhan, Zerodha, Angel, Upstox & more, Behavioural Trading DNA, and live F&O signals. Start free.{% endblock %}
-{% block keywords %}AI portfolio management India, multi-broker portfolio tracker, I-Score investment rating, F&O trading signals, behavioural trading analysis, Trading DNA profile, Nifty 50 signals, intraday swing trading, Dhan Zerodha Angel portfolio, stock research AI India, Target Capital{% endblock %}
-{% block og_title %}Target Capital — AI Portfolio Co-Pilot for Indian Traders{% endblock %}
-{% block og_description %}I-Score ratings, multi-broker portfolio hub, Behavioural Trading DNA and live F&O signals. 8 brokers. 11 asset classes. Start free.{% endblock %}
+{% block title %}Target Capital — Stop Guessing Trades. See Ranked Opportunities.{% endblock %}
+{% block description %}TargetCapital analyzes market structure (VWAP, EMA, OI, momentum) and shows you only the highest-probability option trades — in real time. Ranked. Scored. Explained.{% endblock %}
+{% block keywords %}ranked trade signals, NIFTY signals, BANKNIFTY signals, confidence score trading, VWAP EMA OI momentum, F&O trade ideas India, Target Capital, decision engine{% endblock %}
+{% block og_title %}Stop guessing trades. See ranked opportunities with confidence scores.{% endblock %}
+{% block og_description %}Trade what matters. Ignore the noise. Real-time ranked option trades with entry, SL, target — and a transparent reason for every signal.{% endblock %}
 
 {% block content %}
-<section class="hero-section bg-gradient-light position-relative overflow-hidden">
+
+<!-- ============================================================
+     1. HERO — Clear promise + dual CTA
+     ============================================================ -->
+<section class="hero-section bg-white position-relative overflow-hidden" style="padding: 80px 0 60px;">
     <div class="container">
-        <div class="row align-items-center">
-            <div class="col-lg-6 order-lg-1 order-2">
-                <div class="mb-4">
-                    <span class="badge bg-danger bg-opacity-10 text-danger px-3 py-2 rounded-pill fw-semibold me-2 mb-2">
-                        <i class="fas fa-exclamation-triangle me-1"></i>91% of F&O Traders Lost Money in FY25
-                    </span>
-                </div>
-                
-                <h1 class="display-2 fw-bold text-dark mb-4 hero-title" style="line-height: 1.1; font-size: 3.5rem;">
-                    Your AI Portfolio Co-Pilot.<br>
-                    <span class="text-primary">Research. Consolidate. Execute.</span>
+        <div class="row align-items-center g-5">
+            <div class="col-lg-7">
+                <span class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-pill mb-4"
+                      style="background:#ecfdf5;color:#047857;font-size:13px;font-weight:600;">
+                    <span style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;animation:pulse 2s infinite;"></span>
+                    Live engine — markets open
+                </span>
+
+                <h1 class="fw-bold text-dark mb-4" style="font-size: 3.4rem; line-height: 1.08; letter-spacing:-0.02em;">
+                    Stop guessing trades.<br>
+                    See <span style="color:#16a34a;">ranked opportunities</span><br>
+                    with <span style="color:#00091a;">confidence scores.</span>
                 </h1>
-                
-                <p class="lead text-muted mb-5" style="font-size: 1.35rem; line-height: 1.6;">
-                    AI-powered research for buy/sell signals across stocks and assets. Consolidate portfolios from multiple brokers with AI-driven risk analysis. Execute trades with broker confirmation.
+
+                <p class="text-muted mb-4" style="font-size: 1.2rem; line-height: 1.6; max-width: 580px;">
+                    Target Capital reads market structure — VWAP, EMA, OI and momentum — and surfaces only the highest-probability option trades. In real time. With a reason for every signal.
                 </p>
-                
-                <div class="d-flex flex-wrap gap-3 mb-5">
-                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-5 py-3 rounded-pill fw-semibold shadow-lg">
-                        <i class="fas fa-rocket me-2"></i>Get Started Free
+
+                <p class="mb-5" style="font-size:1rem;font-weight:600;color:#00091a;">
+                    Trade what matters. Ignore the noise.
+                </p>
+
+                <div class="d-flex flex-wrap gap-3 mb-4">
+                    <a href="{{ url_for('register') }}" class="btn btn-lg px-4 py-3 fw-semibold"
+                       style="background:#16a34a;color:#fff;border-radius:10px;box-shadow:0 6px 18px rgba(22,163,74,0.25);">
+                        View Live Signals →
                     </a>
-                    <a href="#solutions" class="btn btn-outline-primary btn-lg px-5 py-3 rounded-pill fw-semibold">
-                        <i class="fas fa-arrow-down me-2"></i>Learn More
+                    <a href="#live-signals" class="btn btn-lg px-4 py-3 fw-semibold"
+                       style="background:#fff;color:#00091a;border:1.5px solid #00091a;border-radius:10px;">
+                        See Today's Top Trades
                     </a>
                 </div>
+
+                <div class="d-flex flex-wrap gap-4 align-items-center text-muted" style="font-size:13px;">
+                    <span><i class="fas fa-check-circle text-success me-1"></i>30-day free trial</span>
+                    <span><i class="fas fa-check-circle text-success me-1"></i>No credit card</span>
+                    <span><i class="fas fa-check-circle text-success me-1"></i>Cancel anytime</span>
+                </div>
             </div>
-            
-            <div class="col-lg-6 order-lg-2 order-1 mb-4 mb-lg-0">
-                <div class="position-relative text-center hero-image-container">
-                    <img src="{{ url_for('static', filename='img/risk-analysis.svg') }}" 
-                         alt="Unified Portfolio Intelligence Platform" class="responsive-img critical-img" loading="eager" decoding="async" fetchpriority="high" style="max-width: 100%; height: auto;">
+
+            <!-- Hero signal card preview -->
+            <div class="col-lg-5">
+                <div class="position-relative">
+                    <!-- Floating mini-card behind -->
+                    <div class="d-none d-lg-block position-absolute" style="top:-20px;right:20px;z-index:1;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px 18px;box-shadow:0 8px 24px rgba(0,0,0,0.08);transform:rotate(3deg);">
+                        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Score</div>
+                        <div style="font-size:1.6rem;font-weight:700;color:#16a34a;line-height:1;">82<span style="font-size:0.85rem;color:#9ca3af;font-weight:500;">/100</span></div>
+                    </div>
+
+                    <!-- Main signal card -->
+                    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:28px;box-shadow:0 20px 60px rgba(0,9,26,0.10);position:relative;z-index:2;">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <div style="font-size:11px;color:#6b7280;letter-spacing:0.05em;font-weight:600;text-transform:uppercase;">F&O Signal · Live</div>
+                                <h3 class="fw-bold mb-0 mt-1" style="color:#00091a;font-size:1.35rem;">BANKNIFTY 51500 CE</h3>
+                            </div>
+                            <span style="background:#dcfce7;color:#15803d;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;">BUY</span>
+                        </div>
+
+                        <div class="d-flex align-items-baseline gap-2 mb-4 pb-3" style="border-bottom:1px solid #f1f5f9;">
+                            <span style="font-size:0.85rem;color:#6b7280;">Confidence</span>
+                            <span style="font-size:2rem;font-weight:700;color:#16a34a;line-height:1;">78</span>
+                            <span style="color:#9ca3af;">/100</span>
+                            <span class="ms-auto" style="font-size:11px;color:#16a34a;background:#ecfdf5;padding:2px 8px;border-radius:6px;font-weight:600;">HIGH</span>
+                        </div>
+
+                        <div class="row g-2 mb-3 text-center">
+                            <div class="col-4">
+                                <div style="background:#f8fafc;border-radius:10px;padding:10px 4px;">
+                                    <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Entry</div>
+                                    <div style="font-weight:700;color:#00091a;font-size:1rem;">₹245</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div style="background:#fef2f2;border-radius:10px;padding:10px 4px;">
+                                    <div style="font-size:10px;color:#dc2626;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Stop-Loss</div>
+                                    <div style="font-weight:700;color:#dc2626;font-size:1rem;">₹210</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div style="background:#f0fdf4;border-radius:10px;padding:10px 4px;">
+                                    <div style="font-size:10px;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Target</div>
+                                    <div style="font-weight:700;color:#15803d;font-size:1rem;">₹315</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;">
+                            <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:8px;">Why this trade</div>
+                            <ul class="mb-0" style="list-style:none;padding:0;font-size:13px;color:#334155;">
+                                <li class="mb-1"><i class="fas fa-check" style="color:#16a34a;width:16px;"></i> EMA bullish crossover</li>
+                                <li class="mb-1"><i class="fas fa-check" style="color:#16a34a;width:16px;"></i> Price above VWAP</li>
+                                <li class="mb-1"><i class="fas fa-check" style="color:#16a34a;width:16px;"></i> Breakout confirmed on 15m</li>
+                                <li><i class="fas fa-check" style="color:#16a34a;width:16px;"></i> OI buildup supports move</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+    <style>
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    </style>
 </section>
 
-<section class="py-4 bg-light border-top border-bottom">
-    <div class="container">
-        <div class="row align-items-center justify-content-center g-3">
-            <div class="col-auto">
-                <div class="d-flex align-items-center gap-2 px-3 py-2 bg-white rounded-pill shadow-sm">
-                    <i class="fas fa-users text-primary"></i>
-                    <span class="fw-semibold text-dark" style="font-size:14px;">1K+ Active Traders</span>
-                </div>
-            </div>
-            <div class="col-auto">
-                <div class="d-flex align-items-center gap-2 px-3 py-2 bg-white rounded-pill shadow-sm">
-                    <i class="fas fa-link text-info"></i>
-                    <span class="fw-semibold text-dark" style="font-size:14px;">8 Broker Integrations</span>
-                </div>
-            </div>
-            <div class="col-auto">
-                <div class="d-flex align-items-center gap-2 px-3 py-2 bg-white rounded-pill shadow-sm">
-                    <i class="fas fa-chart-pie text-warning"></i>
-                    <span class="fw-semibold text-dark" style="font-size:14px;">11 Asset Classes</span>
-                </div>
-            </div>
-            <div class="col-auto">
-                <div class="d-flex align-items-center gap-2 px-3 py-2 bg-white rounded-pill shadow-sm">
-                    <i class="fas fa-brain text-success"></i>
-                    <span class="fw-semibold text-dark" style="font-size:14px;">Dual AI Engine</span>
-                </div>
-            </div>
-            <div class="col-auto">
-                <div class="d-flex align-items-center gap-2 px-3 py-2 bg-white rounded-pill shadow-sm">
-                    <i class="fas fa-shield-alt" style="color:#7c3aed;"></i>
-                    <span class="fw-semibold text-dark" style="font-size:14px;">Behavioural Guardrails</span>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<section id="solutions" class="content-section bg-light" style="padding: 100px 0;">
+<!-- ============================================================
+     2. LIVE SIGNALS PREVIEW — Show the product immediately
+     ============================================================ -->
+<section id="live-signals" class="py-5" style="background:#0b1220;color:#fff;padding:80px 0!important;">
     <div class="container">
         <div class="text-center mb-5">
-            <h2 class="display-4 fw-bold text-dark mb-4">Four Pillars of the Scentric AI Platform</h2>
-            <p class="lead text-muted mx-auto" style="max-width: 700px;">
-                Intelligent research, portfolio consolidation, broker-assisted execution, and Behavioural Trading AI.
+            <span class="d-inline-block mb-3 px-3 py-1 rounded-pill" style="background:rgba(22,163,74,0.15);color:#4ade80;font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">Live preview</span>
+            <h2 class="fw-bold mb-3" style="font-size:2.4rem;letter-spacing:-0.02em;">Today's top-ranked trades</h2>
+            <p class="mx-auto" style="max-width:620px;color:#94a3b8;font-size:1.05rem;">
+                A live snapshot from the Target Capital decision engine. Only trades scoring above our minimum threshold are shown — the rest are filtered out as noise.
             </p>
         </div>
-        
+
+        <div class="row g-4">
+            <!-- Signal 1 -->
+            <div class="col-md-6 col-lg-4">
+                <div style="background:#111c30;border:1px solid #1e293b;border-radius:14px;padding:22px;height:100%;">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <div style="font-size:11px;color:#64748b;letter-spacing:0.05em;font-weight:600;text-transform:uppercase;">NIFTY · Intraday</div>
+                            <h5 class="fw-bold mb-0 mt-1 text-white">NIFTY 24800 CE</h5>
+                        </div>
+                        <span style="background:rgba(34,197,94,0.15);color:#4ade80;padding:3px 9px;border-radius:14px;font-size:11px;font-weight:700;">BUY</span>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2 mb-3 pb-3" style="border-bottom:1px solid #1e293b;">
+                        <span style="color:#64748b;font-size:13px;">Confidence</span>
+                        <span style="font-size:1.8rem;font-weight:700;color:#4ade80;">85</span>
+                        <span style="color:#475569;font-size:0.9rem;">/100</span>
+                    </div>
+                    <div class="d-flex justify-content-between" style="font-size:12px;color:#94a3b8;">
+                        <div><span style="color:#64748b;">Entry</span> <strong class="text-white d-block">₹118</strong></div>
+                        <div><span style="color:#64748b;">SL</span> <strong style="color:#f87171;display:block;">₹98</strong></div>
+                        <div><span style="color:#64748b;">Target</span> <strong style="color:#4ade80;display:block;">₹160</strong></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Signal 2 -->
+            <div class="col-md-6 col-lg-4">
+                <div style="background:#111c30;border:1px solid #1e293b;border-radius:14px;padding:22px;height:100%;">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <div style="font-size:11px;color:#64748b;letter-spacing:0.05em;font-weight:600;text-transform:uppercase;">BANKNIFTY · Intraday</div>
+                            <h5 class="fw-bold mb-0 mt-1 text-white">BANKNIFTY 51500 CE</h5>
+                        </div>
+                        <span style="background:rgba(34,197,94,0.15);color:#4ade80;padding:3px 9px;border-radius:14px;font-size:11px;font-weight:700;">BUY</span>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2 mb-3 pb-3" style="border-bottom:1px solid #1e293b;">
+                        <span style="color:#64748b;font-size:13px;">Confidence</span>
+                        <span style="font-size:1.8rem;font-weight:700;color:#4ade80;">78</span>
+                        <span style="color:#475569;font-size:0.9rem;">/100</span>
+                    </div>
+                    <div class="d-flex justify-content-between" style="font-size:12px;color:#94a3b8;">
+                        <div><span style="color:#64748b;">Entry</span> <strong class="text-white d-block">₹245</strong></div>
+                        <div><span style="color:#64748b;">SL</span> <strong style="color:#f87171;display:block;">₹210</strong></div>
+                        <div><span style="color:#64748b;">Target</span> <strong style="color:#4ade80;display:block;">₹315</strong></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Signal 3 -->
+            <div class="col-md-6 col-lg-4">
+                <div style="background:#111c30;border:1px solid #1e293b;border-radius:14px;padding:22px;height:100%;">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <div style="font-size:11px;color:#64748b;letter-spacing:0.05em;font-weight:600;text-transform:uppercase;">FINNIFTY · Intraday</div>
+                            <h5 class="fw-bold mb-0 mt-1 text-white">FINNIFTY 23800 PE</h5>
+                        </div>
+                        <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:3px 9px;border-radius:14px;font-size:11px;font-weight:700;">SELL</span>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2 mb-3 pb-3" style="border-bottom:1px solid #1e293b;">
+                        <span style="color:#64748b;font-size:13px;">Confidence</span>
+                        <span style="font-size:1.8rem;font-weight:700;color:#fbbf24;">72</span>
+                        <span style="color:#475569;font-size:0.9rem;">/100</span>
+                    </div>
+                    <div class="d-flex justify-content-between" style="font-size:12px;color:#94a3b8;">
+                        <div><span style="color:#64748b;">Entry</span> <strong class="text-white d-block">₹92</strong></div>
+                        <div><span style="color:#64748b;">SL</span> <strong style="color:#f87171;display:block;">₹108</strong></div>
+                        <div><span style="color:#64748b;">Target</span> <strong style="color:#4ade80;display:block;">₹65</strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <p class="text-center mt-4 mb-0" style="color:#64748b;font-size:13px;">
+            Sample signals · Live signals refresh every 60 seconds during market hours
+        </p>
+        <div class="text-center mt-4">
+            <a href="{{ url_for('register') }}" class="btn btn-lg px-4 py-3 fw-semibold"
+               style="background:#16a34a;color:#fff;border-radius:10px;">
+                Get Today's Live Signals →
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================
+     3. HOW IT WORKS — 3 simple steps
+     ============================================================ -->
+<section class="bg-white" style="padding:90px 0;">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="fw-bold text-dark mb-3" style="font-size:2.4rem;letter-spacing:-0.02em;">How it works</h2>
+            <p class="text-muted" style="font-size:1.05rem;">From sign-up to your first ranked trade in under 3 minutes.</p>
+        </div>
+
         <div class="row g-4 mt-4">
-            <div class="col-md-6 col-lg-3">
-                <div class="card border-0 shadow h-100" style="border-radius: 16px; overflow: hidden;">
-                    <div class="card-header bg-primary text-white text-center py-4" style="border: none;">
-                        <i class="fas fa-brain fa-2x mb-3"></i>
-                        <h3 class="fw-bold mb-0" style="font-size:1.25rem;">AI Research & Signals</h3>
-                    </div>
-                    <div class="card-body p-4">
-                        <p class="text-muted mb-3" style="font-size:14px;">
-                            Dual AI engine (Claude + GPT-4) for intelligent I-Score ratings and buy/sell signals across all asset classes.
-                        </p>
-                        <ul class="list-unstyled" style="font-size:13px;">
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>I-Score rating (0–100)</strong></li>
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>RAG research with citations</strong></li>
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>Live Market Pulse</strong></li>
-                            <li><i class="fas fa-check text-success me-2"></i><strong>Multi-asset buy/sell signals</strong></li>
-                        </ul>
-                    </div>
+            <div class="col-md-4">
+                <div class="text-center px-3">
+                    <div class="d-inline-flex align-items-center justify-content-center mb-4"
+                         style="width:64px;height:64px;background:#ecfdf5;color:#16a34a;border-radius:18px;font-size:1.5rem;font-weight:700;">1</div>
+                    <h4 class="fw-bold mb-2" style="color:#00091a;">Sign up free</h4>
+                    <p class="text-muted mb-0">Create an account in 30 seconds. 30 days of full access — no credit card.</p>
                 </div>
             </div>
-            
-            <div class="col-md-6 col-lg-3">
-                <div class="card border-0 shadow h-100" style="border-radius: 16px; overflow: hidden;">
-                    <div class="card-header text-white text-center py-4" style="background: linear-gradient(135deg, #3182ce 0%, #2c5282 100%); border: none;">
-                        <i class="fas fa-layer-group fa-2x mb-3"></i>
-                        <h3 class="fw-bold mb-0" style="font-size:1.25rem;">Portfolio Hub</h3>
-                    </div>
-                    <div class="card-body p-4">
-                        <p class="text-muted mb-3" style="font-size:14px;">
-                            8 brokers, 11 asset classes — unified. Scentric Risk Engine for health scoring, heat maps, and goal tracking.
-                        </p>
-                        <ul class="list-unstyled" style="font-size:13px;">
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>8-broker consolidation</strong></li>
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>Portfolio Health Pulse</strong></li>
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>Risk Heat Map</strong></li>
-                            <li><i class="fas fa-check text-success me-2"></i><strong>Goal-based monitoring</strong></li>
-                        </ul>
-                    </div>
+            <div class="col-md-4">
+                <div class="text-center px-3">
+                    <div class="d-inline-flex align-items-center justify-content-center mb-4"
+                         style="width:64px;height:64px;background:#eff6ff;color:#2563eb;border-radius:18px;font-size:1.5rem;font-weight:700;">2</div>
+                    <h4 class="fw-bold mb-2" style="color:#00091a;">See ranked trades</h4>
+                    <p class="text-muted mb-0">The engine shows only opportunities scoring above the noise threshold. Each one with entry, SL, target.</p>
                 </div>
             </div>
-            
-            <div class="col-md-6 col-lg-3">
-                <div class="card border-0 shadow h-100" style="border-radius: 16px; overflow: hidden;">
-                    <div class="card-header text-white text-center py-4" style="background: linear-gradient(135deg, #16a34a 0%, #14532d 100%); border: none;">
-                        <i class="fas fa-rocket fa-2x mb-3"></i>
-                        <h3 class="fw-bold mb-0" style="font-size:1.25rem;">Trade Now</h3>
-                    </div>
-                    <div class="card-body p-4">
-                        <p class="text-muted mb-3" style="font-size:14px;">
-                            Execute across Dhan, Zerodha, Angel & more — BUY/SELL with market or limit orders, protected by live guardrails.
-                        </p>
-                        <ul class="list-unstyled" style="font-size:13px;">
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>8 live broker APIs</strong></li>
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>Market, Limit, SL orders</strong></li>
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>Concentration risk alerts</strong></li>
-                            <li><i class="fas fa-check text-success me-2"></i><strong>Pre-trade validation</strong></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-3">
-                <div class="card border-0 shadow h-100" style="border-radius: 16px; overflow: hidden;">
-                    <div class="card-header text-white text-center py-4" style="background: linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%); border: none;">
-                        <i class="fas fa-dna fa-2x mb-3"></i>
-                        <h3 class="fw-bold mb-0" style="font-size:1.25rem;">Behavioural AI</h3>
-                    </div>
-                    <div class="card-body p-4">
-                        <p class="text-muted mb-3" style="font-size:14px;">
-                            Trading DNA profiling that detects revenge trading, overtrading, and fear-based exits — before they cost you money.
-                        </p>
-                        <ul class="list-unstyled" style="font-size:13px;">
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>Trading Discipline Score</strong></li>
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>Personality risk profile</strong></li>
-                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>Harmful pattern detection</strong></li>
-                            <li><i class="fas fa-check text-success me-2"></i><strong>Pre-trade behavioural check</strong></li>
-                        </ul>
-                    </div>
+            <div class="col-md-4">
+                <div class="text-center px-3">
+                    <div class="d-inline-flex align-items-center justify-content-center mb-4"
+                         style="width:64px;height:64px;background:#fef3c7;color:#d97706;border-radius:18px;font-size:1.5rem;font-weight:700;">3</div>
+                    <h4 class="fw-bold mb-2" style="color:#00091a;">Trade with confidence</h4>
+                    <p class="text-muted mb-0">Read "Why this trade", then execute through any of 8 connected brokers — or paper-trade first.</p>
                 </div>
             </div>
         </div>
     </div>
 </section>
 
-<section class="content-section bg-white" style="padding: 80px 0;">
+<!-- ============================================================
+     4. USP — Not signals. Ranked trade opportunities.
+     ============================================================ -->
+<section style="padding:90px 0;background:#f8fafc;">
     <div class="container">
         <div class="text-center mb-5">
-            <h2 class="display-5 fw-bold text-dark mb-4">How It Works</h2>
-            <p class="text-muted">Get started in minutes.</p>
+            <span class="d-inline-block mb-3 px-3 py-1 rounded-pill" style="background:#fff;color:#00091a;font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;border:1px solid #e5e7eb;">Why we're different</span>
+            <h2 class="fw-bold text-dark mb-3" style="font-size:2.4rem;letter-spacing:-0.02em;">Not signals. <span style="color:#16a34a;">Ranked trade opportunities.</span></h2>
+            <p class="text-muted mx-auto" style="max-width:640px;font-size:1.05rem;">
+                Anyone can throw signals at you. Target Capital is a decision engine — it tells you which trades are worth your attention, and which to skip.
+            </p>
         </div>
-        
-        <div class="row g-5 mt-5">
-            <div class="col-lg-4">
-                <div class="position-relative">
-                    <div class="position-absolute top-0 start-0 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 50px; height: 50px; font-size: 1.5rem;">1</div>
-                    <div class="ps-5 ms-3">
-                        <i class="fas fa-plug fa-3x text-primary mb-3"></i>
-                        <h4 class="fw-bold mb-2">Connect Brokers</h4>
-                        <p class="text-muted">Link your accounts from Zerodha, Groww, Angel One, and more. Secure OAuth.</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-4">
-                <div class="position-relative">
-                    <div class="position-absolute top-0 start-0 bg-success text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 50px; height: 50px; font-size: 1.5rem;">2</div>
-                    <div class="ps-5 ms-3">
-                        <i class="fas fa-layer-group fa-3x text-success mb-3"></i>
-                        <h4 class="fw-bold mb-2">View Your Portfolio</h4>
-                        <p class="text-muted">See all holdings in one dashboard. Understand your complete exposure.</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-4">
-                <div class="position-relative">
-                    <div class="position-absolute top-0 start-0 bg-warning text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 50px; height: 50px; font-size: 1.5rem;">3</div>
-                    <div class="ps-5 ms-3">
-                        <i class="fas fa-lightbulb fa-3x text-warning mb-3"></i>
-                        <h4 class="fw-bold mb-2">Get AI Insights</h4>
-                        <p class="text-muted">Ask questions, explore scenarios, get signals. Make informed decisions.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
 
-<section style="padding: 80px 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); position: relative;">
-    <div class="container">
-        <div class="row align-items-center">
-            <div class="col-lg-6">
-                <div class="text-white">
-                    <div class="d-inline-flex align-items-center gap-2 mb-4">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" class="text-white">
-                            <path d="M12 1L3 5V11C3 16.55 6.84 21.74 12 23C17.16 21.74 21 16.55 21 11V5L12 1ZM12 7C13.1 7 14 7.9 14 9C14 10.1 13.1 11 12 11C10.9 11 10 10.1 10 9C10 7.9 10.9 7 12 7ZM12 17C10.67 17 9.46 16.5 8.5 15.68C8.82 14.98 10.22 14.5 12 14.5C13.78 14.5 15.18 14.98 15.5 15.68C14.54 16.5 13.33 17 12 17Z" fill="currentColor"/>
-                        </svg>
-                        <span class="fw-semibold">Bank-Grade Security</span>
+        <div class="row g-4 mt-4">
+            <div class="col-md-4">
+                <div class="bg-white h-100 p-4" style="border-radius:16px;border:1px solid #e5e7eb;">
+                    <div class="d-inline-flex align-items-center justify-content-center mb-3"
+                         style="width:54px;height:54px;background:#ecfdf5;border-radius:14px;">
+                        <i class="fas fa-chart-line" style="color:#16a34a;font-size:1.4rem;"></i>
                     </div>
-                    <h2 class="display-5 fw-bold mb-4">Your Data is Safe</h2>
-                    <p class="lead mb-4 text-white" style="font-size: 1.2rem; opacity: 0.95;">
-                        Enterprise-grade multi-tenant security with encryption, tenant isolation, and behavioural guardrails at every layer.
+                    <h4 class="fw-bold mb-2" style="color:#00091a;font-size:1.2rem;">1. Confidence Scoring</h4>
+                    <p class="text-muted mb-0" style="font-size:14px;line-height:1.6;">
+                        Every trade is scored 0–100 based on indicator agreement, structure, and momentum. So you know exactly what's worth taking.
                     </p>
-                    <div class="mt-4">
-                        <div class="d-flex align-items-start mb-3">
-                            <i class="fas fa-lock fa-lg me-3 mt-1"></i>
-                            <div>
-                                <strong>End-to-end encryption & tenant isolation</strong>
-                            </div>
-                        </div>
-                        <div class="d-flex align-items-start mb-3">
-                            <i class="fas fa-shield-alt fa-lg me-3 mt-1"></i>
-                            <div>
-                                <strong>Row-level security & per-tenant encryption</strong>
-                            </div>
-                        </div>
-                        <div class="d-flex align-items-start mb-3">
-                            <i class="fas fa-user-shield fa-lg me-3 mt-1"></i>
-                            <div>
-                                <strong>Behavioural guardrails & risk validation</strong>
-                            </div>
-                        </div>
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-tachometer-alt fa-lg me-3 mt-1"></i>
-                            <div>
-                                <strong>API rate limiting & input validation</strong>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
-            <div class="col-lg-6">
-                <div class="text-center">
-                    <svg width="300" height="300" viewBox="0 0 300 300" fill="none" class="opacity-75">
-                        <circle cx="150" cy="150" r="120" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-                        <circle cx="150" cy="150" r="80" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>
-                        <path d="M150 70L100 110V200H200V110L150 70Z" fill="rgba(255,255,255,0.9)"/>
-                        <circle cx="150" cy="140" r="20" fill="#667eea"/>
-                        <rect x="140" y="155" width="20" height="30" fill="#667eea"/>
-                    </svg>
+            <div class="col-md-4">
+                <div class="bg-white h-100 p-4" style="border-radius:16px;border:1px solid #e5e7eb;">
+                    <div class="d-inline-flex align-items-center justify-content-center mb-3"
+                         style="width:54px;height:54px;background:#eff6ff;border-radius:14px;">
+                        <i class="fas fa-bullseye" style="color:#2563eb;font-size:1.4rem;"></i>
+                    </div>
+                    <h4 class="fw-bold mb-2" style="color:#00091a;font-size:1.2rem;">2. Market Alignment Engine</h4>
+                    <p class="text-muted mb-0" style="font-size:14px;line-height:1.6;">
+                        Signals fire only when trend, VWAP, and momentum agree — the three forces that decide whether a trade actually works.
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="bg-white h-100 p-4" style="border-radius:16px;border:1px solid #e5e7eb;">
+                    <div class="d-inline-flex align-items-center justify-content-center mb-3"
+                         style="width:54px;height:54px;background:#fef3c7;border-radius:14px;">
+                        <i class="fas fa-filter" style="color:#d97706;font-size:1.4rem;"></i>
+                    </div>
+                    <h4 class="fw-bold mb-2" style="color:#00091a;font-size:1.2rem;">3. Noise Filtering</h4>
+                    <p class="text-muted mb-0" style="font-size:14px;line-height:1.6;">
+                        Sideways markets and choppy ranges are detected and filtered out — exactly where most retail traders lose money.
+                    </p>
                 </div>
             </div>
         </div>
     </div>
 </section>
 
-<section class="content-section bg-light" style="padding: 80px 0;">
+<!-- ============================================================
+     5. EXAMPLE TRADE BREAKDOWN — Why this trade?
+     ============================================================ -->
+<section class="bg-white" style="padding:90px 0;">
+    <div class="container">
+        <div class="row g-5 align-items-center">
+            <div class="col-lg-5">
+                <span class="d-inline-block mb-3 px-3 py-1 rounded-pill" style="background:#ecfdf5;color:#047857;font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Transparent</span>
+                <h2 class="fw-bold text-dark mb-3" style="font-size:2.2rem;letter-spacing:-0.02em;">Every trade comes with a reason.</h2>
+                <p class="text-muted mb-4" style="font-size:1.05rem;line-height:1.6;">
+                    No black boxes. No "trust the AI." Each ranked opportunity shows you exactly which signals aligned, what the score means, and where to place your stop and target.
+                </p>
+                <ul class="list-unstyled" style="font-size:15px;color:#334155;">
+                    <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>4 indicator checks per trade</li>
+                    <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Confidence score with grade label</li>
+                    <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Pre-set entry, stop-loss, target</li>
+                    <li><i class="fas fa-check-circle text-success me-2"></i>Live OI &amp; volume context</li>
+                </ul>
+            </div>
+
+            <div class="col-lg-7">
+                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:30px;box-shadow:0 12px 40px rgba(0,9,26,0.08);">
+                    <div class="d-flex justify-content-between align-items-start mb-4 pb-3" style="border-bottom:1px solid #f1f5f9;">
+                        <div>
+                            <div style="font-size:11px;color:#6b7280;letter-spacing:0.05em;font-weight:600;text-transform:uppercase;">Trade #4892 · Live</div>
+                            <h3 class="fw-bold mb-0 mt-1" style="color:#00091a;">BANKNIFTY 51500 CE</h3>
+                        </div>
+                        <div class="text-end">
+                            <div style="font-size:11px;color:#6b7280;letter-spacing:0.05em;font-weight:600;text-transform:uppercase;">Confidence</div>
+                            <div style="font-size:2.4rem;font-weight:700;color:#16a34a;line-height:1;">78<span style="font-size:0.95rem;color:#9ca3af;font-weight:500;">/100</span></div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4 text-center">
+                        <div class="col-4">
+                            <div style="background:#f8fafc;border-radius:10px;padding:14px;">
+                                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Entry</div>
+                                <div style="font-weight:700;color:#00091a;font-size:1.3rem;">₹245</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="background:#fef2f2;border-radius:10px;padding:14px;">
+                                <div style="font-size:11px;color:#dc2626;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Stop-Loss</div>
+                                <div style="font-weight:700;color:#dc2626;font-size:1.3rem;">₹210</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="background:#f0fdf4;border-radius:10px;padding:14px;">
+                                <div style="font-size:11px;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Target</div>
+                                <div style="font-weight:700;color:#15803d;font-size:1.3rem;">₹315</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background:#f8fafc;border-radius:12px;padding:18px 20px;">
+                        <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;margin-bottom:12px;">Why this trade</div>
+                        <div class="row g-2" style="font-size:14px;color:#334155;">
+                            <div class="col-md-6"><i class="fas fa-check" style="color:#16a34a;width:20px;"></i> EMA bullish crossover (5/20)</div>
+                            <div class="col-md-6"><i class="fas fa-check" style="color:#16a34a;width:20px;"></i> Price above VWAP</div>
+                            <div class="col-md-6"><i class="fas fa-check" style="color:#16a34a;width:20px;"></i> Breakout confirmed on 15m</div>
+                            <div class="col-md-6"><i class="fas fa-check" style="color:#16a34a;width:20px;"></i> OI buildup supports move</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================
+     6. COMPARISON TABLE — Why not just use TradingView/Telegram?
+     ============================================================ -->
+<section style="padding:90px 0;background:#f8fafc;">
     <div class="container">
         <div class="text-center mb-5">
-            <div class="d-inline-flex align-items-center gap-2 mb-4">
-                <span class="fw-bold" style="font-size: 2rem;">Trusted</span>
-                <div class="text-start">
-                    <div class="text-warning">
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                        <i class="fas fa-star"></i>
-                    </div>
-                </div>
-            </div>
-            <h2 class="display-5 fw-bold text-dark mb-4">What Users Say</h2>
+            <h2 class="fw-bold text-dark mb-3" style="font-size:2.4rem;letter-spacing:-0.02em;">Why not just use TradingView or Telegram?</h2>
+            <p class="text-muted mx-auto" style="max-width:580px;font-size:1.05rem;">
+                Both give you data or tips. Neither tells you which trade is actually worth taking.
+            </p>
         </div>
-        
-        <div class="row g-4 mt-5">
-            <div class="col-lg-6 mx-auto">
-                <div class="card border-0 shadow-sm h-100">
-                    <div class="card-body p-4">
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
-                                <i class="fas fa-user fa-lg"></i>
-                            </div>
-                            <div>
-                                <h6 class="fw-bold mb-0">Rajesh Kumar</h6>
-                                <small class="text-muted">Investor, Mumbai</small>
-                            </div>
-                        </div>
-                        <div class="text-warning mb-2">
-                            <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
-                        </div>
-                        <p class="text-muted mb-0">
-                            "Finally I can see all my investments in one place. I had holdings across 4 brokers and never knew my true sector exposure until Target Capital."
-                        </p>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div style="background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 8px 30px rgba(0,9,26,0.06);">
+                    <div class="table-responsive">
+                        <table class="table mb-0 align-middle" style="font-size:15px;">
+                            <thead>
+                                <tr style="background:#00091a;color:#fff;">
+                                    <th class="py-4 px-4 fw-semibold" style="border:none;">Feature</th>
+                                    <th class="py-4 px-3 text-center fw-semibold" style="border:none;background:#0f172a;">
+                                        Target Capital
+                                    </th>
+                                    <th class="py-4 px-3 text-center fw-semibold" style="border:none;color:#94a3b8;">TradingView</th>
+                                    <th class="py-4 px-3 text-center fw-semibold" style="border:none;color:#94a3b8;">Telegram channels</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="py-3 px-4 fw-semibold" style="color:#00091a;">Ranked signals</td>
+                                    <td class="py-3 text-center" style="background:#f0fdf4;"><i class="fas fa-check-circle" style="color:#16a34a;font-size:1.2rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                </tr>
+                                <tr style="background:#fafbfc;">
+                                    <td class="py-3 px-4 fw-semibold" style="color:#00091a;">Confidence score</td>
+                                    <td class="py-3 text-center" style="background:#f0fdf4;"><i class="fas fa-check-circle" style="color:#16a34a;font-size:1.2rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 px-4 fw-semibold" style="color:#00091a;">Noise filtering</td>
+                                    <td class="py-3 text-center" style="background:#f0fdf4;"><i class="fas fa-check-circle" style="color:#16a34a;font-size:1.2rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                </tr>
+                                <tr style="background:#fafbfc;">
+                                    <td class="py-3 px-4 fw-semibold" style="color:#00091a;">Explainable trades</td>
+                                    <td class="py-3 text-center" style="background:#f0fdf4;"><i class="fas fa-check-circle" style="color:#16a34a;font-size:1.2rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 px-4 fw-semibold" style="color:#00091a;">Multi-broker execution</td>
+                                    <td class="py-3 text-center" style="background:#f0fdf4;"><i class="fas fa-check-circle" style="color:#16a34a;font-size:1.2rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                </tr>
+                                <tr style="background:#fafbfc;">
+                                    <td class="py-3 px-4 fw-semibold" style="color:#00091a;">Behavioural guardrails</td>
+                                    <td class="py-3 text-center" style="background:#f0fdf4;"><i class="fas fa-check-circle" style="color:#16a34a;font-size:1.2rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                    <td class="py-3 text-center"><i class="fas fa-times-circle text-muted" style="font-size:1.1rem;"></i></td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -322,23 +448,70 @@
     </div>
 </section>
 
-<section class="bg-white" style="padding: 80px 0;">
+<!-- ============================================================
+     7. PRICING TEASER
+     ============================================================ -->
+<section class="bg-white" style="padding:90px 0;">
     <div class="container">
-        <div class="row">
-            <div class="col-lg-8 mx-auto text-center">
-                <h2 class="fw-bold text-dark mb-3">Ready to invest smarter?</h2>
-                <p class="lead text-muted mb-5">
-                    Start free. See your complete portfolio. No credit card required.
+        <div class="text-center mb-5">
+            <h2 class="fw-bold text-dark mb-3" style="font-size:2.4rem;letter-spacing:-0.02em;">Simple, transparent pricing</h2>
+            <p class="text-muted">Start free. Upgrade when you're ready. Cancel anytime.</p>
+        </div>
+
+        <div class="row g-4 justify-content-center">
+            <div class="col-md-4">
+                <div class="h-100 p-4 text-center" style="border:1px solid #e5e7eb;border-radius:16px;">
+                    <div style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Starter</div>
+                    <div class="my-3"><span style="font-size:2.4rem;font-weight:700;color:#00091a;">₹0</span><span class="text-muted">/mo</span></div>
+                    <p class="text-muted mb-3" style="font-size:14px;">30-day free trial · 1 broker connection · High-confidence signals</p>
+                    <a href="{{ url_for('register') }}" class="btn w-100 py-2 fw-semibold" style="background:#fff;color:#00091a;border:1.5px solid #00091a;border-radius:8px;">Start Free</a>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="h-100 p-4 text-center position-relative" style="border:2px solid #16a34a;border-radius:16px;background:#f0fdf4;">
+                    <span class="position-absolute top-0 start-50 translate-middle px-3 py-1" style="background:#16a34a;color:#fff;font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;border-radius:20px;">Most popular</span>
+                    <div style="font-size:13px;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Pro</div>
+                    <div class="my-3"><span style="font-size:2.4rem;font-weight:700;color:#00091a;">₹2,499</span><span class="text-muted">/mo</span></div>
+                    <p class="text-muted mb-3" style="font-size:14px;">All signals · Full breakdown · Multi-broker · Behavioural AI</p>
+                    <a href="{{ url_for('pricing') }}" class="btn w-100 py-2 fw-semibold text-white" style="background:#16a34a;border-radius:8px;">View All Plans</a>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="h-100 p-4 text-center" style="border:1px solid #e5e7eb;border-radius:16px;">
+                    <div style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Elite</div>
+                    <div class="my-3"><span style="font-size:2.4rem;font-weight:700;color:#00091a;">₹4,999</span><span class="text-muted">/mo</span></div>
+                    <p class="text-muted mb-3" style="font-size:14px;">Partner API · Backtesting · Advanced filters · Priority support</p>
+                    <a href="{{ url_for('pricing') }}" class="btn w-100 py-2 fw-semibold" style="background:#fff;color:#00091a;border:1.5px solid #00091a;border-radius:8px;">See Elite</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================
+     8. FINAL CTA
+     ============================================================ -->
+<section style="padding:90px 0;background:#00091a;color:#fff;">
+    <div class="container">
+        <div class="row justify-content-center text-center">
+            <div class="col-lg-8">
+                <h2 class="fw-bold mb-3" style="font-size:2.6rem;letter-spacing:-0.02em;">Trade what matters.<br><span style="color:#4ade80;">Ignore the noise.</span></h2>
+                <p class="mb-5" style="font-size:1.15rem;color:#94a3b8;max-width:560px;margin:0 auto;">
+                    Join Target Capital and let a transparent decision engine rank your trades. 30 days free, full access — no credit card.
                 </p>
-                
                 <div class="d-flex flex-wrap justify-content-center gap-3">
-                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-5 py-3 rounded-pill fw-semibold">
-                        Get Started Free
+                    <a href="{{ url_for('register') }}" class="btn btn-lg px-5 py-3 fw-semibold"
+                       style="background:#16a34a;color:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(22,163,74,0.35);">
+                        Get Started Free →
                     </a>
-                    <a href="{{ url_for('pricing') }}" class="btn btn-outline-primary btn-lg px-5 py-3 rounded-pill fw-semibold">
+                    <a href="{{ url_for('pricing') }}" class="btn btn-lg px-5 py-3 fw-semibold"
+                       style="background:transparent;color:#fff;border:1.5px solid #fff;border-radius:10px;">
                         View Pricing
                     </a>
                 </div>
+                <p class="mt-4 mb-0" style="color:#64748b;font-size:13px;">
+                    <i class="fas fa-shield-alt me-1"></i>Bank-grade security · SEBI-compliant practices · Cancel anytime
+                </p>
             </div>
         </div>
     </div>
