@@ -443,6 +443,66 @@ with app.app_context():
         'ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS outcome VARCHAR(50)',
         'ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS exit_spot FLOAT',
         'ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS exit_time TIMESTAMP',
+        # ── B2B Partner API tables (api_partner / api_subscription / api_alert_log) ──
+        # Production skips db.create_all(), so these new tables must be created
+        # explicitly here for Railway deployments.
+        '''CREATE TABLE IF NOT EXISTS api_partner (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(120) NOT NULL,
+            contact_email VARCHAR(180) NOT NULL,
+            organisation VARCHAR(180),
+            api_key_prefix VARCHAR(16) NOT NULL,
+            api_key_hash VARCHAR(256) NOT NULL,
+            webhook_url VARCHAR(512),
+            webhook_secret VARCHAR(128),
+            plan VARCHAR(32) NOT NULL DEFAULT 'basic',
+            rate_limit_per_min INTEGER NOT NULL DEFAULT 60,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            tenant_id VARCHAR(255) DEFAULT 'live',
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            last_seen_at TIMESTAMP
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_api_partner_contact_email ON api_partner (contact_email)',
+        'CREATE INDEX IF NOT EXISTS ix_api_partner_api_key_prefix ON api_partner (api_key_prefix)',
+        'CREATE INDEX IF NOT EXISTS ix_api_partner_tenant_id ON api_partner (tenant_id)',
+        '''CREATE TABLE IF NOT EXISTS api_subscription (
+            id SERIAL PRIMARY KEY,
+            partner_id INTEGER NOT NULL REFERENCES api_partner(id) ON DELETE CASCADE,
+            engine VARCHAR(16) NOT NULL,
+            symbol VARCHAR(64) NOT NULL,
+            min_confidence INTEGER NOT NULL DEFAULT 75,
+            delta_threshold INTEGER NOT NULL DEFAULT 5,
+            channels VARCHAR(64) NOT NULL DEFAULT 'webhook',
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            last_score FLOAT,
+            last_tier VARCHAR(32),
+            last_alert_at TIMESTAMP,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            CONSTRAINT uq_partner_engine_symbol UNIQUE (partner_id, engine, symbol)
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_api_subscription_partner_id ON api_subscription (partner_id)',
+        'CREATE INDEX IF NOT EXISTS ix_api_subscription_engine ON api_subscription (engine)',
+        'CREATE INDEX IF NOT EXISTS ix_api_subscription_symbol ON api_subscription (symbol)',
+        '''CREATE TABLE IF NOT EXISTS api_alert_log (
+            id SERIAL PRIMARY KEY,
+            partner_id INTEGER NOT NULL REFERENCES api_partner(id) ON DELETE CASCADE,
+            subscription_id INTEGER REFERENCES api_subscription(id) ON DELETE SET NULL,
+            engine VARCHAR(16) NOT NULL,
+            symbol VARCHAR(64) NOT NULL,
+            score FLOAT,
+            tier VARCHAR(32),
+            channel VARCHAR(32) NOT NULL DEFAULT 'webhook',
+            status VARCHAR(16) NOT NULL DEFAULT 'pending',
+            http_status INTEGER,
+            error VARCHAR(512),
+            payload_json TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            delivered_at TIMESTAMP
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_api_alert_log_partner_id ON api_alert_log (partner_id)',
+        'CREATE INDEX IF NOT EXISTS ix_api_alert_log_subscription_id ON api_alert_log (subscription_id)',
+        'CREATE INDEX IF NOT EXISTS ix_api_alert_log_symbol ON api_alert_log (symbol)',
+        'CREATE INDEX IF NOT EXISTS ix_api_alert_log_created_at ON api_alert_log (created_at)',
     ]
     # In production, column migrations are GATED behind RUN_MIGRATIONS=1.
     # Reason: with gunicorn --preload, this block runs in the master process

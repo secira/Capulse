@@ -212,6 +212,24 @@ The `railway_migrate.py` script runs automatically before the app starts:
 2. AI features degrade gracefully - app works without these keys
 3. Check logs for API-specific error messages
 
+## Schema Changes — Important
+
+This deploy ships **3 new tables** for the B2B Partner API (`api_partner`,
+`api_subscription`, `api_alert_log`) plus a new Python dependency (`logzero`,
+required by Angel One's SmartApi SDK).
+
+To apply the new tables on Railway:
+
+1. In your Railway service Variables, set `RUN_MIGRATIONS=1`.
+2. Trigger a redeploy (push to your branch or click "Redeploy").
+3. Watch the logs — you should see `[migration N/39] running…` lines and
+   `✅ Incremental column migrations applied`.
+4. **Unset `RUN_MIGRATIONS`** after the deploy succeeds so future redeploys
+   stay fast (the migration block is gated to avoid `--preload` lock waits).
+
+`requirements.txt` already pins `logzero` (line 66), so the dependency is
+installed automatically on the next image build — no extra action needed.
+
 ## Architecture Notes
 
 ### Lazy Loading
