@@ -29,6 +29,7 @@ class ConnectionStatus(Enum):
     DISCONNECTED = "disconnected"
     ERROR = "error"
     PENDING = "pending"
+    EXPIRED = "expired"  # Stored creds present but access token rejected by broker
 
 class OrderStatus(Enum):
     PENDING = "pending"
@@ -193,6 +194,30 @@ class BrokerAccount(db.Model):
             self.connection_error = None
         elif status == ConnectionStatus.ERROR:
             self.connection_error = error_message
+
+    # ─── UI helpers (so templates can show "Saved value" hints) ────────────
+    def has_stored_credentials(self) -> bool:
+        """True when this account already has saved API key + secret on file."""
+        creds = self.get_credentials()
+        return bool(creds.get('client_id')) and bool(creds.get('api_secret'))
+
+    def cred_preview(self, field: str = 'client_id') -> str:
+        """Return a masked preview of a stored credential, e.g. 'abcd••••wxyz'.
+
+        Safe to render in templates — never returns the full value. Always
+        returns an empty string if nothing is stored.
+        """
+        creds = self.get_credentials()
+        raw = creds.get(field) or ''
+        if not raw:
+            return ''
+        if len(raw) <= 6:
+            return '••••' + raw[-2:] if len(raw) >= 2 else '••••'
+        return raw[:3] + '••••' + raw[-3:]
+
+    def is_token_expired_state(self) -> bool:
+        """True when the broker has rejected the saved access token."""
+        return (self.connection_status or '').lower() == 'expired'
     
     def set_as_primary(self):
         """Set this account as primary broker"""

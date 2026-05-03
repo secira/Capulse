@@ -99,6 +99,73 @@ def _save_pending_account(broker_type_value: str, client_id: str,
 
 
 # ---------------------------------------------------------------------------
+# Stored-credential helpers
+# ---------------------------------------------------------------------------
+
+def _existing_account(broker_type_value: str) -> Optional['BrokerAccount']:
+    """Return the user's active BrokerAccount for a broker, or None."""
+    return BrokerAccount.query.filter_by(
+        user_id=current_user.id,
+        broker_type=broker_type_value,
+        is_active=True,
+    ).first()
+
+
+def _merge_with_stored(broker_type_value: str, **form_fields) -> dict:
+    """For each `form_fields[name] = submitted_value`, fall back to stored
+    credential when the submitted value is blank. Returns a dict {name: value}.
+
+    The mapping of form field name → stored credential field is:
+        api_key / client_id / user_id / client_code / app_key  → 'client_id'
+        api_secret / secret_key / app_secret                    → 'api_secret'
+        access_token                                            → 'access_token'
+        password / totp_secret / vendor_code                    → parsed from
+            api_secret (broker-specific composite, see set_credentials).
+
+    Callers pass only the simple top-level fields they actually need; for
+    composite fields (Angel/Shoonya/5Paisa) the auth handlers continue to
+    parse the colon-separated stored secret manually.
+    """
+    account = _existing_account(broker_type_value)
+    stored = account.get_credentials() if account else {}
+
+    field_to_cred = {
+        'api_key': 'client_id',
+        'client_id': 'client_id',
+        'user_id': 'client_id',
+        'client_code': 'client_id',
+        'app_key': 'client_id',
+        'api_secret': 'api_secret',
+        'secret_key': 'api_secret',
+        'app_secret': 'api_secret',
+        'access_token': 'access_token',
+    }
+
+    merged = {}
+    for name, submitted in form_fields.items():
+        submitted = (submitted or '').strip()
+        if submitted:
+            merged[name] = submitted
+        else:
+            cred_key = field_to_cred.get(name)
+            merged[name] = (stored.get(cred_key) or '') if cred_key else ''
+    return merged
+
+
+def _mark_expired_if_connected(broker_type_value: str, error_msg: str = '') -> None:
+    """When a reconnect/refresh fails, mark the account as 'expired' so the UI
+    surfaces an actionable banner with an 'Update Credentials' CTA. No-op if
+    the account doesn't exist."""
+    account = _existing_account(broker_type_value)
+    if account:
+        account.connection_status = ConnectionStatus.EXPIRED.value
+        db.session.commit()
+        logger.warning(
+            f"Marked {broker_type_value} as EXPIRED for user {current_user.id}: {error_msg}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Connect page
 # ---------------------------------------------------------------------------
 
@@ -143,8 +210,12 @@ def broker_connect():
 @broker_oauth.route('/broker/auth/zerodha', methods=['POST'])
 @login_required
 def auth_zerodha():
-    api_key = request.form.get('api_key', '').strip()
-    api_secret = request.form.get('api_secret', '').strip()
+    merged = _merge_with_stored(
+        'zerodha',
+        api_key=request.form.get('api_key', ''),
+        api_secret=request.form.get('api_secret', ''),
+    )
+    api_key, api_secret = merged['api_key'], merged['api_secret']
     if not api_key or not api_secret:
         flash('API Key and API Secret are required for Zerodha.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
@@ -226,8 +297,12 @@ UPSTOX_TOKEN_URL = "https://api.upstox.com/v2/login/authorization/token"
 @broker_oauth.route('/broker/auth/upstox', methods=['POST'])
 @login_required
 def auth_upstox():
-    api_key = request.form.get('api_key', '').strip()
-    api_secret = request.form.get('api_secret', '').strip()
+    merged = _merge_with_stored(
+        'upstox',
+        api_key=request.form.get('api_key', ''),
+        api_secret=request.form.get('api_secret', ''),
+    )
+    api_key, api_secret = merged['api_key'], merged['api_secret']
     if not api_key or not api_secret:
         flash('API Key and API Secret are required for Upstox.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
@@ -326,8 +401,12 @@ ICICI_AUTH_URL = "https://api.icicidirect.com/apiuser/login"
 @broker_oauth.route('/broker/auth/icici', methods=['POST'])
 @login_required
 def auth_icici():
-    app_key = request.form.get('api_key', '').strip()
-    app_secret = request.form.get('api_secret', '').strip()
+    merged = _merge_with_stored(
+        'icicidirect',
+        api_key=request.form.get('api_key', ''),
+        api_secret=request.form.get('api_secret', ''),
+    )
+    app_key, app_secret = merged['api_key'], merged['api_secret']
     if not app_key or not app_secret:
         flash('App Key and App Secret are required for ICICI Direct.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
@@ -400,10 +479,18 @@ def callback_icici():
 @broker_oauth.route('/broker/auth/angel', methods=['POST'])
 @login_required
 def auth_angel():
-    client_id = request.form.get('client_id', '').strip()
-    api_key = request.form.get('api_key', '').strip()
-    totp_secret = request.form.get('totp_secret', '').strip()
-    password = request.form.get('password', '').strip()
+    # Angel composite secret = "api_key:totp_secret:password" → parse stored
+    existing = _existing_account('angel_broking')
+    stored = existing.get_credentials() if existing else {}
+    stored_parts = (stored.get('api_secret') or '').split(':')
+    stored_api_key = stored_parts[0] if stored_parts else ''
+    stored_totp = stored_parts[1] if len(stored_parts) > 1 else ''
+    stored_pin = stored_parts[2] if len(stored_parts) > 2 else ''
+
+    client_id = (request.form.get('client_id', '').strip() or stored.get('client_id') or '')
+    api_key = (request.form.get('api_key', '').strip() or stored_api_key)
+    totp_secret = (request.form.get('totp_secret', '').strip() or stored_totp)
+    password = (request.form.get('password', '').strip() or stored_pin)
 
     if not all([client_id, api_key, totp_secret, password]):
         flash('All fields are required for Angel One.', 'error')
@@ -493,7 +580,8 @@ def reconnect_angel():
         logger.info(f"Angel One token refreshed for user {current_user.id}")
     except Exception as e:
         logger.error(f"Angel One reconnect failed: {e}")
-        flash(f'Angel One reconnect failed: {str(e)}', 'error')
+        _mark_expired_if_connected('angel_broking', str(e))
+        flash(f'Angel One token rejected — please update your credentials. ({str(e)})', 'error')
 
     return redirect(url_for('broker_oauth.broker_connect'))
 
@@ -573,7 +661,8 @@ def reconnect_alice():
         logger.info(f"Alice Blue session refreshed for user {current_user.id}")
     except Exception as e:
         logger.error(f"Alice Blue reconnect failed: {e}")
-        flash(f'Alice Blue reconnect failed: {str(e)}', 'error')
+        _mark_expired_if_connected('alice_blue', str(e))
+        flash(f'Alice Blue session rejected — please update your credentials. ({str(e)})', 'error')
 
     return redirect(url_for('broker_oauth.broker_connect'))
 
@@ -610,7 +699,8 @@ def reconnect_zerodha():
 @broker_oauth.route('/broker/auth/groww', methods=['POST'])
 @login_required
 def auth_groww():
-    access_token = request.form.get('access_token', '').strip()
+    merged = _merge_with_stored('groww', access_token=request.form.get('access_token', ''))
+    access_token = merged['access_token']
     if not access_token:
         flash('Access Token is required for Groww.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
@@ -640,8 +730,13 @@ def auth_groww():
 @broker_oauth.route('/broker/auth/alice', methods=['POST'])
 @login_required
 def auth_alice():
-    user_id = request.form.get('user_id', '').strip().upper()
-    api_key = request.form.get('api_key', '').strip()
+    merged = _merge_with_stored(
+        'alice_blue',
+        user_id=request.form.get('user_id', ''),
+        api_key=request.form.get('api_key', ''),
+    )
+    user_id = merged['user_id'].upper()
+    api_key = merged['api_key']
     if not user_id or not api_key:
         flash('User ID and API Key are required for Alice Blue.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
@@ -688,10 +783,17 @@ def auth_alice():
 @broker_oauth.route('/broker/auth/fivepaisa', methods=['POST'])
 @login_required
 def auth_fivepaisa():
-    client_code = request.form.get('client_code', '').strip()
-    password = request.form.get('password', '').strip()
-    app_key = request.form.get('app_key', '').strip()
-    totp = request.form.get('totp', '').strip()
+    # 5 Paisa composite secret = "app_key:password" — parse stored
+    existing = _existing_account('5paisa')
+    stored = existing.get_credentials() if existing else {}
+    stored_parts = (stored.get('api_secret') or '').split(':')
+    stored_app_key = stored_parts[0] if stored_parts else ''
+    stored_pw = stored_parts[1] if len(stored_parts) > 1 else ''
+
+    client_code = (request.form.get('client_code', '').strip() or stored.get('client_id') or '')
+    password = (request.form.get('password', '').strip() or stored_pw)
+    app_key = (request.form.get('app_key', '').strip() or stored_app_key)
+    totp = request.form.get('totp', '').strip()  # always fresh, never stored
 
     if not all([client_code, password, app_key]):
         flash('Client Code, Password, and App Key are required for 5 Paisa.', 'error')
@@ -790,7 +892,8 @@ def reconnect_fivepaisa():
         logger.info(f"5 Paisa session refreshed for user {current_user.id}")
     except Exception as e:
         logger.error(f"5 Paisa reconnect failed: {e}")
-        flash(f'5 Paisa reconnect failed: {str(e)}', 'error')
+        _mark_expired_if_connected('5paisa', str(e))
+        flash(f'5 Paisa token rejected — please update your credentials. ({str(e)})', 'error')
 
     return redirect(url_for('broker_oauth.broker_connect'))
 
@@ -806,8 +909,12 @@ FYERS_TOKEN_URL = "https://api-t2.fyers.in/api/v3/validate-authcode"
 @broker_oauth.route('/broker/auth/fyers', methods=['POST'])
 @login_required
 def auth_fyers():
-    client_id = request.form.get('client_id', '').strip()
-    secret_key = request.form.get('secret_key', '').strip()
+    merged = _merge_with_stored(
+        'fyers',
+        client_id=request.form.get('client_id', ''),
+        secret_key=request.form.get('secret_key', ''),
+    )
+    client_id, secret_key = merged['client_id'], merged['secret_key']
     if not client_id or not secret_key:
         flash('App ID (Client ID) and Secret Key are required for Fyers.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
@@ -978,11 +1085,20 @@ def _shoonya_quickauth(user_id: str, password: str, api_secret: str,
 @broker_oauth.route('/broker/auth/shoonya', methods=['POST'])
 @login_required
 def auth_shoonya():
-    user_id_field = request.form.get('user_id', '').strip()
-    password = request.form.get('password', '').strip()
-    totp_secret = request.form.get('totp_secret', '').strip()
-    vendor_code = request.form.get('vendor_code', '').strip()
-    api_secret = request.form.get('api_secret', '').strip()
+    # Shoonya composite secret = "api_secret:vendor_code:totp_secret:password"
+    existing = _existing_account('shoonya')
+    stored = existing.get_credentials() if existing else {}
+    parts = (stored.get('api_secret') or '').split(':')
+    s_secret = parts[0] if parts else ''
+    s_vendor = parts[1] if len(parts) > 1 else ''
+    s_totp = parts[2] if len(parts) > 2 else ''
+    s_pw = parts[3] if len(parts) > 3 else ''
+
+    user_id_field = (request.form.get('user_id', '').strip() or stored.get('client_id') or '')
+    password = (request.form.get('password', '').strip() or s_pw)
+    totp_secret = (request.form.get('totp_secret', '').strip() or s_totp)
+    vendor_code = (request.form.get('vendor_code', '').strip() or s_vendor)
+    api_secret = (request.form.get('api_secret', '').strip() or s_secret)
 
     if not all([user_id_field, password, api_secret]):
         flash('User ID, Password and API Secret are required for Shoonya.', 'error')
@@ -1061,7 +1177,8 @@ def reconnect_shoonya():
         logger.info(f"Shoonya session refreshed for user {current_user.id}")
     except Exception as e:
         logger.error(f"Shoonya reconnect failed: {e}")
-        flash(f'Shoonya reconnect failed: {str(e)}', 'error')
+        _mark_expired_if_connected('shoonya', str(e))
+        flash(f'Shoonya session rejected — please update your credentials. ({str(e)})', 'error')
 
     return redirect(url_for('broker_oauth.broker_connect'))
 
@@ -1073,8 +1190,12 @@ def reconnect_shoonya():
 @broker_oauth.route('/broker/auth/dhan', methods=['POST'])
 @login_required
 def auth_dhan():
-    client_id = request.form.get('client_id', '').strip()
-    access_token = request.form.get('access_token', '').strip()
+    merged = _merge_with_stored(
+        'dhan',
+        client_id=request.form.get('client_id', ''),
+        access_token=request.form.get('access_token', ''),
+    )
+    client_id, access_token = merged['client_id'], merged['access_token']
     if not client_id or not access_token:
         flash('Client ID and Access Token are required for Dhan.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))

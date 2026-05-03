@@ -105,14 +105,32 @@
                 <span class="badge bg-primary-subtle text-primary">Most Popular</span>
                 {% if zerodha and zerodha.account and zerodha.account.connection_status == 'connected' %}
                 <span class="badge bg-success"><i class="fas fa-circle me-1" style="font-size:7px;vertical-align:middle"></i>Connected</span>
+                {% elif zerodha and zerodha.account and zerodha.account.connection_status == 'expired' %}
+                <span class="badge bg-danger"><i class="fas fa-exclamation-triangle me-1"></i>Token Expired</span>
                 {% endif %}
               </div>
               <p class="text-muted mb-0 small">India's largest broker · KiteConnect OAuth · Secure redirect login</p>
+              {% if zerodha and zerodha.account and zerodha.account.api_key %}
+              <p class="text-muted mb-0 mt-1" style="font-size:.75rem;"><i class="fas fa-key me-1"></i>Saved API Key: <code>{{ zerodha.account.cred_preview('client_id') }}</code></p>
+              {% endif %}
             </div>
           </div>
         </div>
         <div class="col-md-5 text-md-end">
-          {% if zerodha and zerodha.account and zerodha.account.connection_status == 'connected' %}
+          {% if zerodha and zerodha.account and zerodha.account.connection_status == 'expired' %}
+            <div class="alert alert-danger py-2 mb-2 small text-start">
+              <i class="fas fa-exclamation-triangle me-1"></i>
+              Your Zerodha API key was rejected. <strong>Click "Update Credentials"</strong> to fix.
+            </div>
+            <div class="d-flex gap-2 justify-content-md-end flex-wrap">
+              <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#modal-zerodha">
+                <i class="fas fa-edit me-2"></i>Update Credentials
+              </button>
+              <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug='zerodha') }}" class="d-inline">
+                <button type="submit" class="btn btn-outline-danger"><i class="fas fa-unlink me-1"></i>Disconnect</button>
+              </form>
+            </div>
+          {% elif zerodha and zerodha.account and zerodha.account.connection_status == 'connected' %}
             {% set hours_since = ((now - zerodha.account.last_connected).total_seconds() // 3600) if zerodha.account.last_connected else 999 %}
             <div class="d-flex gap-2 justify-content-md-end flex-wrap align-items-center">
               {% if hours_since >= 20 %}
@@ -129,6 +147,9 @@
                   <i class="fas fa-sync me-1"></i>Re-login
                 </button>
               </form>
+              <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modal-zerodha" title="Update saved API key / secret">
+                <i class="fas fa-edit me-1"></i>Edit Credentials
+              </button>
               <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug='zerodha') }}" class="d-inline">
                 <button type="submit" class="btn btn-outline-danger">
                   <i class="fas fa-unlink me-1"></i>Disconnect
@@ -137,7 +158,11 @@
             </div>
           {% else %}
             <button class="btn btn-primary btn-lg px-5" data-bs-toggle="modal" data-bs-target="#modal-zerodha">
-              <i class="fas fa-sign-in-alt me-2"></i>Login with Zerodha
+              {% if zerodha and zerodha.account and zerodha.account.api_key %}
+                <i class="fas fa-sign-in-alt me-2"></i>Re-login with Saved Credentials
+              {% else %}
+                <i class="fas fa-sign-in-alt me-2"></i>Login with Zerodha
+              {% endif %}
             </button>
           {% endif %}
         </div>
@@ -179,11 +204,33 @@
             </div>
 
             <div class="mt-auto">
-              {% if matched and matched.account and matched.account.connection_status == 'connected' %}
+              {% if matched and matched.account and matched.account.connection_status == 'expired' %}
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <span class="badge bg-danger w-100 py-2" title="Saved token rejected by broker">
+                    <i class="fas fa-exclamation-triangle me-1"></i>Token Expired
+                  </span>
+                </div>
+                <div class="text-muted mb-2" style="font-size:.7rem;">
+                  Saved key: <code>{{ matched.account.cred_preview('client_id') }}</code>
+                </div>
+                <div class="d-flex gap-1">
+                  <button class="btn btn-warning btn-sm w-100" data-bs-toggle="modal" data-bs-target="#{{ modal_id }}">
+                    <i class="fas fa-edit me-1"></i>Update Credentials
+                  </button>
+                </div>
+                <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug=slug) }}" class="mt-1">
+                  <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                    <i class="fas fa-unlink me-1"></i>Disconnect
+                  </button>
+                </form>
+              {% elif matched and matched.account and matched.account.connection_status == 'connected' %}
                 <div class="d-flex align-items-center justify-content-between mb-2">
                   <span class="badge bg-success w-100 py-2">
                     <i class="fas fa-check me-1"></i>Connected
                   </span>
+                </div>
+                <div class="text-muted mb-2" style="font-size:.7rem;">
+                  Saved key: <code>{{ matched.account.cred_preview('client_id') }}</code>
                 </div>
                 <div class="d-flex gap-1">
                   {% if slug == 'angel_broking' %}
@@ -340,6 +387,27 @@
 <!-- ═══════════════════════════════ MODALS ════════════════════════════════ -->
 
 <!-- Zerodha -->
+{% set accounts_by_slug = {} %}
+{% for b in broker_catalog %}{% if b.account %}{% set _ = accounts_by_slug.update({b.type.value: b.account}) %}{% endif %}{% endfor %}
+{% macro saved_notice(slug) %}
+  {% set acc = accounts_by_slug.get(slug) %}
+  {% if acc and acc.has_stored_credentials() %}
+    <div class="alert {% if acc.connection_status == 'expired' %}alert-danger{% else %}alert-success{% endif %} small py-2 mb-2">
+      {% if acc.connection_status == 'expired' %}
+        <i class="fas fa-exclamation-triangle me-1"></i><strong>Token expired.</strong>
+        Update only the field(s) that changed — leave others blank to reuse your saved values.
+      {% else %}
+        <i class="fas fa-shield-alt me-1"></i><strong>Saved credentials on file.</strong>
+        Leave any field blank to keep its saved value.
+      {% endif %}
+      {% if acc.cred_preview('client_id') %}
+      <div class="mt-1" style="font-size:.75rem;">Saved key: <code>{{ acc.cred_preview('client_id') }}</code></div>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endmacro %}
+{% macro req(slug) %}{% if not accounts_by_slug.get(slug) %}required{% endif %}{% endmacro %}
+
 <div class="modal fade" id="modal-zerodha" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -352,6 +420,7 @@
       </div>
       <form method="POST" action="{{ url_for('broker_oauth.auth_zerodha') }}">
         <div class="modal-body">
+          {{ saved_notice('zerodha') }}
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
             Create an app at <a href="https://developers.kite.trade/apps" target="_blank">developers.kite.trade</a> and paste your credentials below. Set the redirect URL to <code>{{ request.host_url.rstrip('/') }}/broker/callback/zerodha</code>
           </div>
@@ -390,6 +459,7 @@
       </div>
       <form method="POST" action="{{ url_for('broker_oauth.auth_upstox') }}">
         <div class="modal-body">
+          {{ saved_notice('upstox') }}
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
             Create an app at <a href="https://developer.upstox.com" target="_blank">developer.upstox.com</a>.
             Set redirect URI to <code>{{ request.host_url.rstrip('/') }}/broker/callback/upstox</code>
@@ -425,6 +495,7 @@
       </div>
       <form method="POST" action="{{ url_for('broker_oauth.auth_angel') }}">
         <div class="modal-body">
+          {{ saved_notice('angel_broking') }}
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
             Get credentials from <a href="https://smartapi.angelbroking.com" target="_blank">smartapi.angelbroking.com</a>. TOTP must be enabled on your account.
           </div>
@@ -472,6 +543,7 @@
       </div>
       <form method="POST" action="{{ url_for('broker_oauth.auth_shoonya') }}">
         <div class="modal-body">
+          {{ saved_notice('shoonya') }}
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
             Get your API credentials from <a href="https://shoonya.com/openapi" target="_blank">shoonya.com/openapi</a>. Your session will be verified live — provide TOTP secret if 2FA is enabled on your account.
           </div>
@@ -520,6 +592,7 @@
       </div>
       <form method="POST" action="{{ url_for('broker_oauth.auth_alice') }}">
         <div class="modal-body">
+          {{ saved_notice('alice_blue') }}
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
             Login through Alice Blue's API portal and keep your client details ready. Once connected, you can view holdings, positions, and portfolio details in Target Capital.
           </div>
@@ -560,6 +633,7 @@
       </div>
       <form method="POST" action="{{ url_for('broker_oauth.auth_fivepaisa') }}">
         <div class="modal-body">
+          {{ saved_notice('5paisa') }}
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
             Get your App Key from <a href="https://www.5paisa.com/developerapi" target="_blank">5paisa Developer API</a>. The TOTP is the 6-digit OTP sent to your registered mobile/email — leave blank if not required.
           </div>
@@ -604,6 +678,7 @@
       </div>
       <form method="POST" action="{{ url_for('broker_oauth.auth_dhan') }}">
         <div class="modal-body">
+          {{ saved_notice('dhan') }}
           <div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i>
             Get your Dhan API credentials from the DhanHQ developer portal and connect securely for holdings, positions, and trading.
           </div>
