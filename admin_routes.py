@@ -1676,3 +1676,77 @@ def partner_api_delete(partner_id):
         db.session.rollback()
         flash(f'Could not delete partner: {e}', 'error')
     return redirect(url_for('admin.partner_api'))
+
+
+# ── Partner API Playground (admin testing console) ──────────────────────────
+
+@admin_bp.route('/partner-api/playground')
+@admin_required
+def partner_api_playground():
+    """Interactive console to exercise the 4 partner endpoints without juggling keys."""
+    return render_template('admin/partner_api_playground.html')
+
+
+@admin_bp.route('/partner-api/playground/run', methods=['POST'])
+@admin_required
+def partner_api_playground_run():
+    """
+    Server-side proxy. Runs the same engine functions the public endpoints use,
+    so admins / partners can demo without an API key.
+    Body: {engine: 'iscore'|'fno'|'portfolio'|'behaviour', payload: {...}}
+    """
+    data    = request.get_json(silent=True) or {}
+    engine  = (data.get('engine') or '').lower()
+    payload = data.get('payload') or {}
+    try:
+        if engine == 'iscore':
+            from services.langgraph_iscore_engine import LangGraphIScoreEngine
+            symbol = (payload.get('symbol') or '').upper().strip()
+            asset_type = (payload.get('asset_type') or 'stocks').lower()
+            if not symbol:
+                return jsonify({'success': False, 'error': 'symbol is required', 'code': 'INVALID_REQUEST'}), 400
+            eng = LangGraphIScoreEngine()
+            result = eng.analyze(asset_type=asset_type, symbol=symbol,
+                                 user_id=current_user.id if current_user.is_authenticated else 1,
+                                 asset_name=symbol)
+            return jsonify({'success': True, 'engine': 'iscore', 'symbol': symbol,
+                            'asset_type': asset_type, 'result': result})
+
+        if engine == 'fno':
+            from services.nifty_options_engine import NiftyOptionsEngine
+            index_id = (payload.get('index') or 'NIFTY').upper()
+            if index_id not in {'NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX'}:
+                return jsonify({'success': False, 'error': 'Unsupported index', 'code': 'INVALID_INDEX'}), 400
+            eng = NiftyOptionsEngine(index_id=index_id)
+            analysis = eng.generate_analysis()
+            return jsonify({'success': True, 'engine': 'fno', 'index': index_id,
+                            'analysis': analysis,
+                            'timestamp': datetime.utcnow().isoformat() + 'Z'})
+
+        if engine == 'portfolio':
+            from services.partner_risk_analyzer import analyze_portfolio
+            holdings = payload.get('holdings') or []
+            currency = (payload.get('currency') or 'INR').upper()
+            try:
+                out = analyze_portfolio(holdings, currency=currency)
+            except ValueError as ve:
+                return jsonify({'success': False, 'error': str(ve), 'code': 'INVALID_REQUEST'}), 400
+            return jsonify({'success': True, 'engine': 'portfolio', **out})
+
+        if engine == 'behaviour':
+            from services.partner_behaviour_analyzer import analyze_behaviour
+            trades = payload.get('trades') or []
+            label  = payload.get('lookback')
+            try:
+                out = analyze_behaviour(trades, lookback_label=label)
+            except ValueError as ve:
+                return jsonify({'success': False, 'error': str(ve), 'code': 'INVALID_REQUEST'}), 400
+            return jsonify({'success': True, 'engine': 'behaviour', **out})
+
+        return jsonify({'success': False, 'error': 'engine must be iscore|fno|portfolio|behaviour',
+                        'code': 'INVALID_REQUEST'}), 400
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception('playground run failed')
+        return jsonify({'success': False, 'error': str(e), 'code': 'ENGINE_ERROR'}), 500

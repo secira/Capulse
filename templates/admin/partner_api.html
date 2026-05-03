@@ -13,9 +13,14 @@
             </a>
         </p>
     </div>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newPartnerModal">
-        <i class="fas fa-plus me-1"></i> New Partner
-    </button>
+    <div>
+        <a href="{{ url_for('admin.partner_api_playground') }}" class="btn btn-outline-dark me-2">
+            <i class="fas fa-flask me-1"></i> Test Console
+        </a>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newPartnerModal">
+            <i class="fas fa-plus me-1"></i> New Partner
+        </button>
+    </div>
 </div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}

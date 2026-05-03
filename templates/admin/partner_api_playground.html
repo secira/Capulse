@@ -1,0 +1,331 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}Partner API — Test Console | Target Capital{% endblock %}
+
+{% block content %}
+<style>
+  .tc-tabs .nav-link{color:#475569;font-weight:600;border:none;border-bottom:3px solid transparent;border-radius:0;padding:.75rem 1.25rem}
+  .tc-tabs .nav-link.active{color:#00091a;border-bottom-color:#00091a;background:transparent}
+  .tc-card{background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+  .tc-result{background:#0b1220;color:#d1d5db;border-radius:10px;padding:1rem;font-family:'JetBrains Mono','Courier New',monospace;font-size:13px;max-height:520px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+  .tc-summary-pill{display:inline-block;background:#f1f5f9;border-radius:999px;padding:.25rem .75rem;font-size:12px;font-weight:600;color:#0f172a;margin:.15rem .25rem .15rem 0}
+  .tc-summary-pill .v{color:#00091a;font-weight:700;margin-left:.25rem}
+  .tc-curl{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.75rem;font-family:'JetBrains Mono',monospace;font-size:12px;color:#334155;white-space:pre-wrap}
+  textarea.tc-json{font-family:'JetBrains Mono','Courier New',monospace;font-size:12px;min-height:240px;background:#fafafa}
+  .tc-spin{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .tc-grade-Excellent,.tc-grade-Conservative{background:#dcfce7;color:#166534}
+  .tc-grade-Good,.tc-grade-Balanced{background:#dbeafe;color:#1e40af}
+  .tc-grade-Fair,.tc-grade-Aggressive{background:#fef3c7;color:#92400e}
+  .tc-grade-Poor,.tc-grade-Critical,.tc-grade-Highly\ Aggressive{background:#fee2e2;color:#991b1b}
+</style>
+
+<div class="d-flex justify-content-between align-items-start mb-4">
+  <div>
+    <h2><i class="fas fa-flask me-2"></i>API Test Console</h2>
+    <p class="text-muted mb-0" style="font-size:14px">
+      Live sandbox for the Partner API. Use it for internal QA, partner demos
+      and integration training. The console runs the <em>same</em> engine
+      functions the public endpoints invoke — no API key required here.
+      <a href="{{ url_for('admin.partner_api') }}" class="ms-2"><i class="fas fa-arrow-left"></i> Back to partners</a>
+      <a href="{{ url_for('partner_api.docs') }}" target="_blank" class="ms-2"><i class="fas fa-book"></i> Docs</a>
+    </p>
+  </div>
+</div>
+
+<ul class="nav nav-tabs tc-tabs mb-3" id="tcTabs" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-iscore" type="button"><i class="fas fa-chart-line me-2"></i>I-Score (Stocks)</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-fno" type="button"><i class="fas fa-bolt me-2"></i>F&amp;O Signals</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-portfolio" type="button"><i class="fas fa-briefcase me-2"></i>Portfolio Risk</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-behaviour" type="button"><i class="fas fa-brain me-2"></i>Behavioural</button></li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- ── I-Score ─────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade show active" id="tab-iscore">
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <div class="tc-card p-4">
+          <h6 class="fw-bold mb-3">Request</h6>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Symbol</label>
+            <input id="is-symbol" class="form-control" value="RELIANCE" placeholder="e.g. TCS, INFY, HDFCBANK">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Asset type</label>
+            <select id="is-asset" class="form-select">
+              <option value="stocks" selected>stocks</option>
+              <option value="mutual_funds">mutual_funds</option>
+            </select>
+          </div>
+          <button class="btn btn-dark w-100" onclick="runIscore()" id="is-btn"><i class="fas fa-play me-1"></i> Run analysis</button>
+          <hr>
+          <div class="small text-muted mb-2 fw-semibold">Equivalent cURL</div>
+          <div class="tc-curl" id="is-curl"></div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="tc-card p-4">
+          <h6 class="fw-bold mb-3">Response</h6>
+          <div id="is-summary" class="mb-2"></div>
+          <pre class="tc-result mb-0" id="is-result">// Click "Run analysis" to fetch the I-Score…</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── F&O ─────────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tab-fno">
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <div class="tc-card p-4">
+          <h6 class="fw-bold mb-3">Request</h6>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Index</label>
+            <select id="fno-index" class="form-select">
+              <option value="NIFTY" selected>NIFTY 50</option>
+              <option value="BANKNIFTY">BANKNIFTY</option>
+              <option value="FINNIFTY">FINNIFTY</option>
+              <option value="SENSEX">SENSEX</option>
+            </select>
+            <div class="form-text">MVLA engine — direction, confidence tier, ATM strike, SL/target.</div>
+          </div>
+          <button class="btn btn-dark w-100" onclick="runFno()" id="fno-btn"><i class="fas fa-play me-1"></i> Generate live signal</button>
+          <hr>
+          <div class="small text-muted mb-2 fw-semibold">Equivalent cURL</div>
+          <div class="tc-curl" id="fno-curl"></div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="tc-card p-4">
+          <h6 class="fw-bold mb-3">Response</h6>
+          <div id="fno-summary" class="mb-2"></div>
+          <pre class="tc-result mb-0" id="fno-result">// Pick an index and click "Generate live signal"…</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Portfolio ───────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tab-portfolio">
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <div class="tc-card p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold mb-0">Request</h6>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadPortfolioSample()"><i class="fas fa-magic me-1"></i> Load sample</button>
+          </div>
+          <label class="form-label small fw-semibold">Holdings JSON (max 50)</label>
+          <textarea id="pf-json" class="form-control tc-json"></textarea>
+          <button class="btn btn-dark w-100 mt-3" onclick="runPortfolio()" id="pf-btn"><i class="fas fa-play me-1"></i> Analyze portfolio</button>
+          <hr>
+          <div class="small text-muted">
+            Required fields per holding: <code>symbol</code>, <code>qty</code>, <code>avg_price</code>.
+            Optional: <code>current_price</code>, <code>sector</code>, <code>asset_class</code>.
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="tc-card p-4">
+          <h6 class="fw-bold mb-3">Response</h6>
+          <div id="pf-summary" class="mb-2"></div>
+          <pre class="tc-result mb-0" id="pf-result">// Edit holdings JSON and click "Analyze portfolio"…</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Behavioural ─────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tab-behaviour">
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <div class="tc-card p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold mb-0">Request</h6>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadBehaviourSample()"><i class="fas fa-magic me-1"></i> Load sample</button>
+          </div>
+          <label class="form-label small fw-semibold">Lookback label (optional)</label>
+          <input id="bh-label" class="form-control mb-2" value="Last 30 days">
+          <label class="form-label small fw-semibold">Trades JSON (max 100)</label>
+          <textarea id="bh-json" class="form-control tc-json"></textarea>
+          <button class="btn btn-dark w-100 mt-3" onclick="runBehaviour()" id="bh-btn"><i class="fas fa-play me-1"></i> Analyze behaviour</button>
+          <hr>
+          <div class="small text-muted">
+            Required per trade: <code>symbol</code>, <code>side</code>, <code>qty</code>, <code>price</code>, <code>entry_time</code>.
+            Optional: <code>exit_time</code>, <code>pnl</code>, <code>segment</code>.
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="tc-card p-4">
+          <h6 class="fw-bold mb-3">Response</h6>
+          <div id="bh-summary" class="mb-2"></div>
+          <pre class="tc-result mb-0" id="bh-result">// Edit trades JSON and click "Analyze behaviour"…</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const RUN_URL = "{{ url_for('admin.partner_api_playground_run') }}";
+const ORIGIN  = window.location.origin;
+
+const SAMPLE_PORTFOLIO = {
+  currency: "INR",
+  holdings: [
+    {symbol:"RELIANCE", qty:50,  avg_price:2400, current_price:2890, sector:"Energy",  asset_class:"Equities"},
+    {symbol:"TCS",      qty:20,  avg_price:3500, current_price:3850, sector:"IT",      asset_class:"Equities"},
+    {symbol:"HDFCBANK", qty:100, avg_price:1500, current_price:1620, sector:"Banking", asset_class:"Equities"},
+    {symbol:"INFY",     qty:40,  avg_price:1400, current_price:1510, sector:"IT",      asset_class:"Equities"},
+    {symbol:"GOLDBEES", qty:200, avg_price:55,   current_price:62,   sector:"ETF",     asset_class:"Gold"}
+  ]
+};
+
+const SAMPLE_BEHAVIOUR = {
+  lookback: "Last 30 days",
+  trades: [
+    {symbol:"NIFTY",     side:"BUY",  qty:75,  price:120, entry_time:"2026-04-12T09:18:00", exit_time:"2026-04-12T09:25:00", pnl:-450,  segment:"FNO"},
+    {symbol:"NIFTY",     side:"BUY",  qty:150, price:110, entry_time:"2026-04-12T09:35:00", exit_time:"2026-04-12T09:50:00", pnl:-1200, segment:"FNO"},
+    {symbol:"NIFTY",     side:"BUY",  qty:225, price:105, entry_time:"2026-04-12T10:05:00", exit_time:"2026-04-12T11:30:00", pnl:1500,  segment:"FNO"},
+    {symbol:"NIFTY",     side:"SELL", qty:75,  price:130, entry_time:"2026-04-12T11:45:00", exit_time:"2026-04-12T12:00:00", pnl:-300,  segment:"FNO"},
+    {symbol:"BANKNIFTY", side:"BUY",  qty:25,  price:200, entry_time:"2026-04-13T15:20:00", exit_time:"2026-04-13T15:28:00", pnl:-800,  segment:"FNO"},
+    {symbol:"NIFTY",     side:"BUY",  qty:75,  price:115, entry_time:"2026-04-14T09:20:00", exit_time:"2026-04-14T15:25:00", pnl:600,   segment:"FNO"}
+  ]
+};
+
+function loadPortfolioSample(){ document.getElementById('pf-json').value = JSON.stringify(SAMPLE_PORTFOLIO.holdings, null, 2); }
+function loadBehaviourSample(){ document.getElementById('bh-json').value = JSON.stringify(SAMPLE_BEHAVIOUR.trades, null, 2); }
+loadPortfolioSample(); loadBehaviourSample();
+
+function pill(label, value){ return `<span class="tc-summary-pill">${label}<span class="v">${value}</span></span>`; }
+function gradePill(label, grade){
+  const cls = 'tc-grade-' + (grade||'').replace(/\s/g,'\\ ');
+  return `<span class="tc-summary-pill" style="background:transparent;padding:0"><span class="badge ${cls}" style="font-size:12px;padding:.4em .75em">${label}: ${grade}</span></span>`;
+}
+
+function setBusy(btnId, busy, label){
+  const b = document.getElementById(btnId);
+  if (busy){ b.dataset._html = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="tc-spin me-2"></span>Running…'; }
+  else { b.disabled = false; b.innerHTML = b.dataset._html || label; }
+}
+
+async function callApi(engine, payload){
+  const r = await fetch(RUN_URL, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({engine, payload})
+  });
+  return r.json();
+}
+
+// ── I-Score
+function updateIscoreCurl(){
+  const sym = (document.getElementById('is-symbol').value||'').trim().toUpperCase();
+  const at  = document.getElementById('is-asset').value;
+  document.getElementById('is-curl').textContent =
+    `curl '${ORIGIN}/api/partner/v1/iscore/${sym||'SYMBOL'}?asset_type=${at}' \\\n  -H 'Authorization: Bearer tc_live_YOUR_API_KEY'`;
+}
+['is-symbol','is-asset'].forEach(id => document.getElementById(id).addEventListener('input', updateIscoreCurl));
+updateIscoreCurl();
+
+async function runIscore(){
+  setBusy('is-btn', true);
+  const symbol = document.getElementById('is-symbol').value.trim();
+  const asset_type = document.getElementById('is-asset').value;
+  const out = await callApi('iscore', {symbol, asset_type});
+  document.getElementById('is-result').textContent = JSON.stringify(out, null, 2);
+  const r = out.result || {};
+  if (out.success){
+    document.getElementById('is-summary').innerHTML =
+      pill('Symbol', out.symbol) +
+      (r.score !== undefined ? pill('Score', Number(r.score).toFixed(1)) : '') +
+      (r.recommendation ? gradePill('Tier', r.recommendation) : '') +
+      (r.confidence !== undefined ? pill('Confidence', (typeof r.confidence==='number'? r.confidence.toFixed(2): r.confidence)) : '');
+  } else {
+    document.getElementById('is-summary').innerHTML = `<div class="alert alert-danger py-2 mb-0">${out.error||'Failed'} <code>(${out.code||''})</code></div>`;
+  }
+  setBusy('is-btn', false, '<i class="fas fa-play me-1"></i> Run analysis');
+}
+
+// ── F&O
+function updateFnoCurl(){
+  const idx = document.getElementById('fno-index').value;
+  document.getElementById('fno-curl').textContent =
+    `curl '${ORIGIN}/api/partner/v1/fno/signals/live?index=${idx}' \\\n  -H 'Authorization: Bearer tc_live_YOUR_API_KEY'`;
+}
+document.getElementById('fno-index').addEventListener('change', updateFnoCurl);
+updateFnoCurl();
+
+async function runFno(){
+  setBusy('fno-btn', true);
+  const index = document.getElementById('fno-index').value;
+  const out = await callApi('fno', {index});
+  document.getElementById('fno-result').textContent = JSON.stringify(out, null, 2);
+  const a = out.analysis || {};
+  if (out.success){
+    document.getElementById('fno-summary').innerHTML =
+      pill('Index', out.index) +
+      (a.direction ? gradePill('Direction', a.direction) : '') +
+      (a.confidence !== undefined ? pill('Confidence', a.confidence) : '') +
+      (a.tier ? pill('Tier', a.tier) : '') +
+      (a.atm_strike ? pill('ATM strike', a.atm_strike) : '') +
+      (a.entry_price ? pill('Entry', a.entry_price) : '');
+  } else {
+    document.getElementById('fno-summary').innerHTML = `<div class="alert alert-danger py-2 mb-0">${out.error||'Failed'} <code>(${out.code||''})</code></div>`;
+  }
+  setBusy('fno-btn', false, '<i class="fas fa-play me-1"></i> Generate live signal');
+}
+
+// ── Portfolio
+async function runPortfolio(){
+  setBusy('pf-btn', true);
+  let holdings;
+  try { holdings = JSON.parse(document.getElementById('pf-json').value); }
+  catch(e){ document.getElementById('pf-summary').innerHTML = `<div class="alert alert-danger py-2 mb-0">Invalid JSON: ${e.message}</div>`; setBusy('pf-btn', false, '<i class="fas fa-play me-1"></i> Analyze portfolio'); return; }
+
+  const out = await callApi('portfolio', {holdings, currency: 'INR'});
+  document.getElementById('pf-result').textContent = JSON.stringify(out, null, 2);
+  const s = out.summary || {};
+  if (out.success){
+    document.getElementById('pf-summary').innerHTML =
+      gradePill('Risk', s.risk_grade) +
+      pill('Score', s.risk_score) +
+      pill('Holdings', s.holdings_count) +
+      pill('Sectors', s.sector_count) +
+      pill('PnL %', s.total_pnl_pct + '%') +
+      pill('Top holding', s.top_holding_symbol + ' (' + s.top_holding_pct + '%)') +
+      pill('Warnings', s.warnings_count);
+  } else {
+    document.getElementById('pf-summary').innerHTML = `<div class="alert alert-danger py-2 mb-0">${out.error||'Failed'} <code>(${out.code||''})</code></div>`;
+  }
+  setBusy('pf-btn', false, '<i class="fas fa-play me-1"></i> Analyze portfolio');
+}
+
+// ── Behaviour
+async function runBehaviour(){
+  setBusy('bh-btn', true);
+  let trades;
+  try { trades = JSON.parse(document.getElementById('bh-json').value); }
+  catch(e){ document.getElementById('bh-summary').innerHTML = `<div class="alert alert-danger py-2 mb-0">Invalid JSON: ${e.message}</div>`; setBusy('bh-btn', false, '<i class="fas fa-play me-1"></i> Analyze behaviour'); return; }
+  const lookback = document.getElementById('bh-label').value;
+
+  const out = await callApi('behaviour', {trades, lookback});
+  document.getElementById('bh-result').textContent = JSON.stringify(out, null, 2);
+  const s = out.summary || {};
+  if (out.success){
+    document.getElementById('bh-summary').innerHTML =
+      gradePill('Discipline', s.discipline_grade) +
+      pill('Score', s.discipline_score) +
+      pill('Trades', s.total_trades) +
+      pill('Win rate', s.win_rate_pct + '%') +
+      pill('Profit factor', s.profit_factor ?? '∞') +
+      pill('Patterns', s.patterns_detected) +
+      (s.top_concern ? pill('Top concern', s.top_concern) : '');
+  } else {
+    document.getElementById('bh-summary').innerHTML = `<div class="alert alert-danger py-2 mb-0">${out.error||'Failed'} <code>(${out.code||''})</code></div>`;
+  }
+  setBusy('bh-btn', false, '<i class="fas fa-play me-1"></i> Analyze behaviour');
+}
+</script>
+{% endblock %}
