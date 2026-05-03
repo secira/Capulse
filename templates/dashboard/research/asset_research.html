@@ -198,12 +198,9 @@
                                         </div>
                                         <div class="alert alert-info">
                                             <h6 class="fw-bold mb-2"><i class="fas fa-info-circle me-2"></i>How I-Score is Calculated</h6>
-                                            <p class="mb-2 small">I-Score combines multiple analysis dimensions with weighted scoring:</p>
-                                            <div class="row text-center">
-                                                <div class="col-3"><div class="fw-bold text-primary">15%</div><small>Qualitative</small></div>
-                                                <div class="col-3"><div class="fw-bold text-primary">50%</div><small>Quantitative</small></div>
-                                                <div class="col-3"><div class="fw-bold text-primary">10%</div><small>Search</small></div>
-                                                <div class="col-3"><div class="fw-bold text-primary">25%</div><small>Trend</small></div>
+                                            <p class="mb-2 small">I-Score combines multiple analysis dimensions with weighted scoring. Stocks use the full 6-component model; other assets use a 4-component model.</p>
+                                            <div id="weightsBreakdown" class="row text-center g-2">
+                                                <!-- Populated dynamically from data.transparency.weights -->
                                             </div>
                                         </div>
                                         <h6 class="fw-bold mt-4 mb-3"><i class="fas fa-chart-bar me-2"></i>Component Score Breakdown</h6>
@@ -881,7 +878,27 @@ function showOverallDetails() {
         case 'STRONG_SELL': badgeClass = 'bg-danger'; break;
     }
     document.getElementById('inlineRecommendation').innerHTML = `<span class="badge ${badgeClass} px-4 py-2 fs-6">${badgeText}</span>`;
-    
+
+    // Populate "How I-Score is Calculated" weights breakdown dynamically
+    // so it always reflects the actual weights used (6 for stocks, 4 for others)
+    const weightsEl = document.getElementById('weightsBreakdown');
+    if (weightsEl) {
+        const weightRows = [
+            { key: 'quantitative_pct',   name: 'Quantitative' },
+            { key: 'trend_pct',          name: 'Trend' },
+            { key: 'risk_pct',           name: 'Risk' },
+            { key: 'qualitative_pct',    name: 'Qualitative' },
+            { key: 'search_pct',         name: 'Search' },
+            { key: 'market_context_pct', name: 'Market Context' },
+        ];
+        const w = data.transparency?.weights || {};
+        const colClass = Object.keys(w).length >= 6 ? 'col-4 col-md-2' : 'col-6 col-md-3';
+        weightsEl.innerHTML = weightRows
+            .filter(r => w[r.key] != null)
+            .map(r => `<div class="${colClass}"><div class="fw-bold text-primary">${w[r.key]}%</div><small>${r.name}</small></div>`)
+            .join('');
+    }
+
     let breakdownHTML = '';
     const components = [
         { key: 'quantitative', name: 'Quantitative (Technical)', icon: 'fas fa-chart-line', weight: data.components?.quantitative?.weight || 30 },

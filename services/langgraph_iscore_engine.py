@@ -2,11 +2,16 @@
 LangGraph I-Score Engine for Target Capital
 Implements the Intelli Score (I-Score) research workflow with multi-step analysis
 
-I-Score Components:
-- Qualitative Sentiments (15%): News, social media, annual reports
-- Quantitative Sentiments (50%): Technical indicators (RSI, SuperTrend, EMA)
-- Search Sentiments (10%): Google Trends, Perplexity search
-- Trend Analysis (25%): Open Interest, PCR, VIX
+I-Score Components (Stocks — 6-component model, weights sum to 100%):
+- Quantitative   (30%): Real technical indicators (RSI Wilder, EMA, SuperTrend, momentum)
+- Trend          (20%): Open Interest, PCR, VIX, derivative trend signals
+- Risk           (20%): Volatility, max drawdown, beta vs Nifty
+- Qualitative    (15%): News, social media, annual reports
+- Search         (10%): Google Trends, Perplexity search popularity
+- Market Context  (5%): Nifty regime, VIX regime, PCR regime
+
+Non-stock assets (MF, bond, commodity, currency, options, futures) use a
+4-component model: Qualitative 15% / Quantitative 50% / Search 10% / Trend 25%.
 """
 
 import os
@@ -99,14 +104,22 @@ class IScoreState(TypedDict):
 
 class LangGraphIScoreEngine:
     """
-    LangGraph-powered I-Score engine with 7-node workflow:
-    1. Cache Check - Search database before new analysis
-    2. Qualitative Analysis - News, social, annual reports (15%)
-    3. Quantitative Analysis - RSI, SuperTrend, EMA (50%)
-    4. Search Sentiment - Perplexity, trends (10%)
-    5. Trend Analysis - OI, PCR, VIX (25%)
-    6. Score Aggregation - Calculate weighted I-Score
-    7. Store Results - Persist to database and cache
+    LangGraph-powered I-Score engine.
+
+    Stocks workflow (9 nodes, 6-component model):
+      1. Cache Check          - Skip recompute if today's result is cached
+      2. Qualitative Analysis - News, social, annual reports (15%)
+      3. Quantitative Analysis- RSI, SuperTrend, EMA, momentum (30%)
+      4. Search Sentiment     - Perplexity, Google Trends (10%)
+      5. Trend Analysis       - Open Interest, PCR, VIX (20%)
+      6. Risk & Volatility    - Volatility, max drawdown, beta (20%)
+      7. Market Context       - Nifty regime, VIX regime, PCR regime (5%)
+      8. Aggregate Scores     - Weighted sum + nonlinear penalties + confidence
+      9. Store Results        - Persist to ResearchRun, components, and cache
+
+    Non-stock assets (MF, bond, commodity, currency, options, futures) use a
+    shorter 4-component pipeline (qualitative, quantitative, search, trend) and
+    skip the risk + market_context nodes.
     """
     
     def __init__(self):
