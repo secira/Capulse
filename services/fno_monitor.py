@@ -209,6 +209,48 @@ def _save_signal_to_db(app, signal_data: dict, index_id: str,
 
 # ── Telegram ───────────────────────────────────────────────────────────────────
 
+def _dispatch_partner_webhook(signal_data: dict, index_id: str) -> None:
+    """
+    Fan out an MVLA F&O signal to every active B2B partner subscription on this
+    index whose min_confidence threshold is met. Never raises — the F&O scan
+    loop must keep running even if a partner endpoint is misbehaving.
+    """
+    try:
+        confidence = float(signal_data.get('confidence') or 0)
+        # Mirror Telegram threshold: only push real trade events (TRIGGER/EXIT/ACTIVE)
+        sig_type = signal_data.get('signal_type') or ''
+        if confidence < 50 or sig_type not in ('TRADE_TRIGGER', 'TRADE_EXIT', 'TRADE_ACTIVE'):
+            return
+
+        if confidence >= 75:
+            tier = 'HIGH'
+        elif confidence >= 60:
+            tier = 'REGULAR'
+        else:
+            tier = 'AGGRESSIVE'
+
+        payload = {
+            'event':           sig_type,
+            'index':           index_id,
+            'score':           confidence,
+            'confidence':      confidence,
+            'tier':            tier,
+            'trade_direction': signal_data.get('trade_direction'),
+            'entry_mode':      signal_data.get('entry_mode'),
+            'atm_strike':      signal_data.get('atm_strike'),
+            'entry_price':     signal_data.get('entry_price'),
+            'sl':              signal_data.get('sl'),
+            'target':          signal_data.get('target'),
+            'trade_code':      signal_data.get('trade_code'),
+            'reasons':         signal_data.get('reasons'),
+            'data_source':     signal_data.get('data_source'),
+        }
+        from services.partner_webhook import dispatch_event
+        dispatch_event('fno', index_id, payload, score=confidence)
+    except Exception as e:
+        logger.warning(f"[{index_id}] partner webhook dispatch failed: {e}")
+
+
 def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
     try:
         raw_token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
@@ -499,6 +541,7 @@ def _scan_index(app, idx: str, data_broker_user_id):
                     signal_type             = 'TRADE_EXIT'
                     if _should_send_alert(analysis, idx):
                         alert_sent = _send_telegram_alert(analysis, idx)
+                    _dispatch_partner_webhook(analysis, idx)
                 else:
                     at   = _active_trade[idx]
                     now  = _now_ist()
@@ -545,6 +588,7 @@ def _scan_index(app, idx: str, data_broker_user_id):
                         if _send_telegram_alert(active_analysis, idx):
                             _last_active_alert[idx] = now
                             logger.info(f"[{idx}] 📍 TRADE_ACTIVE Telegram update sent ({elapsed} min in)")
+                        _dispatch_partner_webhook(active_analysis, idx)
                     return
 
             else:
@@ -564,6 +608,7 @@ def _scan_index(app, idx: str, data_broker_user_id):
                             _last_signal_time[idx]      = _now_ist()
                             _last_signal_direction[idx] = analysis.get('trade_direction')
                             _daily_signal_count[idx]   += 1
+                    _dispatch_partner_webhook(analysis, idx)
 
                 elif analysis.get('entry_mode') != 'NO TRADE' and smoothed >= 60:
                     signal_type             = 'SCAN'

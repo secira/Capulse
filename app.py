@@ -318,6 +318,7 @@ with app.app_context():
     import models
     import models_broker  # Import broker models too
     import models_vector  # Import vector database models for RAG
+    import models_partner_api  # B2B partner API models (ApiPartner / ApiSubscription / ApiAlertLog)
     import routes_mobile  # Import mobile OTP routes
     
     # In production, all tables already exist and are populated — DO NOT call
@@ -522,6 +523,12 @@ if not os.environ.get("SKIP_SCHEDULER"):
         start_fno_monitor(app)
     except Exception as e:
         logging.warning(f"F&O monitor not started: {e}")
+
+    try:
+        from services.iscore_alert_dispatcher import start_scheduler as start_iscore_partner_scheduler
+        start_iscore_partner_scheduler(app)
+    except Exception as e:
+        logging.warning(f"I-Score partner scheduler not started: {e}")
 
 
 # WebSocket Server Management

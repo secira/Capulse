@@ -16,6 +16,9 @@ app.register_blueprint(workflow_bp)
 from routes_broker_oauth import broker_oauth
 app.register_blueprint(broker_oauth)
 
+from routes_partner_api import partner_api
+app.register_blueprint(partner_api)
+
 if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 5000))
