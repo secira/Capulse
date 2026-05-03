@@ -304,6 +304,73 @@ def list_alerts():
                     'alerts': [r.to_dict() for r in rows]})
 
 
+# ── Portfolio Risk Analysis ──────────────────────────────────────────────────
+
+@partner_api.route('/portfolio/analyze', methods=['POST'])
+@partner_api_key_required
+def portfolio_analyze():
+    """
+    Stateless portfolio risk analysis — accepts up to 50 holdings.
+
+    Body:
+        {
+          "currency": "INR",                    # optional, default INR
+          "holdings": [
+            {"symbol": "RELIANCE", "qty": 50, "avg_price": 2400,
+             "current_price": 2890, "sector": "Energy", "asset_class": "Equities"},
+            ...
+          ]
+        }
+    Returns: {summary: {...}, details: {...}}
+    """
+    from services.partner_risk_analyzer import analyze_portfolio
+    data = request.get_json(silent=True) or {}
+    holdings = data.get('holdings') or []
+    currency = (data.get('currency') or 'INR').upper()
+    try:
+        result = analyze_portfolio(holdings, currency=currency)
+    except ValueError as ve:
+        return jsonify({'success': False, 'error': str(ve), 'code': 'INVALID_REQUEST'}), 400
+    except Exception as e:
+        logger.exception('partner portfolio analyze failed')
+        return jsonify({'success': False, 'error': str(e), 'code': 'ENGINE_ERROR'}), 500
+    return jsonify({'success': True, **result})
+
+
+# ── Behavioural Analysis ─────────────────────────────────────────────────────
+
+@partner_api.route('/behaviour/analyze', methods=['POST'])
+@partner_api_key_required
+def behaviour_analyze():
+    """
+    Stateless trading-behaviour analysis — accepts up to 100 trades.
+
+    Body:
+        {
+          "lookback": "Last 30 days",          # optional label, echoed back
+          "trades": [
+            {"symbol": "NIFTY24DEC25000CE", "side": "BUY", "qty": 75, "price": 120,
+             "entry_time": "2025-04-12T09:45:00", "exit_time": "2025-04-12T10:30:00",
+             "pnl": 1250, "segment": "FNO"},
+            ...
+          ]
+        }
+    Returns: {summary: {...}, details: {...}}
+    """
+    from services.partner_behaviour_analyzer import analyze_behaviour
+    data = request.get_json(silent=True) or {}
+    trades  = data.get('trades') or []
+    label   = data.get('lookback')
+    try:
+        result = analyze_behaviour(trades, lookback_label=label)
+    except ValueError as ve:
+        return jsonify({'success': False, 'error': str(ve), 'code': 'INVALID_REQUEST'}), 400
+    except Exception as e:
+        logger.exception('partner behaviour analyze failed')
+        return jsonify({'success': False, 'error': str(e), 'code': 'ENGINE_ERROR'}), 500
+    return jsonify({'success': True, **result})
+
+
 # ── Public docs page ─────────────────────────────────────────────────────────
 
 @partner_api.route('/docs', methods=['GET'])
