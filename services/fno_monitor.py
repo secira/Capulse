@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 IST_OFFSET = timedelta(hours=5, minutes=30)
 
+# Telegram alerts only for Tier 1 (high-conviction) signals.
+# Tier 2 (60-74) and Tier 3 (50-59) are surfaced in the app/UI only.
 ALERT_CONFIDENCE_THRESHOLD = 75
 SIGNAL_COOLDOWN_MINUTES    = 10
 MAX_SIGNALS_PER_DAY        = 3          # per index

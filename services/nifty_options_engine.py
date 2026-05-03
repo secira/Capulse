@@ -1076,11 +1076,11 @@ class NiftyOptionsEngine:
           - Distance increasing on latest candle = momentum confirmation
           - distance_pct = |EMA9 - EMA21| / close * 100
 
-        Tiers (replaces old ADX tiers):
-          NO_TRADE_ZONE  : gap < 0.05% — flat market, no edge
-          WEAK_TREND     : gap 0.05–0.12%, no fresh crossover/momentum
-          TRADABLE_TREND : gap 0.05–0.12% WITH fresh crossover + distance increasing
-          STRONG_TREND   : gap > 0.12% and distance increasing
+        Tiers (relaxed for Indian indices which trend with tight EMA spreads):
+          NO_TRADE_ZONE  : gap < 0.03% — flat market, no edge
+          WEAK_TREND     : gap 0.03–0.08%, no fresh crossover/momentum
+          TRADABLE_TREND : gap 0.03–0.08% WITH fresh crossover OR distance increasing
+          STRONG_TREND   : gap > 0.08% and distance increasing
         """
         try:
             df = df.tail(3)
@@ -1116,11 +1116,13 @@ class NiftyOptionsEngine:
             distance_pct     = curr_dist / price_ref * 100.0
             distance_increasing = curr_dist > prev_dist
 
-            if distance_pct < 0.05:
+            if distance_pct < 0.03:
                 tier          = 'NO_TRADE_ZONE'
                 no_trade_zone = True
-            elif distance_pct < 0.12:
-                active        = crossover and distance_increasing
+            elif distance_pct < 0.08:
+                # TRADABLE if EITHER fresh crossover OR distance still expanding
+                # (relaxed from AND, since both rarely co-occur on the same candle)
+                active        = crossover or distance_increasing
                 tier          = 'TRADABLE_TREND' if active else 'WEAK_TREND'
                 no_trade_zone = not active
             else:
@@ -1146,74 +1148,93 @@ class NiftyOptionsEngine:
             }
 
     def _market_regime_filter(self, df, spot: float, vwap: float, ema_data: dict = None) -> Dict[str, Any]:
-        """Block trades during choppy / compressed / low-edge conditions.
+        """Intelligent chop guard — blocks ONLY when ≥2 independent chop signals fire.
 
-        Checks:
-          1. EMA 9/21 gap < 0.05% → chop (replaces ADX < 18)
-          2. |spot - vwap| / spot * 100 < 0.10  → too close to VWAP
-          3. Last 3 candles overlap > 50% AND body below recent avg → sideways
-          4. Current candle range < 0.6 × avg range of last 5 → compression
+        Single-blocker mode was over-filtering. New logic:
+          Track 3 chop indicators:
+            1. EMA 9/21 gap  < 0.03%
+            2. |spot − VWAP| / spot * 100 < 0.08
+            3. Range compression: current candle range < 0.6 × avg(last 5)
+          Trade is blocked only if 2 or more of these are simultaneously true.
+
+        A 4th indicator (overlapping candles) is reported as a soft warning but
+        never blocks on its own.
+
+        Volatility expansion is also detected and surfaced so confidence can
+        reward breakout days: `vol_expansion = cur_range > 1.2 × avg_range_5`.
         """
-        reasons = []
+        chop_flags = []
+        soft_warnings = []
+        vol_expansion = False
         try:
             ema_gap = (ema_data or {}).get('distance_pct', 0.10)
-            if ema_gap < 0.05:
-                reasons.append("Choppy market — EMA 9/21 gap below 0.05% (flat trend)")
+            if ema_gap < 0.03:
+                chop_flags.append("EMA 9/21 gap below 0.03% (flat trend)")
 
-            if vwap > 0:
-                vwap_dist_pct = abs(spot - vwap) / spot * 100.0
-                if vwap_dist_pct < 0.10:
-                    reasons.append("Price too close to VWAP — weak edge")
+            vwap_dist_pct = (abs(spot - vwap) / spot * 100.0) if (spot and vwap) else 0
+            if vwap > 0 and vwap_dist_pct < 0.08:
+                chop_flags.append("Price too close to VWAP — weak edge")
 
-            if df is None or len(df) < 6:
-                return {'pass': not reasons, 'reasons': reasons, 'vwap_distance_pct': round(abs(spot - vwap) / spot * 100.0, 3) if spot else 0}
+            if df is not None and len(df) >= 6:
+                highs = df['High'].astype(float).values
+                lows  = df['Low'].astype(float).values
+                opens = df['Open'].astype(float).values
+                closes = df['Close'].astype(float).values
 
-            highs = df['High'].astype(float).values
-            lows  = df['Low'].astype(float).values
-            opens = df['Open'].astype(float).values
-            closes = df['Close'].astype(float).values
+                ranges = highs - lows
+                avg_range_5 = float(sum(ranges[-6:-1]) / 5) if len(ranges) >= 6 else 0.0
+                cur_range  = float(ranges[-1])
+                if avg_range_5 > 0:
+                    if cur_range < 0.6 * avg_range_5:
+                        chop_flags.append("Range compression — current candle smaller than recent")
+                    if cur_range > 1.2 * avg_range_5:
+                        vol_expansion = True
 
-            ranges = highs - lows
-            avg_range_5 = float(sum(ranges[-6:-1]) / 5) if len(ranges) >= 6 else 0.0
-            cur_range  = float(ranges[-1])
-            if avg_range_5 > 0 and cur_range < 0.6 * avg_range_5:
-                reasons.append("Range compression detected — wait for breakout")
+                # Overlapping candles → soft warning only (never blocks alone)
+                if len(closes) >= 4:
+                    bodies = [abs(closes[i] - opens[i]) for i in range(len(closes))]
+                    avg_body = sum(bodies[-10:]) / max(1, len(bodies[-10:]))
 
-            # Overlap-chop: last 3 candles each overlap prior by >50% and small bodies
-            if len(closes) >= 4:
-                bodies = [abs(closes[i] - opens[i]) for i in range(len(closes))]
-                avg_body = sum(bodies[-10:]) / max(1, len(bodies[-10:]))
+                    def _overlap_pct(i_prev, i_cur):
+                        a_lo, a_hi = lows[i_prev], highs[i_prev]
+                        b_lo, b_hi = lows[i_cur], highs[i_cur]
+                        inter = max(0.0, min(a_hi, b_hi) - max(a_lo, b_lo))
+                        rng = max(a_hi - a_lo, 1e-9)
+                        return inter / rng
 
-                def _overlap_pct(i_prev, i_cur):
-                    a_lo, a_hi = lows[i_prev], highs[i_prev]
-                    b_lo, b_hi = lows[i_cur], highs[i_cur]
-                    inter = max(0.0, min(a_hi, b_hi) - max(a_lo, b_lo))
-                    rng = max(a_hi - a_lo, 1e-9)
-                    return inter / rng
-
-                last3_overlap = all(
-                    _overlap_pct(-i - 1, -i) > 0.5 for i in range(1, 4)
-                )
-                last3_small = all(bodies[-i] < avg_body for i in range(1, 4))
-                if last3_overlap and last3_small:
-                    reasons.append("Overlapping candles — avoid sideways market")
+                    last3_overlap = all(
+                        _overlap_pct(-i - 1, -i) > 0.5 for i in range(1, 4)
+                    )
+                    last3_small = all(bodies[-i] < avg_body for i in range(1, 4))
+                    if last3_overlap and last3_small:
+                        soft_warnings.append("Overlapping candles — sideways tape")
         except Exception as e:
             logger.warning(f"Market regime filter error: {e}")
 
+        # Block only when 2+ chop conditions co-occur
+        blocked = len(chop_flags) >= 2
+        reasons = []
+        if blocked:
+            reasons.append("Chop regime — " + " + ".join(chop_flags))
+
         return {
-            'pass': not reasons,
+            'pass': not blocked,
             'reasons': reasons,
+            'chop_flags': chop_flags,
+            'soft_warnings': soft_warnings,
+            'vol_expansion': vol_expansion,
             'vwap_distance_pct': round(abs(spot - vwap) / spot * 100.0, 3) if (spot and vwap) else 0,
         }
 
     def _classify_oi(self, oi_diff: float, direction: str) -> Dict[str, Any]:
-        """OI as confirmation, not gate.
+        """OI as advisory only — never blocks a trade.
 
         Returns role: STRONG_SUPPORT | MILD_SUPPORT | NEUTRAL | OPPOSE
-        Block flag is True only when OI strongly opposes the proposed direction.
+        `block` is always False — OI data is lagging + noisy intraday and
+        should never be a hard gate. Opposing OI applies a confidence
+        penalty (-10) instead.
         """
         role = 'NEUTRAL'
-        block = False
         if direction == 'BULLISH':
             if oi_diff >= 0.20:
                 role = 'STRONG_SUPPORT'
@@ -1221,7 +1242,6 @@ class NiftyOptionsEngine:
                 role = 'MILD_SUPPORT'
             elif oi_diff <= -0.10:
                 role = 'OPPOSE'
-                block = True
         elif direction == 'BEARISH':
             if oi_diff <= -0.20:
                 role = 'STRONG_SUPPORT'
@@ -1229,19 +1249,23 @@ class NiftyOptionsEngine:
                 role = 'MILD_SUPPORT'
             elif oi_diff >= 0.10:
                 role = 'OPPOSE'
-                block = True
-        return {'role': role, 'block': block}
+        return {'role': role, 'block': False, 'oppose': role == 'OPPOSE'}
 
-    def _entry_trigger_validation(self, df, direction: str, vwap: float) -> Dict[str, Any]:
-        """Validate breakout / retest entry trigger.
+    def _entry_trigger_validation(self, df, direction: str, vwap: float,
+                                  rsi: float = 50.0, ema_widening: bool = False) -> Dict[str, Any]:
+        """Validate breakout / retest / momentum entry trigger.
 
-        Bullish trigger:  current candle high > previous candle high, OR
-                          price retests VWAP from above and closes above it.
-        Bearish trigger:  current candle low  < previous candle low,  OR
-                          price retests VWAP from below and closes below it.
+        Modes:
+          BREAKOUT — current high > previous high (bull) or low < previous low (bear).
+                     Close-confirmation is OPTIONAL → reported via `close_confirmed`
+                     and rewarded with +5 confidence (no longer required).
+          RETEST   — VWAP retest holds.
+          MOMENTUM — RSI extended (>60 bull / <40 bear) AND EMA gap widening.
+                     Allows early entry without waiting for a candle break.
         """
         if direction == 'NEUTRAL' or df is None or len(df) < 3:
-            return {'triggered': False, 'mode': 'NONE', 'reason': 'Direction aligned, waiting for breakout trigger'}
+            return {'triggered': False, 'mode': 'NONE', 'close_confirmed': False,
+                    'reason': 'Direction aligned, waiting for breakout trigger'}
         try:
             h = df['High'].astype(float).values
             l = df['Low'].astype(float).values
@@ -1249,29 +1273,54 @@ class NiftyOptionsEngine:
 
             cur_h, prev_h = float(h[-1]), float(h[-2])
             cur_l, prev_l = float(l[-1]), float(l[-2])
-            cur_c, prev_c = float(c[-1]), float(c[-2])
+            cur_c = float(c[-1])
 
             if direction in ('BULLISH', 'BOTH'):
-                breakout = cur_h > prev_h and cur_c > prev_h
+                breakout = cur_h > prev_h
+                close_confirmed = breakout and cur_c > prev_h
                 retest = vwap > 0 and cur_l <= vwap * 1.0008 and cur_c > vwap
+                momentum_entry = rsi > 60 and ema_widening
                 if breakout:
-                    return {'triggered': True, 'mode': 'BREAKOUT', 'reason': 'Bullish breakout — current high > previous high'}
+                    reason = 'Bullish breakout — current high > previous high'
+                    if close_confirmed:
+                        reason += ' (close confirmed)'
+                    return {'triggered': True, 'mode': 'BREAKOUT',
+                            'close_confirmed': close_confirmed, 'reason': reason}
                 if retest:
-                    return {'triggered': True, 'mode': 'RETEST', 'reason': 'Bullish retest of VWAP held'}
+                    return {'triggered': True, 'mode': 'RETEST',
+                            'close_confirmed': True, 'reason': 'Bullish retest of VWAP held'}
+                if momentum_entry:
+                    return {'triggered': True, 'mode': 'MOMENTUM',
+                            'close_confirmed': False,
+                            'reason': f'Momentum entry — RSI {rsi:.0f} + EMA widening'}
                 if direction == 'BULLISH':
-                    return {'triggered': False, 'mode': 'WAIT', 'reason': 'Direction aligned, waiting for breakout trigger'}
+                    return {'triggered': False, 'mode': 'WAIT', 'close_confirmed': False,
+                            'reason': 'Direction aligned, waiting for breakout / momentum trigger'}
 
             if direction in ('BEARISH', 'BOTH'):
-                breakout = cur_l < prev_l and cur_c < prev_l
+                breakout = cur_l < prev_l
+                close_confirmed = breakout and cur_c < prev_l
                 retest = vwap > 0 and cur_h >= vwap * 0.9992 and cur_c < vwap
+                momentum_entry = rsi < 40 and ema_widening
                 if breakout:
-                    return {'triggered': True, 'mode': 'BREAKOUT', 'reason': 'Bearish breakdown — current low < previous low'}
+                    reason = 'Bearish breakdown — current low < previous low'
+                    if close_confirmed:
+                        reason += ' (close confirmed)'
+                    return {'triggered': True, 'mode': 'BREAKOUT',
+                            'close_confirmed': close_confirmed, 'reason': reason}
                 if retest:
-                    return {'triggered': True, 'mode': 'RETEST', 'reason': 'Bearish rejection at VWAP held'}
-                return {'triggered': False, 'mode': 'WAIT', 'reason': 'Direction aligned, waiting for retest confirmation'}
+                    return {'triggered': True, 'mode': 'RETEST',
+                            'close_confirmed': True, 'reason': 'Bearish rejection at VWAP held'}
+                if momentum_entry:
+                    return {'triggered': True, 'mode': 'MOMENTUM',
+                            'close_confirmed': False,
+                            'reason': f'Momentum entry — RSI {rsi:.0f} + EMA widening'}
+                return {'triggered': False, 'mode': 'WAIT', 'close_confirmed': False,
+                        'reason': 'Direction aligned, waiting for breakout / momentum trigger'}
         except Exception as e:
             logger.warning(f"Entry trigger validation error: {e}")
-        return {'triggered': False, 'mode': 'NONE', 'reason': 'Trigger evaluation unavailable'}
+        return {'triggered': False, 'mode': 'NONE', 'close_confirmed': False,
+                'reason': 'Trigger evaluation unavailable'}
 
     def _direction_engine(self, spot: float, oi_window_diff: float = 0.0,
                           adx: float = 22.0, ema_data: dict = None) -> Dict[str, Any]:
@@ -1307,24 +1356,32 @@ class NiftyOptionsEngine:
         bull_oi = self._classify_oi(oi_window_diff, 'BULLISH')
         bear_oi = self._classify_oi(oi_window_diff, 'BEARISH')
 
-        # CE (bull) signal rules:
-        #   EMA 9 above EMA 21 with momentum, Supertrend BUY, spot > VWAP, RSI > 55
-        # PE (bear) signal rules:
-        #   EMA 9 below EMA 21 with momentum, Supertrend SELL, spot < VWAP, RSI < 45
-        bullish = (
-            ema_bull_active
-            and supertrend_signal == 'BUY'
-            and spot > vwap
-            and rsi > 55
-            and not bull_oi['block']
-        )
-        bearish = (
-            ema_bear_active
-            and supertrend_signal == 'SELL'
-            and spot < vwap
-            and rsi < 45
-            and not bear_oi['block']
-        )
+        # SOFT scoring — direction fires when ≥4 of 6 sub-conditions agree.
+        # OI is advisory: not-opposing counts as a confirmation, opposing OI
+        # only deducts confidence later. EMA trend acts as both a scoring
+        # point AND a hard guard against pure contradictions.
+        bull_checks = [
+            ema_trend == 'BULLISH',                           # 1. EMA trend bullish
+            ema_crossover or ema_dist_rising,                 # 2. EMA momentum
+            supertrend_signal == 'BUY',                       # 3. Supertrend
+            spot > vwap,                                      # 4. VWAP alignment
+            rsi > 52,                                         # 5. RSI > 52 (relaxed)
+            not bull_oi['oppose'],                            # 6. OI not opposing
+        ]
+        bear_checks = [
+            ema_trend == 'BEARISH',
+            ema_crossover or ema_dist_rising,
+            supertrend_signal == 'SELL',
+            spot < vwap,
+            rsi < 48,
+            not bear_oi['oppose'],
+        ]
+        bull_score = sum(bull_checks)
+        bear_score = sum(bear_checks)
+
+        # ≥4 of 6 + EMA trend cannot be the opposite (avoid contradictions)
+        bullish = bull_score >= 4 and ema_trend != 'BEARISH'
+        bearish = bear_score >= 4 and ema_trend != 'BULLISH'
         # Both CE and PE can be active simultaneously
         if bullish and bearish:
             direction = 'BOTH'
@@ -1362,6 +1419,10 @@ class NiftyOptionsEngine:
             'oi_role': oi_role,
             'oi_blocks_candidate': oi_block_dir,
             'indicators_aligned': bullish or bearish,
+            # 4-of-6 soft scoring exposed for UI / debugging
+            'bull_score': bull_score,
+            'bear_score': bear_score,
+            'score_max': 6,
             # EMA momentum used for direction decision
             'ema_trend': ema_trend,
             'ema_crossover': ema_crossover,
@@ -1436,7 +1497,7 @@ class NiftyOptionsEngine:
 
     def _confidence_score(self, direction: dict, strength: dict, oi_diff: float,
                           trigger: Optional[dict] = None, time_check: Optional[dict] = None,
-                          spot: float = 0.0) -> int:
+                          spot: float = 0.0, regime: Optional[dict] = None) -> int:
         score = 0
         # Direction agreement
         if direction['spot_vs_vwap'] in ['ABOVE', 'BELOW'] and direction['direction'] != 'NEUTRAL':
@@ -1446,13 +1507,13 @@ class NiftyOptionsEngine:
         if direction['dmi_plus'] != direction['dmi_minus']:
             score += 10
 
-        # EMA momentum strength (replaces ADX magnitude scoring)
+        # EMA momentum strength — rescaled to relaxed thresholds (0.03/0.08/0.15)
         ema_dist = strength.get('ema_distance_pct', 0.0)
-        if ema_dist >= 0.20:
+        if ema_dist >= 0.15:
             score += 20
-        elif ema_dist >= 0.12:
+        elif ema_dist >= 0.08:
             score += 15
-        elif ema_dist >= 0.05:
+        elif ema_dist >= 0.03:
             score += 10
 
         # EMA crossover bonus — fresh crossover is a strong momentum signal
@@ -1466,25 +1527,33 @@ class NiftyOptionsEngine:
         # RSI alignment with direction (+10 if expanding in trade direction)
         _dir = direction['direction']
         _rsi = direction.get('rsi', 50)
-        if _dir in ('BULLISH', 'BOTH') and _rsi > 55:
+        if _dir in ('BULLISH', 'BOTH') and _rsi > 52:
             score += 5
             if direction.get('rsi_expanding_up'):
                 score += 5
-        if _dir in ('BEARISH', 'BOTH') and _rsi < 45:
+        if _dir in ('BEARISH', 'BOTH') and _rsi < 48:
             score += 5
             if direction.get('rsi_expanding_down'):
                 score += 5
 
-        # OI as confirmation layer (not penalty)
+        # OI as advisory layer — supports add, opposing penalises (no longer blocks)
         oi_role = direction.get('oi_role', 'NEUTRAL')
-        if oi_role == 'STRONG_SUPPORT':
+        if 'STRONG_SUPPORT' in oi_role:
             score += 10
-        elif oi_role == 'MILD_SUPPORT':
+        elif 'MILD_SUPPORT' in oi_role:
             score += 5
+        elif 'OPPOSE' in oi_role:
+            score -= 10
 
-        # Trigger confirmation bonus
+        # Trigger confirmation bonus + close-confirmation bonus (was mandatory before)
         if trigger and trigger.get('triggered'):
             score += 15
+            if trigger.get('close_confirmed'):
+                score += 5  # close-confirmed breakout is a stronger trigger
+
+        # Volatility expansion bonus — captures breakout days (important for options)
+        if regime and regime.get('vol_expansion'):
+            score += 10
 
         # VWAP-extension penalty: if spot too far from VWAP, entry is late
         try:
@@ -1807,16 +1876,34 @@ class NiftyOptionsEngine:
             ema_data=strength.get('ema', {}),
         )
 
-        # Entry Trigger Validation — runs after direction is decided
-        trigger = self._entry_trigger_validation(candles_df, direction['direction'], direction.get('vwap', 0.0))
+        # Entry Trigger Validation — runs after direction is decided.
+        # Now accepts RSI + EMA-widening so the MOMENTUM entry path can fire
+        # without waiting for a fresh candle break.
+        trigger = self._entry_trigger_validation(
+            candles_df,
+            direction['direction'],
+            direction.get('vwap', 0.0),
+            rsi=direction.get('rsi', 50.0),
+            ema_widening=strength.get('ema_distance_increasing', False),
+        )
 
         confidence = self._confidence_score(direction, strength, oi_window_diff,
-                                            trigger=trigger, time_check=time_check, spot=spot)
+                                            trigger=trigger, time_check=time_check,
+                                            spot=spot, regime=regime)
+
+        # Volatility-expansion can bypass the WEAK_TREND no-trade gate
+        # (breakout days often start with EMA spread still tight).
+        weak_trend_bypass = (
+            regime.get('vol_expansion', False)
+            and strength.get('tier') == 'WEAK_TREND'
+            and direction['indicators_aligned']
+        )
+        strength_gate_pass = (not strength['no_trade_zone']) or weak_trend_bypass
 
         entry_mode = 'NO TRADE'
-        if (time_check['pass'] and not strength['no_trade_zone']
+        if (time_check['pass'] and strength_gate_pass
                 and regime['pass'] and direction['indicators_aligned'] and trigger['triggered']):
-            if strength.get('ema_distance_pct', 0) >= 0.20 and strength.get('ema_crossover'):
+            if strength.get('ema_distance_pct', 0) >= 0.15 and strength.get('ema_crossover'):
                 entry_mode = 'CONFIRMED'
             else:
                 entry_mode = 'EARLY'
@@ -1841,26 +1928,21 @@ class NiftyOptionsEngine:
         # EMA momentum tier
         ema_gap = strength.get('ema_distance_pct', 0.0)
         if strength.get('tier') == 'NO_TRADE_ZONE':
-            block_reasons.append(f"Choppy market — EMA 9/21 gap {ema_gap:.3f}% (below 0.05% threshold)")
-        elif strength.get('tier') == 'WEAK_TREND':
+            block_reasons.append(f"Choppy market — EMA 9/21 gap {ema_gap:.3f}% (below 0.03% threshold)")
+        elif strength.get('tier') == 'WEAK_TREND' and not weak_trend_bypass:
             block_reasons.append(f"Weak EMA momentum — gap {ema_gap:.3f}%, no fresh crossover or distance still narrowing")
-        # RSI gate
-        rsi_v = direction.get('rsi', 50)
-        if 45 <= rsi_v <= 55:
-            block_reasons.append(f"RSI momentum neutral ({rsi_v}) — wait for expansion")
-        # OI as confirmation
-        if direction.get('oi_blocks_candidate'):
-            block_reasons.append("OI strongly opposes candidate direction")
-        elif direction.get('oi_role') == 'NEUTRAL' and direction['direction'] != 'NEUTRAL':
-            # Neutral OI is allowed, just informational
-            pass
+        # RSI gate (advisory only — direction engine already enforces 4-of-6)
+        # No longer blocks; flagged informationally if neutral
+        # OI as advisory only (never blocks)
+        if direction.get('oi_role') and 'OPPOSE' in direction.get('oi_role', '') and direction['direction'] != 'NEUTRAL':
+            block_reasons.append("OI advisory: opposing flow detected (confidence reduced, not blocked)")
         # Direction not aligned
         if not direction['indicators_aligned'] and direction['direction'] == 'NEUTRAL':
-            block_reasons.append("No clear direction — indicators not aligned")
+            block_reasons.append("No clear direction — fewer than 4 of 6 indicators agree")
 
         # Setup state machine
         setup_state = 'NO_TRADE'
-        if not time_check['pass'] or not regime['pass'] or strength['no_trade_zone']:
+        if not time_check['pass'] or not regime['pass'] or (strength['no_trade_zone'] and not weak_trend_bypass):
             setup_state = 'NO_TRADE'
         elif not direction['indicators_aligned']:
             setup_state = 'SETUP_FORMING'
@@ -1870,12 +1952,26 @@ class NiftyOptionsEngine:
         elif direction['indicators_aligned'] and trigger['triggered']:
             setup_state = 'TRADE_RECOMMENDED'
 
-        # Unified decision: blocked if entry conditions fail OR confidence below threshold.
-        # Keeps UI banner, traffic lights and trade cards consistent.
-        if entry_mode != 'NO TRADE' and confidence < 60:
-            block_reasons.append(f"Confidence too low ({confidence}/100, need 60+)")
-        is_blocked = entry_mode == 'NO TRADE' or confidence < 60
+        # Unified decision — confidence tiering (per product spec):
+        #   ≥75 : Tier 1 — High conviction (Telegram alerts)
+        #   60-74: Tier 2 — Regular signals shown in app/UI
+        #   50-59: Tier 3 — Aggressive traders (shown with caution badge)
+        #   <50 : Blocked
+        TIER_3_FLOOR = 50
+        if entry_mode != 'NO TRADE' and confidence < TIER_3_FLOOR:
+            block_reasons.append(f"Confidence too low ({confidence}/100, need {TIER_3_FLOOR}+)")
+        is_blocked = entry_mode == 'NO TRADE' or confidence < TIER_3_FLOOR
         final_decision = 'NO TRADE' if is_blocked else 'TRADE'
+
+        # Confidence tier label for UI
+        if confidence >= 75:
+            confidence_tier = 'HIGH_CONVICTION'
+        elif confidence >= 60:
+            confidence_tier = 'REGULAR'
+        elif confidence >= TIER_3_FLOOR:
+            confidence_tier = 'AGGRESSIVE'
+        else:
+            confidence_tier = 'BLOCKED'
         if is_blocked and not block_reasons:
             block_reasons.append("Entry conditions not met")
 
@@ -1884,7 +1980,7 @@ class NiftyOptionsEngine:
         _ema_xover   = strength.get('ema_crossover', False)
         _ema_rising  = strength.get('ema_distance_increasing', False)
         momentum_pct = min(100, max(0, int(
-            min(40, _ema_dist / 0.30 * 40) +   # up to 40 pts from EMA gap size
+            min(40, _ema_dist / 0.20 * 40) +   # up to 40 pts from EMA gap size (rescaled to 0.20%)
             (20 if _ema_xover else 0) +          # 20 pts for fresh crossover
             (20 if _ema_rising else 0) +          # 20 pts for increasing distance
             (20 if direction['indicators_aligned'] else 0)  # 20 pts for full alignment
@@ -1959,7 +2055,8 @@ class NiftyOptionsEngine:
             'trigger': trigger,
             'setup_state': setup_state,
             'confidence': confidence,
-            'confidence_grade': 'Strong' if confidence >= 80 else ('Medium' if confidence >= 60 else 'Weak'),
+            'confidence_grade': 'Strong' if confidence >= 75 else ('Medium' if confidence >= 60 else ('Aggressive' if confidence >= 50 else 'Weak')),
+            'confidence_tier': confidence_tier,
             'entry_mode': entry_mode,
             'trade_direction': trade_direction,
             'final_decision': final_decision,
