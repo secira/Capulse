@@ -1717,7 +1717,7 @@ def partner_api_playground_run():
             index_id = (payload.get('index') or 'NIFTY').upper()
             if index_id not in {'NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX'}:
                 return jsonify({'success': False, 'error': 'Unsupported index', 'code': 'INVALID_INDEX'}), 400
-            eng = NiftyOptionsEngine(index_id=index_id)
+            eng = NiftyOptionsEngine(index=index_id)
             analysis = eng.generate_analysis()
             return jsonify({'success': True, 'engine': 'fno', 'index': index_id,
                             'analysis': analysis,
