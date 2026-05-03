@@ -2912,6 +2912,9 @@ def dashboard_equities():
     # page load to avoid blocking the render on slow/unavailable Dhan API.
     dhan_prices_loaded = False
 
+    ist = timezone(timedelta(hours=5, minutes=30))
+    prices_as_of = datetime.now(ist).strftime('%H:%M') if dhan_prices_loaded else None
+
     # Calculate summary
     total_investment = sum((h.get('total_investment') or 0) for h in combined_holdings)
     current_value = sum((h.get('current_value') or h.get('total_investment') or 0) for h in combined_holdings)
@@ -2925,7 +2928,8 @@ def dashboard_equities():
                          current_value=current_value,
                          total_pnl=total_pnl,
                          holdings_count=holdings_count,
-                         dhan_prices_loaded=dhan_prices_loaded)
+                         dhan_prices_loaded=dhan_prices_loaded,
+                         prices_as_of=prices_as_of)
 
 @app.route('/api/equities/<int:holding_id>', methods=['GET'])
 @login_required

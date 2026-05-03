@@ -177,6 +177,11 @@
                 <input type="radio" class="btn-check" name="viewType" id="brokerView" autocomplete="off">
                 <label class="btn btn-outline-primary" for="brokerView" onclick="setFilter('broker')">Broker</label>
             </div>
+            {% if prices_as_of %}
+            <span class="text-muted small" id="pricesAsOf">Prices as of {{ prices_as_of }} IST</span>
+            {% else %}
+            <span class="text-muted small" id="pricesAsOf" style="display:none;"></span>
+            {% endif %}
             <button class="btn btn-outline-success btn-sm" id="refreshPricesBtn" onclick="fetchAllLivePrices()" title="Fetch live prices from NSE for all holdings">
                 <i class="fas fa-sync-alt me-1"></i>Live Prices
             </button>
@@ -530,6 +535,17 @@ async function fetchAllLivePrices() {
     if (btn) {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Live Prices';
+    }
+
+    // Update "Prices as of" timestamp to current IST time
+    const tsEl = document.getElementById('pricesAsOf');
+    if (tsEl) {
+        const now = new Date();
+        const istTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+        const hh = String(istTime.getHours()).padStart(2, '0');
+        const mm = String(istTime.getMinutes()).padStart(2, '0');
+        tsEl.textContent = `Prices as of ${hh}:${mm} IST`;
+        tsEl.style.display = '';
     }
 }
 
