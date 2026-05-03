@@ -5,6 +5,10 @@
 .canvas
 .config
 .local
+.replit
+replit.nix
+.upm
+.breakpoints
 __pycache__
 *.pyc
 *.pyo

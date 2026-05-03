@@ -16,6 +16,30 @@ echo "======================================"
 echo "Target Capital — Deployment Startup"
 echo "======================================"
 
+# ─── Pre-flight: warn (don't fail) if required prod env vars are missing ─
+# The app's own validators will raise on boot if anything is truly missing,
+# but printing a clear list here makes Railway logs much easier to read.
+if [ "${ENVIRONMENT}" = "production" ]; then
+    echo ""
+    echo "Pre-flight check (production mode)…"
+    _missing=""
+    for v in DATABASE_URL REDIS_URL SESSION_SECRET BROKER_ENCRYPTION_KEY ENCRYPTION_MASTER_KEY CORS_ORIGINS; do
+        if [ -z "$(eval echo \$$v)" ]; then
+            _missing="$_missing $v"
+        fi
+    done
+    if [ -n "$_missing" ]; then
+        echo "  ⚠️  Missing required env vars:$_missing"
+        echo "  ⚠️  See RAILWAY_DEPLOYMENT.md → Required Environment Variables"
+    else
+        echo "  ✓ All required production env vars present"
+    fi
+    if [ "${RUN_MIGRATIONS}" = "1" ]; then
+        echo "  ℹ️  RUN_MIGRATIONS=1 — schema/index migrations WILL run"
+        echo "     (remove this flag after a successful deploy)"
+    fi
+fi
+
 # ─── Always: ensure all 2167 NSE stocks are in research_list ─────────────
 # seed_research_list.py is idempotent and fast-paths out (<1 s) when the
 # table is already fully populated.  This fixes any Railway DB that received
