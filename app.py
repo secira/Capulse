@@ -829,6 +829,21 @@ def check_trial_expiry():
     return redirect(url_for('pricing'))
 # ── END TRIAL EXPIRY GUARD ────────────────────────────────────────────────────
 
+@app.teardown_request
+def _rollback_on_exception(exc):
+    """
+    Always roll back the SQLAlchemy session if a request raised. Without this,
+    a failed commit (FK violation, deadlock, etc.) leaves the session in a
+    broken state and every subsequent query in the same worker fails until
+    the worker is recycled.
+    """
+    if exc is not None:
+        try:
+            db.session.rollback()
+        except Exception as _e:
+            logging.warning(f"teardown rollback failed: {_e}")
+
+
 @app.context_processor
 def inject_tenant_config():
     try:

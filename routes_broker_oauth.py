@@ -710,8 +710,10 @@ def auth_groww():
         return redirect(url_for('broker_oauth.broker_connect'))
 
     try:
-        account = _save_pending_account('groww', 'groww_user', '', extra=access_token)
-        account.set_credentials(client_id='groww_user', access_token=access_token, api_secret='')
+        # Per-user client_id so multiple users don't collide on the same row
+        groww_client_id = f'groww_{current_user.id}'
+        account = _save_pending_account('groww', groww_client_id, '', extra=access_token)
+        account.set_credentials(client_id=groww_client_id, access_token=access_token, api_secret='')
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
         db.session.commit()

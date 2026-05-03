@@ -27,7 +27,11 @@ class AgenticAICoordinator:
     def __init__(self):
         self.openai_api_key = os.environ.get("OPENAI_API_KEY")
         self.perplexity_api_key = os.environ.get("PERPLEXITY_API_KEY")
-        self.n8n_webhook_url = os.environ.get("N8N_WEBHOOK_URL", "http://localhost:5678/webhook")
+        # n8n is optional — enable only if explicitly configured. The previous
+        # localhost default silently failed in production.
+        self.n8n_webhook_url = os.environ.get("N8N_WEBHOOK_URL") or None
+        if not self.n8n_webhook_url:
+            logger.info("N8N_WEBHOOK_URL not set — n8n integration disabled")
         self.learning_history = []
         self.adaptation_metrics = {}
         

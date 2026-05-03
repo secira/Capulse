@@ -94,9 +94,18 @@ def scan_once(app):
                     dispatch_event('iscore', symbol, payload, score=score)
 
 
+_ISCORE_ADVISORY_LOCK_ID = 728193002
+
+
 def start_scheduler(app):
     global _scheduler_started
     if _scheduler_started:
+        return
+    # Reuse the same advisory-lock pattern as the F&O monitor so only one
+    # gunicorn worker runs partner alerts (prevents duplicate webhooks).
+    from services.fno_monitor import _try_acquire_scheduler_lock
+    if not _try_acquire_scheduler_lock(app, _ISCORE_ADVISORY_LOCK_ID):
+        logger.info("I-Score partner scheduler skipped on this worker (another worker holds the lock)")
         return
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -108,6 +117,6 @@ def start_scheduler(app):
         )
         scheduler.start()
         _scheduler_started = True
-        logger.info(f"I-Score partner alert scheduler started ({SCAN_INTERVAL_MIN} min interval)")
+        logger.info(f"I-Score partner alert scheduler started ({SCAN_INTERVAL_MIN} min interval) — singleton worker")
     except Exception as e:
         logger.error(f"Failed to start I-Score partner scheduler: {e}")

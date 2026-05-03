@@ -649,9 +649,45 @@ def run_scan(app):
         _scan_index(app, idx, data_broker_user_id)
 
 
+_FNO_ADVISORY_LOCK_ID = 728193001  # arbitrary unique int per scheduler
+
+
+def _try_acquire_scheduler_lock(app, lock_id: int) -> bool:
+    """
+    Acquire a Postgres session-level advisory lock so only ONE gunicorn worker
+    runs the scheduler. Held for the lifetime of the connection (the worker
+    process). Returns True if this worker won the lock.
+    """
+    if os.environ.get("DISABLE_SCHEDULERS", "").lower() in ("1", "true", "yes"):
+        return False
+    try:
+        from sqlalchemy import text
+        from app import db
+        with app.app_context():
+            # Use a dedicated, never-released connection so the lock survives
+            # for the worker's lifetime.
+            conn = db.engine.connect()
+            got = conn.execute(
+                text("SELECT pg_try_advisory_lock(:k)"), {"k": lock_id}
+            ).scalar()
+            if got:
+                # Intentionally never close `conn` — keeps the lock held.
+                return True
+            conn.close()
+            return False
+    except Exception as e:
+        # If Postgres advisory locks aren't available (e.g. SQLite dev),
+        # fall back to running the scheduler in this worker.
+        logger.warning(f"Advisory lock check failed ({e}); starting scheduler anyway")
+        return True
+
+
 def start_scheduler(app):
     global _scheduler_started
     if _scheduler_started:
+        return
+    if not _try_acquire_scheduler_lock(app, _FNO_ADVISORY_LOCK_ID):
+        logger.info("F&O scheduler skipped on this worker (another worker holds the lock)")
         return
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -663,7 +699,7 @@ def start_scheduler(app):
         )
         scheduler.start()
         _scheduler_started = True
-        logger.info("F&O continuous monitor started (60s interval, 4 indices)")
+        logger.info("F&O continuous monitor started (60s interval, 4 indices) — singleton worker")
     except Exception as e:
         logger.error(f"Failed to start F&O scheduler: {e}")
 

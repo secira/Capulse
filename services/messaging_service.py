@@ -7,9 +7,13 @@ import requests
 import logging
 from datetime import datetime, timezone
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
+# Module-local logger only — do NOT call logging.basicConfig(), which would
+# hijack the root logger config for the entire app.
 logger = logging.getLogger(__name__)
+
+# Hard timeout for all outbound messaging calls so a slow Telegram/WhatsApp
+# API never blocks a gunicorn worker indefinitely.
+HTTP_TIMEOUT_SECONDS = float(os.environ.get("MESSAGING_HTTP_TIMEOUT", "8"))
 
 # WhatsApp Business API Configuration
 WHATSAPP_TOKEN = os.environ.get('WHATSAPP_ACCESS_TOKEN')
@@ -50,7 +54,7 @@ def send_whatsapp_message(message_text):
             }
         }
         
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(url, json=payload, headers=headers, timeout=HTTP_TIMEOUT_SECONDS)
         
         if response.status_code == 200:
             logger.info("WhatsApp message sent successfully")
@@ -82,7 +86,7 @@ def send_telegram_message(message_text):
             'disable_web_page_preview': True
         }
         
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=HTTP_TIMEOUT_SECONDS)
         
         if response.status_code == 200:
             logger.info("Telegram message sent successfully")

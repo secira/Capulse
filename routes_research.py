@@ -4,7 +4,8 @@ Provides in-depth research pages for each asset class with I-Score analysis
 """
 from flask import render_template, jsonify, request
 from flask_login import login_required, current_user
-from app import app, db
+from flask_limiter.util import get_remote_address
+from app import app, db, limiter
 from decorators import paid_plan_required
 from models import TradingSignal, ResearchCache, ResearchRun, ResearchList
 from datetime import datetime, timezone, date
@@ -376,6 +377,7 @@ def research_mutual_funds():
 
 @app.route('/api/research/analyze', methods=['POST'])
 @login_required
+@limiter.limit("20 per hour", key_func=lambda: f"u{current_user.id}" if current_user.is_authenticated else get_remote_address())
 def api_research_analyze():
     """
     Run I-Score analysis on a symbol

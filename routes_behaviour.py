@@ -4,7 +4,8 @@ Serves the Behavioural Insights dashboard, sub-pages, and pre-trade check API.
 """
 from flask import render_template, request, jsonify, redirect, url_for, flash, Response
 from flask_login import login_required, current_user
-from app import app, db
+from flask_limiter.util import get_remote_address
+from app import app, db, limiter
 from decorators import paid_plan_required
 import logging
 import csv
@@ -490,6 +491,7 @@ def behaviour_csv_template():
 
 @app.route('/api/behaviour/narrative')
 @login_required
+@limiter.limit("30 per hour", key_func=lambda: f"u{current_user.id}" if current_user.is_authenticated else get_remote_address())
 def behaviour_narrative():
     """Generate a personalized AI narrative using Claude (async-loaded)."""
     try:

@@ -25,22 +25,38 @@ class LoadBalancer:
     """
     
     def __init__(self):
+        # Backend instance URLs are env-driven so we don't ship localhost
+        # defaults to production. Comma-separated list per service.
+        flask_instances = [
+            u.strip() for u in os.environ.get(
+                "LB_FLASK_INSTANCES", "http://localhost:5000"
+            ).split(",") if u.strip()
+        ]
+        trading_instances = [
+            u.strip() for u in os.environ.get(
+                "LB_TRADING_INSTANCES", "http://localhost:8000"
+            ).split(",") if u.strip()
+        ]
         self.services = {
             'flask_app': {
-                'instances': ['http://localhost:5000'],
+                'instances': flask_instances,
                 'health_endpoint': '/health',
                 'current_index': 0,
                 'healthy_instances': []
             },
             'trading_engine': {
-                'instances': ['http://localhost:8000'],
+                'instances': trading_instances,
                 'health_endpoint': '/docs',
                 'current_index': 0,
                 'healthy_instances': []
             }
         }
-        
-        self.websocket_targets = ['ws://localhost:8001']
+
+        self.websocket_targets = [
+            u.strip() for u in os.environ.get(
+                "LB_WEBSOCKET_TARGETS", "ws://localhost:8001"
+            ).split(",") if u.strip()
+        ]
         self.redis_client = redis.Redis.from_url(
             os.environ.get('REDIS_URL', 'redis://localhost:6379'),
             decode_responses=True

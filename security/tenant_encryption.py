@@ -66,8 +66,15 @@ class TenantEncryptionService:
                     f"ENCRYPTION_MASTER_KEY is required in production. "
                     f"Generate with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
                 )
-            key_str = 'dev-encryption-key-32-bytes-long!'
-            logger.warning("⚠️ Using default development encryption key")
+            # Hard-coded fallback ONLY in non-production. We use a random key
+            # so devs can't accidentally encrypt anything reproducible with it.
+            import secrets
+            key_str = secrets.token_urlsafe(32)
+            logger.warning(
+                "⚠️ ENCRYPTION_MASTER_KEY not set — using a random per-process "
+                "dev key. Tenant-encrypted fields will NOT survive a restart. "
+                "Set ENCRYPTION_MASTER_KEY for stable dev encryption."
+            )
         
         if len(key_str) < 32:
             key_str = key_str.ljust(32, '0')

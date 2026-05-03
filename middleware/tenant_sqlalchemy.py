@@ -153,8 +153,13 @@ def setup_tenant_sqlalchemy(db):
         """Set the tenant_id session variable for PostgreSQL RLS."""
         tenant_id = get_tenant_id()
         try:
-            connection.execute(text(f"SET LOCAL app.tenant_id = '{tenant_id}'"))
-            logger.debug(f"Set PostgreSQL session app.tenant_id = {tenant_id}")
+            # Use bind params instead of f-string interpolation. tenant_id is
+            # internal today, but binding eliminates any future SQL-injection
+            # surface. Postgres requires SET via format(); we sanitize first.
+            import re as _re
+            safe_tid = _re.sub(r'[^A-Za-z0-9_-]', '', str(tenant_id))[:64] or 'live'
+            connection.execute(text(f"SET LOCAL app.tenant_id = '{safe_tid}'"))
+            logger.debug(f"Set PostgreSQL session app.tenant_id = {safe_tid}")
         except Exception as e:
             logger.warning(f"Could not set PostgreSQL session variable: {e}")
     

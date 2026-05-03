@@ -204,8 +204,13 @@ class SecureEnvironmentConfig:
             "rate_limiting_enabled": os.environ.get("RATE_LIMITING_ENABLED", "true").lower() == "true",
             "rate_limit_per_minute": int(os.environ.get("RATE_LIMIT_PER_MINUTE", "300")),
             
-            # CORS
-            "cors_origins": os.environ.get("CORS_ORIGINS", "*").split(","),
+            # CORS — in production we refuse to default to "*". The
+            # CORS_ORIGINS env var must list explicit allowed origins.
+            "cors_origins": (
+                [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
+                if self.is_production
+                else os.environ.get("CORS_ORIGINS", "*").split(",")
+            ),
             "cors_credentials": os.environ.get("CORS_CREDENTIALS", "true").lower() == "true",
             
             # Session security
