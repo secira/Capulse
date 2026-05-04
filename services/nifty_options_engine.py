@@ -2032,6 +2032,7 @@ class NiftyOptionsEngine:
         else:
             oi_status = 'warn' if abs(oi_window_diff) > 0.10 else 'pass'  # neutral OI is allowed
 
+        rsi_v = direction.get('rsi', 50) or 50
         layer_status = {
             'time': 'pass' if time_check['pass'] else 'fail',
             'regime': 'pass' if regime['pass'] else 'fail',
