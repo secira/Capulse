@@ -2095,6 +2095,21 @@ class NiftyOptionsEngine:
             'oi': oi_status,
         }
 
+        # Display confidence — must reflect tradability, not just raw signal strength.
+        # A "100 / Strong Signal / NO TRADE" combo is misleading: when gates block,
+        # the actionable confidence is 0. Keep the raw score as `signal_strength`
+        # for transparency and tier classification.
+        signal_strength = confidence
+        if is_blocked:
+            display_confidence = 0
+            confidence_grade   = 'Blocked'
+        else:
+            display_confidence = confidence
+            confidence_grade   = ('Strong'    if confidence >= 75
+                             else 'Medium'    if confidence >= 60
+                             else 'Aggressive' if confidence >= 50
+                             else 'Weak')
+
         result = {
             'timestamp': now.strftime('%Y-%m-%d %H:%M:%S IST'),
             'data_source': data_source,
@@ -2107,8 +2122,9 @@ class NiftyOptionsEngine:
             'regime': regime,
             'trigger': trigger,
             'setup_state': setup_state,
-            'confidence': confidence,
-            'confidence_grade': 'Strong' if confidence >= 75 else ('Medium' if confidence >= 60 else ('Aggressive' if confidence >= 50 else 'Weak')),
+            'confidence': display_confidence,
+            'signal_strength': signal_strength,
+            'confidence_grade': confidence_grade,
             'confidence_tier': confidence_tier,
             'entry_mode': entry_mode,
             'trade_direction': trade_direction,

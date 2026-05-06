@@ -1016,7 +1016,13 @@ function refreshAnalysis() {
             var fill = document.getElementById('confFill');
             fill.style.width = d.confidence + '%';
             fill.className = 'conf-fill ' + (d.confidence >= 80 ? 'conf-high' : d.confidence >= 60 ? 'conf-med' : 'conf-low');
-            document.getElementById('confGrade').textContent = d.confidence_grade + ' Signal';
+            // When blocked, show "Blocked — raw signal X/100" so the underlying
+            // signal strength is still visible but the actionable confidence is 0.
+            var gradeLabel = d.confidence_grade + ' Signal';
+            if (d.is_blocked && typeof d.signal_strength === 'number') {
+                gradeLabel = 'Blocked — raw signal ' + d.signal_strength + '/100';
+            }
+            document.getElementById('confGrade').textContent = gradeLabel;
             document.getElementById('tradeDir').textContent = d.trade_direction === 'BOTH' ? 'CALL + PUT' : d.trade_direction;
             document.getElementById('tradeDir').style.color = d.trade_direction === 'BULLISH' ? '#16a34a' : d.trade_direction === 'BEARISH' ? '#dc2626' : d.trade_direction === 'BOTH' ? '#7c3aed' : '#64748b';
             document.getElementById('entryMode').textContent = d.entry_mode;
