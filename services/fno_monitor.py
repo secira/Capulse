@@ -20,11 +20,16 @@ SIGNAL_COOLDOWN_MINUTES    = 10
 MAX_SIGNALS_PER_DAY        = 3          # per index
 
 # Trade Lifecycle constants (shared across indices)
-CONFIRMATION_CANDLES    = 2
+# CONFIRMATION_CANDLES dropped from 2 → 1 so the trigger fires on the CURRENT
+# forming 5-min candle. Two-candle confirmation was adding 5–10 min lag and
+# causing breakouts (e.g. 2:18) to be signalled only after consolidation (2:28).
+CONFIRMATION_CANDLES    = 1
 TRADE_MAX_DURATION_MIN  = 30
 ENTRY_COOLDOWN_MINUTES  = 15
 TRADE_MIN_CONFIDENCE    = 80
 TRADE_MIN_ADX           = 25
+EOD_FORCE_EXIT_HOUR     = 15      # 3:00 PM IST — hard-close every open signal so
+EOD_FORCE_EXIT_MINUTE   = 0       # daily P&L is deterministic at end-of-day.
 ACTIVE_UPDATE_INTERVAL_MIN = 5   # How often to send Telegram updates while trade is live
 
 # All indices to scan (order determines scan priority)
@@ -186,6 +191,8 @@ def _exit_reason_to_outcome(exit_reason: str) -> str:
         return 'TARGET HIT'
     if 'stop' in r or 'sl' in r:
         return 'SL HIT'
+    if 'eod' in r or '3:00 pm' in r:
+        return 'EOD CLOSE'
     if 'time limit' in r or 'time' in r:
         return 'TIME EXIT'
     if 'closed' in r:
@@ -432,6 +439,14 @@ def _check_active_trade_exit(analysis: dict, idx: str):
 
     now        = _now_ist()
     entry_time = trade.get('entry_time')
+
+    # Hard EOD close — every open signal closes at 3:00 PM IST so the day's
+    # P&L is fully realised before the cash market close. Runs BEFORE the
+    # SL/Target/duration checks so EOD always wins.
+    eod = now.replace(hour=EOD_FORCE_EXIT_HOUR, minute=EOD_FORCE_EXIT_MINUTE,
+                      second=0, microsecond=0)
+    if now >= eod:
+        return True, 'EOD auto-close (3:00 PM IST)'
 
     if entry_time and (now - entry_time).total_seconds() >= TRADE_MAX_DURATION_MIN * 60:
         return True, f'Time limit reached ({TRADE_MAX_DURATION_MIN} min)'

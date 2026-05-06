@@ -84,7 +84,9 @@ INDEX_CONFIGS = {
 
 # Module-level candle cache — per-index dict {index_key: (df, timestamp)}
 _candle_cache: dict = {}
-_CANDLE_CACHE_TTL = 300
+_CANDLE_CACHE_TTL = 30   # ~30 s — always evaluate the live forming 5-min candle.
+                          # Previously 300 s caused the engine to miss intra-candle
+                          # breakouts (e.g. 2:18 breakout not picked up until 2:23).
 
 # Module-level analysis result cache — per-index dict {index_key: (result, timestamp)}
 # Prevents concurrent browser requests from racing against the FNO monitor's Dhan call.
