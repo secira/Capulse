@@ -1,0 +1,67 @@
+This is a well-structured engine. Let me visualise the full flow first, then give you the validation and the fix for getting 3–4 trades daily.The engine is logically sound. Now the detailed validation and the fix for getting 3–4 trades daily.
+
+---
+
+## Validation — What's Working Well
+
+**The gate ordering is correct.** Time and live data checks are fast and cheap — putting them first means you never waste computation on the heavier regime and EMA analysis. That's the right sequence.
+
+**The 4-of-6 direction rule is good.** Requiring EMA trend to never contradict is a smart override — EMA trend is your primary signal, the other five are confirmation. Without that override you could get a bullish count from RSI + OI + SuperTrend while price is clearly trending down, which would be dangerous.
+
+**The vol expansion bypass on Gate 4 is well-designed.** Breakout days often show weak EMA separation early in the move precisely because the trend just started. Bypassing the strength gate when vol is expanding catches those setups correctly.
+
+**The confidence scoring architecture is solid.** Graduated tiers (aggressive / regular / high conviction) with penalties is better than a hard pass/fail threshold — it lets borderline setups surface with appropriate caution rather than getting silently blocked.
+
+---
+
+## Why You're Not Getting Calls Daily — Root Cause Analysis
+
+The engine is too conservative for the frequency you want. Here are the specific choke points:
+
+**Choke point 1 — Gate 3 is doing too much work.**
+Three separate conditions must all pass simultaneously: no chop, VWAP proximity, and no range compression. On a typical market day, even a good trending day will have 30–45 minutes where one of these three is temporarily violated. You're likely losing 40–50% of your qualifying windows here alone. The VWAP proximity condition is the most aggressive — requiring spot to be "close to VWAP" actually eliminates most good trending setups, because in a trending day the price moves away from VWAP and stays there. VWAP divergence is often a feature, not a bug.
+
+**Choke point 2 — 4-of-6 direction filter is calibrated for very clean setups.**
+On messy but tradeable days, OI data from Indian markets is notoriously noisy — especially for mid-session intraday. If OI is "opposing" more often than expected, you're losing the 6th indicator regularly, meaning you need all five remaining ones to fire — which is essentially a 5-of-5 requirement in practice.
+
+**Choke point 3 — The trigger requires a specific event, not just a condition.**
+BREAKOUT (new high/low), RETEST (touched VWAP and bounced), and MOMENTUM (RSI threshold + EMA gap widening) — these are point-in-time events. If your engine only checks at the candle close, you might have a valid setup at 10:15 that resolves cleanly but the trigger fires at 10:22 — by which time some indicators have cooled off and the direction check fails. The trigger and direction check need to be evaluated together in the same window.
+
+**Choke point 4 — The confidence floor of 50 combined with penalties can suppress marginal setups.**
+A setup that genuinely qualifies can land at 48–52 depending on lunch timing (–10) + slight VWAP distance (–10). That's a 20-point swing that can take a real 65-point setup down to 45 and block it. On high-activity days (earnings, events, RBI announcements), the lunch penalty is counterproductive — these are often the best setups of the day at 12:15.
+
+---
+
+## Specific Changes to Target 3–4 Trades Daily
+
+**Fix 1 — Decouple VWAP proximity from Gate 3.**
+Move "spot too far from VWAP" to a confidence penalty only (which you already have, –10 at >0.6%). Remove it as a hard gate condition. Gate 3 should only block chop (EMA 9/21 gap too narrow) and range compression (candle overlap). VWAP distance should purely influence confidence, not block the trade.
+
+**Fix 2 — Make OI a soft indicator, not a hard direction vote.**
+Change OI from one of the 6 direction votes to a pure confidence modifier (+5/+10 if supporting, –10 if opposing). This means direction now uses 5 indicators with a 4-of-5 threshold, or you add a 6th indicator that's more reliable — like price action relative to the previous day's high/low, or volume vs 20-period average. OI is useful as a penalty/bonus but too noisy to be a gate vote in Indian F&O intraday.
+
+**Fix 3 — Add a time-based rescan after trigger failure.**
+If a setup reaches SETUP_READY_WAIT_TRIGGER but no trigger fires within 15 minutes, re-evaluate direction from scratch rather than holding the stale state. Markets can re-setup. Currently you likely get one SETUP_READY window per session per index and if the trigger misses it, no trade fires.
+
+**Fix 4 — Reduce the lunch caution window or make it index-aware.**
+12:00–12:30 is only truly choppy for Nifty 50. Bank Nifty is frequently active during that window, especially on event days. Consider applying the –10 lunch penalty only to Nifty, and reducing it to –5 for Bank Nifty.
+
+**Fix 5 — Add a "continuation setup" trigger type.**
+Your three triggers (breakout, retest, momentum) all detect new setups. On a trending day you often get 2–3 continuation entries — small pullbacks within a strong trend — that your current trigger logic won't catch. A 4th trigger type: PULLBACK_IN_TREND — price retraces to EMA 9 within a confirmed trend, RSI comes back from overbought/oversold, and then resumes. This alone can add 1–2 trades on strong trending days.
+
+---
+
+## Expected Impact of These Changes
+
+| Change | Estimated additional trades/day |
+|---|---|
+| Decouple VWAP from Gate 3 | +0.5–1.0 |
+| OI as soft indicator | +0.5 |
+| Time-based rescan | +0.5 |
+| Lunch window refinement | +0.2–0.3 |
+| Continuation/pullback trigger | +1.0–1.5 |
+| **Combined** | **+2.7–3.8** |
+
+That should bring you from your current 0–1 daily to consistently 3–4 on normal trending days, with occasional 5 on strong directional days. Choppy days (which you correctly gate out) will still give 0–1 and that's the right behaviour — you don't want to force trades on bad days.
+
+One thing to preserve regardless of changes: keep the block_reasons array comprehensive. As you loosen gates, you'll want to debug why specific setups are or aren't firing, and that array is your most valuable diagnostic tool.

@@ -732,20 +732,26 @@ class NiftyOptionsEngine:
         now = datetime.now(IST)
         current_time = now.time()
         if now.weekday() >= 5:
-            return {'pass': False, 'reason': 'Weekend — market closed', 'status': 'blocked', 'caution': False}
+            return {'pass': False, 'reason': 'Weekend — market closed', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
         # No trades before 9:25 AM
         if current_time < dtime(9, 25):
-            return {'pass': False, 'reason': 'No trades before 9:25 AM — opening noise window', 'status': 'blocked', 'caution': False}
+            return {'pass': False, 'reason': 'No trades before 9:25 AM — opening noise window', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
         # No trades after 2:59 PM
         if current_time >= dtime(15, 0):
-            return {'pass': False, 'reason': 'No trades after 2:59 PM — market closing', 'status': 'blocked', 'caution': False}
-        # Mid-session caution: 12:00–12:30 → reduce confidence by 10
+            return {'pass': False, 'reason': 'No trades after 2:59 PM — market closing', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
+        # Mid-session caution: 12:00–12:30 → index-aware penalty
+        # NIFTY genuinely chops at lunch (-10). BANKNIFTY frequently active (-5).
+        # FINNIFTY/SENSEX track NIFTY behaviour (-10).
         caution = dtime(12, 0) <= current_time <= dtime(12, 30)
+        caution_weight = 0
+        if caution:
+            caution_weight = 5 if self.index == 'BANKNIFTY' else 10
         return {
             'pass': True,
             'reason': 'Mid-session caution — lunch hour, confidence reduced' if caution else 'Trading window active',
             'status': 'caution' if caution else 'active',
             'caution': caution,
+            'caution_weight': caution_weight,
         }
 
     # ------------------------------------------------------------------
@@ -1170,9 +1176,10 @@ class NiftyOptionsEngine:
             if ema_gap < 0.03:
                 chop_flags.append("EMA 9/21 gap below 0.03% (flat trend)")
 
+            # NOTE: VWAP-proximity is NO LONGER a chop blocker — it lives only as
+            # a confidence penalty in _confidence_score. Trending days legitimately
+            # spend long stretches away from VWAP and we don't want to gate them out.
             vwap_dist_pct = (abs(spot - vwap) / spot * 100.0) if (spot and vwap) else 0
-            if vwap > 0 and vwap_dist_pct < 0.08:
-                chop_flags.append("Price too close to VWAP — weak edge")
 
             if df is not None and len(df) >= 6:
                 highs = df['High'].astype(float).values
@@ -1251,16 +1258,18 @@ class NiftyOptionsEngine:
         return {'role': role, 'block': False, 'oppose': role == 'OPPOSE'}
 
     def _entry_trigger_validation(self, df, direction: str, vwap: float,
-                                  rsi: float = 50.0, ema_widening: bool = False) -> Dict[str, Any]:
-        """Validate breakout / retest / momentum entry trigger.
+                                  rsi: float = 50.0, ema_widening: bool = False,
+                                  ema9: float = 0.0, ema_trend: str = 'NEUTRAL') -> Dict[str, Any]:
+        """Validate breakout / retest / momentum / pullback entry trigger.
 
         Modes:
-          BREAKOUT — current high > previous high (bull) or low < previous low (bear).
-                     Close-confirmation is OPTIONAL → reported via `close_confirmed`
-                     and rewarded with +5 confidence (no longer required).
-          RETEST   — VWAP retest holds.
-          MOMENTUM — RSI extended (>60 bull / <40 bear) AND EMA gap widening.
-                     Allows early entry without waiting for a candle break.
+          BREAKOUT          — current high > previous high (bull) / low < previous low (bear).
+                              Close-confirmation optional → +5 bonus.
+          RETEST            — VWAP retest holds.
+          MOMENTUM          — RSI extended (>60 bull / <40 bear) AND EMA gap widening.
+          PULLBACK_IN_TREND — In a confirmed EMA trend, price pulls back to/through EMA9,
+                              RSI exits the extreme, then last close resumes in trend
+                              direction. Catches continuation entries on trending days.
         """
         if direction == 'NEUTRAL' or df is None or len(df) < 3:
             return {'triggered': False, 'mode': 'NONE', 'close_confirmed': False,
@@ -1272,7 +1281,26 @@ class NiftyOptionsEngine:
 
             cur_h, prev_h = float(h[-1]), float(h[-2])
             cur_l, prev_l = float(l[-1]), float(l[-2])
-            cur_c = float(c[-1])
+            cur_c, prev_c = float(c[-1]), float(c[-2])
+
+            # Pullback helper — only fires when EMA trend agrees with direction.
+            # Bull pullback: any of last 3 lows touched/pierced EMA9, prior RSI was
+            # cooling (<55), and last close is making higher closes again.
+            def _bull_pullback() -> bool:
+                if ema_trend != 'BULLISH' or ema9 <= 0 or len(c) < 4:
+                    return False
+                touched = any(float(l[-i]) <= ema9 * 1.0010 for i in (2, 3, 4))
+                rsi_reset = rsi < 65 and rsi > 45
+                resumed = cur_c > prev_c and cur_c > ema9
+                return touched and rsi_reset and resumed
+
+            def _bear_pullback() -> bool:
+                if ema_trend != 'BEARISH' or ema9 <= 0 or len(c) < 4:
+                    return False
+                touched = any(float(h[-i]) >= ema9 * 0.9990 for i in (2, 3, 4))
+                rsi_reset = rsi > 35 and rsi < 55
+                resumed = cur_c < prev_c and cur_c < ema9
+                return touched and rsi_reset and resumed
 
             if direction in ('BULLISH', 'BOTH'):
                 breakout = cur_h > prev_h
@@ -1292,9 +1320,13 @@ class NiftyOptionsEngine:
                     return {'triggered': True, 'mode': 'MOMENTUM',
                             'close_confirmed': False,
                             'reason': f'Momentum entry — RSI {rsi:.0f} + EMA widening'}
+                if _bull_pullback():
+                    return {'triggered': True, 'mode': 'PULLBACK_IN_TREND',
+                            'close_confirmed': True,
+                            'reason': f'Bullish pullback to EMA9 held — RSI reset to {rsi:.0f}, trend resuming'}
                 if direction == 'BULLISH':
                     return {'triggered': False, 'mode': 'WAIT', 'close_confirmed': False,
-                            'reason': 'Direction aligned, waiting for breakout / momentum trigger'}
+                            'reason': 'Direction aligned, waiting for breakout / pullback / momentum trigger'}
 
             if direction in ('BEARISH', 'BOTH'):
                 breakout = cur_l < prev_l
@@ -1314,8 +1346,12 @@ class NiftyOptionsEngine:
                     return {'triggered': True, 'mode': 'MOMENTUM',
                             'close_confirmed': False,
                             'reason': f'Momentum entry — RSI {rsi:.0f} + EMA widening'}
+                if _bear_pullback():
+                    return {'triggered': True, 'mode': 'PULLBACK_IN_TREND',
+                            'close_confirmed': True,
+                            'reason': f'Bearish pullback to EMA9 rejected — RSI reset to {rsi:.0f}, trend resuming'}
                 return {'triggered': False, 'mode': 'WAIT', 'close_confirmed': False,
-                        'reason': 'Direction aligned, waiting for breakout / momentum trigger'}
+                        'reason': 'Direction aligned, waiting for breakout / pullback / momentum trigger'}
         except Exception as e:
             logger.warning(f"Entry trigger validation error: {e}")
         return {'triggered': False, 'mode': 'NONE', 'close_confirmed': False,
@@ -1330,6 +1366,21 @@ class NiftyOptionsEngine:
         filters for both CE (bull) and PE (bear) calls.
         """
         df = self._fetch_intraday_candles()
+        # Volume vs 20-period average — replaces OI as 6th direction vote
+        # (OI moves to advisory-only). Volume above 20-bar avg = participation
+        # confirms the move; below = thin/uncommitted move.
+        vol_above_avg = False
+        try:
+            if df is not None and 'Volume' in df.columns and len(df) >= 5:
+                vols = df['Volume'].astype(float).values
+                lookback = min(20, max(5, len(vols) - 1))
+                avg_vol = float(sum(vols[-(lookback + 1):-1]) / lookback) if lookback > 0 else 0.0
+                cur_vol = float(vols[-1])
+                if avg_vol > 0:
+                    vol_above_avg = cur_vol >= avg_vol  # at-or-above the 20-bar avg
+        except Exception:
+            vol_above_avg = False
+
         if df is not None and len(df) >= 10:
             vwap = self._calculate_vwap(df)
             supertrend_signal = self._calculate_supertrend(df)
@@ -1351,21 +1402,20 @@ class NiftyOptionsEngine:
         ema_bull_active  = ema_trend == 'BULLISH' and (ema_crossover or ema_dist_rising)
         ema_bear_active  = ema_trend == 'BEARISH' and (ema_crossover or ema_dist_rising)
 
-        # OI is confirmation, not a hard gate. It blocks only when strongly opposite.
+        # OI is advisory only — feeds confidence (+/-) but no longer votes on direction.
         bull_oi = self._classify_oi(oi_window_diff, 'BULLISH')
         bear_oi = self._classify_oi(oi_window_diff, 'BEARISH')
 
         # SOFT scoring — direction fires when ≥4 of 6 sub-conditions agree.
-        # OI is advisory: not-opposing counts as a confirmation, opposing OI
-        # only deducts confidence later. EMA trend acts as both a scoring
-        # point AND a hard guard against pure contradictions.
+        # 6th vote is now Volume-vs-20-bar-avg (more reliable than OI intraday).
+        # EMA trend acts as both a scoring point AND a hard guard against contradictions.
         bull_checks = [
             ema_trend == 'BULLISH',                           # 1. EMA trend bullish
             ema_crossover or ema_dist_rising,                 # 2. EMA momentum
             supertrend_signal == 'BUY',                       # 3. Supertrend
             spot > vwap,                                      # 4. VWAP alignment
             rsi > 52,                                         # 5. RSI > 52 (relaxed)
-            not bull_oi['oppose'],                            # 6. OI not opposing
+            vol_above_avg,                                    # 6. Volume confirms participation
         ]
         bear_checks = [
             ema_trend == 'BEARISH',
@@ -1373,7 +1423,7 @@ class NiftyOptionsEngine:
             supertrend_signal == 'SELL',
             spot < vwap,
             rsi < 48,
-            not bear_oi['oppose'],
+            vol_above_avg,
         ]
         bull_score = sum(bull_checks)
         bear_score = sum(bear_checks)
@@ -1415,6 +1465,7 @@ class NiftyOptionsEngine:
             'rsi': rsi,
             'rsi_expanding_up': rsi_up,
             'rsi_expanding_down': rsi_down,
+            'volume_above_avg': vol_above_avg,
             'oi_role': oi_role,
             'oi_blocks_candidate': oi_block_dir,
             'indicators_aligned': bullish or bearish,
@@ -1564,9 +1615,9 @@ class NiftyOptionsEngine:
         except Exception:
             pass
 
-        # Lunch-hour caution: −10
+        # Lunch-hour caution — index-aware weight (NIFTY/SENSEX/FINNIFTY: -10, BANKNIFTY: -5)
         if time_check and time_check.get('caution'):
-            score -= 10
+            score -= int(time_check.get('caution_weight', 10))
 
         return max(0, min(score, 100))
 
@@ -1884,6 +1935,8 @@ class NiftyOptionsEngine:
             direction.get('vwap', 0.0),
             rsi=direction.get('rsi', 50.0),
             ema_widening=strength.get('ema_distance_increasing', False),
+            ema9=strength.get('ema9', 0.0),
+            ema_trend=strength.get('ema_trend', 'NEUTRAL'),
         )
 
         confidence = self._confidence_score(direction, strength, oi_window_diff,
