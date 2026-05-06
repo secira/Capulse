@@ -399,35 +399,12 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
 # ── Alert gate ─────────────────────────────────────────────────────────────────
 
 def _should_send_alert(signal_data: dict, idx: str) -> bool:
+    """Telegram is restricted to TRADE_TRIGGER (entry) and TRADE_EXIT (close)
+    only. Periodic TRADE_ACTIVE updates and pre-trigger SCAN tier-1 signals
+    are no longer broadcast — they were creating notification noise."""
     _reset_daily_if_needed(idx)
-
     signal_type = signal_data.get('signal_type', 'SCAN')
-    if signal_type in ('TRADE_TRIGGER', 'TRADE_EXIT'):
-        return True
-
-    confidence  = signal_data.get('confidence', 0)
-    direction   = signal_data.get('trade_direction', 'NEUTRAL')
-
-    if confidence < ALERT_CONFIDENCE_THRESHOLD:
-        return False
-    if signal_data.get('entry_mode') == 'NO TRADE':
-        return False
-    if direction == 'NEUTRAL':
-        return False
-    if _daily_signal_count[idx] >= MAX_SIGNALS_PER_DAY:
-        logger.info(f"[{idx}] Daily alert limit ({MAX_SIGNALS_PER_DAY}) reached")
-        return False
-
-    now = _now_ist()
-    last = _last_signal_time[idx]
-    if last and (now - last).total_seconds() < SIGNAL_COOLDOWN_MINUTES * 60:
-        logger.info(f"[{idx}] Alert cooldown active")
-        return False
-    if _last_signal_direction[idx] == direction:
-        logger.info(f"[{idx}] Duplicate direction ignored ({direction})")
-        return False
-
-    return True
+    return signal_type in ('TRADE_TRIGGER', 'TRADE_EXIT')
 
 
 # ── Trade lifecycle (per index) ────────────────────────────────────────────────
@@ -613,41 +590,33 @@ def _scan_index(app, idx: str, data_broker_user_id):
                         f"({elapsed} min elapsed)"
                     )
 
-                    # Send periodic TRADE_ACTIVE update to Telegram
-                    last_alert = _last_active_alert[idx]
-                    due = (
-                        last_alert is None or
-                        (now - last_alert).total_seconds() >= ACTIVE_UPDATE_INTERVAL_MIN * 60
-                    )
-                    if due:
-                        # Find current LTP of the tracked option from trades list
-                        atm_key = at.get('atm_key', '')
-                        ltp = 0.0
-                        for t in analysis.get('trades', []):
-                            if t.get('symbol') == atm_key:
-                                ltp = float(t.get('ltp', 0))
-                                break
-
-                        active_info = {
-                            'direction':   at.get('direction'),
-                            'type':        at.get('type', ''),
-                            'entry_price': at.get('entry_price', 0),
-                            'sl':          at.get('sl', 0),
-                            'target':      at.get('target', 0),
-                            'ltp':         ltp,
-                            'elapsed_min': elapsed,
-                            'remaining_min': remaining,
-                        }
-                        active_analysis = dict(analysis)
-                        active_analysis['signal_type']    = 'TRADE_ACTIVE'
-                        active_analysis['trade_direction'] = at.get('direction', analysis.get('trade_direction'))
-                        active_analysis['confidence']      = at.get('confidence', analysis.get('confidence'))
-                        active_analysis['active_trade']    = active_info
-                        active_analysis['trade_code']      = _active_trade_code[idx]
-                        if _send_telegram_alert(active_analysis, idx):
-                            _last_active_alert[idx] = now
-                            logger.info(f"[{idx}] 📍 TRADE_ACTIVE Telegram update sent ({elapsed} min in)")
-                        _dispatch_partner_webhook(active_analysis, idx)
+                    # Periodic TRADE_ACTIVE Telegram updates are disabled —
+                    # only entry (TRADE_TRIGGER) and exit (TRADE_EXIT) are sent.
+                    # Partner webhooks still receive ACTIVE pings for downstream
+                    # systems that need live tracking.
+                    atm_key = at.get('atm_key', '')
+                    ltp = 0.0
+                    for t in analysis.get('trades', []):
+                        if t.get('symbol') == atm_key:
+                            ltp = float(t.get('ltp', 0))
+                            break
+                    active_info = {
+                        'direction':   at.get('direction'),
+                        'type':        at.get('type', ''),
+                        'entry_price': at.get('entry_price', 0),
+                        'sl':          at.get('sl', 0),
+                        'target':      at.get('target', 0),
+                        'ltp':         ltp,
+                        'elapsed_min': elapsed,
+                        'remaining_min': remaining,
+                    }
+                    active_analysis = dict(analysis)
+                    active_analysis['signal_type']    = 'TRADE_ACTIVE'
+                    active_analysis['trade_direction'] = at.get('direction', analysis.get('trade_direction'))
+                    active_analysis['confidence']      = at.get('confidence', analysis.get('confidence'))
+                    active_analysis['active_trade']    = active_info
+                    active_analysis['trade_code']      = _active_trade_code[idx]
+                    _dispatch_partner_webhook(active_analysis, idx)
                     return
 
             else:
