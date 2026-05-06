@@ -903,7 +903,6 @@ class NiftyOptionsEngine:
         try:
             import pandas as pd, numpy as np
 
-            df = df.tail(3)
             h = df['High'].astype(float)
             l = df['Low'].astype(float)
             c = df['Close'].astype(float)
