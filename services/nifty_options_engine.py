@@ -2042,16 +2042,19 @@ class NiftyOptionsEngine:
         current_trades = []
         next_trades = []
 
-        # Build strike list for every active side (Call and/or Put)
-        raw_strikes = []
-        if bull_active:
-            raw_strikes += self._select_strikes(spot, 'BULLISH')
-        if bear_active:
-            raw_strikes += self._select_strikes(spot, 'BEARISH')
-        if not raw_strikes:
-            # No active side — still populate for UI display (will be blocked)
-            fallback_dir = trade_direction if trade_direction not in ('NEUTRAL', 'BOTH') else 'BULLISH'
-            raw_strikes = self._select_strikes(spot, fallback_dir)
+        # Always scan and surface BOTH calls and puts on every cycle so the
+        # trader sees the full option ladder. Mark each strike with the
+        # engine's `aligned` flag (matches current direction) so the UI can
+        # highlight the preferred side without hiding the other.
+        ce_strikes = self._select_strikes(spot, 'BULLISH')
+        pe_strikes = self._select_strikes(spot, 'BEARISH')
+        for s in ce_strikes:
+            s['aligned'] = bull_active or trade_direction in ('BULLISH', 'BOTH')
+            s['side']    = 'CALL'
+        for s in pe_strikes:
+            s['aligned'] = bear_active or trade_direction in ('BEARISH', 'BOTH')
+            s['side']    = 'PUT'
+        raw_strikes = ce_strikes + pe_strikes
 
         current_expiry_info = {
             'date': expiry_picks.get('current_date', ''),
