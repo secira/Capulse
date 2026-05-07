@@ -972,10 +972,13 @@ class NiftyOptionsEngine:
             return 0.0, 0.0, 0.0, False
 
     def _calculate_atr(self, df, period: int = 14):
-        """EMA-based ATR. Returns (atr, atr_rising)."""
+        """EMA-based ATR. Returns (atr, atr_rising).
+        Uses full candle history — EMA-14 needs the full series to converge.
+        Only the latest value is reported; earlier truncation to 3 candles
+        was producing meaningless ATR readings.
+        """
         try:
             import pandas as pd
-            df = df.tail(3)
             h = df['High']
             l = df['Low']
             c = df['Close']
@@ -995,7 +998,8 @@ class NiftyOptionsEngine:
         """
         try:
             import pandas as pd
-            df = df.tail(3)
+            # Full history required — Wilder ATR-10 + trend lock-in flips depend
+            # on every prior bar. Only the latest trend state is returned.
             h = df['High'].astype(float)
             l = df['Low'].astype(float)
             c = df['Close'].astype(float)
@@ -1054,7 +1058,9 @@ class NiftyOptionsEngine:
         """
         try:
             import pandas as pd
-            df = df.tail(3)
+            # Full history required — Wilder RSI-7 needs ≥7 prior closes for
+            # the EWM alpha=1/7 average to converge. Tail(3) earlier was
+            # collapsing it to a 2-bar delta, producing garbage RSI values.
             c = df['Close'].astype(float)
             if len(c) < 2:
                 return 50.0, False, False
@@ -1090,7 +1096,10 @@ class NiftyOptionsEngine:
           STRONG_TREND   : gap > 0.08% and distance increasing
         """
         try:
-            df = df.tail(3)
+            # Full candle history required — EMA-9 and especially EMA-21 need
+            # at least 21 bars to be meaningful. tail(3) earlier was collapsing
+            # both EMAs to ≈close[-1], making the 9/21 gap and crossover
+            # detection effectively useless.
             c = df['Close'].astype(float)
             if len(c) < 2:
                 return {
@@ -1099,7 +1108,7 @@ class NiftyOptionsEngine:
                     'distance_increasing': False, 'tier': 'WEAK_TREND', 'no_trade_zone': True,
                 }
 
-            # EWM works from the first candle — current live value, no warm-up needed
+            # EWM uses the full series — current live value reflects true momentum
             ema9_s  = c.ewm(span=9,  adjust=False).mean()
             ema21_s = c.ewm(span=21, adjust=False).mean()
 

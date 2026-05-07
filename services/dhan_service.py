@@ -348,13 +348,17 @@ def get_index_intraday_candles(security_id: int,
     try:
         today     = datetime.now()
         today_str = today.strftime("%Y-%m-%d")
-        # Fetch today's candles only. Indicators are computed on the current
-        # live values (EWM works from the first candle — no warm-up needed).
+        # Fetch the last 5 calendar days of intraday candles so Wilder ADX-14,
+        # EMA-21 and ATR-14 have enough warm-up history to converge. With only
+        # today's candles, the morning session (≤21 bars) gave indicator
+        # values that didn't match TradingView/Kite. 5 days ≈ 3 trading
+        # sessions ≈ 225 candles — comfortable buffer for all indicators.
+        from_date_str = (today - timedelta(days=5)).strftime("%Y-%m-%d")
         rows = broker.get_intraday_candles(
             security_id=security_id,
             exchange_segment=exchange_segment,
             instrument_type="INDEX",
-            from_date=today_str,
+            from_date=from_date_str,
             to_date=today_str,
             interval=interval,
         )
