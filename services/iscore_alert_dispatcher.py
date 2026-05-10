@@ -153,7 +153,7 @@ def send_top_buys_digest(force: bool = False) -> bool:
         logger.info("Top-5 digest: unchanged leaderboard — not re-sending")
         return False
 
-    # Build the message
+    # Build the message — each row shows full trade plan (Entry/Target/SL/Duration)
     today = datetime.now().strftime("%d %b %Y, %I:%M %p")
     lines = [
         f"📈 *Top {TOP_N_BUYS} Stocks to Buy — Scentric I-Score*",
@@ -162,18 +162,42 @@ def send_top_buys_digest(force: bool = False) -> bool:
     ]
     medal = {0: "🥇", 1: "🥈", 2: "🥉"}
     for i, r in enumerate(rows):
-        tier_tag = "STRONG BUY" if r.recommendation == 'STRONG_BUY' else "BUY"
-        score = float(r.i_score)
-        price = f"₹{float(r.current_price):,.2f}" if r.current_price else "—"
-        chg   = f" ({float(r.price_change_pct):+.2f}%)" if r.price_change_pct is not None else ""
-        sector = f" · _{r.sector}_" if r.sector else ""
-        marker = medal.get(i, f"{i + 1}.")
+        is_strong  = r.recommendation == 'STRONG_BUY'
+        tier_tag   = "STRONG BUY" if is_strong else "BUY"
+        score      = float(r.i_score)
+        price_val  = float(r.current_price) if r.current_price else None
+        chg        = f" ({float(r.price_change_pct):+.2f}%)" if r.price_change_pct is not None else ""
+        sector     = f"  ·  _{r.sector}_" if r.sector else ""
+        marker     = medal.get(i, f"{i + 1}.")
+
+        # Trade plan derived from tier + market price.
+        # STRONG_BUY: +10% target, -4% stop, 1–2 month positional swing.
+        # BUY:        +6% target,  -3% stop, 2–4 week swing.
+        if price_val:
+            entry_lo  = price_val * 0.995
+            entry_hi  = price_val * 1.005
+            tgt_pct   = 0.10 if is_strong else 0.06
+            sl_pct    = 0.04 if is_strong else 0.03
+            target    = price_val * (1 + tgt_pct)
+            stop_loss = price_val * (1 - sl_pct)
+            duration  = "1–2 months" if is_strong else "2–4 weeks"
+            rr_ratio  = tgt_pct / sl_pct
+            plan = (
+                f"     💰 Market: ₹{price_val:,.2f}{chg}\n"
+                f"     🎯 Entry:  ₹{entry_lo:,.2f} – ₹{entry_hi:,.2f}\n"
+                f"     ✅ Target: ₹{target:,.2f}  (+{tgt_pct*100:.0f}%)\n"
+                f"     🛑 Stop:   ₹{stop_loss:,.2f}  (-{sl_pct*100:.0f}%)\n"
+                f"     ⏱ Hold:   {duration}   ·   R:R 1:{rr_ratio:.1f}"
+            )
+        else:
+            plan = "     _Market data unavailable — plan pending_"
+
         lines.append(
-            f"{marker} *{r.symbol}* — I-Score *{score:.1f}/100*  ·  {tier_tag}\n"
-            f"     {price}{chg}{sector}"
+            f"{marker} *{r.symbol}* — I-Score *{score:.1f}/100*  ·  {tier_tag}{sector}\n"
+            f"{plan}"
         )
-    lines.append("")
-    lines.append("_Disclaimer: AI-generated research, not investment advice._")
+        lines.append("")  # spacer between stocks for readability
+    lines.append("_Disclaimer: AI-generated research, not investment advice. Always size positions to your own risk tolerance._")
 
     message = "\n".join(lines)
     sent = send_telegram_message(message)
@@ -242,12 +266,42 @@ def start_scheduler(app):
             replace_existing=True, max_instances=1,
         )
 
+        # Job 3 — Market Intelligence snapshots at 09:20, 12:00, 13:30 IST
+        # (Mon–Fri). Each fires a single Telegram message covering all four
+        # indices: NIFTY, BANK NIFTY, FIN NIFTY, SENSEX.
+        from services.market_snapshot_alert import SNAPSHOT_TIMES_IST, send_market_snapshot
+
+        def _make_snapshot_job(slot_name: str):
+            def _job():
+                with app.app_context():
+                    try:
+                        send_market_snapshot(slot=slot_name)
+                    except Exception as e:
+                        logger.error(f"Market snapshot job ({slot_name}) failed: {e}")
+            return _job
+
+        for hh, mm, slot_name in SNAPSHOT_TIMES_IST:
+            snap_kwargs = {
+                'day_of_week': 'mon-fri',
+                'hour':        hh,
+                'minute':      mm,
+            }
+            if ist_tz is not None:
+                snap_kwargs['timezone'] = ist_tz
+            scheduler.add_job(
+                _make_snapshot_job(slot_name), CronTrigger(**snap_kwargs),
+                id=f'market_snapshot_{slot_name}',
+                replace_existing=True, max_instances=1,
+            )
+
         scheduler.start()
         _scheduler_started = True
+        snap_times_str = ", ".join(f"{h:02d}:{m:02d}" for h, m, _ in SNAPSHOT_TIMES_IST)
         logger.info(
             f"I-Score scheduler started — partner scan every {SCAN_INTERVAL_MIN} min, "
-            f"daily Top-{TOP_N_BUYS} Telegram digest at "
-            f"{DAILY_DIGEST_HOUR_IST:02d}:{DAILY_DIGEST_MIN_IST:02d} IST (Mon–Fri)"
+            f"daily Top-{TOP_N_BUYS} digest at "
+            f"{DAILY_DIGEST_HOUR_IST:02d}:{DAILY_DIGEST_MIN_IST:02d} IST (Mon–Fri), "
+            f"market-intelligence snapshots at {snap_times_str} IST (Mon–Fri)"
         )
     except Exception as e:
         logger.error(f"Failed to start I-Score scheduler: {e}")
