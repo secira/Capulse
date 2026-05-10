@@ -30,9 +30,13 @@ _scheduler_started = False
 SCAN_INTERVAL_MIN  = 30
 
 # Top-N digest config
-TOP_N_BUYS               = 5
+TOP_N_BUYS               = 10
 _BUY_TIERS               = ('STRONG_BUY', 'BUY')
 _last_digest_fingerprint = None   # set of (symbol, tier) — only resend when changed
+
+# Daily digest schedule — 8:30 AM IST, Monday–Friday (market days)
+DAILY_DIGEST_HOUR_IST    = 8
+DAILY_DIGEST_MIN_IST     = 30
 
 
 def _recompute_iscore(symbol: str) -> dict | None:
@@ -152,19 +156,20 @@ def send_top_buys_digest(force: bool = False) -> bool:
     # Build the message
     today = datetime.now().strftime("%d %b %Y, %I:%M %p")
     lines = [
-        "📈 *Top 5 Stocks to Buy — Scentric I-Score*",
+        f"📈 *Top {TOP_N_BUYS} Stocks to Buy — Scentric I-Score*",
         f"_{today} IST_",
         "",
     ]
-    medal = {0: "🥇", 1: "🥈", 2: "🥉", 3: "4️⃣", 4: "5️⃣"}
+    medal = {0: "🥇", 1: "🥈", 2: "🥉"}
     for i, r in enumerate(rows):
         tier_tag = "STRONG BUY" if r.recommendation == 'STRONG_BUY' else "BUY"
         score = float(r.i_score)
         price = f"₹{float(r.current_price):,.2f}" if r.current_price else "—"
         chg   = f" ({float(r.price_change_pct):+.2f}%)" if r.price_change_pct is not None else ""
         sector = f" · _{r.sector}_" if r.sector else ""
+        marker = medal.get(i, f"{i + 1}.")
         lines.append(
-            f"{medal.get(i, '•')} *{r.symbol}* — I-Score *{score:.1f}/100*  ·  {tier_tag}\n"
+            f"{marker} *{r.symbol}* — I-Score *{score:.1f}/100*  ·  {tier_tag}\n"
             f"     {price}{chg}{sector}"
         )
     lines.append("")
@@ -195,14 +200,54 @@ def start_scheduler(app):
         return
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+
+        # Most servers run UTC; pin the daily digest to IST so 8:30 AM
+        # always means 8:30 AM in India regardless of host timezone.
+        try:
+            import pytz
+            ist_tz = pytz.timezone('Asia/Kolkata')
+        except Exception:
+            ist_tz = None  # APScheduler will fall back to local tz
+
         scheduler = BackgroundScheduler(daemon=True)
+
+        # Job 1 — periodic partner-webhook scan (every 30 min)
         scheduler.add_job(
             scan_once, 'interval', minutes=SCAN_INTERVAL_MIN,
             args=[app], id='iscore_partner_scan',
             replace_existing=True, max_instances=1,
         )
+
+        # Job 2 — daily Telegram "Top 10 Stocks to Buy" digest at 8:30 AM IST,
+        # Monday through Friday only (NSE/BSE market days).
+        cron_kwargs = {
+            'day_of_week': 'mon-fri',
+            'hour':        DAILY_DIGEST_HOUR_IST,
+            'minute':      DAILY_DIGEST_MIN_IST,
+        }
+        if ist_tz is not None:
+            cron_kwargs['timezone'] = ist_tz
+
+        def _daily_digest_job():
+            with app.app_context():
+                try:
+                    send_top_buys_digest(force=True)
+                except Exception as e:
+                    logger.error(f"Daily 8:30 AM digest job failed: {e}")
+
+        scheduler.add_job(
+            _daily_digest_job, CronTrigger(**cron_kwargs),
+            id='iscore_daily_top10_digest',
+            replace_existing=True, max_instances=1,
+        )
+
         scheduler.start()
         _scheduler_started = True
-        logger.info(f"I-Score partner alert scheduler started ({SCAN_INTERVAL_MIN} min interval) — singleton worker")
+        logger.info(
+            f"I-Score scheduler started — partner scan every {SCAN_INTERVAL_MIN} min, "
+            f"daily Top-{TOP_N_BUYS} Telegram digest at "
+            f"{DAILY_DIGEST_HOUR_IST:02d}:{DAILY_DIGEST_MIN_IST:02d} IST (Mon–Fri)"
+        )
     except Exception as e:
-        logger.error(f"Failed to start I-Score partner scheduler: {e}")
+        logger.error(f"Failed to start I-Score scheduler: {e}")
