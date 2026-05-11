@@ -34,9 +34,28 @@ TOP_N_BUYS               = 10
 _BUY_TIERS               = ('STRONG_BUY', 'BUY')
 _last_digest_fingerprint = None   # set of (symbol, tier) — only resend when changed
 
-# Daily digest schedule — 8:30 AM IST, Monday–Friday (market days)
-DAILY_DIGEST_HOUR_IST    = 8
-DAILY_DIGEST_MIN_IST     = 30
+# Module-level handles so the admin UI can reload jobs without a restart.
+_scheduler = None     # type: ignore  — APScheduler BackgroundScheduler instance
+_app       = None     # type: ignore  — Flask app, captured by start_scheduler
+
+# Mapping schedule_key (alert_schedule.schedule_key) → callable that fires
+# the alert. The admin "Send Now" button and the scheduler both look up
+# alerts through this registry.
+def _fire_top10_digest():
+    return send_top_buys_digest(force=True)
+
+
+def _fire_market_snapshot(slot: str):
+    from services.market_snapshot_alert import send_market_snapshot
+    return send_market_snapshot(slot=slot)
+
+
+SCHEDULE_REGISTRY = {
+    'top10_digest':        lambda: _fire_top10_digest(),
+    'snapshot_opening':    lambda: _fire_market_snapshot('opening'),
+    'snapshot_midsession': lambda: _fire_market_snapshot('midsession'),
+    'snapshot_preclose':   lambda: _fire_market_snapshot('preclose'),
+}
 
 
 def _recompute_iscore(symbol: str) -> dict | None:
@@ -212,8 +231,96 @@ def send_top_buys_digest(force: bool = False) -> bool:
 _ISCORE_ADVISORY_LOCK_ID = 728193002
 
 
+def fire_schedule_now(schedule_key: str) -> bool:
+    """Manually trigger a scheduled alert by key (used by admin "Send Now")."""
+    fn = SCHEDULE_REGISTRY.get(schedule_key)
+    if not fn:
+        logger.warning(f"fire_schedule_now: unknown schedule_key '{schedule_key}'")
+        return False
+    try:
+        return bool(fn())
+    except Exception as e:
+        logger.error(f"fire_schedule_now({schedule_key}) failed: {e}")
+        return False
+
+
+def reload_schedules() -> int:
+    """Re-read alert_schedule rows from the DB and rebuild every cron job.
+
+    Called by the admin Alert Schedules page after a save so timing changes
+    take effect without a server restart. Returns the number of jobs
+    (re)installed.
+    """
+    if _scheduler is None or _app is None:
+        logger.warning("reload_schedules: scheduler not started yet — nothing to reload")
+        return 0
+
+    try:
+        from apscheduler.triggers.cron import CronTrigger
+    except Exception as e:
+        logger.error(f"reload_schedules: APScheduler import failed: {e}")
+        return 0
+
+    try:
+        import pytz
+        ist_tz = pytz.timezone('Asia/Kolkata')
+    except Exception:
+        ist_tz = None
+
+    # Pull current schedules from DB
+    try:
+        rows = db.session.execute(db.text(
+            "SELECT schedule_key, hour, minute, days_of_week, enabled FROM alert_schedule"
+        )).fetchall()
+    except Exception as e:
+        logger.error(f"reload_schedules: DB read failed: {e}")
+        return 0
+
+    installed = 0
+    for schedule_key, hour, minute, dow, enabled in rows:
+        job_id = f"alert_{schedule_key}"
+        # Always remove any existing version first
+        try:
+            _scheduler.remove_job(job_id)
+        except Exception:
+            pass
+
+        if not enabled or schedule_key not in SCHEDULE_REGISTRY:
+            continue
+
+        cron_kwargs = {
+            'day_of_week': dow or 'mon-fri',
+            'hour':        int(hour),
+            'minute':      int(minute),
+        }
+        if ist_tz is not None:
+            cron_kwargs['timezone'] = ist_tz
+
+        # Closure captures schedule_key by value
+        def _make_runner(key: str):
+            def _runner():
+                with _app.app_context():
+                    try:
+                        fire_schedule_now(key)
+                    except Exception as e:
+                        logger.error(f"Scheduled alert '{key}' failed: {e}")
+            return _runner
+
+        _scheduler.add_job(
+            _make_runner(schedule_key), CronTrigger(**cron_kwargs),
+            id=job_id, replace_existing=True, max_instances=1,
+        )
+        installed += 1
+        logger.info(
+            f"  reload_schedules: '{schedule_key}' → {int(hour):02d}:{int(minute):02d} IST ({dow})"
+        )
+
+    logger.info(f"✅ reload_schedules: installed {installed} alert job(s) from DB")
+    return installed
+
+
 def start_scheduler(app):
-    global _scheduler_started
+    global _scheduler_started, _scheduler, _app
     if _scheduler_started:
         return
     # Reuse the same advisory-lock pattern as the F&O monitor so only one
@@ -236,72 +343,33 @@ def start_scheduler(app):
 
         scheduler = BackgroundScheduler(daemon=True)
 
-        # Job 1 — periodic partner-webhook scan (every 30 min)
+        # Job: periodic partner-webhook scan (every 30 min, fixed interval)
         scheduler.add_job(
             scan_once, 'interval', minutes=SCAN_INTERVAL_MIN,
             args=[app], id='iscore_partner_scan',
             replace_existing=True, max_instances=1,
         )
 
-        # Job 2 — daily Telegram "Top 10 Stocks to Buy" digest at 8:30 AM IST,
-        # Monday through Friday only (NSE/BSE market days).
-        cron_kwargs = {
-            'day_of_week': 'mon-fri',
-            'hour':        DAILY_DIGEST_HOUR_IST,
-            'minute':      DAILY_DIGEST_MIN_IST,
-        }
-        if ist_tz is not None:
-            cron_kwargs['timezone'] = ist_tz
-
-        def _daily_digest_job():
-            with app.app_context():
-                try:
-                    send_top_buys_digest(force=True)
-                except Exception as e:
-                    logger.error(f"Daily 8:30 AM digest job failed: {e}")
-
-        scheduler.add_job(
-            _daily_digest_job, CronTrigger(**cron_kwargs),
-            id='iscore_daily_top10_digest',
-            replace_existing=True, max_instances=1,
-        )
-
-        # Job 3 — Market Intelligence snapshots at 09:20, 12:00, 13:30 IST
-        # (Mon–Fri). Each fires a single Telegram message covering all four
-        # indices: NIFTY, BANK NIFTY, FIN NIFTY, SENSEX.
-        from services.market_snapshot_alert import SNAPSHOT_TIMES_IST, send_market_snapshot
-
-        def _make_snapshot_job(slot_name: str):
-            def _job():
-                with app.app_context():
-                    try:
-                        send_market_snapshot(slot=slot_name)
-                    except Exception as e:
-                        logger.error(f"Market snapshot job ({slot_name}) failed: {e}")
-            return _job
-
-        for hh, mm, slot_name in SNAPSHOT_TIMES_IST:
-            snap_kwargs = {
-                'day_of_week': 'mon-fri',
-                'hour':        hh,
-                'minute':      mm,
-            }
-            if ist_tz is not None:
-                snap_kwargs['timezone'] = ist_tz
-            scheduler.add_job(
-                _make_snapshot_job(slot_name), CronTrigger(**snap_kwargs),
-                id=f'market_snapshot_{slot_name}',
-                replace_existing=True, max_instances=1,
-            )
-
         scheduler.start()
+
+        # Persist handles for reload_schedules() to use later
+        _scheduler = scheduler
+        _app       = app
         _scheduler_started = True
-        snap_times_str = ", ".join(f"{h:02d}:{m:02d}" for h, m, _ in SNAPSHOT_TIMES_IST)
+
+        # Load all admin-managed alert jobs (top10 digest + market snapshots)
+        # from the alert_schedule DB table. Admin can edit these via the
+        # /admin/alert-schedules page and call reload_schedules() to apply.
+        with app.app_context():
+            try:
+                installed = reload_schedules()
+            except Exception as e:
+                logger.error(f"Initial reload_schedules failed: {e}")
+                installed = 0
+
         logger.info(
             f"I-Score scheduler started — partner scan every {SCAN_INTERVAL_MIN} min, "
-            f"daily Top-{TOP_N_BUYS} digest at "
-            f"{DAILY_DIGEST_HOUR_IST:02d}:{DAILY_DIGEST_MIN_IST:02d} IST (Mon–Fri), "
-            f"market-intelligence snapshots at {snap_times_str} IST (Mon–Fri)"
+            f"{installed} admin-managed alert job(s) loaded from alert_schedule"
         )
     except Exception as e:
         logger.error(f"Failed to start I-Score scheduler: {e}")

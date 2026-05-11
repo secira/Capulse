@@ -518,6 +518,32 @@ with app.app_context():
         'CREATE INDEX IF NOT EXISTS ix_fno_signal_history_created ON fno_signal_history (created_at DESC)',
         # Active broker lookups: user_id + is_active is the hot path.
         'CREATE INDEX IF NOT EXISTS ix_user_brokers_user_active ON user_brokers (user_id, is_active)',
+        # ── Admin-managed alert schedule (Telegram timings) ───────────────
+        '''CREATE TABLE IF NOT EXISTS alert_schedule (
+            id SERIAL PRIMARY KEY,
+            schedule_key VARCHAR(64) NOT NULL UNIQUE,
+            display_name VARCHAR(120) NOT NULL,
+            description TEXT,
+            hour INTEGER NOT NULL DEFAULT 9 CHECK (hour BETWEEN 0 AND 23),
+            minute INTEGER NOT NULL DEFAULT 0 CHECK (minute BETWEEN 0 AND 59),
+            days_of_week VARCHAR(40) NOT NULL DEFAULT 'mon-fri',
+            enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            sort_order INTEGER NOT NULL DEFAULT 100,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            updated_by VARCHAR(100)
+        )''',
+        '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)
+           VALUES ('top10_digest', 'Top 10 Stocks to Buy', 'Daily Telegram digest of the highest-rated I-Score BUY stocks with entry, target, stop-loss and hold duration.', 8, 30, 10)
+           ON CONFLICT (schedule_key) DO NOTHING''',
+        '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)
+           VALUES ('snapshot_opening', 'Market Intelligence — Opening Read', 'Snapshot of NIFTY 50, BANK NIFTY, FIN NIFTY and SENSEX with prev close, open, support, resistance, PCR and direction.', 9, 20, 20)
+           ON CONFLICT (schedule_key) DO NOTHING''',
+        '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)
+           VALUES ('snapshot_midsession', 'Market Intelligence — Mid-Session', 'Mid-session re-check of all four indices with updated PCR, support/resistance and trend direction.', 12, 0, 30)
+           ON CONFLICT (schedule_key) DO NOTHING''',
+        '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)
+           VALUES ('snapshot_preclose', 'Market Intelligence — Pre-Close', 'Pre-close confirmation snapshot before the last hour of trading.', 13, 30, 40)
+           ON CONFLICT (schedule_key) DO NOTHING''',
     ]
     # In production, column migrations are GATED behind RUN_MIGRATIONS=1.
     # Reason: with gunicorn --preload, this block runs in the master process

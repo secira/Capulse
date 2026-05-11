@@ -1,0 +1,106 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Alert Schedules · Target Capital Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1"><i class="fas fa-clock me-2"></i>Alert Schedules</h2>
+        <p class="text-muted mb-0">Control when each automatic Telegram alert is sent. All times are <strong>India Standard Time (IST)</strong>.</p>
+    </div>
+    <div class="text-muted small">
+        <i class="fas fa-info-circle me-1"></i>Changes apply immediately — no restart required.
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('admin.update_alert_schedules') }}">
+    <div class="card shadow-sm mb-4">
+        <div class="card-body p-0">
+            <table class="table mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 28%">Alert</th>
+                        <th>Description</th>
+                        <th style="width: 14%" class="text-center">Time (IST)</th>
+                        <th style="width: 14%" class="text-center">Days</th>
+                        <th style="width: 10%" class="text-center">Enabled</th>
+                        <th style="width: 12%" class="text-center">Test</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for s in schedules %}
+                    <tr>
+                        <td>
+                            <strong>{{ s.display_name }}</strong>
+                            <div class="text-muted small">key: <code>{{ s.schedule_key }}</code></div>
+                        </td>
+                        <td class="text-muted small">{{ s.description }}</td>
+                        <td class="text-center">
+                            <div class="d-flex justify-content-center align-items-center gap-1">
+                                <input type="number" name="hour_{{ s.schedule_key }}"
+                                       value="{{ s.hour }}" min="0" max="23"
+                                       class="form-control form-control-sm text-center"
+                                       style="width: 60px" required>
+                                <span class="fw-bold">:</span>
+                                <input type="number" name="minute_{{ s.schedule_key }}"
+                                       value="{{ '%02d' % s.minute }}" min="0" max="59"
+                                       class="form-control form-control-sm text-center"
+                                       style="width: 60px" required>
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            <select name="days_{{ s.schedule_key }}" class="form-select form-select-sm">
+                                <option value="mon-fri" {% if s.days_of_week == 'mon-fri' %}selected{% endif %}>Mon–Fri</option>
+                                <option value="mon,tue,wed,thu,fri,sat" {% if s.days_of_week == 'mon,tue,wed,thu,fri,sat' %}selected{% endif %}>Mon–Sat</option>
+                                <option value="mon,tue,wed,thu,fri,sat,sun" {% if s.days_of_week == 'mon,tue,wed,thu,fri,sat,sun' %}selected{% endif %}>Every Day</option>
+                            </select>
+                        </td>
+                        <td class="text-center">
+                            <div class="form-check form-switch d-flex justify-content-center">
+                                <input class="form-check-input" type="checkbox"
+                                       name="enabled_{{ s.schedule_key }}"
+                                       {% if s.enabled %}checked{% endif %}>
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            <button type="submit" formaction="{{ url_for('admin.test_alert_schedule', key=s.schedule_key) }}"
+                                    formmethod="POST"
+                                    class="btn btn-sm btn-outline-primary"
+                                    title="Send a sample of this alert to Telegram now">
+                                <i class="fas fa-paper-plane me-1"></i>Send Now
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+                {% if any_updated_at %}
+                    Last updated {{ any_updated_at.strftime('%d %b %Y, %I:%M %p') }} IST
+                    {% if any_updated_by %}by <strong>{{ any_updated_by }}</strong>{% endif %}
+                {% else %}
+                    Not yet customised — defaults loaded.
+                {% endif %}
+            </div>
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-save me-1"></i>Save All Schedules
+            </button>
+        </div>
+    </div>
+</form>
+
+<div class="card border-info">
+    <div class="card-body small">
+        <h6 class="text-info mb-2"><i class="fas fa-lightbulb me-1"></i>How it works</h6>
+        <ul class="mb-0 ps-3">
+            <li>Each row controls one Telegram alert. Times are in <strong>India Standard Time (IST)</strong>.</li>
+            <li>Toggling <em>Enabled</em> off disables that alert without losing its schedule.</li>
+            <li>Click <em>Send Now</em> to fire a sample message immediately, regardless of the schedule.</li>
+            <li>The scheduler reloads automatically after every save — no app restart needed.</li>
+            <li>Disable individual alerts on weekends by changing <em>Days</em> back to Mon–Fri.</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

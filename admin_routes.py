@@ -1750,3 +1750,135 @@ def partner_api_playground_run():
         import logging
         logging.getLogger(__name__).exception('playground run failed')
         return jsonify({'success': False, 'error': str(e), 'code': 'ENGINE_ERROR'}), 500
+
+
+# ───────────────────────── Alert Schedules ─────────────────────────────
+# Admin-managed timings for the automatic Telegram alerts (Top-10 stock
+# digest, Market Intelligence snapshots). Lives in the alert_schedule
+# table; the iscore_alert_dispatcher scheduler reads from it on boot
+# and reload_schedules() rebuilds the cron jobs after every save.
+
+@admin_bp.route('/alert-schedules', methods=['GET'])
+@admin_required
+def alert_schedules():
+    try:
+        rows = db.session.execute(db.text(
+            "SELECT id, schedule_key, display_name, description, hour, minute, "
+            "       days_of_week, enabled, sort_order, updated_at, updated_by "
+            "FROM alert_schedule ORDER BY sort_order, id"
+        )).fetchall()
+        schedules = [{
+            'id': r[0], 'schedule_key': r[1], 'display_name': r[2],
+            'description': r[3], 'hour': r[4], 'minute': r[5],
+            'days_of_week': r[6], 'enabled': r[7], 'sort_order': r[8],
+            'updated_at': r[9], 'updated_by': r[10],
+        } for r in rows]
+    except Exception as e:
+        flash(f'Could not load alert schedules: {e}', 'error')
+        schedules = []
+
+    any_updated_at = max((s['updated_at'] for s in schedules if s['updated_at']), default=None)
+    any_updated_by = next((s['updated_by'] for s in sorted(
+        schedules, key=lambda x: x['updated_at'] or '', reverse=True
+    ) if s['updated_by']), None)
+
+    return render_template('admin/alert_schedules.html',
+                           schedules=schedules,
+                           any_updated_at=any_updated_at,
+                           any_updated_by=any_updated_by)
+
+
+@admin_bp.route('/alert-schedules/update', methods=['POST'])
+@admin_required
+def update_alert_schedules():
+    """Save every schedule row in one transaction, then live-reload jobs."""
+    try:
+        rows = db.session.execute(db.text(
+            "SELECT schedule_key FROM alert_schedule"
+        )).fetchall()
+        keys = [r[0] for r in rows]
+    except Exception as e:
+        flash(f'Could not read alert schedules: {e}', 'error')
+        return redirect(url_for('admin.alert_schedules'))
+
+    try:
+        from flask import session as flask_session
+        admin_name = flask_session.get('admin_username', 'admin')
+    except Exception:
+        admin_name = 'admin'
+
+    updated = 0
+    for key in keys:
+        hh_raw = request.form.get(f'hour_{key}')
+        mm_raw = request.form.get(f'minute_{key}')
+        dow    = request.form.get(f'days_{key}', 'mon-fri')
+        # Checkboxes only appear in form data when checked.
+        enabled = request.form.get(f'enabled_{key}') is not None
+
+        try:
+            hh = max(0, min(23, int(hh_raw)))
+            mm = max(0, min(59, int(mm_raw)))
+        except (TypeError, ValueError):
+            flash(f'Invalid time for {key} — skipped.', 'error')
+            continue
+
+        if dow not in ('mon-fri', 'mon,tue,wed,thu,fri,sat',
+                       'mon,tue,wed,thu,fri,sat,sun'):
+            dow = 'mon-fri'
+
+        try:
+            db.session.execute(db.text(
+                "UPDATE alert_schedule SET hour=:h, minute=:m, days_of_week=:dow, "
+                "enabled=:en, updated_at=NOW(), updated_by=:by "
+                "WHERE schedule_key=:k"
+            ), {'h': hh, 'm': mm, 'dow': dow, 'en': enabled,
+                'by': admin_name, 'k': key})
+            updated += 1
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Failed to save {key}: {e}', 'error')
+            return redirect(url_for('admin.alert_schedules'))
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Could not commit changes: {e}', 'error')
+        return redirect(url_for('admin.alert_schedules'))
+
+    # Hot-reload the scheduler so new times take effect immediately.
+    try:
+        from services.iscore_alert_dispatcher import reload_schedules
+        installed = reload_schedules()
+        flash(f'Saved {updated} schedule(s). Scheduler reloaded — '
+              f'{installed} active alert job(s).', 'success')
+    except Exception as e:
+        flash(f'Saved, but live reload failed (a restart will pick up '
+              f'changes): {e}', 'error')
+
+    return redirect(url_for('admin.alert_schedules'))
+
+
+@admin_bp.route('/alert-schedules/test/<key>', methods=['POST'])
+@admin_required
+def test_alert_schedule(key):
+    """Fire one alert immediately for verification — the 'Send Now' button."""
+    try:
+        from services.iscore_alert_dispatcher import (
+            fire_schedule_now, SCHEDULE_REGISTRY,
+        )
+        if key not in SCHEDULE_REGISTRY:
+            flash(f'Unknown alert "{key}".', 'error')
+            return redirect(url_for('admin.alert_schedules'))
+
+        ok = fire_schedule_now(key)
+        if ok:
+            flash(f'Sample sent to Telegram for "{key}". Check the chat.',
+                  'success')
+        else:
+            flash(f'Send returned no confirmation for "{key}". '
+                  'Check application logs.', 'error')
+    except Exception as e:
+        flash(f'Error sending sample: {e}', 'error')
+
+    return redirect(url_for('admin.alert_schedules'))
