@@ -335,6 +335,98 @@ with app.app_context():
     else:
         logging.info("⏭️  Production: skipping db.create_all() — only additive migrations will run")
 
+    # ── Unconditional table bootstrap (always runs, even on production) ───────
+    # CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS are pure
+    # no-ops when the object already exists — they take only a brief
+    # schema lock and never block on data.  Safe to run on every boot.
+    #
+    # Tables listed here MUST be in this block (not in `_pending_migrations`
+    # below) because that block is gated behind RUN_MIGRATIONS=1 in
+    # production.  Without this bootstrap, a fresh Railway deploy that
+    # forgets to set RUN_MIGRATIONS=1 will 500 on any page that queries
+    # one of these tables (e.g. Admin → Partner API).
+    _always_create = [
+        # B2B Partner API tables (Admin → Partner API screen)
+        '''CREATE TABLE IF NOT EXISTS api_partner (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(120) NOT NULL,
+            contact_email VARCHAR(180) NOT NULL,
+            organisation VARCHAR(180),
+            api_key_prefix VARCHAR(16) NOT NULL,
+            api_key_hash VARCHAR(256) NOT NULL,
+            webhook_url VARCHAR(512),
+            webhook_secret VARCHAR(128),
+            plan VARCHAR(32) NOT NULL DEFAULT 'basic',
+            rate_limit_per_min INTEGER NOT NULL DEFAULT 60,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            tenant_id VARCHAR(255) DEFAULT 'live',
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            last_seen_at TIMESTAMP
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_api_partner_contact_email ON api_partner (contact_email)',
+        'CREATE INDEX IF NOT EXISTS ix_api_partner_api_key_prefix ON api_partner (api_key_prefix)',
+        'CREATE INDEX IF NOT EXISTS ix_api_partner_tenant_id ON api_partner (tenant_id)',
+        '''CREATE TABLE IF NOT EXISTS api_subscription (
+            id SERIAL PRIMARY KEY,
+            partner_id INTEGER NOT NULL REFERENCES api_partner(id) ON DELETE CASCADE,
+            engine VARCHAR(16) NOT NULL,
+            symbol VARCHAR(64) NOT NULL,
+            min_confidence INTEGER NOT NULL DEFAULT 75,
+            delta_threshold INTEGER NOT NULL DEFAULT 5,
+            channels VARCHAR(64) NOT NULL DEFAULT 'webhook',
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            last_score FLOAT,
+            last_tier VARCHAR(32),
+            last_alert_at TIMESTAMP,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            CONSTRAINT uq_partner_engine_symbol UNIQUE (partner_id, engine, symbol)
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_api_subscription_partner_id ON api_subscription (partner_id)',
+        'CREATE INDEX IF NOT EXISTS ix_api_subscription_engine ON api_subscription (engine)',
+        'CREATE INDEX IF NOT EXISTS ix_api_subscription_symbol ON api_subscription (symbol)',
+        '''CREATE TABLE IF NOT EXISTS api_alert_log (
+            id SERIAL PRIMARY KEY,
+            partner_id INTEGER NOT NULL REFERENCES api_partner(id) ON DELETE CASCADE,
+            subscription_id INTEGER REFERENCES api_subscription(id) ON DELETE SET NULL,
+            engine VARCHAR(16) NOT NULL,
+            symbol VARCHAR(64) NOT NULL,
+            score FLOAT,
+            tier VARCHAR(32),
+            channel VARCHAR(32) NOT NULL DEFAULT 'webhook',
+            status VARCHAR(16) NOT NULL DEFAULT 'pending',
+            http_status INTEGER,
+            error VARCHAR(512),
+            payload_json TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            delivered_at TIMESTAMP
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_api_alert_log_partner_id ON api_alert_log (partner_id)',
+        'CREATE INDEX IF NOT EXISTS ix_api_alert_log_subscription_id ON api_alert_log (subscription_id)',
+        'CREATE INDEX IF NOT EXISTS ix_api_alert_log_symbol ON api_alert_log (symbol)',
+        'CREATE INDEX IF NOT EXISTS ix_api_alert_log_created_at ON api_alert_log (created_at)',
+        # Admin-managed alert schedule (Admin → Alert Schedules + Telegram timings)
+        '''CREATE TABLE IF NOT EXISTS alert_schedule (
+            id SERIAL PRIMARY KEY,
+            schedule_key VARCHAR(64) NOT NULL UNIQUE,
+            display_name VARCHAR(120) NOT NULL,
+            description TEXT,
+            hour INTEGER NOT NULL DEFAULT 9 CHECK (hour BETWEEN 0 AND 23),
+            minute INTEGER NOT NULL DEFAULT 0 CHECK (minute BETWEEN 0 AND 59),
+            days_of_week VARCHAR(40) NOT NULL DEFAULT 'mon-fri',
+            enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            sort_order INTEGER NOT NULL DEFAULT 100,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            updated_by VARCHAR(100)
+        )''',
+    ]
+    try:
+        with db.engine.begin() as _conn:
+            for _sql in _always_create:
+                _conn.exec_driver_sql(_sql)
+        logging.info("✅ Unconditional table bootstrap complete (api_partner, api_subscription, api_alert_log, alert_schedule)")
+    except Exception as _e:
+        logging.warning(f"⚠️  Unconditional table bootstrap failed (non-fatal): {_e}")
+
     # ── Incremental column migrations (safe to run on every startup) ──────────
     # ADD COLUMN IF NOT EXISTS is idempotent — no-op when column already exists.
     _pending_migrations = [
