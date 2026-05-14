@@ -563,29 +563,100 @@ def api_signals_today():
 @admin_bp.route('/api/share-signal/<int:signal_id>', methods=['POST'])
 @admin_required
 def api_share_signal(signal_id):
-    """API endpoint to share signal to WhatsApp/Telegram"""
-    signal = TradingSignal.query.get_or_404(signal_id)
-    platform = request.json.get('platform')  # 'whatsapp' or 'telegram'
-    
+    """Re-broadcast a daily signal to WhatsApp / Telegram on demand.
+
+    The earlier version only flipped boolean flags — it never actually
+    delivered the message. It now formats the signal in F&O-alert style and
+    pushes it through `services.messaging_service`.
+    """
+    signal = DailyTradingSignal.query.get_or_404(signal_id)
+    platform = (request.json or {}).get('platform')
+
     try:
-        if platform == 'whatsapp':
-            signal.shared_whatsapp = True
-            signal.whatsapp_shared_at = datetime.utcnow()
-            message = "Signal shared to WhatsApp successfully!"
-            
-        elif platform == 'telegram':
-            signal.shared_telegram = True
-            signal.telegram_shared_at = datetime.utcnow()
-            message = "Signal shared to Telegram successfully!"
+        if platform == 'telegram':
+            from services.messaging_service import send_daily_signal_telegram
+            ok = send_daily_signal_telegram(signal)
+            if ok:
+                return jsonify({'success': True, 'message': 'Signal sent to Telegram'})
+            return jsonify({'success': False,
+                            'message': 'Telegram send failed — check Admin → Telegram diagnostics'}), 502
+        elif platform == 'whatsapp':
+            from services.messaging_service import send_whatsapp_message, format_daily_signal_telegram
+            # WhatsApp helper expects plain text; reuse the formatter and strip tags.
+            import re as _re
+            body = _re.sub(r'<[^>]+>', '', format_daily_signal_telegram(signal))
+            ok = send_whatsapp_message(body)
+            if ok:
+                signal.shared_whatsapp = True
+                signal.whatsapp_shared_at = datetime.utcnow()
+                db.session.commit()
+                return jsonify({'success': True, 'message': 'Signal sent to WhatsApp'})
+            return jsonify({'success': False, 'message': 'WhatsApp send failed'}), 502
         else:
             return jsonify({'success': False, 'message': 'Invalid platform'}), 400
-        
-        db.session.commit()
-        return jsonify({'success': True, 'message': message})
-        
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================================================
+# TELEGRAM MESSENGER — diagnostics + manual send + per-signal re-broadcast
+# ============================================================================
+@admin_bp.route('/telegram', methods=['GET', 'POST'])
+@admin_required
+def telegram_messenger():
+    """Admin Telegram control panel.
+
+    GET: shows config diagnostics (token present, bot reachable, chat id),
+         a free-text message form, and the most recent daily signals so an
+         admin can re-broadcast any one of them in F&O-alert format.
+    POST: handles three actions — `test`, `send_text`, `send_signal`.
+    """
+    from services.messaging_service import (
+        send_telegram_message, send_daily_signal_telegram, telegram_diagnostics,
+    )
+
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+        if action == 'test':
+            ok = send_telegram_message(
+                "🧪 <b>Target Capital — Telegram Test</b>\n"
+                "If you see this in the group, the bot is wired up correctly.",
+                parse_mode='HTML',
+            )
+            flash('Test message sent ✓' if ok else 'Test FAILED — see diagnostics below', 'success' if ok else 'error')
+        elif action == 'send_text':
+            body = (request.form.get('message') or '').strip()
+            if not body:
+                flash('Message body is empty.', 'error')
+            else:
+                ok = send_telegram_message(body, parse_mode='HTML')
+                flash('Message sent ✓' if ok else 'Send FAILED — see diagnostics below', 'success' if ok else 'error')
+        elif action == 'send_signal':
+            try:
+                sid = int(request.form.get('signal_id') or 0)
+            except (TypeError, ValueError):
+                sid = 0
+            sig = DailyTradingSignal.query.get(sid) if sid else None
+            if not sig:
+                flash('Signal not found.', 'error')
+            else:
+                ok = send_daily_signal_telegram(sig)
+                flash(
+                    f'Signal #{sig.signal_number} ({sig.script}) sent ✓' if ok
+                    else f'Signal #{sig.signal_number} send FAILED — see diagnostics below',
+                    'success' if ok else 'error',
+                )
+        return redirect(url_for('admin.telegram_messenger'))
+
+    diag = telegram_diagnostics()
+    recent_signals = (DailyTradingSignal.query
+                      .order_by(desc(DailyTradingSignal.signal_date),
+                                desc(DailyTradingSignal.signal_number))
+                      .limit(20).all())
+    return render_template('admin/telegram_messenger.html',
+                           diag=diag, recent_signals=recent_signals)
 
 
 # ============================================================================
@@ -1023,8 +1094,21 @@ def add_daily_signal():
             
             db.session.add(new_signal)
             db.session.commit()
-            
-            flash(f'Daily Signal #{signal_number} created successfully for {signal_date}!', 'success')
+
+            # Auto-broadcast to Telegram (formatted in F&O alert style).
+            # Admin can opt out per-signal via the "Send Telegram" checkbox.
+            telegram_msg = ''
+            if request.form.get('send_telegram', 'on') == 'on':
+                try:
+                    from services.messaging_service import send_daily_signal_telegram
+                    if send_daily_signal_telegram(new_signal):
+                        telegram_msg = ' • Telegram alert sent ✓'
+                    else:
+                        telegram_msg = ' • Telegram alert FAILED — check Admin → Telegram'
+                except Exception as _e:
+                    telegram_msg = f' • Telegram error: {_e}'
+
+            flash(f'Daily Signal #{signal_number} created for {signal_date}!{telegram_msg}', 'success')
             return redirect(url_for('admin.daily_signals'))
             
         except Exception as e:

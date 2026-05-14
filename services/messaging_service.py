@@ -20,13 +20,35 @@ WHATSAPP_TOKEN = os.environ.get('WHATSAPP_ACCESS_TOKEN')
 WHATSAPP_PHONE_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
 WHATSAPP_GROUP_ID = os.environ.get('WHATSAPP_GROUP_ID')
 
-# Telegram Bot Configuration  
-_raw_telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
-# Extract clean token (format: numeric_id:alphanumeric_string)
+# Telegram Bot Configuration — read PER-CALL via _get_telegram_config().
+# Reading these at module-import time was a Railway production bug: on some
+# Railway deployments env vars are populated *after* the gunicorn worker
+# imports modules, so TELEGRAM_BOT_TOKEN ended up as an empty string for
+# the lifetime of the process and every send silently returned False.
 import re
-_token_match = re.search(r'(\d+:[A-Za-z0-9_-]+)', _raw_telegram_token)
-TELEGRAM_BOT_TOKEN = _token_match.group(1) if _token_match else _raw_telegram_token
-TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')  # Group chat ID
+
+def _get_telegram_config():
+    """Resolve Telegram bot token + chat id at call time (not import time).
+
+    Cleans the token (some users paste 'Bot 123:abc' or wrap it in quotes),
+    and normalises the chat id (strips quotes / whitespace).
+    Returns ``(token, chat_id)`` — either may be an empty string if missing.
+    """
+    raw_token = os.environ.get('TELEGRAM_BOT_TOKEN', '') or ''
+    raw_chat  = os.environ.get('TELEGRAM_CHAT_ID', '') or ''
+    m = re.search(r'(\d+:[A-Za-z0-9_-]+)', raw_token)
+    token = m.group(1) if m else raw_token.strip().strip('"').strip("'")
+    chat_id = raw_chat.strip().strip('"').strip("'")
+    return token, chat_id
+
+# Backwards-compatible accessors — kept for any callers that imported these
+# names directly. Now they reflect the *current* env, not the import-time env.
+def __getattr__(name):
+    if name == 'TELEGRAM_BOT_TOKEN':
+        return _get_telegram_config()[0]
+    if name == 'TELEGRAM_CHAT_ID':
+        return _get_telegram_config()[1]
+    raise AttributeError(name)
 
 def send_whatsapp_message(message_text):
     """Send message to WhatsApp group"""
@@ -67,37 +89,165 @@ def send_whatsapp_message(message_text):
         logger.error(f"Error sending WhatsApp message: {e}")
         return False
 
-def send_telegram_message(message_text):
-    """Send message to Telegram group"""
+def send_telegram_message(message_text, parse_mode='Markdown'):
+    """Send a message to the configured Telegram chat.
+
+    ``parse_mode`` may be 'Markdown', 'MarkdownV2', 'HTML', or None. Pass
+    'HTML' when the message body already contains HTML tags (used by the
+    daily-signal formatter so it matches the F&O alert style).
+    """
     try:
-        if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-            logger.warning("Telegram credentials not configured")
+        token, chat_id = _get_telegram_config()
+        if not token or not chat_id:
+            logger.warning(
+                "Telegram credentials not configured "
+                f"(token_present={bool(token)}, chat_id_present={bool(chat_id)})"
+            )
             return False
-            
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        
-        # Format message for Telegram with Markdown
-        formatted_message = format_message_for_telegram(message_text)
-        
+
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+
+        # Only run the Markdown beautifier when the caller asked for Markdown.
+        if parse_mode == 'Markdown':
+            text_to_send = format_message_for_telegram(message_text)
+        else:
+            text_to_send = message_text
+
         payload = {
-            'chat_id': TELEGRAM_CHAT_ID,
-            'text': formatted_message,
-            'parse_mode': 'Markdown',
-            'disable_web_page_preview': True
+            'chat_id': chat_id,
+            'text': text_to_send,
+            'disable_web_page_preview': True,
         }
-        
+        if parse_mode:
+            payload['parse_mode'] = parse_mode
+
         response = requests.post(url, json=payload, timeout=HTTP_TIMEOUT_SECONDS)
-        
+
         if response.status_code == 200:
             logger.info("Telegram message sent successfully")
             return True
-        else:
-            logger.error(f"Telegram API error: {response.status_code} - {response.text}")
-            return False
-            
+        logger.error(f"Telegram API error: {response.status_code} - {response.text}")
+        return False
+
     except Exception as e:
         logger.error(f"Error sending Telegram message: {e}")
         return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Daily Signal → Telegram (F&O-style formatter)
+# ─────────────────────────────────────────────────────────────────────────────
+def format_daily_signal_telegram(signal) -> str:
+    """Format a `DailyTradingSignal` as an HTML Telegram message that matches
+    the visual style of the F&O monitor alert (`services/fno_monitor.py`).
+    """
+    asset    = (signal.asset_type or '').upper()
+    sub      = (signal.sub_type or '').upper()
+    action   = (signal.action or 'BUY').upper()
+    duration = (signal.trade_duration or '').upper()
+    risk     = (signal.risk_level or 'MEDIUM').upper()
+
+    # Direction emoji
+    if sub == 'CE' or action == 'BUY':
+        dir_emoji = '🟢'
+    elif sub == 'PE' or action == 'SELL':
+        dir_emoji = '🔴'
+    else:
+        dir_emoji = '🟡'
+
+    type_emoji  = '📡'  # "Our Signal" — broadcast
+    duration_lbl = {'DAY': 'Intraday', 'WEEK': 'Swing', 'MONTH': 'Long Term'}.get(duration, duration or '—')
+
+    # Targets list
+    targets = []
+    for px, label in ((signal.target_1, 'T1'), (signal.target_2, 'T2'), (signal.target_3, 'T3')):
+        if px is not None:
+            try:
+                targets.append(f"{label} ₹{float(px):,.2f}")
+            except (TypeError, ValueError):
+                pass
+
+    msg  = f"{type_emoji} <b>Our Signal #{signal.signal_number} — {asset}</b>\n\n"
+    msg += f"{dir_emoji} <b>Action:</b> {action} <code>{signal.script}</code>\n"
+    msg += f"⏳ <b>Duration:</b> {duration_lbl}\n"
+    msg += f"📊 <b>Strategy:</b> {signal.strategy_name or 'Trend Following'}\n"
+    msg += f"⚠️ <b>Risk:</b> {risk}\n\n"
+
+    if signal.current_price:
+        try:
+            msg += f"💹 <b>LTP:</b> ₹{float(signal.current_price):,.2f}\n"
+        except (TypeError, ValueError):
+            pass
+
+    msg += f"💰 <b>Entry:</b> ₹{float(signal.buy_above):,.2f}\n"
+    msg += f"🛑 <b>Stop Loss:</b> ₹{float(signal.stop_loss):,.2f}\n"
+    if targets:
+        msg += f"🎯 <b>Targets:</b> {' / '.join(targets)}\n"
+
+    if signal.notes:
+        notes = signal.notes if len(signal.notes) <= 200 else signal.notes[:200] + '…'
+        msg += f"\n📝 <i>{notes}</i>\n"
+
+    msg += "\n<i>Place SL-Limit orders to avoid slippage on fast moves.</i>\n"
+    msg += f"\n⏰ <i>{datetime.now(timezone.utc).strftime('%d/%m/%Y %I:%M %p')} UTC</i>"
+    msg += "\n\n<a href='https://www.targetcapital.ai/dashboard/live-market-pulse'>View on Target Capital</a>"
+    return msg
+
+
+def send_daily_signal_telegram(signal) -> bool:
+    """Render a daily signal as an F&O-style HTML message and broadcast it.
+
+    Updates ``signal.shared_telegram`` + ``signal.telegram_shared_at`` on
+    success and commits the change.
+    """
+    try:
+        body = format_daily_signal_telegram(signal)
+        ok = send_telegram_message(body, parse_mode='HTML')
+        if ok:
+            from app import db
+            signal.shared_telegram = True
+            signal.telegram_shared_at = datetime.utcnow()
+            db.session.commit()
+        return ok
+    except Exception as e:
+        logger.error(f"send_daily_signal_telegram failed for signal id={getattr(signal, 'id', None)}: {e}")
+        return False
+
+
+def telegram_diagnostics() -> dict:
+    """Return a non-secret diagnostic snapshot of the current Telegram config.
+
+    Used by the Admin → Telegram page so an operator can see *why* sends are
+    failing in production (missing env, malformed token, wrong chat id, etc.)
+    without ever exposing the raw credentials.
+    """
+    token, chat_id = _get_telegram_config()
+    info = {
+        'token_present':   bool(token),
+        'token_format_ok': bool(re.fullmatch(r'\d+:[A-Za-z0-9_-]+', token or '')),
+        'token_preview':   (f"{token[:4]}…{token[-4:]}" if token and len(token) > 8 else ''),
+        'chat_id_present': bool(chat_id),
+        'chat_id_preview': chat_id if chat_id else '',
+        'bot_username':    None,
+        'bot_reachable':   False,
+        'error':           None,
+    }
+    if not info['token_present'] or not info['token_format_ok']:
+        info['error'] = 'TELEGRAM_BOT_TOKEN missing or malformed'
+        return info
+    try:
+        r = requests.get(
+            f"https://api.telegram.org/bot{token}/getMe",
+            timeout=HTTP_TIMEOUT_SECONDS,
+        )
+        if r.status_code == 200 and r.json().get('ok'):
+            info['bot_reachable'] = True
+            info['bot_username']  = r.json().get('result', {}).get('username')
+        else:
+            info['error'] = f"getMe failed: HTTP {r.status_code} — {r.text[:200]}"
+    except Exception as e:
+        info['error'] = f"getMe exception: {e}"
+    return info
 
 def format_message_for_whatsapp(message):
     """Format trading signal message for WhatsApp"""

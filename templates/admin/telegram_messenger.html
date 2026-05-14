@@ -1,0 +1,172 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}Telegram Messenger — Target Capital Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3" style="font-family:'Poppins',sans-serif;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0"><i class="fab fa-telegram-plane me-2 text-info"></i>Telegram Messenger</h3>
+        <span class="text-muted" style="font-size:13px;">Send broadcasts and re-share signals to the Telegram group</span>
+    </div>
+
+    {# ── Diagnostics card ───────────────────────────────────────────────────── #}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white"><strong>Configuration Diagnostics</strong></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center">
+                        <span style="width:170px;">Bot token present</span>
+                        {% if diag.token_present %}
+                            <span class="badge bg-success">YES ({{ diag.token_preview }})</span>
+                        {% else %}
+                            <span class="badge bg-danger">MISSING</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center">
+                        <span style="width:170px;">Token format valid</span>
+                        {% if diag.token_format_ok %}
+                            <span class="badge bg-success">OK</span>
+                        {% else %}
+                            <span class="badge bg-danger">BAD FORMAT</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center">
+                        <span style="width:170px;">Chat ID present</span>
+                        {% if diag.chat_id_present %}
+                            <span class="badge bg-success">YES ({{ diag.chat_id_preview }})</span>
+                        {% else %}
+                            <span class="badge bg-danger">MISSING</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center">
+                        <span style="width:170px;">Bot reachable</span>
+                        {% if diag.bot_reachable %}
+                            <span class="badge bg-success">YES — @{{ diag.bot_username }}</span>
+                        {% else %}
+                            <span class="badge bg-danger">NO</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if diag.error %}
+            <div class="alert alert-warning mt-3 mb-0" style="font-size:13px;">
+                <strong>Diagnostic note:</strong> {{ diag.error }}
+            </div>
+            {% endif %}
+
+            {% if not diag.token_present or not diag.chat_id_present %}
+            <div class="alert alert-danger mt-3 mb-0" style="font-size:13px;">
+                Set the <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code>
+                environment variables in your hosting dashboard (e.g. Railway → Variables),
+                then redeploy. The bot must already be a member of the target group/channel.
+            </div>
+            {% endif %}
+
+            <form method="POST" class="mt-3">
+                <input type="hidden" name="action" value="test">
+                <button type="submit" class="btn btn-outline-info btn-sm">
+                    <i class="fas fa-vial me-1"></i> Send test message to group
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {# ── Free-text broadcast ────────────────────────────────────────────────── #}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white"><strong>Send Custom Message</strong></div>
+        <div class="card-body">
+            <form method="POST">
+                <input type="hidden" name="action" value="send_text">
+                <div class="mb-2">
+                    <label class="form-label" style="font-size:13px;">
+                        Message body (HTML allowed: <code>&lt;b&gt; &lt;i&gt; &lt;code&gt; &lt;a&gt;</code>)
+                    </label>
+                    <textarea name="message" rows="6" class="form-control" required
+                              placeholder="📣 <b>Market Update</b>&#10;Nifty closed at 24,500…"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fab fa-telegram-plane me-1"></i> Send to Telegram
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {# ── Re-broadcast a daily signal ────────────────────────────────────────── #}
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <strong>Re-broadcast a Daily Signal</strong>
+            <a href="{{ url_for('admin.add_daily_signal') }}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-plus me-1"></i> Add new signal
+            </a>
+        </div>
+        <div class="card-body p-0">
+            {% if recent_signals %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size:13px;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>#</th>
+                            <th>Script</th>
+                            <th>Action</th>
+                            <th>Entry</th>
+                            <th>SL</th>
+                            <th>T1</th>
+                            <th>Status</th>
+                            <th>Sent?</th>
+                            <th class="text-end pe-3">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in recent_signals %}
+                        <tr>
+                            <td>{{ s.signal_date.strftime('%d %b %y') }}</td>
+                            <td>#{{ s.signal_number }}</td>
+                            <td><code>{{ s.script }}</code></td>
+                            <td>
+                                {% if s.action == 'BUY' %}
+                                <span class="badge bg-success">BUY</span>
+                                {% else %}
+                                <span class="badge bg-danger">SELL</span>
+                                {% endif %}
+                            </td>
+                            <td>₹{{ s.buy_above }}</td>
+                            <td>₹{{ s.stop_loss }}</td>
+                            <td>{{ ('₹' ~ s.target_1) if s.target_1 else '—' }}</td>
+                            <td><span class="badge bg-secondary">{{ s.status }}</span></td>
+                            <td>
+                                {% if s.shared_telegram %}
+                                <i class="fas fa-check-circle text-success" title="Sent {{ s.telegram_shared_at }}"></i>
+                                {% else %}
+                                <i class="fas fa-minus-circle text-muted"></i>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-3">
+                                <form method="POST" class="d-inline">
+                                    <input type="hidden" name="action" value="send_signal">
+                                    <input type="hidden" name="signal_id" value="{{ s.id }}">
+                                    <button type="submit" class="btn btn-sm btn-info">
+                                        <i class="fab fa-telegram-plane"></i>
+                                        {{ 'Re-send' if s.shared_telegram else 'Send' }}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-4 text-center text-muted">No daily signals yet.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
