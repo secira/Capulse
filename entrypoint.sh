@@ -34,6 +34,17 @@ if [ "${ENVIRONMENT}" = "production" ]; then
     else
         echo "  ✓ All required production env vars present"
     fi
+
+    # ─── Optional notification channel checks (non-blocking) ────────────
+    # Surface telegram credential status so the F&O / signal alerts
+    # don't silently fail in production.
+    if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${TELEGRAM_CHAT_ID}" ]; then
+        echo "  ℹ️  Telegram alerts DISABLED — set TELEGRAM_BOT_TOKEN and"
+        echo "     TELEGRAM_CHAT_ID in Railway Variables to enable."
+        echo "     After setting them, visit /admin/telegram to verify."
+    else
+        echo "  ✓ Telegram credentials present (verify at /admin/telegram)"
+    fi
     if [ "${RUN_MIGRATIONS}" = "1" ]; then
         echo "  ℹ️  RUN_MIGRATIONS=1 — schema/index migrations WILL run"
         echo "     (remove this flag after a successful deploy)"

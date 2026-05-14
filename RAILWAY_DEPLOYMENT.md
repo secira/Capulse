@@ -59,7 +59,7 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 | Variable | Description |
 |----------|-------------|
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_PHONE_NUMBER` | SMS / WhatsApp |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | F&O & I-Score alert channel |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | F&O, I-Score, and Daily Signal alert channel. Verify after deploy at **`/admin/telegram`** — the page runs live diagnostics (token format, bot reachability, chat ID presence) and lets admins send test broadcasts and re-share recent signals. New "Our Signal" entries auto-broadcast on create unless the admin unticks the box. |
 
 ### Auth
 | Variable | Description |
