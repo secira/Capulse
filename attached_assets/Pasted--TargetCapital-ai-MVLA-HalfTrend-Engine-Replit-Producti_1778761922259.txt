@@ -1,0 +1,634 @@
+# TargetCapital.ai — MVLA + HalfTrend Engine (Replit Production Version)
+
+This document contains:
+
+1. Final optimized architecture
+2. Complete signal flow
+3. Entry rules
+4. Confidence scoring
+5. HalfTrend integration
+6. Exit logic
+7. State machine
+8. Recommended thresholds
+9. Replit-ready optimized HalfTrend code
+10. Final production recommendations
+
+---
+
+# 1. FINAL ARCHITECTURE
+
+```text
+Market Data
+    ↓
+Time Filter
+    ↓
+Market Regime Filter
+    ↓
+Direction Engine
+    ↓
+Trigger Engine
+    ↓
+MVLA Scoring Engine
+    ↓
+HalfTrend Stability Layer
+    ↓
+Trade Recommendation
+    ↓
+HalfTrend Exit Management
+```
+
+---
+
+# 2. FINAL ENTRY LOGIC
+
+## Time Filter
+
+### HARD BLOCKS
+
+* Weekend
+* Before 9:25 AM IST
+* After 3:00 PM IST
+
+### Lunch Hour
+
+12:00–12:30 PM:
+
+Penalty:
+
+* NIFTY / FINNIFTY / SENSEX → -10
+* BANKNIFTY → -5
+
+---
+
+# 3. MARKET REGIME FILTER
+
+Block trade ONLY if 2 or more are true:
+
+| Condition            | Logic                        |
+| -------------------- | ---------------------------- |
+| EMA compression      | EMA gap < 0.03%              |
+| Range compression    | Current range < 0.6 × avg(5) |
+| Candle overlap       | Soft warning only            |
+| Volatility expansion | Bonus only                   |
+
+Volatility expansion:
+
+```python
+current_range > avg_range_5 * 1.2
+```
+
+Confidence bonus:
+
+```python
++10
+```
+
+---
+
+# 4. DIRECTION ENGINE
+
+## Use 5 directional checks
+
+Need:
+
+```python
+minimum 3/5 aligned
+```
+
+| Check        | Bullish        | Bearish        |
+| ------------ | -------------- | -------------- |
+| EMA Trend    | EMA9 > EMA21   | EMA9 < EMA21   |
+| EMA Momentum | Gap increasing | Gap increasing |
+| VWAP         | Spot > VWAP    | Spot < VWAP    |
+| RSI(7)       | > 52           | < 48           |
+| Volume       | > Avg Volume   | > Avg Volume   |
+
+---
+
+# REMOVED
+
+Supertrend removed as hard gate.
+
+Reason:
+
+* causes lag
+* duplicates ATR trend logic
+* HalfTrend already handles adaptive trend structure
+
+Supertrend can optionally add:
+
+```python
+confidence += 5
+```
+
+---
+
+# 5. ENTRY TRIGGERS
+
+Trade activates when ANY ONE trigger fires.
+
+---
+
+## 1. BREAKOUT
+
+Bullish:
+
+```python
+high > previous_high
+```
+
+Bearish:
+
+```python
+low < previous_low
+```
+
+Close confirmation:
+
+```python
++5 confidence
+```
+
+---
+
+## 2. RETEST
+
+Bullish:
+
+```python
+price retests VWAP from above
+AND closes above
+```
+
+Bearish:
+
+```python
+price retests VWAP from below
+AND closes below
+```
+
+---
+
+## 3. MOMENTUM ENTRY (IMPORTANT)
+
+This is the new early-entry logic.
+
+Bullish:
+
+```python
+RSI > 58
+AND EMA gap increasing
+AND current range > avg range
+AND volume > avg volume
+```
+
+Bearish:
+
+```python
+RSI < 42
+AND EMA gap increasing
+AND current range > avg range
+AND volume > avg volume
+```
+
+This solves:
+
+* late entries
+* missed option expansion
+* low signal count
+
+---
+
+## 4. PULLBACK IN TREND
+
+Bullish:
+
+```python
+price pulls back to EMA9
+RSI resets
+trend resumes
+```
+
+Bearish:
+
+```python
+price rejects EMA9
+RSI resets
+trend resumes
+```
+
+---
+
+# 6. CONFIDENCE SCORE
+
+## FINAL SCORING
+
+| Signal                   | Score  |
+| ------------------------ | ------ |
+| Direction + VWAP aligned | +20    |
+| Indicators aligned       | +15    |
+| DMI divergence           | +10    |
+| EMA distance > 0.12%     | +20    |
+| EMA distance > 0.08%     | +10    |
+| Fresh crossover          | +10    |
+| EMA distance increasing  | +10    |
+| RSI alignment            | +5     |
+| RSI acceleration         | +5     |
+| OI STRONG_SUPPORT        | +10    |
+| OI MILD_SUPPORT          | +5     |
+| OI OPPOSE                | -10    |
+| Trigger fired            | +15    |
+| Close confirmation       | +5     |
+| Volatility expansion     | +10    |
+| VWAP too far             | -10    |
+| Lunch hour               | -5/-10 |
+
+Final:
+
+```python
+score = max(0, min(score, 100))
+```
+
+---
+
+# 7. SIGNAL BANDS
+
+| Score | Action                |
+| ----- | --------------------- |
+| 75+   | High conviction alert |
+| 60–75 | Tradable              |
+| 50–60 | Aggressive            |
+| <50   | Ignore                |
+
+---
+
+# 8. HALF TREND ROLE
+
+HalfTrend is NOT the entry engine.
+
+It ONLY manages:
+
+* trend persistence
+* adaptive trailing
+* trend exits
+* trade continuation
+* structure stability
+
+---
+
+# 9. HALF TREND FEATURES
+
+HalfTrend now contains ONLY:
+
+* ATR adaptive trend
+* Structure breakout
+* Trend persistence
+* Volatility expansion
+* Trend stability score
+
+REMOVED:
+
+* EMA checks
+* RSI checks
+* VWAP checks
+* Volume checks
+* DMI checks
+* OI checks
+
+These already exist in MVLA.
+
+---
+
+# 10. HALF TREND EXIT LOGIC
+
+## Exit 1 — Trend Flip
+
+```python
+bullish → bearish
+```
+
+Exit CALL.
+
+---
+
+## Exit 2 — HalfTrend Break
+
+```python
+close crosses below halftrend
+```
+
+Partial exit.
+
+---
+
+## Exit 3 — Weakening Trend
+
+```python
+halftrend slope flattening
+AND EMA gap shrinking
+```
+
+Tighten stop loss.
+
+---
+
+# 11. FINAL STATE MACHINE
+
+```text
+NO_TRADE
+    ↓
+EARLY_MOMENTUM
+    ↓
+SETUP_READY
+    ↓
+TRADE_ACTIVE
+    ↓
+EXIT_MANAGED_BY_HALFTREND
+```
+
+---
+
+# 12. EXPECTED SIGNAL FREQUENCY
+
+| Market    | Signals/day |
+| --------- | ----------- |
+| NIFTY     | 2–4         |
+| BANKNIFTY | 3–6         |
+| FINNIFTY  | 1–3         |
+| SENSEX    | 1–2         |
+
+---
+
+# 13. REPLIT-READY HALF TREND CODE
+
+```python
+import numpy as np
+import pandas as pd
+
+
+# ======================================
+# Pine-style RMA
+# ======================================
+def pine_rma(series: pd.Series, length: int):
+
+    alpha = 1 / length
+
+    rma = np.zeros(len(series))
+
+    rma[0] = series.iloc[0]
+
+    for i in range(1, len(series)):
+        rma[i] = alpha * series.iloc[i] + (1 - alpha) * rma[i - 1]
+
+    return pd.Series(rma, index=series.index)
+
+
+# ======================================
+# ATR
+# ======================================
+def calculate_atr(df, length=14):
+
+    high = df["high"]
+    low = df["low"]
+    close = df["close"]
+
+    prev_close = close.shift(1)
+
+    tr = pd.concat([
+        high - low,
+        (high - prev_close).abs(),
+        (low - prev_close).abs()
+    ], axis=1).max(axis=1)
+
+    return pine_rma(tr, length)
+
+
+# ======================================
+# HalfTrend Engine
+# ======================================
+def halftrend_engine(
+    df,
+    amplitude=4,
+    atr_length=14,
+    channel_deviation=1.5
+):
+
+    data = df.copy().reset_index(drop=True)
+
+    high = data["high"]
+    low = data["low"]
+    close = data["close"]
+
+    atr = calculate_atr(data, atr_length)
+    atr_half = atr / 2
+
+    n = len(data)
+
+    trend = np.zeros(n, dtype=int)
+
+    halftrend = np.full(n, np.nan)
+
+    buy_exit = np.full(n, False)
+    sell_exit = np.full(n, False)
+
+    stability_score = np.full(n, 0.0)
+
+    rolling_high = high.rolling(amplitude).max()
+    rolling_low = low.rolling(amplitude).min()
+
+    avg_range_5 = (high - low).rolling(5).mean()
+    current_range = high - low
+
+    volatility_expansion = current_range > (avg_range_5 * 1.2)
+
+    current_trend = 0
+
+    for i in range(amplitude, n):
+
+        bullish_structure = close.iloc[i] > rolling_high.iloc[i - 1]
+        bearish_structure = close.iloc[i] < rolling_low.iloc[i - 1]
+
+        # -----------------------------
+        # Bullish Trend
+        # -----------------------------
+        if bullish_structure:
+
+            current_trend = 0
+
+            halftrend[i] = rolling_low.iloc[i] - atr_half.iloc[i]
+
+            if trend[i - 1] == 1:
+                buy_exit[i] = False
+
+        # -----------------------------
+        # Bearish Trend
+        # -----------------------------
+        elif bearish_structure:
+
+            current_trend = 1
+
+            halftrend[i] = rolling_high.iloc[i] + atr_half.iloc[i]
+
+            if trend[i - 1] == 0:
+                sell_exit[i] = False
+
+        else:
+
+            current_trend = trend[i - 1]
+            halftrend[i] = halftrend[i - 1]
+
+        trend[i] = current_trend
+
+        # -----------------------------
+        # Exit Conditions
+        # -----------------------------
+
+        # Exit CALL
+        if trend[i] == 0:
+            if close.iloc[i] < halftrend[i]:
+                buy_exit[i] = True
+
+        # Exit PUT
+        if trend[i] == 1:
+            if close.iloc[i] > halftrend[i]:
+                sell_exit[i] = True
+
+        # -----------------------------
+        # Stability Score
+        # -----------------------------
+        score = 0
+
+        # Trend persistence
+        if i >= 3:
+            if trend[i] == trend[i - 1] == trend[i - 2]:
+                score += 10
+
+        # Volatility expansion
+        if volatility_expansion.iloc[i]:
+            score += 15
+
+        # Price distance from HalfTrend
+        distance = abs(close.iloc[i] - halftrend[i])
+
+        if distance > atr.iloc[i] * 0.5:
+            score += 10
+
+        # Strong candle
+        if current_range.iloc[i] > avg_range_5.iloc[i]:
+            score += 10
+
+        stability_score[i] = min(score, 100)
+
+    result = data.copy()
+
+    result["trend"] = trend
+    result["halftrend"] = halftrend
+
+    result["buy_exit"] = buy_exit
+    result["sell_exit"] = sell_exit
+
+    result["stability_score"] = stability_score
+
+    result["volatility_expansion"] = volatility_expansion
+
+    return result
+```
+
+---
+
+# 14. FINAL TRADE LOGIC
+
+## CALL ENTRY
+
+```python
+IF:
+MVLA_SCORE >= 55
+AND bullish_direction_votes >= 3
+AND trigger_fired == TRUE
+
+THEN:
+BUY CE
+```
+
+---
+
+## PUT ENTRY
+
+```python
+IF:
+MVLA_SCORE >= 55
+AND bearish_direction_votes >= 3
+AND trigger_fired == TRUE
+
+THEN:
+BUY PE
+```
+
+---
+
+# 15. EXIT LOGIC
+
+## CALL EXIT
+
+```python
+IF:
+buy_exit == TRUE
+OR halftrend flips bearish
+```
+
+---
+
+## PUT EXIT
+
+```python
+IF:
+sell_exit == TRUE
+OR halftrend flips bullish
+```
+
+---
+
+# 16. FINAL PRODUCTION RECOMMENDATIONS
+
+## Best Timeframes
+
+| Index     | Timeframe |
+| --------- | --------- |
+| NIFTY     | 3m / 5m   |
+| BANKNIFTY | 3m        |
+| FINNIFTY  | 3m        |
+| SENSEX    | 5m        |
+
+---
+
+# 17. IMPORTANT SCALING RECOMMENDATIONS
+
+Do NOT:
+
+* scan every strike
+* use raw ticks directly
+* use every signal
+* stack duplicate indicators
+
+DO:
+
+* scan ATM ±5 strikes
+* aggregate internally
+* use confidence ranking
+* use websocket batching
+
+---
+
+# 18. FINAL ARCHITECTURE SUMMARY
+
+```text
+MVLA
+    =
+Market Intelligence Layer
+
+HalfTrend
+    =
+Trade Lifecycle + Exit Engine
+```
+
+This is the recommended production-grade architecture for TargetCapital.ai.

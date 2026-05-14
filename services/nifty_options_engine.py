@@ -1317,7 +1317,8 @@ class NiftyOptionsEngine:
                 breakout = cur_h > prev_h
                 close_confirmed = breakout and cur_c > prev_h
                 retest = vwap > 0 and cur_l <= vwap * 1.0008 and cur_c > vwap
-                momentum_entry = rsi > 60 and ema_widening
+                # Per spec: RSI > 58 (was > 60) + EMA gap widening
+                momentum_entry = rsi > 58 and ema_widening
                 if breakout:
                     reason = 'Bullish breakout — current high > previous high'
                     if close_confirmed:
@@ -1343,7 +1344,8 @@ class NiftyOptionsEngine:
                 breakout = cur_l < prev_l
                 close_confirmed = breakout and cur_c < prev_l
                 retest = vwap > 0 and cur_h >= vwap * 0.9992 and cur_c < vwap
-                momentum_entry = rsi < 40 and ema_widening
+                # Per spec: RSI < 42 (was < 40) + EMA gap widening
+                momentum_entry = rsi < 42 and ema_widening
                 if breakout:
                     reason = 'Bearish breakdown — current low < previous low'
                     if close_confirmed:
@@ -1417,21 +1419,21 @@ class NiftyOptionsEngine:
         bull_oi = self._classify_oi(oi_window_diff, 'BULLISH')
         bear_oi = self._classify_oi(oi_window_diff, 'BEARISH')
 
-        # SOFT scoring — direction fires when ≥4 of 6 sub-conditions agree.
-        # 6th vote is now Volume-vs-20-bar-avg (more reliable than OI intraday).
+        # SOFT scoring — per MVLA + HalfTrend spec, direction fires when
+        # ≥3 of 5 sub-conditions agree. Supertrend is REMOVED from voting
+        # (it lags + duplicates ATR trend logic that HalfTrend now owns);
+        # it remains as a +5 confidence bonus when aligned (see _confidence_score).
         # EMA trend acts as both a scoring point AND a hard guard against contradictions.
         bull_checks = [
             ema_trend == 'BULLISH',                           # 1. EMA trend bullish
             ema_crossover or ema_dist_rising,                 # 2. EMA momentum
-            supertrend_signal == 'BUY',                       # 3. Supertrend
-            spot > vwap,                                      # 4. VWAP alignment
-            rsi > 52,                                         # 5. RSI > 52 (relaxed)
-            vol_above_avg,                                    # 6. Volume confirms participation
+            spot > vwap,                                      # 3. VWAP alignment
+            rsi > 52,                                         # 4. RSI > 52 (relaxed)
+            vol_above_avg,                                    # 5. Volume confirms participation
         ]
         bear_checks = [
             ema_trend == 'BEARISH',
             ema_crossover or ema_dist_rising,
-            supertrend_signal == 'SELL',
             spot < vwap,
             rsi < 48,
             vol_above_avg,
@@ -1439,9 +1441,9 @@ class NiftyOptionsEngine:
         bull_score = sum(bull_checks)
         bear_score = sum(bear_checks)
 
-        # ≥4 of 6 + EMA trend cannot be the opposite (avoid contradictions)
-        bullish = bull_score >= 4 and ema_trend != 'BEARISH'
-        bearish = bear_score >= 4 and ema_trend != 'BULLISH'
+        # ≥3 of 5 + EMA trend cannot be the opposite (avoid contradictions)
+        bullish = bull_score >= 3 and ema_trend != 'BEARISH'
+        bearish = bear_score >= 3 and ema_trend != 'BULLISH'
         # Both CE and PE can be active simultaneously
         if bullish and bearish:
             direction = 'BOTH'
@@ -1480,10 +1482,10 @@ class NiftyOptionsEngine:
             'oi_role': oi_role,
             'oi_blocks_candidate': oi_block_dir,
             'indicators_aligned': bullish or bearish,
-            # 4-of-6 soft scoring exposed for UI / debugging
+            # 3-of-5 soft scoring exposed for UI / debugging
             'bull_score': bull_score,
             'bear_score': bear_score,
-            'score_max': 6,
+            'score_max': 5,
             # EMA momentum used for direction decision
             'ema_trend': ema_trend,
             'ema_crossover': ema_crossover,
@@ -1558,7 +1560,8 @@ class NiftyOptionsEngine:
 
     def _confidence_score(self, direction: dict, strength: dict, oi_diff: float,
                           trigger: Optional[dict] = None, time_check: Optional[dict] = None,
-                          spot: float = 0.0, regime: Optional[dict] = None) -> int:
+                          spot: float = 0.0, regime: Optional[dict] = None,
+                          halftrend: Optional[dict] = None) -> int:
         score = 0
         # Direction agreement
         if direction['spot_vs_vwap'] in ['ABOVE', 'BELOW'] and direction['direction'] != 'NEUTRAL':
@@ -1568,14 +1571,35 @@ class NiftyOptionsEngine:
         if direction['dmi_plus'] != direction['dmi_minus']:
             score += 10
 
-        # EMA momentum strength — rescaled to relaxed thresholds (0.03/0.08/0.15)
+        # EMA momentum strength — per MVLA spec thresholds (0.08 / 0.12)
         ema_dist = strength.get('ema_distance_pct', 0.0)
-        if ema_dist >= 0.15:
+        if ema_dist >= 0.12:
             score += 20
         elif ema_dist >= 0.08:
-            score += 15
-        elif ema_dist >= 0.03:
             score += 10
+        elif ema_dist >= 0.03:
+            score += 5
+
+        # Supertrend bonus — moved out of direction voting; only a confidence
+        # tailwind when it agrees with the chosen direction.
+        st_signal = direction.get('supertrend')
+        _dir_now = direction.get('direction')
+        if (_dir_now in ('BULLISH', 'BOTH') and st_signal == 'BUY') or \
+           (_dir_now in ('BEARISH', 'BOTH') and st_signal == 'SELL'):
+            score += 5
+
+        # HalfTrend stability layer — per spec: only manages lifecycle, but
+        # a stable, aligned HalfTrend is a strong tailwind for entry too.
+        if halftrend and halftrend.get('available'):
+            ht_trend = halftrend.get('trend')
+            ht_aligned = (
+                (_dir_now in ('BULLISH', 'BOTH') and ht_trend == 'BULLISH') or
+                (_dir_now in ('BEARISH', 'BOTH') and ht_trend == 'BEARISH')
+            )
+            if ht_aligned:
+                score += 5
+                if halftrend.get('stability_score', 0) >= 50:
+                    score += 10  # strong, persistent HalfTrend
 
         # EMA crossover bonus — fresh crossover is a strong momentum signal
         if strength.get('ema_crossover'):
@@ -1937,6 +1961,23 @@ class NiftyOptionsEngine:
             ema_data=strength.get('ema', {}),
         )
 
+        # ── HalfTrend lifecycle layer ─────────────────────────────────
+        # Per spec, HalfTrend manages trade lifecycle (persistence + exits)
+        # and acts as a confidence tailwind when it aligns with direction.
+        try:
+            from services.halftrend import compute_state as _ht_compute_state
+            halftrend_state = _ht_compute_state(candles_df)
+        except Exception as _e:
+            logger.warning(f"HalfTrend compute_state failed: {_e}")
+            halftrend_state = {
+                'available': False, 'trend': 'NEUTRAL',
+                'halftrend_level': 0.0, 'stability_score': 0,
+                'volatility_expansion': False,
+                'buy_exit': False, 'sell_exit': False,
+                'trend_persistence': 0,
+                'reason': 'HalfTrend module error',
+            }
+
         # Entry Trigger Validation — runs after direction is decided.
         # Now accepts RSI + EMA-widening so the MOMENTUM entry path can fire
         # without waiting for a fresh candle break.
@@ -1951,6 +1992,7 @@ class NiftyOptionsEngine:
         )
 
         confidence = self._confidence_score(direction, strength, oi_window_diff,
+                                            halftrend=halftrend_state,
                                             trigger=trigger, time_check=time_check,
                                             spot=spot, regime=regime)
 
@@ -1975,6 +2017,21 @@ class NiftyOptionsEngine:
         # Estimated premiums can be 30–100% off real market prices, making entry/SL/target useless.
         if _estimated_data:
             entry_mode = 'NO TRADE'
+
+        # HalfTrend lifecycle hand-off — when HalfTrend has flipped against
+        # the chosen direction, suppress new entries (existing positions move
+        # to the EXIT_MANAGED_BY_HALFTREND state below).
+        if (halftrend_state.get('available') and direction['direction'] != 'NEUTRAL'):
+            ht_dir_now = halftrend_state.get('trend')
+            ht_against = (
+                (direction['direction'] in ('BULLISH', 'BOTH') and ht_dir_now == 'BEARISH') or
+                (direction['direction'] in ('BEARISH', 'BOTH') and ht_dir_now == 'BULLISH')
+            )
+            if ht_against and entry_mode != 'NO TRADE':
+                entry_mode = 'NO TRADE'
+                block_reasons.append(
+                    f"HalfTrend flipped {ht_dir_now} — opposes {direction['direction']} entry"
+                )
 
         bull_active    = direction.get('bull_active', False)
         bear_active    = direction.get('bear_active', False)
@@ -2001,19 +2058,46 @@ class NiftyOptionsEngine:
             block_reasons.append("OI advisory: opposing flow detected (confidence reduced, not blocked)")
         # Direction not aligned
         if not direction['indicators_aligned'] and direction['direction'] == 'NEUTRAL':
-            block_reasons.append("No clear direction — fewer than 4 of 6 indicators agree")
+            block_reasons.append("No clear direction — fewer than 3 of 5 indicators agree")
 
-        # Setup state machine
+        # Setup state machine — per MVLA + HalfTrend spec:
+        #   NO_TRADE → EARLY_MOMENTUM → SETUP_READY → TRADE_ACTIVE → EXIT_MANAGED_BY_HALFTREND
+        # We retain the legacy state names (SETUP_FORMING, SETUP_READY_WAIT_TRIGGER,
+        # TRADE_RECOMMENDED) for backward compatibility with any consumers and
+        # add the new states alongside.
+        ht_aligned_now = (
+            halftrend_state.get('available') and (
+                (direction['direction'] in ('BULLISH', 'BOTH') and halftrend_state.get('trend') == 'BULLISH') or
+                (direction['direction'] in ('BEARISH', 'BOTH') and halftrend_state.get('trend') == 'BEARISH')
+            )
+        )
+        ht_exit_fired = bool(
+            halftrend_state.get('available') and (
+                (direction['direction'] in ('BULLISH', 'BOTH') and halftrend_state.get('buy_exit')) or
+                (direction['direction'] in ('BEARISH', 'BOTH') and halftrend_state.get('sell_exit'))
+            )
+        )
+
         setup_state = 'NO_TRADE'
         if not time_check['pass'] or not regime['pass'] or (strength['no_trade_zone'] and not weak_trend_bypass):
             setup_state = 'NO_TRADE'
         elif not direction['indicators_aligned']:
-            setup_state = 'SETUP_FORMING'
+            # EARLY_MOMENTUM = building setup with at least 2/5 votes on the leading side
+            leading_votes = max(direction.get('bull_score', 0), direction.get('bear_score', 0))
+            setup_state = 'EARLY_MOMENTUM' if leading_votes >= 2 else 'SETUP_FORMING'
         elif direction['indicators_aligned'] and not trigger['triggered']:
-            setup_state = 'SETUP_READY_WAIT_TRIGGER'
+            setup_state = 'SETUP_READY'  # spec name; was SETUP_READY_WAIT_TRIGGER
             block_reasons.append(trigger['reason'])
         elif direction['indicators_aligned'] and trigger['triggered']:
-            setup_state = 'TRADE_RECOMMENDED'
+            # If a HalfTrend exit has just fired against the direction, hand
+            # over to the lifecycle layer instead of recommending a fresh entry.
+            if ht_exit_fired:
+                setup_state = 'EXIT_MANAGED_BY_HALFTREND'
+                block_reasons.append(
+                    f"HalfTrend exit fired — close crossed {halftrend_state.get('halftrend_level')}"
+                )
+            else:
+                setup_state = 'TRADE_ACTIVE'  # spec name; was TRADE_RECOMMENDED
 
         # Unified decision — confidence tiering (per product spec):
         #   ≥75 : Tier 1 — High conviction (Telegram alerts)
@@ -2087,6 +2171,26 @@ class NiftyOptionsEngine:
         for t in next_trades:
             t['trade_reasons'] = self._generate_trade_reasons(t, direction, strength, oi_signal, trigger=trigger)
 
+        # Per-trade HalfTrend exit hint — UI/Trade Now can use this to manage
+        # an open position. CALL trades watch buy_exit, PUT trades watch sell_exit.
+        ht_level = halftrend_state.get('halftrend_level', 0.0)
+        ht_avail = halftrend_state.get('available', False)
+        for t in current_trades + next_trades:
+            side = t.get('side')
+            exit_now = bool(
+                ht_avail and (
+                    (side == 'CALL' and halftrend_state.get('buy_exit')) or
+                    (side == 'PUT'  and halftrend_state.get('sell_exit'))
+                )
+            )
+            t['halftrend_exit'] = {
+                'available':       ht_avail,
+                'level':           ht_level,
+                'exit_now':        exit_now,
+                'stability_score': halftrend_state.get('stability_score', 0),
+                'trail_to':        ht_level if ht_avail else None,
+            }
+
         # OI status uses confirmation classification (not the old hard threshold)
         oi_role = direction.get('oi_role', 'NEUTRAL')
         if oi_role == 'STRONG_SUPPORT':
@@ -2099,6 +2203,19 @@ class NiftyOptionsEngine:
             oi_status = 'warn' if abs(oi_window_diff) > 0.10 else 'pass'  # neutral OI is allowed
 
         rsi_v = direction.get('rsi', 50) or 50
+        # HalfTrend layer status — pass when aligned with direction & stable,
+        # fail when an exit has just fired, warn otherwise.
+        if not halftrend_state.get('available'):
+            ht_layer_status = 'warn'
+        elif ht_exit_fired:
+            ht_layer_status = 'fail'
+        elif ht_aligned_now and halftrend_state.get('stability_score', 0) >= 50:
+            ht_layer_status = 'pass'
+        elif ht_aligned_now:
+            ht_layer_status = 'warn'
+        else:
+            ht_layer_status = 'fail' if direction['direction'] != 'NEUTRAL' else 'warn'
+
         layer_status = {
             'time': 'pass' if time_check['pass'] else 'fail',
             'regime': 'pass' if regime['pass'] else 'fail',
@@ -2107,6 +2224,7 @@ class NiftyOptionsEngine:
             'rsi': 'pass' if (rsi_v > 55 or rsi_v < 45) else 'fail',
             'trigger': 'pass' if trigger.get('triggered') else 'fail',
             'oi': oi_status,
+            'halftrend': ht_layer_status,
         }
 
         # Display confidence — must reflect tradability, not just raw signal strength.
@@ -2135,6 +2253,7 @@ class NiftyOptionsEngine:
             'oi_analysis': oi_metrics,
             'regime': regime,
             'trigger': trigger,
+            'halftrend': halftrend_state,
             'setup_state': setup_state,
             'confidence': display_confidence,
             'signal_strength': signal_strength,
