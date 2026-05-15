@@ -1031,6 +1031,104 @@ def daily_signals(page=1):
                           status_filter=status_filter)
 
 
+@admin_bp.route('/api/live-price', methods=['GET'])
+@admin_required
+def api_live_price():
+    """Fetch the live market price for the asset described by the
+    'Add Daily Signal' form.
+
+    Query params:
+      asset_type   = NIFTY | BANKNIFTY | SENSEX | FINNIFTY | STOCK
+      sub_type     = CE | PE | FUT | EQ          (optional)
+      symbol       = stock symbol               (required when asset_type=STOCK)
+      strike_price = strike (for CE/PE)         (required when sub_type in CE,PE)
+
+    Returns: { success, price, source, label }
+    """
+    asset_type = (request.args.get('asset_type') or '').upper()
+    sub_type   = (request.args.get('sub_type') or '').upper()
+    symbol     = (request.args.get('symbol') or '').upper()
+    strike_raw = request.args.get('strike_price')
+
+    if not asset_type:
+        return jsonify({'success': False, 'error': 'asset_type required'}), 400
+
+    is_index = asset_type in ('NIFTY', 'BANKNIFTY', 'SENSEX', 'FINNIFTY')
+
+    # ── Index option (CE / PE) → look up strike LTP from option chain ──
+    if is_index and sub_type in ('CE', 'PE'):
+        try:
+            strike = float(strike_raw) if strike_raw else None
+        except (TypeError, ValueError):
+            strike = None
+        if not strike:
+            return jsonify({'success': False, 'error': 'strike_price required for CE/PE'}), 400
+        try:
+            from services.dhan_service import get_option_chain
+            data = get_option_chain(asset_type)
+            chain = (data or {}).get('option_chain') or {}
+            key   = f"{int(strike)}{sub_type}"
+            row   = chain.get(key) or chain.get(f"{strike:g}{sub_type}")
+            ltp   = float(row.get('ltp', 0)) if row else 0.0
+            if ltp > 0:
+                return jsonify({
+                    'success': True, 'price': round(ltp, 2),
+                    'source':  data.get('source', 'Dhan'),
+                    'label':   f"{asset_type} {int(strike)} {sub_type}",
+                    'spot':    round(float(data.get('spot_price') or 0), 2),
+                })
+            return jsonify({'success': False,
+                            'error': f'No live LTP for {asset_type} {int(strike)} {sub_type} (strike not in chain or market closed)'}), 404
+        except Exception as e:
+            logger.error(f"live-price option lookup failed: {e}")
+            return jsonify({'success': False, 'error': f'Option chain unavailable: {e}'}), 502
+
+    # ── Index spot (FUT or no sub_type) ───────────────────────────────
+    if is_index:
+        try:
+            from services.dhan_service import get_option_chain
+            spot = float((get_option_chain(asset_type) or {}).get('spot_price') or 0)
+            if spot > 0:
+                return jsonify({'success': True, 'price': round(spot, 2),
+                                'source': 'Dhan', 'label': f"{asset_type} Spot"})
+        except Exception as e:
+            logger.debug(f"index spot via Dhan failed: {e}")
+        # Fallback: yfinance fast_info on the index ticker
+        yf_map = {'NIFTY': '^NSEI', 'BANKNIFTY': '^NSEBANK',
+                  'FINNIFTY': 'NIFTY_FIN_SERVICE.NS', 'SENSEX': '^BSESN'}
+        try:
+            import yfinance as yf
+            fi = yf.Ticker(yf_map[asset_type]).fast_info
+            ltp = float(getattr(fi, 'last_price', 0) or 0)
+            if ltp > 0:
+                return jsonify({'success': True, 'price': round(ltp, 2),
+                                'source': 'yfinance', 'label': f"{asset_type} Spot"})
+        except Exception as e:
+            logger.warning(f"yfinance index spot failed for {asset_type}: {e}")
+        return jsonify({'success': False, 'error': f'No live price available for {asset_type}'}), 404
+
+    # ── Stock (EQ / FUT / CE / PE) ────────────────────────────────────
+    if asset_type == 'STOCK':
+        if not symbol:
+            return jsonify({'success': False, 'error': 'symbol required for STOCK'}), 400
+        try:
+            from services.nse_realtime_service import get_stock_quote
+            uid = session.get('user_id') or session.get('admin_user_id')
+            data = get_stock_quote(symbol, user_id=uid) or {}
+            if data.get('success') and data.get('price', 0) > 0:
+                return jsonify({'success': True,
+                                'price':  round(float(data['price']), 2),
+                                'source': data.get('source', 'NSE'),
+                                'label':  f"{symbol} Spot"})
+            return jsonify({'success': False,
+                            'error': data.get('error', f'No live price for {symbol}')}), 404
+        except Exception as e:
+            logger.error(f"live-price stock lookup failed: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 502
+
+    return jsonify({'success': False, 'error': f'Unsupported asset_type {asset_type}'}), 400
+
+
 @admin_bp.route('/daily-signals/add', methods=['GET', 'POST'])
 @admin_required
 def add_daily_signal():

@@ -116,9 +116,12 @@
                             <label class="form-label">Current Market Price</label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
-                                <input type="number" step="0.05" name="current_price" class="form-control" placeholder="Live market price">
+                                <input type="number" step="0.05" name="current_price" id="currentPrice" class="form-control" placeholder="Auto-fetched from market">
+                                <button type="button" class="btn btn-outline-primary" id="fetchLiveBtn" onclick="fetchLivePrice()" title="Fetch live price from broker / NSE">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
                             </div>
-                            <div class="form-text">Optional — shown on the signals page.</div>
+                            <div class="form-text" id="livePriceHint">Fills automatically when you complete the asset details above.</div>
                         </div>
 
                         <div class="col-md-4 mb-3">
@@ -219,6 +222,90 @@ function updateFormFields() {
         optionFields.style.display = 'none';
         strikePriceInput.required = false;
     }
+    maybeAutoFetch();
 }
+
+// ── Live price auto-fetch ─────────────────────────────────────────────
+let _livePriceTimer = null;
+let _lastFetchKey   = '';
+
+function _formKey() {
+    return [
+        document.getElementById('assetType').value,
+        document.getElementById('subType').value,
+        (document.getElementById('symbol').value || '').trim().toUpperCase(),
+        (document.getElementById('strikePrice').value || '').trim()
+    ].join('|');
+}
+
+function _formReadyForFetch() {
+    const a = document.getElementById('assetType').value;
+    const s = document.getElementById('subType').value;
+    const sym = (document.getElementById('symbol').value || '').trim();
+    const k = (document.getElementById('strikePrice').value || '').trim();
+    if (!a) return false;
+    if (a === 'STOCK' && !sym) return false;
+    if ((s === 'CE' || s === 'PE') && !k) return false;
+    return true;
+}
+
+function maybeAutoFetch() {
+    clearTimeout(_livePriceTimer);
+    if (!_formReadyForFetch()) return;
+    const key = _formKey();
+    if (key === _lastFetchKey) return;
+    _livePriceTimer = setTimeout(() => fetchLivePrice(true), 500);
+}
+
+async function fetchLivePrice(silent) {
+    const btn   = document.getElementById('fetchLiveBtn');
+    const input = document.getElementById('currentPrice');
+    const hint  = document.getElementById('livePriceHint');
+    if (!_formReadyForFetch()) {
+        if (!silent) { hint.textContent = 'Fill in Asset Type, Instrument Type, Symbol/Strike first.'; hint.className = 'form-text text-warning'; }
+        return;
+    }
+    const params = new URLSearchParams({
+        asset_type:   document.getElementById('assetType').value,
+        sub_type:     document.getElementById('subType').value,
+        symbol:       (document.getElementById('symbol').value || '').toUpperCase(),
+        strike_price: document.getElementById('strikePrice').value || ''
+    });
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    hint.textContent = 'Fetching live price…';
+    hint.className   = 'form-text text-muted';
+    try {
+        const resp = await fetch(`{{ url_for('admin.api_live_price') }}?${params.toString()}`,
+                                 { credentials: 'same-origin' });
+        const data = await resp.json();
+        if (data.success && data.price) {
+            input.value = data.price;
+            _lastFetchKey = _formKey();
+            // Also seed Buy Above with the live price if it's empty,
+            // so the admin only has to tweak it.
+            const buyAbove = document.querySelector('input[name="buy_above"]');
+            if (buyAbove && !buyAbove.value) buyAbove.value = data.price;
+            hint.textContent = `Live: ₹${data.price} (${data.source}) — ${data.label}`;
+            hint.className   = 'form-text text-success';
+        } else {
+            hint.textContent = data.error || 'No live price available.';
+            hint.className   = 'form-text text-danger';
+        }
+    } catch (e) {
+        hint.textContent = 'Live price fetch failed: ' + e.message;
+        hint.className   = 'form-text text-danger';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    ['symbol', 'strikePrice'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', maybeAutoFetch);
+    });
+});
 </script>
 {% endblock %}
