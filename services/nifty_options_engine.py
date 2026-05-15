@@ -2137,19 +2137,23 @@ class NiftyOptionsEngine:
         current_trades = []
         next_trades = []
 
-        # Always scan and surface BOTH calls and puts on every cycle so the
-        # trader sees the full option ladder. Mark each strike with the
-        # engine's `aligned` flag (matches current direction) so the UI can
-        # highlight the preferred side without hiding the other.
-        ce_strikes = self._select_strikes(spot, 'BULLISH')
-        pe_strikes = self._select_strikes(spot, 'BEARISH')
-        for s in ce_strikes:
-            s['aligned'] = bull_active or trade_direction in ('BULLISH', 'BOTH')
-            s['side']    = 'CALL'
-        for s in pe_strikes:
-            s['aligned'] = bear_active or trade_direction in ('BEARISH', 'BOTH')
-            s['side']    = 'PUT'
-        raw_strikes = ce_strikes + pe_strikes
+        # Surface ONLY the side that matches the current market direction.
+        # BULLISH → 3 CE strikes (ATM/OTM/ITM).  BEARISH → 3 PE strikes.
+        # BOTH / NEUTRAL (rare — both sides aligned or neither): show both
+        # so the trader still sees the full ladder and can pick.
+        raw_strikes = []
+        if trade_direction in ('BULLISH', 'BOTH', 'NEUTRAL'):
+            ce_strikes = self._select_strikes(spot, 'BULLISH')
+            for s in ce_strikes:
+                s['aligned'] = bull_active or trade_direction in ('BULLISH', 'BOTH')
+                s['side']    = 'CALL'
+            raw_strikes += ce_strikes
+        if trade_direction in ('BEARISH', 'BOTH', 'NEUTRAL'):
+            pe_strikes = self._select_strikes(spot, 'BEARISH')
+            for s in pe_strikes:
+                s['aligned'] = bear_active or trade_direction in ('BEARISH', 'BOTH')
+                s['side']    = 'PUT'
+            raw_strikes += pe_strikes
 
         current_expiry_info = {
             'date': expiry_picks.get('current_date', ''),
