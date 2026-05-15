@@ -173,12 +173,6 @@ def format_daily_signal_telegram(signal) -> str:
     msg += f"📊 <b>Strategy:</b> {signal.strategy_name or 'Trend Following'}\n"
     msg += f"⚠️ <b>Risk:</b> {risk}\n\n"
 
-    if signal.current_price:
-        try:
-            msg += f"💹 <b>LTP:</b> ₹{float(signal.current_price):,.2f}\n"
-        except (TypeError, ValueError):
-            pass
-
     msg += f"💰 <b>Entry:</b> ₹{float(signal.buy_above):,.2f}\n"
     msg += f"🛑 <b>Stop Loss:</b> ₹{float(signal.stop_loss):,.2f}\n"
     if targets:
