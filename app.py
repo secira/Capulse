@@ -431,6 +431,7 @@ with app.app_context():
     # ADD COLUMN IF NOT EXISTS is idempotent — no-op when column already exists.
     _pending_migrations = [
         'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT \'en\'',
+        'ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS expiry_date DATE',
         'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS asset_type VARCHAR(20) DEFAULT \'STOCK\'',
         'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS instrument_detail VARCHAR(100) DEFAULT \'\'',
         'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS sync_status VARCHAR(20) DEFAULT \'pending\'',

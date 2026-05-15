@@ -170,6 +170,12 @@ def format_daily_signal_telegram(signal) -> str:
     msg  = f"{type_emoji} <b>Our Signal #{signal.signal_number} — {asset}</b>\n\n"
     msg += f"{dir_emoji} <b>Action:</b> {action} <code>{signal.script}</code>\n"
     msg += f"⏳ <b>Duration:</b> {duration_lbl}\n"
+    expiry = getattr(signal, 'expiry_date', None)
+    if expiry:
+        try:
+            msg += f"📅 <b>Expiry:</b> {expiry.strftime('%d %b %Y')}\n"
+        except Exception:
+            msg += f"📅 <b>Expiry:</b> {expiry}\n"
     msg += f"📊 <b>Strategy:</b> {signal.strategy_name or 'Trend Following'}\n"
     msg += f"⚠️ <b>Risk:</b> {risk}\n\n"
 

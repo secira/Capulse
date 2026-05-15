@@ -2940,6 +2940,7 @@ class DailyTradingSignal(db.Model):
     symbol = db.Column(db.String(50), nullable=False)  # e.g., 'NIFTY', 'RELIANCE'
     strike_price = db.Column(db.Numeric(12, 2), nullable=True)  # Strike price for options
     strike_type = db.Column(db.String(10), nullable=True)  # 'ATM', 'OTM', 'ITM'
+    expiry_date = db.Column(db.Date, nullable=True)  # Contract expiry (for options/futures). NULL for equity.
     script = db.Column(db.String(100), nullable=False)  # Full script name e.g., 'NIFTY-26300-PE'
     
     # Trading duration

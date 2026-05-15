@@ -65,6 +65,12 @@
                                 <option value="OTM" {{ 'selected' if signal.strike_type == 'OTM' else '' }}>OTM (Out of The Money)</option>
                             </select>
                         </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Expiry</label>
+                            <input type="date" name="expiry_date" class="form-control"
+                                   value="{{ signal.expiry_date.strftime('%Y-%m-%d') if signal.expiry_date else '' }}">
+                            <div class="form-text">Contract expiry date.</div>
+                        </div>
                     </div>
                     
                     <hr class="my-4">
@@ -125,17 +131,6 @@
                     <h5 class="mb-3"><i class="fas fa-chart-area me-2"></i>Price Levels</h5>
                     
                     <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Current Market Price</label>
-                            <div class="input-group">
-                                <span class="input-group-text">₹</span>
-                                <input type="number" step="0.05" name="current_price" class="form-control"
-                                       value="{{ signal.current_price if signal.current_price is not none else '' }}"
-                                       placeholder="Live market price">
-                            </div>
-                            <div class="form-text">Optional — shown on the signals page.</div>
-                        </div>
-
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Entry Price (Buy Above) <span class="text-danger">*</span></label>
                             <div class="input-group">

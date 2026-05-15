@@ -64,6 +64,18 @@
                                 <option value="OTM">OTM (Out of The Money)</option>
                             </select>
                         </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Expiry <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <select name="expiry_date" id="expiryDate" class="form-select">
+                                    <option value="">Loading expiries…</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-primary" id="reloadExpiryBtn" onclick="loadExpiries(true)" title="Reload expiry list">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                            <div class="form-text" id="expiryHint">Select a contract date.</div>
+                        </div>
                     </div>
                     
                     <hr class="my-4">
@@ -230,11 +242,13 @@ let _livePriceTimer = null;
 let _lastFetchKey   = '';
 
 function _formKey() {
+    const exp = document.getElementById('expiryDate');
     return [
         document.getElementById('assetType').value,
         document.getElementById('subType').value,
         (document.getElementById('symbol').value || '').trim().toUpperCase(),
-        (document.getElementById('strikePrice').value || '').trim()
+        (document.getElementById('strikePrice').value || '').trim(),
+        (exp && exp.value) || ''
     ].join('|');
 }
 
@@ -269,11 +283,13 @@ async function fetchLivePrice(silent) {
         if (!silent) { hint.textContent = 'Fill in Asset Type, Instrument Type, Symbol/Strike first.'; hint.className = 'form-text text-warning'; }
         return;
     }
+    const expEl = document.getElementById('expiryDate');
     const params = new URLSearchParams({
         asset_type:   document.getElementById('assetType').value,
         sub_type:     document.getElementById('subType').value,
         symbol:       (document.getElementById('symbol').value || '').toUpperCase(),
-        strike_price: document.getElementById('strikePrice').value || ''
+        strike_price: document.getElementById('strikePrice').value || '',
+        expiry:       (expEl && expEl.value) || ''
     });
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
@@ -294,10 +310,10 @@ async function fetchLivePrice(silent) {
             hint.className   = 'form-text text-success';
         } else if (data.soft) {
             // Soft fail (typical for option strikes outside the active chain
-            // or after market hours). Leave the field blank for manual entry
-            // — no red error.
-            hint.textContent = data.message || 'Enter the price manually.';
-            hint.className   = 'form-text text-muted';
+            // or after market hours). Show WHY so admin can act on it.
+            const why = (data.reasons && data.reasons.length) ? ' — ' + data.reasons.join(' • ') : '';
+            hint.textContent = (data.message || 'Enter the price manually.') + why;
+            hint.className   = 'form-text text-warning';
         } else {
             hint.textContent = data.error || 'No live price available.';
             hint.className   = 'form-text text-danger';
@@ -311,10 +327,60 @@ async function fetchLivePrice(silent) {
     }
 }
 
+// ── Expiry list loader ────────────────────────────────────────────────
+async function loadExpiries(force) {
+    const sel  = document.getElementById('expiryDate');
+    const hint = document.getElementById('expiryHint');
+    const at   = document.getElementById('assetType').value;
+    const st   = document.getElementById('subType').value;
+    if (!sel) return;
+    // Only options/futures need expiry.
+    if (!['NIFTY','BANKNIFTY','SENSEX','FINNIFTY'].includes(at) || !['CE','PE','FUT'].includes(st)) {
+        sel.innerHTML = '<option value="">—</option>';
+        return;
+    }
+    sel.innerHTML = '<option value="">Loading…</option>';
+    hint.textContent = 'Fetching expiry list…';
+    hint.className   = 'form-text text-muted';
+    try {
+        const r = await fetch(`{{ url_for('admin.api_expiries') }}?asset_type=${encodeURIComponent(at)}`,
+                              { credentials: 'same-origin' });
+        const d = await r.json();
+        if (d.success && d.expiries && d.expiries.length) {
+            sel.innerHTML = '<option value="">Select expiry…</option>' +
+                d.expiries.map(e => {
+                    const lbl = new Date(e).toLocaleDateString('en-IN',
+                        { day:'2-digit', month:'short', year:'numeric' });
+                    return `<option value="${e}">${lbl}</option>`;
+                }).join('');
+            // Pre-select the nearest expiry (first in list).
+            sel.value = d.expiries[0];
+            hint.textContent = `${d.expiries.length} expiries (${d.source})`;
+            hint.className   = 'form-text text-success';
+            maybeAutoFetch();
+        } else {
+            sel.innerHTML = '<option value="">No expiries — pick a date</option>';
+            hint.textContent = d.message || 'Expiry list unavailable.';
+            hint.className   = 'form-text text-warning';
+        }
+    } catch (e) {
+        sel.innerHTML = '<option value="">Error loading expiries</option>';
+        hint.textContent = 'Failed to load expiries: ' + e.message;
+        hint.className   = 'form-text text-danger';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     ['symbol', 'strikePrice'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', maybeAutoFetch);
+    });
+    const exp = document.getElementById('expiryDate');
+    if (exp) exp.addEventListener('change', maybeAutoFetch);
+    // Reload expiries whenever asset/instrument changes.
+    ['assetType', 'subType'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', loadExpiries);
     });
 });
 </script>

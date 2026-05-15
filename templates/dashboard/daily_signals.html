@@ -115,7 +115,6 @@
                         <th>Asset Type</th>
                         <th>Asset Name</th>
                         <th>Expiry</th>
-                        <th>Current Price</th>
                         <th>Entry</th>
                         <th>Target 1</th>
                         <th>Target 2</th>
@@ -141,9 +140,6 @@
                             <small class="text-muted">
                                 {{ signal.expiry_date.strftime('%d %b %Y') if signal.expiry_date else 'N/A' }}
                             </small>
-                        </td>
-                        <td>
-                            <span class="fw-bold text-primary">₹{{ signal.current_price or '—' }}</span>
                         </td>
                         <td>
                             <span class="price-pill entry">₹{{ signal.buy_above }}</span>
@@ -238,7 +234,6 @@ const signalData = {
         target_1: {{ signal.target_1 or 'null' }},
         target_2: {{ signal.target_2 or 'null' }},
         target_3: {{ signal.target_3 or 'null' }},
-        current_price: {{ signal.current_price or 0 }},
         duration_display: "{{ signal.duration_display }}",
         risk_level: "{{ signal.risk_level or 'Medium' }}",
         notes: `{{ (signal.notes or '') | replace('`', "'") }}`,
@@ -314,10 +309,6 @@ function viewSignalDetail(signalId) {
                 <div class="card h-100 border-0 bg-light">
                     <div class="card-body">
                         <h6 class="text-muted mb-3">Price Levels</h6>
-                        <div class="mb-2">
-                            <small class="text-muted d-block">Current Price</small>
-                            <span class="fw-bold text-primary fs-5">₹${s.current_price.toFixed(2)}</span>
-                        </div>
                         <div class="mb-2">
                             <small class="text-muted d-block">Entry</small>
                             <span class="price-pill entry"><i class="fas fa-arrow-right me-1"></i>₹${s.buy_above}</span>

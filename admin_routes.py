@@ -1049,11 +1049,26 @@ def api_live_price():
     sub_type   = (request.args.get('sub_type') or '').upper()
     symbol     = (request.args.get('symbol') or '').upper()
     strike_raw = request.args.get('strike_price')
+    expiry_raw = (request.args.get('expiry') or '').strip()  # YYYY-MM-DD or DD-MMM-YYYY
 
     if not asset_type:
         return jsonify({'success': False, 'error': 'asset_type required'}), 400
 
     is_index = asset_type in ('NIFTY', 'BANKNIFTY', 'SENSEX', 'FINNIFTY')
+
+    def _norm_expiry_dhan(s: str) -> str:
+        """Normalise YYYY-MM-DD → Dhan format if needed (Dhan returns dates like '2025-01-30')."""
+        return s  # Dhan get_expiry_list typically returns YYYY-MM-DD already.
+
+    def _norm_expiry_nse(s: str) -> str:
+        """Normalise YYYY-MM-DD → NSE format 'DD-MMM-YYYY' (e.g. '30-Jan-2025')."""
+        try:
+            return datetime.strptime(s, '%Y-%m-%d').strftime('%d-%b-%Y')
+        except Exception:
+            return s
+
+    # Track the *reason* each fallback failed so the admin can see WHY in the UI.
+    reasons: list[str] = []
 
     # ── Index option (CE / PE) → look up strike LTP from option chain ──
     if is_index and sub_type in ('CE', 'PE'):
@@ -1064,13 +1079,13 @@ def api_live_price():
         if not strike:
             return jsonify({'success': False, 'error': 'strike_price required for CE/PE'}), 400
 
-        # 1) Same Dhan path the F&O engine uses (broker.get_option_chain via
-        #    services.dhan_service). Will be empty if the system Dhan token
-        #    is invalid/expired — we fall through to NSE in that case.
+        # 1) Same Dhan path the F&O engine uses.
         try:
             from services.dhan_service import get_option_chain as dhan_oc
-            data = dhan_oc(asset_type) or {}
+            data = dhan_oc(asset_type, expiry=_norm_expiry_dhan(expiry_raw) if expiry_raw else None) or {}
             chain = data.get('option_chain') or {}
+            if not chain:
+                reasons.append('Dhan: empty chain (token may be expired — refresh in Admin → Data API Broker)')
             key   = f"{int(strike)}{sub_type}"
             row   = chain.get(key) or chain.get(f"{strike:g}{sub_type}")
             ltp   = float(row.get('ltp', 0)) if row else 0.0
@@ -1079,40 +1094,54 @@ def api_live_price():
                     'success': True, 'price': round(ltp, 2),
                     'source':  data.get('source', 'Dhan'),
                     'label':   f"{asset_type} {int(strike)} {sub_type}",
+                    'expiry':  data.get('expiry') or expiry_raw or None,
                     'spot':    round(float(data.get('spot_price') or 0), 2),
                 })
+            elif chain:
+                reasons.append(f'Dhan: strike {int(strike)}{sub_type} not in chain for this expiry')
         except Exception as e:
+            reasons.append(f'Dhan: {e}')
             logger.debug(f"Dhan option chain failed: {e}")
 
-        # 2) NSE option chain fallback (nsepython → direct NSE API). Same
-        #    fetcher the F&O engine uses (`_get_nse_option_chain_raw`).
+        # 2) NSE option chain fallback.
         try:
             from services.nifty_options_engine import NiftyOptionsEngine
             engine = NiftyOptionsEngine(index=asset_type)
             raw    = engine._get_nse_option_chain_raw() or {}
             entries = (raw.get('records') or {}).get('data') or []
+            if not entries:
+                reasons.append('NSE: no option chain data (NSE may be geo-blocked from this server)')
             ce_pe   = 'CE' if sub_type == 'CE' else 'PE'
+            target_expiry_nse = _norm_expiry_nse(expiry_raw) if expiry_raw else None
             ltp     = 0.0
             for entry in entries:
-                if int(entry.get('strikePrice') or 0) == int(strike):
-                    leg = entry.get(ce_pe) or {}
-                    ltp = float(leg.get('lastPrice') or 0)
-                    if ltp > 0:
-                        break
+                if int(entry.get('strikePrice') or 0) != int(strike):
+                    continue
+                if target_expiry_nse and entry.get('expiryDate') != target_expiry_nse:
+                    continue
+                leg = entry.get(ce_pe) or {}
+                ltp = float(leg.get('lastPrice') or 0)
+                if ltp > 0:
+                    break
             if ltp > 0:
                 spot = float((raw.get('records') or {}).get('underlyingValue') or 0)
                 return jsonify({
                     'success': True, 'price': round(ltp, 2),
                     'source':  'NSE',
                     'label':   f"{asset_type} {int(strike)} {sub_type}",
+                    'expiry':  expiry_raw or None,
                     'spot':    round(spot, 2),
                 })
+            elif entries:
+                reasons.append(f'NSE: strike {int(strike)}{sub_type} not found for selected expiry')
         except Exception as e:
+            reasons.append(f'NSE: {e}')
             logger.warning(f"NSE option chain fallback failed: {e}")
 
         # 3) Soft-fail — leave the field blank for manual entry.
         return jsonify({'success': False, 'soft': True,
-                        'message': 'Live option price not available — enter manually.'})
+                        'message': 'Live option price not available — enter manually.',
+                        'reasons': reasons})
 
     # ── Index spot (FUT or no sub_type) ───────────────────────────────
     if is_index:
@@ -1180,6 +1209,53 @@ def api_live_price():
     return jsonify({'success': False, 'error': f'Unsupported asset_type {asset_type}'}), 400
 
 
+@admin_bp.route('/api/expiries')
+@admin_required
+def api_expiries():
+    """Return the list of available contract expiries for an index.
+    Used by the Add/Edit Daily Signal page to populate the expiry dropdown.
+    Query params:
+      asset_type = NIFTY | BANKNIFTY | SENSEX | FINNIFTY
+    Returns: { success, expiries: ["YYYY-MM-DD", ...], source }
+    """
+    asset_type = (request.args.get('asset_type') or '').upper()
+    if asset_type not in ('NIFTY', 'BANKNIFTY', 'SENSEX', 'FINNIFTY'):
+        return jsonify({'success': False, 'error': 'Unsupported asset_type'}), 400
+
+    # 1) Dhan get_expiry_list (system DhanDataApiBroker).
+    try:
+        from services.dhan_service import _get_any_dhan_broker
+        broker = _get_any_dhan_broker()
+        if broker is not None:
+            expiries = broker.get_expiry_list(asset_type) or []
+            if expiries:
+                return jsonify({'success': True, 'expiries': expiries, 'source': 'Dhan'})
+    except Exception as e:
+        logger.debug(f"Dhan expiry list failed for {asset_type}: {e}")
+
+    # 2) NSE option chain → derive expiries.
+    try:
+        from services.nifty_options_engine import NiftyOptionsEngine
+        engine = NiftyOptionsEngine(index=asset_type)
+        raw = engine._get_nse_option_chain_raw() or {}
+        nse_expiries = (raw.get('records') or {}).get('expiryDates') or []
+        # NSE returns 'DD-MMM-YYYY' (e.g. '30-Jan-2025') → normalise to YYYY-MM-DD.
+        out = []
+        for s in nse_expiries:
+            try:
+                out.append(datetime.strptime(s, '%d-%b-%Y').strftime('%Y-%m-%d'))
+            except Exception:
+                pass
+        if out:
+            return jsonify({'success': True, 'expiries': out, 'source': 'NSE'})
+    except Exception as e:
+        logger.debug(f"NSE expiries fallback failed for {asset_type}: {e}")
+
+    return jsonify({'success': False, 'soft': True,
+                    'expiries': [],
+                    'message': 'Expiry list unavailable — enter expiry manually.'})
+
+
 @admin_bp.route('/daily-signals/add', methods=['GET', 'POST'])
 @admin_required
 def add_daily_signal():
@@ -1224,6 +1300,8 @@ def add_daily_signal():
                 symbol=symbol if asset_type == 'STOCK' else asset_type,
                 strike_price=float(strike_price) if strike_price else None,
                 strike_type=request.form.get('strike_type'),
+                expiry_date=(datetime.strptime(request.form.get('expiry_date'), '%Y-%m-%d').date()
+                             if request.form.get('expiry_date') else None),
                 script=script,
                 trade_duration=request.form.get('trade_duration'),
                 action=request.form.get('action', 'BUY'),
@@ -1283,6 +1361,8 @@ def edit_daily_signal(signal_id):
             signal.symbol = request.form.get('symbol', '').upper()
             signal.strike_price = float(request.form.get('strike_price')) if request.form.get('strike_price') else None
             signal.strike_type = request.form.get('strike_type')
+            signal.expiry_date = (datetime.strptime(request.form.get('expiry_date'), '%Y-%m-%d').date()
+                                  if request.form.get('expiry_date') else None)
             signal.trade_duration = request.form.get('trade_duration')
             signal.action = request.form.get('action', 'BUY')
             signal.buy_above = float(request.form.get('buy_above'))
