@@ -1063,10 +1063,14 @@ def api_live_price():
             strike = None
         if not strike:
             return jsonify({'success': False, 'error': 'strike_price required for CE/PE'}), 400
+
+        # 1) Same Dhan path the F&O engine uses (broker.get_option_chain via
+        #    services.dhan_service). Will be empty if the system Dhan token
+        #    is invalid/expired — we fall through to NSE in that case.
         try:
-            from services.dhan_service import get_option_chain
-            data = get_option_chain(asset_type)
-            chain = (data or {}).get('option_chain') or {}
+            from services.dhan_service import get_option_chain as dhan_oc
+            data = dhan_oc(asset_type) or {}
+            chain = data.get('option_chain') or {}
             key   = f"{int(strike)}{sub_type}"
             row   = chain.get(key) or chain.get(f"{strike:g}{sub_type}")
             ltp   = float(row.get('ltp', 0)) if row else 0.0
@@ -1077,15 +1081,38 @@ def api_live_price():
                     'label':   f"{asset_type} {int(strike)} {sub_type}",
                     'spot':    round(float(data.get('spot_price') or 0), 2),
                 })
-            # Soft-fail: no live LTP for this option strike. UI leaves the
-            # field blank and the admin enters the entry price manually —
-            # no red error per user request.
-            return jsonify({'success': False, 'soft': True,
-                            'message': 'Live option price not available — enter manually.'})
         except Exception as e:
-            logger.warning(f"live-price option lookup soft-failed: {e}")
-            return jsonify({'success': False, 'soft': True,
-                            'message': 'Live option price not available — enter manually.'})
+            logger.debug(f"Dhan option chain failed: {e}")
+
+        # 2) NSE option chain fallback (nsepython → direct NSE API). Same
+        #    fetcher the F&O engine uses (`_get_nse_option_chain_raw`).
+        try:
+            from services.nifty_options_engine import NiftyOptionsEngine
+            engine = NiftyOptionsEngine(index=asset_type)
+            raw    = engine._get_nse_option_chain_raw() or {}
+            entries = (raw.get('records') or {}).get('data') or []
+            ce_pe   = 'CE' if sub_type == 'CE' else 'PE'
+            ltp     = 0.0
+            for entry in entries:
+                if int(entry.get('strikePrice') or 0) == int(strike):
+                    leg = entry.get(ce_pe) or {}
+                    ltp = float(leg.get('lastPrice') or 0)
+                    if ltp > 0:
+                        break
+            if ltp > 0:
+                spot = float((raw.get('records') or {}).get('underlyingValue') or 0)
+                return jsonify({
+                    'success': True, 'price': round(ltp, 2),
+                    'source':  'NSE',
+                    'label':   f"{asset_type} {int(strike)} {sub_type}",
+                    'spot':    round(spot, 2),
+                })
+        except Exception as e:
+            logger.warning(f"NSE option chain fallback failed: {e}")
+
+        # 3) Soft-fail — leave the field blank for manual entry.
+        return jsonify({'success': False, 'soft': True,
+                        'message': 'Live option price not available — enter manually.'})
 
     # ── Index spot (FUT or no sub_type) ───────────────────────────────
     if is_index:

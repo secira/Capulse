@@ -251,8 +251,12 @@ function _formReadyForFetch() {
 
 function maybeAutoFetch() {
     clearTimeout(_livePriceTimer);
+    // Whenever the asset description changes, drop the stale price so the
+    // user never sees (e.g.) the index spot left over from a previous pick.
+    const key   = _formKey();
+    const input = document.getElementById('currentPrice');
+    if (key !== _lastFetchKey && input) input.value = '';
     if (!_formReadyForFetch()) return;
-    const key = _formKey();
     if (key === _lastFetchKey) return;
     _livePriceTimer = setTimeout(() => fetchLivePrice(true), 500);
 }
