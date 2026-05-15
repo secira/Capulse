@@ -66,6 +66,15 @@ class SMSService:
             error_str = str(e)
             print(f"❌ Failed to send OTP: {error_str}")
 
+            # Authentication failure (20003 = invalid SID/AUTH token)
+            # Treat as SMS_UNAVAILABLE in ALL environments so the user can
+            # still complete the flow via the on-screen OTP, while admin sees
+            # the precise reason in the server logs.
+            if "20003" in error_str or "Authenticate" in error_str:
+                print(f"🔑 TWILIO AUTH FAILURE (20003) — refresh TWILIO_AUTH_TOKEN in Secrets. "
+                      f"OTP for {mobile_number}: {otp}")
+                return True, "SMS_UNAVAILABLE"
+
             # Sender misconfigured (21659 = not a Twilio number / country mismatch)
             # Fall back in ALL environments — OTP is saved to DB and surfaced on screen
             if "21659" in error_str or "country mismatch" in error_str.lower() or "not a Twilio phone number" in error_str:
