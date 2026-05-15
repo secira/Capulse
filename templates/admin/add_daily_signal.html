@@ -288,6 +288,12 @@ async function fetchLivePrice(silent) {
             if (buyAbove && !buyAbove.value) buyAbove.value = data.price;
             hint.textContent = `Live: ₹${data.price} (${data.source}) — ${data.label}`;
             hint.className   = 'form-text text-success';
+        } else if (data.soft) {
+            // Soft fail (typical for option strikes outside the active chain
+            // or after market hours). Leave the field blank for manual entry
+            // — no red error.
+            hint.textContent = data.message || 'Enter the price manually.';
+            hint.className   = 'form-text text-muted';
         } else {
             hint.textContent = data.error || 'No live price available.';
             hint.className   = 'form-text text-danger';

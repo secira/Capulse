@@ -1077,14 +1077,20 @@ def api_live_price():
                     'label':   f"{asset_type} {int(strike)} {sub_type}",
                     'spot':    round(float(data.get('spot_price') or 0), 2),
                 })
-            return jsonify({'success': False,
-                            'error': f'No live LTP for {asset_type} {int(strike)} {sub_type} (strike not in chain or market closed)'}), 404
+            # Soft-fail: no live LTP for this option strike. UI leaves the
+            # field blank and the admin enters the entry price manually —
+            # no red error per user request.
+            return jsonify({'success': False, 'soft': True,
+                            'message': 'Live option price not available — enter manually.'})
         except Exception as e:
-            logger.error(f"live-price option lookup failed: {e}")
-            return jsonify({'success': False, 'error': f'Option chain unavailable: {e}'}), 502
+            logger.warning(f"live-price option lookup soft-failed: {e}")
+            return jsonify({'success': False, 'soft': True,
+                            'message': 'Live option price not available — enter manually.'})
 
     # ── Index spot (FUT or no sub_type) ───────────────────────────────
     if is_index:
+        # 1) Try the same dhan_service path the F&O engine uses (system-wide
+        #    DhanDataApiBroker — works without per-admin user_id).
         try:
             from services.dhan_service import get_option_chain
             spot = float((get_option_chain(asset_type) or {}).get('spot_price') or 0)
@@ -1093,7 +1099,20 @@ def api_live_price():
                                 'source': 'Dhan', 'label': f"{asset_type} Spot"})
         except Exception as e:
             logger.debug(f"index spot via Dhan failed: {e}")
-        # Fallback: yfinance fast_info on the index ticker
+        # 2) Same NSE realtime service used by the dashboard for stock quotes.
+        try:
+            from services.nse_realtime_service import nse_service
+            indices = nse_service.get_nse_indices() or {}
+            display = {'NIFTY': 'NIFTY 50', 'BANKNIFTY': 'NIFTY BANK',
+                       'FINNIFTY': 'NIFTY FIN SERVICE', 'SENSEX': 'SENSEX'}
+            row = (indices.get('indices') or {}).get(display.get(asset_type, ''))
+            if row and float(row.get('last') or row.get('price') or 0) > 0:
+                px = float(row.get('last') or row.get('price'))
+                return jsonify({'success': True, 'price': round(px, 2),
+                                'source': 'NSE', 'label': f"{asset_type} Spot"})
+        except Exception as e:
+            logger.debug(f"NSE indices lookup failed for {asset_type}: {e}")
+        # 3) Final fallback: yfinance fast_info on the index ticker.
         yf_map = {'NIFTY': '^NSEI', 'BANKNIFTY': '^NSEBANK',
                   'FINNIFTY': 'NIFTY_FIN_SERVICE.NS', 'SENSEX': '^BSESN'}
         try:
@@ -1105,26 +1124,31 @@ def api_live_price():
                                 'source': 'yfinance', 'label': f"{asset_type} Spot"})
         except Exception as e:
             logger.warning(f"yfinance index spot failed for {asset_type}: {e}")
-        return jsonify({'success': False, 'error': f'No live price available for {asset_type}'}), 404
+        return jsonify({'success': False, 'soft': True,
+                        'message': f'Live price for {asset_type} unavailable — enter manually.'})
 
     # ── Stock (EQ / FUT / CE / PE) ────────────────────────────────────
+    # Routes through services.nse_realtime_service.get_stock_quote — the
+    # SAME data-access layer used by the Equities page (`fetchAllLivePrices`)
+    # and the Trade Now page. Priority: user data broker → system Dhan
+    # DataApiBroker → yfinance fast_info.
     if asset_type == 'STOCK':
         if not symbol:
             return jsonify({'success': False, 'error': 'symbol required for STOCK'}), 400
         try:
             from services.nse_realtime_service import get_stock_quote
-            uid = session.get('user_id') or session.get('admin_user_id')
-            data = get_stock_quote(symbol, user_id=uid) or {}
-            if data.get('success') and data.get('price', 0) > 0:
+            data = get_stock_quote(symbol, user_id=None) or {}
+            if data.get('success') and float(data.get('price') or 0) > 0:
                 return jsonify({'success': True,
                                 'price':  round(float(data['price']), 2),
                                 'source': data.get('source', 'NSE'),
                                 'label':  f"{symbol} Spot"})
-            return jsonify({'success': False,
-                            'error': data.get('error', f'No live price for {symbol}')}), 404
+            return jsonify({'success': False, 'soft': True,
+                            'message': f'Live price for {symbol} unavailable — enter manually.'})
         except Exception as e:
-            logger.error(f"live-price stock lookup failed: {e}")
-            return jsonify({'success': False, 'error': str(e)}), 502
+            logger.warning(f"live-price stock lookup soft-failed: {e}")
+            return jsonify({'success': False, 'soft': True,
+                            'message': f'Live price for {symbol} unavailable — enter manually.'})
 
     return jsonify({'success': False, 'error': f'Unsupported asset_type {asset_type}'}), 400
 
