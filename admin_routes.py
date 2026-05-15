@@ -1227,7 +1227,6 @@ def add_daily_signal():
                 script=script,
                 trade_duration=request.form.get('trade_duration'),
                 action=request.form.get('action', 'BUY'),
-                current_price=float(request.form.get('current_price')) if request.form.get('current_price') else None,
                 buy_above=float(request.form.get('buy_above')),
                 stop_loss=float(request.form.get('stop_loss')),
                 target_1=float(request.form.get('target_1')) if request.form.get('target_1') else None,
@@ -1286,7 +1285,6 @@ def edit_daily_signal(signal_id):
             signal.strike_type = request.form.get('strike_type')
             signal.trade_duration = request.form.get('trade_duration')
             signal.action = request.form.get('action', 'BUY')
-            signal.current_price = float(request.form.get('current_price')) if request.form.get('current_price') else signal.current_price
             signal.buy_above = float(request.form.get('buy_above'))
             signal.stop_loss = float(request.form.get('stop_loss'))
             signal.target_1 = float(request.form.get('target_1')) if request.form.get('target_1') else None
