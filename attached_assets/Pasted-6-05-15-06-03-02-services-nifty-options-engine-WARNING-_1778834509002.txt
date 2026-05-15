@@ -1,0 +1,22 @@
+6-05-15 06:03:02 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:433] - NSE direct API returned empty data (likely geo-blocked)
+2026-05-15 06:03:02 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:1935] - All data sources unavailable — using estimated data (BANKNIFTY). Spot: 53927.94921875. Trade signals BLOCKED.
+2026-05-15 06:03:02 - services.nifty_options_engine - INFO - [nifty_options_engine.py:712] - OI Metrics — PCR:1.0 ATM_PCR:1.0 MaxPain:53900 (-0.05%) OI_diff:0.000 CE_OI:40,200,000 PUT_OI:40,200,000
+2026-05-15 06:03:02 - services.nifty_options_engine - INFO - [nifty_options_engine.py:852] - _fetch_intraday_candles(BANKNIFTY): 328 candles from yfinance (5d)
+2026-05-15 06:03:02 - services.fno_monitor - INFO - [fno_monitor.py:590] - [BANKNIFTY] spot=53927.95 dir=BEARISH conf=0(~0) mode=NO TRADE src=estimated state=NONE
+2026-05-15 06:03:03 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:408] - nsepython returned empty/invalid data
+2026-05-15 06:03:04 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:433] - NSE direct API returned empty data (likely geo-blocked)
+2026-05-15 06:03:04 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:1935] - All data sources unavailable — using estimated data (FINNIFTY). Spot: 27793.55078125. Trade signals BLOCKED.
+2026-05-15 06:03:04 - services.nifty_options_engine - INFO - [nifty_options_engine.py:712] - OI Metrics — PCR:1.0 ATM_PCR:1.0 MaxPain:27800 (+0.02%) OI_diff:0.000 CE_OI:40,200,000 PUT_OI:40,200,000
+2026-05-15 06:03:04 - services.nifty_options_engine - INFO - [nifty_options_engine.py:852] - _fetch_intraday_candles(FINNIFTY): 328 candles from yfinance (5d)
+2026-05-15 06:03:05 - services.fno_monitor - INFO - [fno_monitor.py:590] - [FINNIFTY] spot=27793.55 dir=BEARISH conf=0(~0) mode=NO TRADE src=estimated state=NONE
+2026-05-15 06:03:05 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:408] - nsepython returned empty/invalid data
+2026-05-15 06:03:06 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:433] - NSE direct API returned empty data (likely geo-blocked)
+2026-05-15 06:03:06 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:1935] - All data sources unavailable — using estimated data (SENSEX). Spot: 75479.3671875. Trade signals BLOCKED.
+2026-05-15 06:03:06 - services.nifty_options_engine - INFO - [nifty_options_engine.py:712] - OI Metrics — PCR:1.0 ATM_PCR:1.0 MaxPain:75500 (+0.03%) OI_diff:0.000 CE_OI:40,200,000 PUT_OI:40,200,000
+2026-05-15 06:03:06 - services.nifty_options_engine - INFO - [nifty_options_engine.py:808] - _fetch_intraday_candles(SENSEX): 328 candles from yfinance/NIFTY (5d)
+2026-05-15 06:03:06 - services.nifty_options_engine - INFO - [nifty_options_engine.py:823] - _fetch_intraday_candles(SENSEX): scaled NIFTY candles by 3.27x
+2026-05-15 06:03:06 - services.fno_monitor - INFO - [fno_monitor.py:590] - [SENSEX] spot=75479.37 dir=BEARISH conf=0(~0) mode=NO TRADE src=estimated state=NONE
+2026-05-15 06:03:06 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-15 06:04:00 UTC)" executed successfully
+122.167.103.165 - - [15/May/2026:06:03:19 +0000] "GET /dashboard/fno/api/monitor-status?index_id=BANKNIFTY HTTP/1.1" 200 271 "https://www.targetcapital.ai/dashboard/fno/banknifty" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 18708
+122.167.103.165 - - [15/May/2026:06:03:20 +0000] "GET /dashboard/fno/api/active-trade?index_id=BANKNIFTY HTTP/1.1" 200 132 "https://www.targetcapital.ai/dashboard/fno/banknifty" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 62502
+122.167.103.165 - - [15/May/2026:06:03:20 +0000] "GET /dashboard/fno/api/signal-history?limit=20&index_id=BANKNIFTY HTTP/1.1" 200 27 "https://www.targetcapital.ai/dashboard/fno/banknifty" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 76537
