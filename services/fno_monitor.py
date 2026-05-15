@@ -404,49 +404,36 @@ SCAN_ALERT_MAX_PER_DAY    = 4    # safety cap (per index) — covers TRIGGER + S
 
 
 def _should_send_alert(signal_data: dict, idx: str) -> bool:
-    """Telegram alert gate.
+    """Telegram alert gate — ONE message per trade.
 
-    Always broadcasts:
-      • TRADE_TRIGGER  — official entry lock
-      • TRADE_EXIT     — official exit (SL / Target / Time / EOD)
+    Policy (user-requested):
+      • Send exactly one Telegram message per trade — the TRADE_TRIGGER,
+        which already contains entry, SL, and target. The trader has
+        everything they need from that single message.
+      • Do NOT send SCAN previews — they create pre-trigger noise.
+      • Do NOT send TRADE_EXIT pings — SL/target are known from the entry
+        message; the position closes itself at SL/target/EOD.
+      • A new message goes out only when a NEW trade triggers, i.e. a
+        direction change or a fresh entry after exit/cooldown — which
+        happens naturally via TRADE_TRIGGER.
 
-    Also broadcasts (new): high-confidence pre-trigger SCAN signals so
-    traders see a BUY alert as soon as the engine flags one — even before
-    the multi-bar TRIGGER lock fires. Spam-protection:
-      - confidence ≥ SCAN_ALERT_MIN_CONFIDENCE
-      - direction must be BULLISH or BEARISH (no NEUTRAL/BOTH)
-      - 15-minute cooldown since the last alert on this index
-      - direction must differ from last alert OR cooldown elapsed
-      - hard cap of SCAN_ALERT_MAX_PER_DAY per index
+    Per-direction dedupe: if the very last alert was the same direction
+    AND no exit happened in between, suppress (defensive — the trade
+    lifecycle should already prevent this, but guard just in case).
     """
     _reset_daily_if_needed(idx)
-    signal_type = signal_data.get('signal_type', 'SCAN')
+    signal_type = signal_data.get('signal_type')
 
-    if signal_type in ('TRADE_TRIGGER', 'TRADE_EXIT'):
-        return True
-
-    if signal_type != 'SCAN':
+    if signal_type != 'TRADE_TRIGGER':
         return False
 
-    direction  = (signal_data.get('trade_direction') or '').upper()
-    if direction not in ('BULLISH', 'BEARISH'):
+    direction = (signal_data.get('trade_direction') or '').upper()
+    if direction not in ('BULLISH', 'BEARISH', 'BOTH'):
         return False
 
-    confidence = signal_data.get('smoothed_confidence',
-                                  signal_data.get('confidence', 0)) or 0
-    if confidence < SCAN_ALERT_MIN_CONFIDENCE:
-        return False
-
+    # Hard daily cap (safety net against runaway flips)
     if _daily_signal_count[idx] >= SCAN_ALERT_MAX_PER_DAY:
         return False
-
-    last_ts  = _last_signal_time[idx]
-    last_dir = _last_signal_direction[idx]
-    now      = _now_ist()
-    if last_ts is not None:
-        elapsed_min = (now - last_ts).total_seconds() / 60.0
-        if elapsed_min < SCAN_ALERT_COOLDOWN_MIN and last_dir == direction:
-            return False  # too soon and same direction → suppress
 
     return True
 
