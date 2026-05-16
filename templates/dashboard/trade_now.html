@@ -50,209 +50,235 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     TRADE CARD  (full width)
+     TRADE CARD  (compact — Dhan-style, max ~720px)
 ══════════════════════════════════════════════════════════ -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card border-0 shadow-lg" style="border-radius:18px;overflow:hidden;">
+<style>
+  .tn-card{max-width:720px;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;background:#fff;box-shadow:0 4px 16px rgba(15,23,42,.06);}
+  .tn-head{background:#f8fafc;padding:12px 16px;border-bottom:1px solid #eef2f7;}
+  .tn-symbol{font-size:14px;font-weight:700;color:#0f172a;letter-spacing:.2px;}
+  .tn-price{font-size:18px;font-weight:700;color:#0f172a;}
+  .tn-change-neg{color:#dc2626;font-size:12px;font-weight:600;margin-left:6px;}
+  .tn-change-pos{color:#16a34a;font-size:12px;font-weight:600;margin-left:6px;}
+  .tn-status{font-size:11px;color:#64748b;margin-left:8px;}
+  .tn-pt{display:inline-flex;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:3px;margin-top:10px;}
+  .tn-pt .pt-tab{border:none;background:transparent;font-size:12px;font-weight:600;padding:5px 14px;border-radius:8px;color:#64748b;cursor:pointer;transition:all .15s;}
+  .tn-pt .pt-tab.active{background:#fef3c7;color:#b45309;}
+  .tn-tabs{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #eef2f7;background:#fff;gap:8px;flex-wrap:wrap;}
+  .tn-ot{display:flex;gap:18px;}
+  .tn-ot .ot-tab{border:none;background:transparent;font-size:13px;font-weight:600;color:#64748b;padding:4px 0;cursor:pointer;border-bottom:2px solid transparent;}
+  .tn-ot .ot-tab.active{color:#16a34a;border-bottom-color:#16a34a;}
+  .tn-side{display:flex;align-items:center;gap:10px;font-size:12px;color:#94a3b8;font-weight:600;}
+  .tn-toggle{position:relative;width:40px;height:20px;background:#cbd5e1;border-radius:999px;cursor:pointer;transition:background .15s;}
+  .tn-toggle::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.2);}
+  .tn-toggle.sell{background:#fca5a5;}
+  .tn-toggle.sell::after{left:22px;}
+  .tn-toggle.buy{background:#86efac;}
+  .tn-buy-label{color:#16a34a;}
+  .tn-sell-label{color:#dc2626;}
+  .tn-body{padding:14px 16px;background:#fff;}
+  .tn-row{display:flex;gap:10px;align-items:flex-end;}
+  .tn-field{flex:1;}
+  .tn-field label{display:block;font-size:11px;color:#64748b;font-weight:600;margin-bottom:4px;}
+  .tn-field .form-control{border:1px solid #e2e8f0;border-radius:8px;font-size:14px;font-weight:600;color:#0f172a;padding:8px 10px;}
+  .tn-field .form-control:focus{border-color:#16a34a;box-shadow:0 0 0 2px rgba(22,163,74,.1);}
+  .tn-cta{flex:0 0 auto;min-width:160px;border:none;border-radius:8px;background:#16a34a;color:#fff;font-weight:700;font-size:14px;padding:10px 18px;cursor:pointer;transition:background .15s;height:38px;}
+  .tn-cta:hover{background:#15803d;}
+  .tn-cta:disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed;}
+  .tn-more{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#64748b;font-weight:600;background:none;border:none;padding:0;margin-top:12px;cursor:pointer;}
+  .tn-more:hover{color:#16a34a;}
+  .tn-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid #eef2f7;background:#fafbfc;font-size:11px;color:#64748b;}
+  .tn-foot strong{color:#dc2626;font-weight:700;}
+  .tn-foot .estim{color:#64748b;font-weight:600;}
+  .tn-asset-pick{border:none;background:transparent;font-size:14px;font-weight:700;color:#0f172a;padding:0;box-shadow:none;width:auto;max-width:100%;}
+  .tn-asset-pick:focus{box-shadow:none;outline:none;}
+</style>
 
-            <!-- ── HEADER: Asset picker + Live price ───────────────── -->
-            <div class="p-4 pb-3" style="background:#fff;border-bottom:1px solid #f1f5f9;">
-                <div class="mb-3">
-                    <select class="form-select fw-bold" id="assetSelect" name="symbol" required
-                            style="border:none;border-bottom:2px solid #e2e8f0;border-radius:0;font-size:16px;padding-left:0;box-shadow:none;">
-                        <option value="">Search or choose an asset…</option>
-                        {% for r in research_assets %}
-                        <option value="{{ r.symbol }}"
-                                data-asset-class="{{ r.asset_type }}"
-                                data-price="{{ r.current_price or '' }}"
-                                data-company="{{ r.company_name or r.symbol }}"
-                                data-sector="{{ r.sector or '' }}"
-                                data-iscore="{{ r.i_score or '' }}"
-                                data-rec="{{ r.recommendation or '' }}">
-                            {{ r.symbol }}{% if r.company_name %} — {{ r.company_name }}{% endif %}{% if r.recommendation %} ({{ r.recommendation | replace('_',' ') }}){% endif %}
-                        </option>
-                        {% endfor %}
-                        {% if not research_assets %}
-                        {% for asset in assets %}
-                        <option value="{{ asset.symbol }}" data-asset-class="{{ asset.asset_class }}" data-price="{{ asset.current_price }}">
-                            {{ asset.symbol }} - {{ asset.company_name }} ({{ asset.asset_class.title() }})
-                        </option>
-                        {% endfor %}
-                        {% endif %}
-                    </select>
-                    <input type="hidden" id="strategySelect" name="strategy_id" value="1">
-                </div>
+<div class="tn-card mb-4">
 
-                <!-- Live price banner -->
-                <div id="livePriceBar" class="d-flex align-items-baseline gap-3 d-none">
-                    <span id="livePriceVal" class="fw-bold" style="font-size:22px;color:#1e293b;">—</span>
-                    <span id="livePriceChg" class="badge rounded-pill px-3 py-1" style="font-size:12px;background:#e2e8f0;color:#475569;">—</span>
-                    <span id="livePriceSrc" class="ms-auto badge" style="background:#eef2ff;color:#4338ca;font-size:11px;border-radius:6px;padding:4px 8px;">NSE</span>
-                </div>
-                <!-- Hint row (entry / target / SL) -->
-                <div id="hintRow" class="d-flex gap-3 mt-2 d-none" style="font-size:12px;color:#64748b;">
-                    <span>Entry: <strong id="hintEntry">—</strong></span>
-                    <span>Target: <strong id="hintTarget" class="text-success">—</strong></span>
-                    <span>SL: <strong id="hintSL" class="text-danger">—</strong></span>
-                </div>
-                <!-- Spinner shown while price loads -->
-                <div id="livePriceSpinner" class="text-muted d-none" style="font-size:13px;">
-                    <i class="fas fa-spinner fa-spin me-1"></i>Fetching live price…
-                </div>
-            </div>
-
-            <!-- ── PRODUCT TYPE TABS (Trading / Investing / NRML) ─── -->
-            <div style="background:#fafbfc;border-bottom:1px solid #f1f5f9;">
-                <div class="d-flex" id="productTypeTabs" role="group">
-                    <button type="button" class="pt-tab flex-fill py-3 fw-semibold active" data-pt="MIS"
-                            style="border:none;background:transparent;font-size:13px;border-bottom:3px solid transparent;color:#64748b;cursor:pointer;transition:all .2s;">
-                        Trading (Intraday)
-                    </button>
-                    <button type="button" class="pt-tab flex-fill py-3 fw-semibold" data-pt="CNC"
-                            style="border:none;background:transparent;font-size:13px;border-bottom:3px solid transparent;color:#64748b;cursor:pointer;transition:all .2s;">
-                        Investing (CNC)
-                    </button>
-                    <button type="button" class="pt-tab flex-fill py-3 fw-semibold" data-pt="NRML"
-                            style="border:none;background:transparent;font-size:13px;border-bottom:3px solid transparent;color:#64748b;cursor:pointer;transition:all .2s;">
-                        NRML
-                    </button>
-                </div>
-            </div>
-
-            <!-- ── BODY ───────────────────────────────────────────── -->
-            <div class="card-body p-4" style="background:#fff;">
-
-                <!-- Order type tabs + Buy/Sell toggle -->
-                <div class="d-flex align-items-center justify-content-between mb-4 gap-2">
-                    <!-- Order type pills -->
-                    <div class="d-flex gap-1" id="orderTypeTabs">
-                        <button type="button" class="ot-tab btn btn-sm active" data-ot="MARKET"
-                                style="border-radius:20px;font-size:12px;font-weight:600;padding:5px 14px;">Market</button>
-                        <button type="button" class="ot-tab btn btn-sm" data-ot="LIMIT"
-                                style="border-radius:20px;font-size:12px;font-weight:600;padding:5px 14px;">Limit</button>
-                        <button type="button" class="ot-tab btn btn-sm" data-ot="STOP_LOSS"
-                                style="border-radius:20px;font-size:12px;font-weight:600;padding:5px 14px;">SL</button>
-                    </div>
-                    <!-- Buy / Sell toggle -->
-                    <div class="d-flex rounded-pill overflow-hidden" style="border:2px solid #e2e8f0;">
-                        <button type="button" id="buyBtn" onclick="setAction('BUY')"
-                                class="px-4 py-2 fw-bold border-0 action-active-buy"
-                                style="font-size:13px;cursor:pointer;transition:all .2s;background:#16a34a;color:#fff;">
-                            ▲ BUY
-                        </button>
-                        <button type="button" id="sellBtn" onclick="setAction('SELL')"
-                                class="px-4 py-2 fw-bold border-0"
-                                style="font-size:13px;cursor:pointer;transition:all .2s;background:#f8fafc;color:#94a3b8;">
-                            ▼ SELL
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Qty row -->
-                <div class="mb-3">
-                    <label class="form-label fw-semibold" style="font-size:13px;color:#475569;">Qty.</label>
-                    <div class="input-group">
-                        <button type="button" class="btn btn-outline-secondary" onclick="changeQty(-1)"
-                                style="border-radius:8px 0 0 8px;font-weight:700;font-size:16px;width:44px;">−</button>
-                        <input type="number" id="quantityInput" class="form-control text-center fw-bold"
-                               name="quantity" min="1" value="1" required
-                               style="border-left:0;border-right:0;font-size:16px;">
-                        <button type="button" class="btn btn-outline-secondary" onclick="changeQty(1)"
-                                style="border-radius:0 8px 8px 0;font-weight:700;font-size:16px;width:44px;">+</button>
-                    </div>
-                </div>
-
-                <!-- Price row (hidden for Market orders) -->
-                <div class="mb-3" id="priceRow">
-                    <label class="form-label fw-semibold" style="font-size:13px;color:#475569;">Price</label>
-                    <div class="input-group">
-                        <span class="input-group-text" style="background:#f8fafc;font-weight:600;color:#64748b;">₹</span>
-                        <input type="number" id="entryPriceInput" class="form-control fw-bold"
-                               name="entry_price" step="0.01" placeholder="Market"
-                               style="font-size:15px;" readonly>
-                    </div>
-                    <div id="priceNote" class="text-muted mt-1" style="font-size:11px;">Price will be at best available market price</div>
-                </div>
-
-                <!-- More Options toggle -->
-                <div class="mb-3">
-                    <button type="button" class="btn btn-link p-0 text-decoration-none" id="moreOptionsToggle"
-                            onclick="toggleMoreOptions()"
-                            style="font-size:13px;color:#3182ce;font-weight:600;">
-                        <i class="fas fa-plus-circle me-1"></i>More Options (Stop Loss / Target)
-                    </button>
-                </div>
-
-                <!-- More Options: Stop Loss + Target + Max Loss -->
-                <div id="moreOptionsPanel" class="d-none mb-3 p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <label class="form-label fw-semibold mb-1" style="font-size:12px;color:#475569;">Stop Loss ₹</label>
-                            <input type="number" id="stopLossInput" class="form-control form-control-sm" name="stop_loss" step="0.01" placeholder="Optional">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-semibold mb-1" style="font-size:12px;color:#475569;" id="targetPriceLabel">Target ₹</label>
-                            <input type="number" id="targetPriceInput" class="form-control form-control-sm" name="target_price" step="0.01" placeholder="Optional">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label fw-semibold mb-1" style="font-size:12px;color:#475569;">Max Loss ₹</label>
-                            <input type="number" id="maxLossInput" class="form-control form-control-sm" name="max_loss" step="0.01" placeholder="Optional">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Options fields (F&O) hidden by default -->
-                <div id="optionsFields" class="d-none mb-3 p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
-                    <div class="row g-2">
-                        <div class="col-4">
-                            <label class="form-label fw-semibold mb-1" style="font-size:12px;">Expiry</label>
-                            <input type="date" class="form-control form-control-sm" name="expiry_date">
-                        </div>
-                        <div class="col-4">
-                            <label class="form-label fw-semibold mb-1" style="font-size:12px;">Strike</label>
-                            <input type="number" class="form-control form-control-sm" name="strike_price" step="0.01">
-                        </div>
-                        <div class="col-4">
-                            <label class="form-label fw-semibold mb-1" style="font-size:12px;">Type</label>
-                            <select class="form-select form-select-sm" name="option_type">
-                                <option value="">—</option>
-                                <option value="CALL">Call</option>
-                                <option value="PUT">Put</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Margin info row -->
-                <div class="d-flex justify-content-between text-muted mb-4 pt-1" style="font-size:12px;border-top:1px solid #f1f5f9;">
-                    <span class="mt-2">Margin Required: <strong id="marginRequired">—</strong></span>
-                    <span class="mt-2">Available: <strong id="marginAvailable">—</strong></span>
-                </div>
-
-                <!-- Hidden inputs used by JS -->
-                <input type="hidden" id="orderTypeHidden" name="order_type" value="MARKET">
-                <input type="hidden" id="productTypeHidden" name="product_type" value="MIS">
-                <input type="hidden" id="actionHidden" value="BUY">
-
-                <!-- INSTANT TRADE BUTTON -->
-                {% if connected_brokers|length > 0 and current_user.pricing_plan in [PricingPlan.TARGET_PRO, PricingPlan.HNI] %}
-                <button type="button" id="instantTradeBtn" onclick="showTradeConfirmation()"
-                        class="btn w-100 py-3 fw-bold" id="tradeNowBtn"
-                        style="background:#16a34a;color:#fff;border-radius:12px;font-size:16px;letter-spacing:.3px;border:none;transition:background .2s;">
-                    <i class="fas fa-bolt me-2"></i>Instant Buy
-                </button>
-                {% else %}
-                <button type="button" class="btn w-100 py-3 fw-bold" disabled
-                        style="background:#e2e8f0;color:#94a3b8;border-radius:12px;font-size:16px;border:none;">
-                    <i class="fas fa-lock me-2"></i>{{ 'Connect Broker to Trade' if connected_brokers|length == 0 else 'Upgrade to TARGET PRO' }}
-                </button>
+    <!-- HEADER: symbol + live price + close -->
+    <div class="tn-head">
+        <div class="d-flex align-items-center justify-content-between gap-2">
+            <select class="form-select tn-asset-pick" id="assetSelect" name="symbol" required>
+                <option value="">Search or choose an asset…</option>
+                {% for r in research_assets %}
+                <option value="{{ r.symbol }}"
+                        data-asset-class="{{ r.asset_type }}"
+                        data-price="{{ r.current_price or '' }}"
+                        data-company="{{ r.company_name or r.symbol }}"
+                        data-sector="{{ r.sector or '' }}"
+                        data-iscore="{{ r.i_score or '' }}"
+                        data-rec="{{ r.recommendation or '' }}">
+                    {{ r.symbol }}{% if r.company_name %} — {{ r.company_name }}{% endif %}{% if r.recommendation %} ({{ r.recommendation | replace('_',' ') }}){% endif %}
+                </option>
+                {% endfor %}
+                {% if not research_assets %}
+                {% for asset in assets %}
+                <option value="{{ asset.symbol }}" data-asset-class="{{ asset.asset_class }}" data-price="{{ asset.current_price }}">
+                    {{ asset.symbol }} - {{ asset.company_name }} ({{ asset.asset_class.title() }})
+                </option>
+                {% endfor %}
                 {% endif %}
+            </select>
+            <input type="hidden" id="strategySelect" name="strategy_id" value="1">
+        </div>
 
-            </div><!-- /card-body -->
-        </div><!-- /trade card -->
-    </div><!-- /col -->
-</div><!-- /row (trade card) -->
+        <div id="livePriceBar" class="d-flex align-items-baseline mt-1 d-none">
+            <span id="livePriceVal" class="tn-price">—</span>
+            <span id="livePriceChg" class="tn-change-neg">—</span>
+            <span id="livePriceSrc" class="tn-status">NSE</span>
+        </div>
+        <div id="hintRow" class="d-flex gap-3 mt-1 d-none" style="font-size:11px;color:#64748b;">
+            <span>Entry: <strong id="hintEntry">—</strong></span>
+            <span>Target: <strong id="hintTarget" class="text-success">—</strong></span>
+            <span>SL: <strong id="hintSL" class="text-danger">—</strong></span>
+        </div>
+        <div id="livePriceSpinner" class="text-muted mt-1 d-none" style="font-size:12px;">
+            <i class="fas fa-spinner fa-spin me-1"></i>Fetching live price…
+        </div>
+
+        <!-- Product type pills (Trading / Investing / NRML) -->
+        <div class="tn-pt" id="productTypeTabs" role="group">
+            <button type="button" class="pt-tab active" data-pt="MIS">Trading</button>
+            <button type="button" class="pt-tab" data-pt="CNC">Investing</button>
+            <button type="button" class="pt-tab" data-pt="NRML">NRML</button>
+        </div>
+    </div>
+
+    <!-- TABS ROW: Market / Limit / SL  +  Buy/Sell toggle -->
+    <div class="tn-tabs">
+        <div class="tn-ot" id="orderTypeTabs">
+            <button type="button" class="ot-tab active" data-ot="MARKET">Market</button>
+            <button type="button" class="ot-tab" data-ot="LIMIT">Limit</button>
+            <button type="button" class="ot-tab" data-ot="STOP_LOSS">Trigger</button>
+        </div>
+        <div class="tn-side">
+            <span id="buyLbl" class="tn-buy-label">Buy</span>
+            <div id="sideToggle" class="tn-toggle buy" onclick="toggleSide()" role="button" aria-label="Buy/Sell toggle"></div>
+            <span id="sellLbl">Sell</span>
+        </div>
+    </div>
+
+    <!-- BODY: Qty + Price + Instant Buy on ONE row -->
+    <div class="tn-body">
+        <div class="tn-row">
+            <div class="tn-field">
+                <label>Qty.</label>
+                <div class="input-group input-group-sm">
+                    <button type="button" class="btn btn-outline-secondary" onclick="changeQty(-1)"
+                            style="border-radius:8px 0 0 8px;font-weight:700;width:32px;">−</button>
+                    <input type="number" id="quantityInput" class="form-control text-center fw-bold"
+                           name="quantity" min="1" value="1" required
+                           style="border-left:0;border-right:0;">
+                    <button type="button" class="btn btn-outline-secondary" onclick="changeQty(1)"
+                            style="border-radius:0 8px 8px 0;font-weight:700;width:32px;">+</button>
+                </div>
+            </div>
+            <div class="tn-field" id="priceRow">
+                <label>Price</label>
+                <input type="number" id="entryPriceInput" class="form-control"
+                       name="entry_price" step="0.01" placeholder="Market" readonly>
+            </div>
+            {% if connected_brokers|length > 0 and current_user.pricing_plan in [PricingPlan.TARGET_PRO, PricingPlan.HNI] %}
+            <button type="button" id="instantTradeBtn" onclick="showTradeConfirmation()" class="tn-cta">
+                <i class="fas fa-bolt me-1"></i><span id="ctaLabel">Instant Buy</span>
+            </button>
+            {% else %}
+            <button type="button" class="tn-cta" disabled>
+                <i class="fas fa-lock me-1"></i>{{ 'Connect Broker' if connected_brokers|length == 0 else 'Upgrade' }}
+            </button>
+            {% endif %}
+        </div>
+        <div id="priceNote" class="text-muted mt-1" style="font-size:11px;">Price will be at best available market price</div>
+
+        <!-- More Options toggle -->
+        <button type="button" class="tn-more" id="moreOptionsToggle" onclick="toggleMoreOptions()">
+            <i class="fas fa-cog"></i> More Options
+        </button>
+
+        <!-- More Options panel -->
+        <div id="moreOptionsPanel" class="d-none mt-2 p-2 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
+            <div class="row g-2">
+                <div class="col-4">
+                    <label class="form-label fw-semibold mb-1" style="font-size:11px;color:#475569;">Stop Loss ₹</label>
+                    <input type="number" id="stopLossInput" class="form-control form-control-sm" name="stop_loss" step="0.01" placeholder="Optional">
+                </div>
+                <div class="col-4">
+                    <label class="form-label fw-semibold mb-1" style="font-size:11px;color:#475569;" id="targetPriceLabel">Target ₹</label>
+                    <input type="number" id="targetPriceInput" class="form-control form-control-sm" name="target_price" step="0.01" placeholder="Optional">
+                </div>
+                <div class="col-4">
+                    <label class="form-label fw-semibold mb-1" style="font-size:11px;color:#475569;">Max Loss ₹</label>
+                    <input type="number" id="maxLossInput" class="form-control form-control-sm" name="max_loss" step="0.01" placeholder="Optional">
+                </div>
+            </div>
+        </div>
+
+        <!-- F&O fields (hidden by default) -->
+        <div id="optionsFields" class="d-none mt-2 p-2 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
+            <div class="row g-2">
+                <div class="col-4">
+                    <label class="form-label fw-semibold mb-1" style="font-size:11px;">Expiry</label>
+                    <input type="date" class="form-control form-control-sm" name="expiry_date">
+                </div>
+                <div class="col-4">
+                    <label class="form-label fw-semibold mb-1" style="font-size:11px;">Strike</label>
+                    <input type="number" class="form-control form-control-sm" name="strike_price" step="0.01">
+                </div>
+                <div class="col-4">
+                    <label class="form-label fw-semibold mb-1" style="font-size:11px;">Type</label>
+                    <select class="form-select form-select-sm" name="option_type">
+                        <option value="">—</option>
+                        <option value="CALL">Call</option>
+                        <option value="PUT">Put</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden inputs used by JS -->
+        <input type="hidden" id="orderTypeHidden" name="order_type" value="MARKET">
+        <input type="hidden" id="productTypeHidden" name="product_type" value="MIS">
+        <input type="hidden" id="actionHidden" value="BUY">
+        <!-- Legacy hidden buttons (kept so existing JS that references #buyBtn/#sellBtn still works) -->
+        <button type="button" id="buyBtn" onclick="setAction('BUY')" class="d-none"></button>
+        <button type="button" id="sellBtn" onclick="setAction('SELL')" class="d-none"></button>
+    </div>
+
+    <!-- FOOTER: Margin Required + Available -->
+    <div class="tn-foot">
+        <span>Margin Required: <strong id="marginRequired">—</strong>
+              <span class="estim ms-1">Available: <strong id="marginAvailable" style="color:#dc2626;">—</strong></span>
+        </span>
+        <span class="estim"><i class="fas fa-calculator me-1"></i>Order Estimator</span>
+    </div>
+
+</div><!-- /tn-card -->
+
+<script>
+function toggleSide(){
+  const t = document.getElementById('sideToggle');
+  const buyLbl  = document.getElementById('buyLbl');
+  const sellLbl = document.getElementById('sellLbl');
+  const cta     = document.getElementById('ctaLabel');
+  const btn     = document.getElementById('instantTradeBtn');
+  const isBuy = t.classList.contains('buy');
+  if (isBuy){
+    t.classList.remove('buy'); t.classList.add('sell');
+    buyLbl.classList.remove('tn-buy-label');
+    sellLbl.classList.add('tn-sell-label');
+    if (cta) cta.textContent = 'Instant Sell';
+    if (btn) btn.style.background = '#dc2626';
+    setAction('SELL');
+  } else {
+    t.classList.add('buy'); t.classList.remove('sell');
+    buyLbl.classList.add('tn-buy-label');
+    sellLbl.classList.remove('tn-sell-label');
+    if (cta) cta.textContent = 'Instant Buy';
+    if (btn) btn.style.background = '#16a34a';
+    setAction('BUY');
+  }
+}
+</script>
 
 <!-- ══════════════════════════════════════════════════════════
      BEHAVIOURAL GUARDRAILS  (full width, below trade card)
