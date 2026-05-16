@@ -386,10 +386,39 @@ def dashboard_daily_signals():
     if status_filter != 'all':
         query = query.filter(DailyTradingSignal.status == status_filter)
 
-    signals = query.order_by(DailyTradingSignal.signal_number.asc()).all()
+    try:
+        signals = query.order_by(DailyTradingSignal.signal_number.asc()).all()
+    except Exception as _e:
+        # Schema drift safety net (e.g. missing column on prod): roll back the
+        # aborted transaction so the rest of the page can still render, and
+        # show an empty signals list instead of returning 500.
+        from flask import current_app
+        current_app.logger.error(f"daily_signals query failed: {_e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        signals = []
 
     date_range = [_today_ist() - timedelta(days=i) for i in range(30)]
-    summary_stats = calculate_daily_summary(selected_date)
+    try:
+        summary_stats = calculate_daily_summary(selected_date)
+    except Exception as _e:
+        from flask import current_app
+        current_app.logger.error(f"daily_signals summary failed: {_e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        # Same shape as calculate_daily_summary's empty-result branch — the
+        # template dereferences keys like .success_rate in numeric comparisons,
+        # so an empty dict would itself raise UndefinedError.
+        summary_stats = {
+            'total_signals': 0, 'active': 0, 'target_1_hit': 0, 'target_2_hit': 0,
+            'sl_hit': 0, 'early_exit': 0, 'total_profit_points': 0,
+            'total_loss_points': 0, 'net_points': 0, 'success_rate': 0,
+            'by_asset_type': {}, 'by_duration': {},
+        }
 
     # ── Market data: Dhan (indices) + Perplexity (movers + treemap), parallel ──
     # NO hardcoded values — start with empty placeholders. UI shows "No Data"

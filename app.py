@@ -638,28 +638,32 @@ with app.app_context():
            VALUES ('snapshot_preclose', 'Market Intelligence — Pre-Close', 'Pre-close confirmation snapshot before the last hour of trading.', 13, 30, 40)
            ON CONFLICT (schedule_key) DO NOTHING''',
     ]
-    # In production, column migrations are GATED behind RUN_MIGRATIONS=1.
-    # Reason: with gunicorn --preload, this block runs in the master process
-    # during app load.  An ALTER TABLE that needs to wait for a lock (held by
-    # any other live connection) will hang the master forever — workers never
-    # get forked, /health never responds, Railway healthcheck times out.
-    # On Railway: set RUN_MIGRATIONS=1 for ONE deploy when you ship a new
-    # column or table, watch it complete, then unset it.  Normal redeploys
-    # skip this entire block and boot in seconds.
-    # In development we always run them so the local DB stays in sync.
-    _should_run_migrations = (not is_production) or (os.environ.get("RUN_MIGRATIONS") == "1")
-    if _should_run_migrations:
-        try:
-            with db.engine.connect() as _conn:
-                for _i, _sql in enumerate(_pending_migrations, 1):
-                    logging.info(f"  [migration {_i}/{len(_pending_migrations)}] running…")
-                    _conn.execute(db.text(_sql))
-                _conn.commit()
-            logging.info("✅ Incremental column migrations applied")
-        except Exception as _e:
-            logging.warning(f"⚠️ Column migration skipped (table may not exist yet): {_e}")
+    # Run column migrations on EVERY boot (dev and prod).  All statements use
+    # IF NOT EXISTS / ON CONFLICT and are idempotent, so on a healthy DB this
+    # loop is a near-instant no-op.  To prevent a single long-held lock from
+    # hanging the gunicorn master forever, each statement runs on its own
+    # autocommit connection with a short statement_timeout/lock_timeout, and
+    # failures are isolated per-statement instead of aborting the whole batch.
+    # Operators can opt out by setting SKIP_MIGRATIONS=1.
+    _skip_migrations = os.environ.get("SKIP_MIGRATIONS") == "1"
+    if _skip_migrations:
+        logging.info("⏭️  SKIP_MIGRATIONS=1 set — skipping incremental column migrations")
     else:
-        logging.info("⏭️  Production: skipping column migrations (set RUN_MIGRATIONS=1 to apply)")
+        _ok = 0
+        _failed = 0
+        for _i, _sql in enumerate(_pending_migrations, 1):
+            try:
+                with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _conn:
+                    # Bound how long any single migration can wait/run so the
+                    # master process can never be hung by a stuck ALTER.
+                    _conn.exec_driver_sql("SET lock_timeout = '5s'")
+                    _conn.exec_driver_sql("SET statement_timeout = '30s'")
+                    _conn.execute(db.text(_sql))
+                _ok += 1
+            except Exception as _e:
+                _failed += 1
+                logging.warning(f"⚠️ migration {_i} skipped: {str(_e)[:200]}")
+        logging.info(f"✅ Incremental column migrations: {_ok} ok, {_failed} skipped")
     # ─────────────────────────────────────────────────────────────────────────
 
     # Initialize default 'live' tenant (Target Capital) - only if tables exist
