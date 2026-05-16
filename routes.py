@@ -1490,6 +1490,12 @@ def dashboard():
         from flask import current_app
         current_app.logger.error(f"Error getting trading signals count: {str(e)}")
         trading_signals_count = 0
+        # CRITICAL: roll back the aborted transaction so the rest of the
+        # dashboard's queries don't fail with InFailedSqlTransaction.
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
     
     # Get connected brokers
     broker_accounts = BrokerAccount.query.filter_by(
