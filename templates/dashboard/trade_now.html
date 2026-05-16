@@ -186,6 +186,11 @@
                 <input type="number" id="entryPriceInput" class="form-control"
                        name="entry_price" step="0.01" placeholder="Market" readonly>
             </div>
+            <div class="tn-field d-none" id="triggerRow">
+                <label>Trigger Price</label>
+                <input type="number" id="triggerPriceInput" class="form-control"
+                       name="trigger_price" step="0.01" placeholder="0.00">
+            </div>
             {% if connected_brokers|length > 0 and current_user.pricing_plan in [PricingPlan.TARGET_PRO, PricingPlan.HNI] %}
             <button type="button" id="instantTradeBtn" onclick="showTradeConfirmation()" class="tn-cta">
                 <i class="fas fa-bolt me-1"></i><span id="ctaLabel">Instant Buy</span>
@@ -431,12 +436,20 @@ function setOrderType(ot) {
         btn.style.borderColor = active ? '#00091a' : '#e2e8f0';
     });
 
-    var priceRow  = document.getElementById('priceRow');
-    var priceNote = document.getElementById('priceNote');
+    var priceRow   = document.getElementById('priceRow');
+    var priceNote  = document.getElementById('priceNote');
     var priceInput = document.getElementById('entryPriceInput');
+    var priceLbl   = priceRow ? priceRow.querySelector('label') : null;
+    var triggerRow = document.getElementById('triggerRow');
+    var triggerInp = document.getElementById('triggerPriceInput');
     var targetLbl  = document.getElementById('targetPriceLabel');
 
+    // Default: hide trigger field
+    if (triggerRow) triggerRow.classList.add('d-none');
+    if (triggerInp) triggerInp.required = false;
+
     if (ot === 'MARKET') {
+        if (priceLbl) priceLbl.textContent = 'Price';
         priceInput.readOnly = true;
         priceInput.value    = '';
         priceInput.placeholder = 'Market';
@@ -445,14 +458,28 @@ function setOrderType(ot) {
         if (targetLbl) targetLbl.innerHTML = 'Target ₹ <small class="text-muted fw-normal">(N/A for Market)</small>';
         var tgt = document.getElementById('targetPriceInput');
         if (tgt) { tgt.value = ''; tgt.readOnly = true; tgt.style.color = '#94a3b8'; }
+    } else if (ot === 'STOP_LOSS') {
+        // Show trigger price field. Limit price is optional (becomes SL-M if blank).
+        if (priceLbl) priceLbl.textContent = 'Limit Price';
+        priceInput.readOnly = false;
+        priceInput.placeholder = 'Optional (blank = market on trigger)';
+        priceInput.style.color = '';
+        if (triggerRow) triggerRow.classList.remove('d-none');
+        if (triggerInp) { triggerInp.required = true; triggerInp.focus(); }
+        if (priceNote) priceNote.textContent = 'Order activates when price touches the Trigger; then executes at Limit (or market if blank).';
+        if (targetLbl) targetLbl.innerHTML = 'Target ₹';
+        var tgt2 = document.getElementById('targetPriceInput');
+        if (tgt2) { tgt2.readOnly = false; tgt2.style.color = ''; }
     } else {
+        // LIMIT
+        if (priceLbl) priceLbl.textContent = 'Price';
         priceInput.readOnly = false;
         priceInput.placeholder = '0.00';
         priceInput.style.color = '';
         if (priceNote) priceNote.textContent = '';
         if (targetLbl) targetLbl.innerHTML = 'Target ₹';
-        var tgt = document.getElementById('targetPriceInput');
-        if (tgt) { tgt.readOnly = false; tgt.style.color = ''; }
+        var tgt3 = document.getElementById('targetPriceInput');
+        if (tgt3) { tgt3.readOnly = false; tgt3.style.color = ''; }
     }
 }
 
