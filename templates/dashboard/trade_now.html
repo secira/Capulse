@@ -63,6 +63,8 @@
   .tn-pt{display:inline-flex;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:3px;margin-top:10px;}
   .tn-pt .pt-tab{border:none;background:transparent;font-size:12px;font-weight:600;padding:5px 14px;border-radius:8px;color:#64748b;cursor:pointer;transition:all .15s;}
   .tn-pt .pt-tab.active{background:#fef3c7;color:#b45309;}
+  .tn-pt .pt-code{display:inline-block;margin-left:5px;padding:1px 6px;border-radius:4px;background:#e2e8f0;color:#64748b;font-size:10px;font-weight:700;letter-spacing:.3px;vertical-align:middle;}
+  .tn-pt .pt-tab.active .pt-code{background:#fde68a;color:#92400e;}
   .tn-tabs{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #eef2f7;background:#fff;gap:8px;flex-wrap:wrap;}
   .tn-ot{display:flex;gap:18px;}
   .tn-ot .ot-tab{border:none;background:transparent;font-size:13px;font-weight:600;color:#64748b;padding:4px 0;cursor:pointer;border-bottom:2px solid transparent;}
@@ -138,9 +140,15 @@
 
         <!-- Product type pills (Trading / Investing / NRML) -->
         <div class="tn-pt" id="productTypeTabs" role="group">
-            <button type="button" class="pt-tab active" data-pt="MIS">Trading</button>
-            <button type="button" class="pt-tab" data-pt="CNC">Investing</button>
-            <button type="button" class="pt-tab" data-pt="NRML">NRML</button>
+            <button type="button" class="pt-tab active" data-pt="MIS" title="Intraday — broker squares off before close. Higher leverage.">
+                Trading <span class="pt-code">MIS</span>
+            </button>
+            <button type="button" class="pt-tab" data-pt="CNC" title="Delivery — shares move to your demat. No leverage, no time limit.">
+                Investing <span class="pt-code">CNC</span>
+            </button>
+            <button type="button" class="pt-tab" data-pt="NRML" title="F&amp;O carry-forward — hold positions overnight until expiry.">
+                F&amp;O <span class="pt-code">NRML</span>
+            </button>
         </div>
     </div>
 
