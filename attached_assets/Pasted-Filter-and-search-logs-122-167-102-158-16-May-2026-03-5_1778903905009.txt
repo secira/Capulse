@@ -1,0 +1,165 @@
+Filter and search logs
+
+122.167.102.158 - - [16/May/2026:03:57:34 +0000] "GET /dashboard/fno/nifty HTTP/1.1" 200 29612 "https://www.targetcapital.ai/dashboard/broker-connect" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 46335
+122.167.102.158 - - [16/May/2026:03:57:34 +0000] "GET /dashboard/fno/nifty HTTP/1.1" 200 29612 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 30588
+122.167.102.158 - - [16/May/2026:03:57:34 +0000] "GET /static/js/tradingview-widget.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/fno/nifty" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 17128
+2026-05-16 03:57:35 - security.environment_config - WARNING - [environment_config.py:161] - Redis SSL connection recommended for production
+2026-05-16 03:57:35 - security.environment_config - INFO - [environment_config.py:268] - ✅ Production security validation passed
+2026-05-16 03:57:35 - security.environment_config - INFO - [environment_config.py:338] - ✅ Environment configuration validated successfully
+2026-05-16 03:57:35 - security.environment_config - WARNING - [environment_config.py:133] - PostgreSQL SSL not explicitly configured
+122.167.102.158 - - [16/May/2026:03:57:34 +0000] "GET /dashboard/fno/api/monitor-status?index_id=NIFTY HTTP/1.1" 200 272 "https://www.targetcapital.ai/dashboard/fno/nifty" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 50982
+122.167.102.158 - - [16/May/2026:03:57:35 +0000] "GET /dashboard/fno/api/signal-history?limit=20&index_id=NIFTY HTTP/1.1" 200 27 "https://www.targetcapital.ai/dashboard/fno/nifty" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 60401
+122.167.102.158 - - [16/May/2026:03:57:34 +0000] "GET /dashboard/fno/api/active-trade?index_id=NIFTY HTTP/1.1" 200 132 "https://www.targetcapital.ai/dashboard/fno/nifty" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 51536
+2026-05-16 03:57:35 - security.environment_config - WARNING - [environment_config.py:133] - PostgreSQL SSL not explicitly configured
+2026-05-16 03:57:35 - security.environment_config - WARNING - [environment_config.py:161] - Redis SSL connection recommended for production
+2026-05-16 03:57:35 - services.broker_factory - INFO - [broker_factory.py:62] - Data API broker for user 1: Dhan (account id=1)
+2026-05-16 03:57:35 - security.environment_config - WARNING - [environment_config.py:161] - Redis SSL connection recommended for production
+2026-05-16 03:57:35 - security.environment_config - INFO - [environment_config.py:268] - ✅ Production security validation passed
+2026-05-16 03:57:35 - security.environment_config - INFO - [environment_config.py:338] - ✅ Environment configuration validated successfully
+2026-05-16 03:57:35 - security.environment_config - WARNING - [environment_config.py:133] - PostgreSQL SSL not explicitly configured
+2026-05-16 03:57:35 - security.environment_config - WARNING - [environment_config.py:133] - PostgreSQL SSL not explicitly configured
+2026-05-16 03:57:35 - security.environment_config - WARNING - [environment_config.py:161] - Redis SSL connection recommended for production
+2026-05-16 03:57:35 - brokers.dhan - WARNING - [dhan.py:126] - Dhan connect failed: Client ID or user generated access token is invalid or expired. (code: DH-901) | cid_len=10 | full resp: {'status': 'failure', 'remarks': {'error_code': 'DH-901', 'error_type': 'Invalid_Authentication', 'error_message': 'Client ID or user generated access token is invalid or expired.'}, 'data': {'errorType': 'Invalid_Authentication', 'errorCode': 'DH-901', 'errorMessage': 'Client ID or user generated access token is invalid or expired.'}}
+2026-05-16 03:57:35 - services.dhan_service - WARNING - [dhan_service.py:103] - DhanDataService: broker connect() returned False
+2026-05-16 03:57:35 - services.nifty_options_engine - INFO - [nifty_options_engine.py:317] - Dhan market indices: NIFTY=0.0, BankNIFTY=0.0, FinNIFTY=0.0, SENSEX=0.0, VIX=0.0
+2026-05-16 03:57:35 - services.nifty_options_engine - INFO - [nifty_options_engine.py:347] - NSE allIndices fallback used: NIFTY=23643.5, BANK=53710.35
+2026-05-16 03:57:35 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:204] - Data broker dhan failed to connect
+2026-05-16 03:57:35 - services.nifty_options_engine - INFO - [nifty_options_engine.py:378] - yfinance fallback used: NIFTY=23643.5
+2026-05-16 03:57:36 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:408] - nsepython returned empty/invalid data
+2026-05-16 03:57:36 - services.nifty_options_engine - WARNING - [nifty_options_engine.py:433] - NSE direct API returned empty data (likely geo-blocked)
+2026-05-16 03:57:36 - services.nifty_options_engine - INFO - [nifty_options_engine.py:712] - OI Metrics — PCR:1.0 ATM_PCR:1.0 MaxPain:23650 (+0.03%) OI_diff:0.000 CE_OI:40,200,000 PUT_OI:40,200,000
+2026-05-16 03:57:36 - security.environment_config - WARNING - [environment_config.py:133] - PostgreSQL SSL not explicitly configured
+2026-05-16 03:57:36 - security.environment_config - WARNING - [environment_config.py:161] - Redis SSL connection recommended for production
+2026-05-16 03:57:36 - security.environment_config - INFO - [environment_config.py:338] - ✅ Environment configuration validated successfully
+2026-05-16 03:57:36 - security.environment_config - WARNING - [environment_config.py:161] - Redis SSL connection recommended for production
+2026-05-16 03:57:36 - brokers.dhan - WARNING - [dhan.py:126] - Dhan connect failed: Client ID or user generated access token is invalid or expired. (code: DH-901) | cid_len=10 | full resp: {'status': 'failure', 'remarks': {'error_code': 'DH-901', 'error_type': 'Invalid_Authentication', 'error_message': 'Client ID or user generated access token is invalid or expired.'}, 'data': {'errorType': 'Invalid_Authentication', 'errorCode': 'DH-901', 'errorMessage': 'Client ID or user generated access token is invalid or expired.'}}
+2026-05-16 03:57:36 - services.dhan_service - WARNING - [dhan_service.py:103] - DhanDataService: broker connect() returned False
+2026-05-16 03:57:36 - services.nifty_options_engine - INFO - [nifty_options_engine.py:852] - _fetch_intraday_candles(NIFTY): 375 candles from yfinance (5d)
+122.167.102.158 - - [16/May/2026:03:57:37 +0000] "GET /dashboard/fno/api/analysis/NIFTY HTTP/1.1" 200 2234 "https://www.targetcapital.ai/dashboard/fno/nifty" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 2089485
+122.167.102.158 - - [16/May/2026:03:57:40 +0000] "GET /dashboard/research HTTP/1.1" 200 15537 "https://www.targetcapital.ai/dashboard/fno/nifty" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 118223
+122.167.102.158 - - [16/May/2026:03:57:41 +0000] "GET /dashboard/research HTTP/1.1" 200 15537 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 85574
+122.167.102.158 - - [16/May/2026:03:57:41 +0000] "GET /api/live-data-status HTTP/1.1" 200 251 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 20714
+122.167.102.158 - - [16/May/2026:03:57:41 +0000] "GET /static/js/tradingview-datafeed.js?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 16689
+122.167.102.158 - - [16/May/2026:03:57:41 +0000] "GET /static/js/tradingview-widget.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 14874
+122.167.102.158 - - [16/May/2026:03:57:41 +0000] "GET /dashboard/research HTTP/1.1" 200 15537 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 115739
+2026-05-16 03:57:50 - httpx - INFO - [_client.py:1025] - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+122.167.102.158 - - [16/May/2026:03:57:50 +0000] "GET /dashboard/my-portfolio HTTP/1.1" 200 20012 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 4422444
+122.167.102.158 - - [16/May/2026:03:57:52 +0000] "GET /dashboard/my-portfolio HTTP/1.1" 200 20036 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 2704809
+122.167.102.158 - - [16/May/2026:03:57:52 +0000] "GET /dashboard/my-portfolio HTTP/1.1" 200 20036 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 146286
+122.167.102.158 - - [16/May/2026:03:57:52 +0000] "GET /static/js/main.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/my-portfolio" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 16077
+122.167.102.158 - - [16/May/2026:03:57:53 +0000] "GET /dashboard/my-portfolio HTTP/1.1" 200 20036 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 146245
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column daily_trading_signals.expiry_date does not exist
+                                                             ^
+Traceback (most recent call last):
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+  File "/usr/local/lib/python3.11/site-packages/flask_login/utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+  File "/app/routes_daily_signals.py", line 389, in dashboard_daily_signals
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2711, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+                                                             ^
+FROM daily_trading_signals 
+(Background on this error at: https://sqlalche.me/e/20/f405)
+122.167.102.158 - - [16/May/2026:03:57:53 +0000] "GET /dashboard/daily-signals HTTP/1.1" 500 24621 "https://www.targetcapital.ai/dashboard/my-portfolio" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 47564
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+2026-05-16 03:57:54 - app - ERROR - [app.py:875] - Exception on /dashboard/daily-signals [GET]
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+The above exception was the direct cause of the following exception:
+  File "/usr/local/lib/python3.11/site-packages/flask_login/utils.py", line 290, in decorated_view
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    return self._iter().all()  # type: ignore
+    rv = self.dispatch_request()
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    return self._execute_internal(
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+           ^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[SQL: SELECT daily_trading_signals.id AS daily_trading_signals_id, daily_trading_signals.tenant_id AS daily_trading_signals_tenant_id, daily_trading_signals.signal_number AS daily_trading_signals_signal_number, daily_trading_signals.signal_date AS daily_trading_signals_signal_date, daily_trading_signals.asset_type AS daily_trading_signals_asset_type, daily_trading_signals.sub_type AS daily_trading_signals_sub_type, daily_trading_signals.symbol AS daily_trading_signals_symbol, daily_trading_signals.strike_price AS daily_trading_signals_strike_price, daily_trading_signals.strike_type AS daily_trading_signals_strike_type, daily_trading_signals.expiry_date AS daily_trading_signals_expiry_date, daily_trading_signals.script AS daily_trading_signals_script, daily_trading_signals.trade_duration AS daily_trading_signals_trade_duration, daily_trading_signals.action AS daily_trading_signals_action, daily_trading_signals.strategy_name AS daily_trading_signals_strategy_name, daily_trading_signals.buy_above AS daily_trading_signals_buy_above, daily_trading_signals.stop_loss AS daily_trading_signals_stop_loss, daily_trading_signals.target_1 AS daily_trading_signals_target_1, daily_trading_signals.target_2 AS daily_trading_signals_target_2, daily_trading_signals.target_3 AS daily_trading_signals_target_3, daily_trading_signals.profit_points AS daily_trading_signals_profit_points, daily_trading_signals.loss_points AS daily_trading_signals_loss_points, daily_trading_signals.final_points AS daily_trading_signals_final_points, daily_trading_signals.trade_outcome AS daily_trading_signals_trade_outcome, daily_trading_signals.status AS daily_trading_signals_status, daily_trading_signals.risk_level AS daily_trading_signals_risk_level, daily_trading_signals.notes AS daily_trading_signals_notes, daily_trading_signals.disclaimer AS daily_trading_signals_disclaimer, daily_trading_signals.created_by AS daily_trading_signals_created_by, daily_trading_signals.analyst_name AS daily_trading_signals_analyst_name, daily_trading_signals.shared_whatsapp AS daily_trading_signals_shared_whatsapp, daily_trading_signals.shared_telegram AS daily_trading_signals_shared_telegram, daily_trading_signals.whatsapp_shared_at AS daily_trading_signals_whatsapp_shared_at, daily_trading_signals.telegram_shared_at AS daily_trading_signals_telegram_shared_at, daily_trading_signals.created_at AS daily_trading_signals_created_at, daily_trading_signals.updated_at AS daily_trading_signals_updated_at, daily_trading_signals.closed_at AS daily_trading_signals_closed_at 
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column daily_trading_signals.expiry_date does not exist
+LINE 1: ...strike_type AS daily_trading_signals_strike_type, daily_trad...
+                                                             ^
+(Background on this error at: https://sqlalche.me/e/20/f405)
+122.167.102.158 - - [16/May/2026:03:57:54 +0000] "GET /dashboard/daily-signals HTTP/1.1" 500 24621 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 47984
+122.167.102.158 - - [16/May/2026:03:57:54 +0000] "GET /static/js/tradingview-datafeed.js?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/daily-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 21098
+122.167.102.158 - - [16/May/2026:03:57:54 +0000] "GET /static/js/tradingview-widget.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/daily-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 17642
+2026-05-16 03:57:54 - app - ERROR - [app.py:875] - Exception on /dashboard/daily-signals [GET]
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column daily_trading_signals.expiry_date does not exist
+LINE 1: ...strike_type AS daily_trading_signals_strike_type, daily_trad...
+                                                             ^
+The above exception was the direct cause of the following exception:
+Traceback (most recent call last):
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    return current_app.ensure_sync(func)(*args, **kwargs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2864, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+LINE 1: ...strike_type AS daily_trading_signals_strike_type, daily_trad...
+                                                             ^
+WHERE daily_trading_signals.signal_date = %(signal_date_1)s AND daily_trading_signals.tenant_id = %(tenant_id_1)s ORDER BY daily_trading_signals.signal_number ASC]
+[parameters: {'signal_date_1': datetime.date(2026, 5, 16), 'tenant_id_1': 'live'}]
+122.167.102.158 - - [16/May/2026:03:57:54 +0000] "GET /dashboard/daily-signals HTTP/1.1" 500 24621 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 44420
