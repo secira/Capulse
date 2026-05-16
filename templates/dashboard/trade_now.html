@@ -93,6 +93,21 @@
   .tn-foot .estim{color:#64748b;font-weight:600;}
   .tn-asset-pick{border:none;background:transparent;font-size:14px;font-weight:700;color:#0f172a;padding:0;box-shadow:none;width:auto;max-width:100%;}
   .tn-asset-pick:focus{box-shadow:none;outline:none;}
+  .tn-asset-banner{display:none;align-items:center;gap:10px;background:linear-gradient(90deg,#f0f9ff 0%,#fff 100%);border:1px solid #bae6fd;border-radius:10px;padding:8px 12px;margin-top:8px;}
+  .tn-asset-banner.show{display:flex;}
+  .tn-asset-banner .ab-sym{font-size:16px;font-weight:800;color:#00091a;letter-spacing:.3px;}
+  .tn-asset-banner .ab-co{font-size:12px;color:#475569;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tn-asset-banner .ab-cls{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 8px;border-radius:4px;background:#dbeafe;color:#1d4ed8;text-transform:uppercase;}
+  .tn-asset-banner .ab-cls.eq{background:#dcfce7;color:#15803d;}
+  .tn-asset-banner .ab-cls.fno,.tn-asset-banner .ab-cls.opt,.tn-asset-banner .ab-cls.fut{background:#fef3c7;color:#b45309;}
+  .tn-asset-banner .ab-clear{background:none;border:none;color:#94a3b8;font-size:14px;padding:0 4px;cursor:pointer;line-height:1;}
+  .tn-asset-banner .ab-clear:hover{color:#dc2626;}
+  .tn-symtype-link{font-size:11px;color:#0ea5e9;font-weight:600;cursor:pointer;background:none;border:none;padding:0;margin-left:8px;}
+  .tn-symtype-link:hover{text-decoration:underline;}
+  .tn-symtype-row{display:none;gap:6px;margin-top:8px;align-items:center;}
+  .tn-symtype-row.show{display:flex;}
+  .tn-symtype-row input{flex:1;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:600;text-transform:uppercase;}
+  .tn-symtype-row button{border:none;background:#00091a;color:#fff;font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;}
 </style>
 
 <div class="tn-card mb-4">
@@ -122,6 +137,23 @@
                 {% endif %}
             </select>
             <input type="hidden" id="strategySelect" name="strategy_id" value="1">
+            <button type="button" class="tn-symtype-link" id="typeSymToggle" title="Type any stock or F&O contract symbol">
+                <i class="fas fa-keyboard me-1"></i>Type symbol
+            </button>
+        </div>
+
+        <!-- Selected asset banner (visible once an asset is chosen) -->
+        <div id="assetBanner" class="tn-asset-banner">
+            <span class="ab-sym" id="abSym">—</span>
+            <span class="ab-co" id="abCo"></span>
+            <span class="ab-cls" id="abCls">EQ</span>
+            <button type="button" class="ab-clear" id="abClear" title="Clear">&times;</button>
+        </div>
+
+        <!-- Free-text symbol lookup (for F&O contracts / unlisted stocks) -->
+        <div id="typeSymRow" class="tn-symtype-row">
+            <input type="text" id="typeSymInput" placeholder="e.g. RELIANCE, TCS, NIFTY24DEC25000CE" autocomplete="off">
+            <button type="button" id="typeSymLookup">Lookup</button>
         </div>
 
         <div id="livePriceBar" class="d-flex align-items-baseline mt-1 d-none">
@@ -509,6 +541,35 @@ function toggleMoreOptions() {
     }
 }
 
+// ─── Selected asset banner ────────────────────────────────────────────────────
+function showAssetBanner(symbol, company, assetClass) {
+    var b = document.getElementById('assetBanner');
+    if (!b) return;
+    document.getElementById('abSym').textContent = symbol || '';
+    document.getElementById('abCo').textContent  = company && company !== symbol ? company : '';
+    var clsEl = document.getElementById('abCls');
+    var cls = (assetClass || 'EQ').toLowerCase();
+    var label = 'EQ';
+    clsEl.className = 'ab-cls';
+    if (cls.indexOf('option') >= 0)      { label = 'OPTION'; clsEl.classList.add('opt'); }
+    else if (cls.indexOf('future') >= 0) { label = 'FUTURE'; clsEl.classList.add('fut'); }
+    else if (cls === 'fno' || cls === 'derivative') { label = 'F&O'; clsEl.classList.add('fno'); }
+    else if (cls.indexOf('mutual') >= 0) { label = 'MF'; }
+    else                                  { label = 'EQUITY'; clsEl.classList.add('eq'); }
+    clsEl.textContent = label;
+    b.classList.add('show');
+}
+function clearAssetBanner() {
+    var b = document.getElementById('assetBanner');
+    if (b) b.classList.remove('show');
+    var bar = document.getElementById('livePriceBar');
+    if (bar) bar.classList.add('d-none');
+    var hint = document.getElementById('hintRow');
+    if (hint) hint.classList.add('d-none');
+    var sel = document.getElementById('assetSelect');
+    if (sel) sel.selectedIndex = 0;
+}
+
 // ─── Live Price ───────────────────────────────────────────────────────────────
 function fetchLivePrice(symbol, keepTarget, keepSL) {
     if (!symbol) return;
@@ -604,9 +665,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     assetSelect.addEventListener('change', function() {
         var opt = this.options[this.selectedIndex];
-        if (!opt || !opt.value) return;
+        if (!opt || !opt.value) { clearAssetBanner(); return; }
         var symbol     = opt.value;
         var assetClass = opt.dataset.assetClass || '';
+        var company    = opt.dataset.company || '';
+
+        // Show prominent asset banner
+        showAssetBanner(symbol, company, assetClass);
 
         // F&O fields
         var optFields = document.getElementById('optionsFields');
@@ -627,6 +692,54 @@ document.addEventListener('DOMContentLoaded', function() {
         fetchLivePrice(symbol, false, false);
         checkGuardrails();
     });
+
+    // ─── Type-symbol toggle + lookup ─────────────────────────────────────────
+    var typeToggle = document.getElementById('typeSymToggle');
+    var typeRow    = document.getElementById('typeSymRow');
+    var typeInput  = document.getElementById('typeSymInput');
+    var typeBtn    = document.getElementById('typeSymLookup');
+    if (typeToggle && typeRow) {
+        typeToggle.addEventListener('click', function() {
+            typeRow.classList.toggle('show');
+            if (typeRow.classList.contains('show') && typeInput) typeInput.focus();
+        });
+    }
+    function runTypeLookup() {
+        if (!typeInput) return;
+        var sym = (typeInput.value || '').trim().toUpperCase();
+        if (!sym) return;
+        // Detect asset class from pattern (rough): options end in CE/PE, futures end in FUT
+        var cls = 'equity';
+        if (/CE$|PE$/.test(sym))      cls = 'options';
+        else if (/FUT$/.test(sym))    cls = 'futures';
+        // Inject a temporary option into the dropdown so submit picks it up,
+        // then dispatch change so all downstream logic (banner, F&O fields,
+        // default qty, guardrails, price fetch) runs through the single source of truth.
+        var existing = false;
+        for (var i = 0; i < assetSelect.options.length; i++) {
+            if (assetSelect.options[i].value === sym) {
+                assetSelect.selectedIndex = i; existing = true; break;
+            }
+        }
+        if (!existing) {
+            var o = document.createElement('option');
+            o.value = sym;
+            o.text = sym + ' (typed)';
+            o.dataset.assetClass = cls;
+            o.dataset.company = '';
+            o.selected = true;
+            assetSelect.insertBefore(o, assetSelect.options[1]);
+        }
+        assetSelect.dispatchEvent(new Event('change'));
+    }
+    if (typeBtn)   typeBtn.addEventListener('click', runTypeLookup);
+    if (typeInput) typeInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); runTypeLookup(); }
+    });
+
+    // Clear-asset button
+    var abClear = document.getElementById('abClear');
+    if (abClear) abClear.addEventListener('click', clearAssetBanner);
 
     // URL pre-population
     var urlParams = new URLSearchParams(window.location.search);
@@ -674,13 +787,27 @@ function prePopulateForm(urlParams) {
         }
     }
     if (!found && symbol) {
+        // Detect asset class from URL or pattern (source can be 'fno', 'fno_nifty', etc.)
+        var isFno = source && source.toLowerCase().indexOf('fno') === 0;
+        var detectedCls = 'equity';
+        if (isFno || /CE$|PE$/.test(symbol)) detectedCls = 'options';
+        else if (/FUT$/.test(symbol))        detectedCls = 'futures';
         var opt = document.createElement('option');
         opt.value = symbol;
         opt.text  = symbol + (script && script !== symbol ? ' — ' + script : '');
         opt.dataset.price = price || '';
+        opt.dataset.assetClass = detectedCls;
+        opt.dataset.company    = script || '';
         opt.selected = true;
         assetSelect.insertBefore(opt, assetSelect.options[1]);
         assetSelect.dispatchEvent(new Event('change'));
+    }
+    // Belt-and-suspenders: always reveal banner with whatever we have
+    if (symbol) {
+        var _isFno = source && source.toLowerCase().indexOf('fno') === 0;
+        showAssetBanner(symbol, script || '',
+            (_isFno || /CE$|PE$/.test(symbol)) ? 'options'
+              : (/FUT$/.test(symbol) ? 'futures' : 'equity'));
     }
 
     // Signal-provided prices
