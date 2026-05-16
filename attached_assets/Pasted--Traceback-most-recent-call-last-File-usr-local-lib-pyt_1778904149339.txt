@@ -1,0 +1,141 @@
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask_login/utils.py", line 290, in decorated_view
+    return current_app.ensure_sync(func)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/routes.py", line 1498, in dashboard
+    ).all()
+      ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2711, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2864, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+[SQL: SELECT user_brokers.id AS user_brokers_id, user_brokers.tenant_id AS user_brokers_tenant_id, user_brokers.user_id AS user_brokers_user_id, user_brokers.broker_type AS user_brokers_broker_type, user_brokers.broker_name AS user_brokers_broker_name, user_brokers.api_key AS user_brokers_api_key, user_brokers.access_token AS user_brokers_access_token, user_brokers.api_secret AS user_brokers_api_secret, user_brokers.connection_status AS user_brokers_connection_status, user_brokers.is_primary AS user_brokers_is_primary, user_brokers.is_data_broker AS user_brokers_is_data_broker, user_brokers.last_connected AS user_brokers_last_connected, user_brokers.account_balance AS user_brokers_account_balance, user_brokers.margin_available AS user_brokers_margin_available, user_brokers.is_active AS user_brokers_is_active, user_brokers.request_token AS user_brokers_request_token, user_brokers.redirect_url AS user_brokers_redirect_url, user_brokers.last_token_refresh AS user_brokers_last_token_refresh, user_brokers.created_at AS user_brokers_created_at, user_brokers.updated_at AS user_brokers_updated_at, user_brokers.last_sync AS user_brokers_last_sync, user_brokers.sync_status AS user_brokers_sync_status 
+FROM user_brokers 
+WHERE user_brokers.user_id = %(user_id_1)s AND user_brokers.is_active = true AND user_brokers.tenant_id = %(tenant_id_1)s]
+[parameters: {'user_id_1': 1, 'tenant_id_1': 'live'}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+122.167.102.158 - - [16/May/2026:03:59:25 +0000] "GET /dashboard HTTP/1.1" 500 24593 "https://www.targetcapital.ai/account/billing" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 127950
+122.167.102.158 - - [16/May/2026:03:59:26 +0000] "GET /static/js/tradingview-datafeed.js?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 17347
+2026-05-16 03:59:26 - app - ERROR - [routes.py:1491] - Error getting trading signals count: (psycopg2.errors.UndefinedColumn) column daily_trading_signals.expiry_date does not exist
+LINE 2: ...strike_type AS daily_trading_signals_strike_type, daily_trad...
+                                                             ^
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT daily_trading_signals.id AS daily_trading_signals_id, daily_trading_signals.tenant_id AS daily_trading_signals_tenant_id, daily_trading_signals.signal_number AS daily_trading_signals_signal_number, daily_trading_signals.signal_date AS daily_trading_signals_signal_date, daily_trading_signals.asset_type AS daily_trading_signals_asset_type, daily_trading_signals.sub_type AS daily_trading_signals_sub_type, daily_trading_signals.symbol AS daily_trading_signals_symbol, daily_trading_signals.strike_price AS daily_trading_signals_strike_price, daily_trading_signals.strike_type AS daily_trading_signals_strike_type, daily_trading_signals.expiry_date AS daily_trading_signals_expiry_date, daily_trading_signals.script AS daily_trading_signals_script, daily_trading_signals.trade_duration AS daily_trading_signals_trade_duration, daily_trading_signals.action AS daily_trading_signals_action, daily_trading_signals.strategy_name AS daily_trading_signals_strategy_name, daily_trading_signals.buy_above AS daily_trading_signals_buy_above, daily_trading_signals.stop_loss AS daily_trading_signals_stop_loss, daily_trading_signals.target_1 AS daily_trading_signals_target_1, daily_trading_signals.target_2 AS daily_trading_signals_target_2, daily_trading_signals.target_3 AS daily_trading_signals_target_3, daily_trading_signals.profit_points AS daily_trading_signals_profit_points, daily_trading_signals.loss_points AS daily_trading_signals_loss_points, daily_trading_signals.final_points AS daily_trading_signals_final_points, daily_trading_signals.trade_outcome AS daily_trading_signals_trade_outcome, daily_trading_signals.status AS daily_trading_signals_status, daily_trading_signals.risk_level AS daily_trading_signals_risk_level, daily_trading_signals.notes AS daily_trading_signals_notes, daily_trading_signals.disclaimer AS daily_trading_signals_disclaimer, daily_trading_signals.created_by AS daily_trading_signals_created_by, daily_trading_signals.analyst_name AS daily_trading_signals_analyst_name, daily_trading_signals.shared_whatsapp AS daily_trading_signals_shared_whatsapp, daily_trading_signals.shared_telegram AS daily_trading_signals_shared_telegram, daily_trading_signals.whatsapp_shared_at AS daily_trading_signals_whatsapp_shared_at, daily_trading_signals.telegram_shared_at AS daily_trading_signals_telegram_shared_at, daily_trading_signals.created_at AS daily_trading_signals_created_at, daily_trading_signals.updated_at AS daily_trading_signals_updated_at, daily_trading_signals.closed_at AS daily_trading_signals_closed_at 
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The above exception was the direct cause of the following exception:
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+Traceback (most recent call last):
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+[parameters: {'status_1': 'ACTIVE', 'signal_date_1': datetime.date(2026, 5, 16)}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+    cursor.execute(statement, parameters)
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+2026-05-16 03:59:26 - app - ERROR - [app.py:875] - Exception on /dashboard [GET]
+Traceback (most recent call last):
+    response = self.full_dispatch_request()
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+FROM daily_trading_signals 
+WHERE daily_trading_signals.status = %(status_1)s AND daily_trading_signals.signal_date = %(signal_date_1)s) AS anon_1]
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2864, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+  File "/usr/local/lib/python3.11/site-packages/flask_login/utils.py", line 290, in decorated_view
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2711, in all
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+    return current_app.ensure_sync(func)(*args, **kwargs)
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^
+  File "/app/routes.py", line 1498, in dashboard
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).all()
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+      ^^^^^
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    return self._execute_internal(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+           ^^^^^^^^^^^^^^^^^^^^^^^
+    ret = self._execute_context(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+          ^^^^^^^^^^^^^^^^^^^^^^
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+[SQL: SELECT user_brokers.id AS user_brokers_id, user_brokers.tenant_id AS user_brokers_tenant_id, user_brokers.user_id AS user_brokers_user_id, user_brokers.broker_type AS user_brokers_broker_type, user_brokers.broker_name AS user_brokers_broker_name, user_brokers.api_key AS user_brokers_api_key, user_brokers.access_token AS user_brokers_access_token, user_brokers.api_secret AS user_brokers_api_secret, user_brokers.connection_status AS user_brokers_connection_status, user_brokers.is_primary AS user_brokers_is_primary, user_brokers.is_data_broker AS user_brokers_is_data_broker, user_brokers.last_connected AS user_brokers_last_connected, user_brokers.account_balance AS user_brokers_account_balance, user_brokers.margin_available AS user_brokers_margin_available, user_brokers.is_active AS user_brokers_is_active, user_brokers.request_token AS user_brokers_request_token, user_brokers.redirect_url AS user_brokers_redirect_url, user_brokers.last_token_refresh AS user_brokers_last_token_refresh, user_brokers.created_at AS user_brokers_created_at, user_brokers.updated_at AS user_brokers_updated_at, user_brokers.last_sync AS user_brokers_last_sync, user_brokers.sync_status AS user_brokers_sync_status 
+FROM user_brokers 
+WHERE user_brokers.user_id = %(user_id_1)s AND user_brokers.is_active = true AND user_brokers.tenant_id = %(tenant_id_1)s]
+[parameters: {'user_id_1': 1, 'tenant_id_1': 'live'}]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+122.167.102.158 - - [16/May/2026:03:59:26 +0000] "GET /dashboard HTTP/1.1" 500 24593 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 130922
+122.167.102.158 - - [16/May/2026:03:59:26 +0000] "GET /static/js/main.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 16670
+122.167.102.158 - - [16/May/2026:03:59:26 +0000] "GET /static/js/tradingview-widget.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 14607
+2026-05-16 04:00:19 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-16 04:01:19 UTC)" (scheduled at 2026-05-16 04:00:19.438281+00:00)
+2026-05-16 04:00:19 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-16 04:01:19 UTC)" executed successfully
+
+Load more
