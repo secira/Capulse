@@ -1,0 +1,77 @@
+echo "--- src tree ---"
+find . -maxdepth 4 -type f -name "*.py" ! -path "./.cache/*" ! -path "./.pythonlibs/*" ! -path "./venv/*" 2>/dev/null | head -30
+echo "--- who handles /v1/orders ---"
+grep -rn "v1/orders\|orders" --include="*.py" . 2>/dev/null | grep -viE "\.cache/|\.pythonlibs/|venv/|__pycache__" | head -20
+echo "--- who reads EXECUTION_HMAC_SECRET ---"
+grep -rn "EXECUTION_HMAC_SECRET\|HMAC_SECRET" --include="*.py" . 2>/dev/null | grep -viE "\.cache/|\.pythonlibs/|venv/" | head -20
+total 496
+drwxr-xr-x 1 runner runner    466 May 17 13:27 .
+drwxrwxrwx 1 runner runner     58 May 17 09:13 ..
+drwxr-xr-x 1 runner runner      0 May 17 09:13 .agents
+drwxr-xr-x 1 runner runner     86 May 17 09:14 artifacts
+drwxr-xr-x 1 runner runner    160 May 17 09:13 attached_assets
+drwxr-xr-x 1 runner runner     24 May 17 09:18 .cache
+drwxr-xr-x 1 runner runner    154 May 17 13:31 .git
+-rw-r--r-- 1 runner runner    668 May 13 03:54 .gitignore
+drwxr-xr-x 1 runner runner     66 May 13 03:54 lib
+drwxr-xr-x 1 runner runner     90 May 17 09:13 .local
+-rw-r--r-- 1 runner runner     96 May 17 09:18 main.py
+drwxr-xr-x 1 runner runner    138 May 13 03:54 node_modules
+-rw-r--r-- 1 runner runner     56 May 13 03:54 .npmrc
+-rw-r--r-- 1 runner runner    585 May 13 03:54 package.json
+-rw-r--r-- 1 runner runner 202766 May 13 03:54 pnpm-lock.yaml
+-rw-r--r-- 1 runner runner   6577 May 13 03:54 pnpm-workspace.yaml
+-rw-r--r-- 1 runner runner    485 May 17 09:18 pyproject.toml
+drwxr-xr-x 1 runner runner    110 May 17 09:18 .pythonlibs
+-rw-r--r-- 1 runner runner   1753 May 17 13:27 .replit
+-rw-r--r-- 1 runner runner    201 May 13 03:54 .replitignore
+-rw-r--r-- 1 runner runner   6771 May 17 12:08 replit.md
+drwxr-xr-x 1 runner runner    106 May 13 03:54 scripts
+-rw-r--r-- 1 runner runner    667 May 13 03:54 tsconfig.base.json
+-rw-r--r-- 1 runner runner    236 May 13 03:54 tsconfig.json
+drwxr-xr-x 1 runner runner     20 May 17 09:18 .upm
+-rw-r--r-- 1 runner runner 242730 May 17 09:18 uv.lock
+--- src tree ---
+./artifacts/tc-execution-engine/app/__init__.py
+./artifacts/tc-execution-engine/app/main.py
+./artifacts/tc-execution-engine/shared/__init__.py
+./artifacts/tc-execution-engine/shared/models.py
+./artifacts/tc-execution-engine/shared/crypto.py
+./artifacts/tc-execution-engine/shared/schemas.py
+./artifacts/tc-execution-engine/shared/db.py
+./artifacts/tc-execution-engine/main.py
+./.local/skills/canvas/__init__.py
+./main.py
+--- who handles /v1/orders ---
+./artifacts/tc-execution-engine/app/routers/orders.py:3:POST   /v1/orders              — place an order
+./artifacts/tc-execution-engine/app/routers/orders.py:4:POST   /v1/orders/{id}/cancel  — cancel an order
+./artifacts/tc-execution-engine/app/routers/orders.py:5:GET    /v1/orders/{id}         — get order status
+./artifacts/tc-execution-engine/app/routers/orders.py:35:router = APIRouter(prefix="/v1/orders", tags=["orders"])
+./artifacts/tc-execution-engine/app/routers/orders.py:62:# POST /v1/orders
+./artifacts/tc-execution-engine/app/routers/orders.py:94:            broker_order = existing_trade.broker_orders[0] if existing_trade.broker_orders else None
+./artifacts/tc-execution-engine/app/routers/orders.py:211:# POST /v1/orders/{id}/cancel
+./artifacts/tc-execution-engine/app/routers/orders.py:226:    broker_order = trade.broker_orders[0] if trade.broker_orders else None
+./artifacts/tc-execution-engine/app/routers/orders.py:268:# GET /v1/orders/{id}
+./artifacts/tc-execution-engine/app/routers/orders.py:283:    broker_order = trade.broker_orders[0] if trade.broker_orders else None
+./artifacts/tc-execution-engine/app/routers/admin.py:11:POST /admin/api/test-order  — server-side HMAC sign + POST to /v1/orders
+./artifacts/tc-execution-engine/app/routers/admin.py:237:    """Server-side HMAC sign and POST to /v1/orders.
+./artifacts/tc-execution-engine/app/routers/admin.py:256:    url = f"http://127.0.0.1:{port}/v1/orders"
+./artifacts/tc-execution-engine/app/main.py:12:from app.routers import admin, health, orders
+./artifacts/tc-execution-engine/app/main.py:62:    app.include_router(orders.router)
+./artifacts/tc-execution-engine/shared/models.py:113:    broker_orders = relationship("BrokerOrder", back_populates="trade")
+./artifacts/tc-execution-engine/shared/models.py:135:    trade = relationship("Trade", back_populates="broker_orders")
+--- who reads EXECUTION_HMAC_SECRET ---
+./artifacts/tc-execution-engine/app/routers/admin.py:99:        hmac_secret_set=bool(os.environ.get("EXECUTION_HMAC_SECRET")),
+./artifacts/tc-execution-engine/app/routers/admin.py:100:        hmac_next_secret_set=bool(os.environ.get("EXECUTION_HMAC_SECRET_NEXT")),
+./artifacts/tc-execution-engine/app/routers/admin.py:242:    secret = os.environ.get("EXECUTION_HMAC_SECRET", "")
+./artifacts/tc-execution-engine/app/routers/admin.py:244:        raise HTTPException(status_code=500, detail="EXECUTION_HMAC_SECRET not configured")
+./artifacts/tc-execution-engine/app/middleware/hmac_auth.py:12:  EXECUTION_HMAC_SECRET      — current (outgoing) key
+./artifacts/tc-execution-engine/app/middleware/hmac_auth.py:13:  EXECUTION_HMAC_SECRET_NEXT — next (incoming) key
+./artifacts/tc-execution-engine/app/middleware/hmac_auth.py:16:Once all callers have switched to the new key, delete EXECUTION_HMAC_SECRET
+./artifacts/tc-execution-engine/app/middleware/hmac_auth.py:17:and rename EXECUTION_HMAC_SECRET_NEXT → EXECUTION_HMAC_SECRET.
+./artifacts/tc-execution-engine/app/middleware/hmac_auth.py:35:    Always includes EXECUTION_HMAC_SECRET (required).
+./artifacts/tc-execution-engine/app/middleware/hmac_auth.py:36:    Appends EXECUTION_HMAC_SECRET_NEXT when set (rotation window).
+./artifacts/tc-execution-engine/app/middleware/hmac_auth.py:38:    current = os.environ.get("EXECUTION_HMAC_SECRET", "")
+./artifacts/tc-execution-engine/app/middleware/hmac_auth.py:40:        raise RuntimeError("EXECUTION_HMAC_SECRET environment variable is not set")
+./artifacts/tc-execution-engine/app/middleware/hmac_auth.py:43:    next_secret = os.environ.get("EXECUTION_HMAC_SECRET_NEXT", "")
+~/workspace$ 
