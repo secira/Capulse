@@ -287,13 +287,20 @@ def env_switch_on() -> bool:
 
 
 def is_enabled_for_user(user) -> bool:
-    """Return True only if BOTH the env-level switch AND the per-user flag are on.
+    """Simple single-switch routing.
 
-    Default for both is OFF, so production is unaffected unless explicitly opted in.
+    If the env-level USE_REMOTE_EXEC switch is on, route every user's trades
+    through the engine. Otherwise, use the existing in-process path.
+    The per-user `use_remote_execution` column is still honoured as an
+    additional opt-out: an admin can set it to False to keep a specific
+    user on the local path even when the env switch is on.
     """
     if not env_switch_on():
         return False
-    return bool(getattr(user, 'use_remote_execution', False))
+    opt_out = getattr(user, 'use_remote_execution', None)
+    if opt_out is False:
+        return False
+    return True
 
 
 def map_bucket_to_status(bucket: str) -> int:
