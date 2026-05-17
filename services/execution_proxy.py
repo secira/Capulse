@@ -81,8 +81,10 @@ def _hmac_secret() -> bytes:
 
 
 def _sign(timestamp: str, raw_body: bytes) -> str:
+    # Engine scheme: HMAC-SHA256(timestamp + "." + raw_body, secret)
     mac = hmac.new(_hmac_secret(), digestmod=hashlib.sha256)
     mac.update(timestamp.encode('utf-8'))
+    mac.update(b'.')
     mac.update(raw_body)
     return mac.hexdigest()
 
