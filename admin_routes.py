@@ -1780,6 +1780,78 @@ def set_data_source():
     return redirect(url_for('admin.data_sources'))
 
 
+@admin_bp.route('/execution-engine', methods=['GET', 'POST'])
+@admin_required
+def execution_engine():
+    """Admin page for the tc-execution-engine sister service.
+
+    Shows current health, version, halt state, the env-level switch, and lets
+    an admin toggle the per-user opt-in flag for individual users.
+    """
+    import os
+    from services import execution_proxy
+
+    # ── Handle POST actions ─────────────────────────────────────────────────
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+
+        if action == 'toggle_user':
+            try:
+                target_user_id = int(request.form.get('user_id', '0'))
+            except ValueError:
+                target_user_id = 0
+            target_user = User.query.get(target_user_id) if target_user_id else None
+            if not target_user:
+                flash('User not found.', 'error')
+            else:
+                target_user.use_remote_execution = not bool(target_user.use_remote_execution)
+                db.session.commit()
+                state = 'enabled' if target_user.use_remote_execution else 'disabled'
+                flash(f"Remote execution {state} for {target_user.email or target_user.username}.", 'success')
+            return redirect(url_for('admin.execution_engine'))
+
+        if action == 'halt':
+            result = execution_proxy.set_halt(True)
+            if result.get('ok'):
+                flash('Engine halted. New orders will be rejected with "halted".', 'warning')
+            else:
+                flash(f"Halt failed: {result.get('error', 'unknown error')}", 'error')
+            return redirect(url_for('admin.execution_engine'))
+
+        if action == 'resume':
+            result = execution_proxy.set_halt(False)
+            if result.get('ok'):
+                flash('Engine resumed. New orders will be accepted.', 'success')
+            else:
+                flash(f"Resume failed: {result.get('error', 'unknown error')}", 'error')
+            return redirect(url_for('admin.execution_engine'))
+
+    # ── GET: gather current state ───────────────────────────────────────────
+    health = execution_proxy.healthz()
+    ver = execution_proxy.version()
+    halt = execution_proxy.get_halt()
+
+    enabled_users = (
+        User.query
+        .filter(User.use_remote_execution == True)  # noqa: E712
+        .order_by(User.id.asc())
+        .limit(50)
+        .all()
+    )
+
+    ctx = {
+        'engine_url': os.environ.get('EXECUTION_ENGINE_URL', ''),
+        'env_switch_on': execution_proxy.env_switch_on(),
+        'hmac_configured': bool(os.environ.get('EXECUTION_HMAC_SECRET', '')),
+        'health': health,
+        'version_info': ver,
+        'halt_info': halt,
+        'enabled_users': enabled_users,
+        'enabled_user_count': len(enabled_users),
+    }
+    return render_template('admin/execution_engine.html', **ctx)
+
+
 @admin_bp.route('/data-api-plan')
 @admin_required
 def data_api_plan():

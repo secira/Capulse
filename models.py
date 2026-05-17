@@ -342,6 +342,11 @@ class User(UserMixin, db.Model):
 
     # Language preference
     preferred_language = db.Column(db.String(10), nullable=False, default='en')
+
+    # Per-user opt-in for the remote tc-execution-engine. Default False — only when
+    # the env-level USE_REMOTE_EXEC switch is also on does Trade Now route via the
+    # external engine. With both off, behaviour is identical to today.
+    use_remote_execution = db.Column(db.Boolean, default=False, nullable=False)
     
     # Subscription and Billing Information
     pricing_plan = db.Column(db.Enum(PricingPlan), default=PricingPlan.FREE, nullable=False)

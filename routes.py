@@ -5638,6 +5638,49 @@ def api_trade_execute_signal():
 
         logger.info(f"Executing trade for user {current_user.id} via {selected_broker.broker_name}: {order_data}")
 
+        # ── Remote execution engine seam ────────────────────────────────────
+        # When USE_REMOTE_EXEC env var is on AND the per-user opt-in flag is
+        # set, route the order via the tc-execution-engine over HMAC-signed
+        # HTTPS. Otherwise fall through to the existing in-process broker call
+        # below — default behaviour is unchanged.
+        try:
+            from services import execution_proxy
+            if execution_proxy.is_enabled_for_user(current_user):
+                try:
+                    eng_resp = execution_proxy.place_order(
+                        user_id=current_user.id,
+                        broker_account_id=selected_broker.id,
+                        order_data=order_data,
+                    )
+                    logger.info(
+                        f"Remote exec OK user={current_user.id} broker={selected_broker.broker_name} "
+                        f"request_id={eng_resp.get('request_id')} latency_ms={eng_resp.get('latency_ms')}"
+                    )
+                    return jsonify({
+                        'success': True,
+                        'order_id': eng_resp.get('order_id'),
+                        'broker_order_id': eng_resp.get('broker_order_id', 'PENDING'),
+                        'status': eng_resp.get('status', 'SUBMITTED'),
+                        'message': f'Order placed successfully with {selected_broker.broker_name} (remote engine)',
+                        'request_id': eng_resp.get('request_id'),
+                        'via': 'remote_engine',
+                    })
+                except execution_proxy.ExecutionProxyError as ep_err:
+                    logger.error(
+                        f"Remote exec FAILED user={current_user.id} bucket={ep_err.bucket} "
+                        f"request_id={ep_err.request_id} err={ep_err.message}"
+                    )
+                    return jsonify({
+                        'success': False,
+                        'error': ep_err.message,
+                        'bucket': ep_err.bucket,
+                        'request_id': ep_err.request_id,
+                        'via': 'remote_engine',
+                    }), execution_proxy.map_bucket_to_status(ep_err.bucket)
+        except ImportError:
+            pass  # execution_proxy not present — fall through to in-process path
+        # ────────────────────────────────────────────────────────────────────
+
         try:
             order_result = BrokerService.place_order_via_broker(selected_broker, order_data)
 

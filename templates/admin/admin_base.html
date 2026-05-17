@@ -278,6 +278,9 @@
                 <a href="{{ url_for('admin.data_sources') }}" class="admin-nav-item {{ 'active' if 'data_sources' in request.endpoint }}">
                     <i class="fas fa-database me-2"></i>Data Input Source
                 </a>
+                <a href="{{ url_for('admin.execution_engine') }}" class="admin-nav-item {{ 'active' if 'execution_engine' in request.endpoint }}">
+                    <i class="fas fa-rocket me-2"></i>Execution Engine
+                </a>
                 <a href="{{ url_for('admin.partner_api') }}" class="admin-nav-item {{ 'active' if 'partner_api' in request.endpoint }}">
                     <i class="fas fa-code me-2"></i>Partner API
                 </a>
