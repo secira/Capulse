@@ -1,0 +1,42 @@
+d -40
+.cache/uv/archive-v0/QZ4Bo82VzqnkIgDO7j7pB/pydantic_settings/main.py:9:from pydantic._internal._signature import _field_name_for_signature
+.cache/uv/archive-v0/QZ4Bo82VzqnkIgDO7j7pB/pydantic_settings/main.py:512:                model_init_data[_field_name_for_signature(field_name, field_info)] = getattr(model, field_name)
+.cache/uv/archive-v0/QZ4Bo82VzqnkIgDO7j7pB/pydantic_settings/sources.py:42:from pydantic._internal._signature import _field_name_for_signature
+.cache/uv/archive-v0/QZ4Bo82VzqnkIgDO7j7pB/pydantic_settings/sources.py:340:                    self.defaults[_field_name_for_signature(field_name, field_info)] = asdict(field_info.default)
+.cache/uv/archive-v0/QZ4Bo82VzqnkIgDO7j7pB/pydantic_settings/sources.py:342:                    self.defaults[_field_name_for_signature(field_name, field_info)] = field_info.default.model_dump()
+.cache/uv/archive-v0/DbicMb3uWyxaHtV7AO5Qs/typing_extensions.py:831:        not their type signatures!
+.cache/uv/archive-v0/DbicMb3uWyxaHtV7AO5Qs/typing_extensions.py:1060:    _TAKES_MODULE = "module" in inspect.signature(typing._type_check).parameters
+.cache/uv/archive-v0/DbicMb3uWyxaHtV7AO5Qs/typing_extensions.py:2462:`**kwargs` in a function signature. For instance:
+.cache/uv/archive-v0/DbicMb3uWyxaHtV7AO5Qs/typing_extensions.py:2627:        the star operator: ``*Ts``. The signature of ``Array`` then behaves
+.cache/uv/archive-v0/DbicMb3uWyxaHtV7AO5Qs/typing_extensions.py:2634:        signatures and variable annotations::
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/SSL.py:318:    ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE = (
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/SSL.py:319:        _lib.X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/SSL.py:321:    ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE = (
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/SSL.py:322:        _lib.X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/SSL.py:327:    ERR_CERT_SIGNATURE_FAILURE = _lib.X509_V_ERR_CERT_SIGNATURE_FAILURE
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/SSL.py:328:    ERR_CRL_SIGNATURE_FAILURE = _lib.X509_V_ERR_CRL_SIGNATURE_FAILURE
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/SSL.py:353:    ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE = (
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/SSL.py:354:        _lib.X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/SSL.py:379:    ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE = (
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/SSL.py:380:        _lib.X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/crypto.py:1159:        :param digest: The name of the message digest to use for the signature,
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/crypto.py:1179:        Verifies the signature on this certificate signing request.
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/crypto.py:1183:        :return: ``True`` if the signature is correct.
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/crypto.py:1186:        :raises OpenSSL.crypto.Error: If the signature is invalid or there is a
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/crypto.py:1187:            problem verifying the signature.
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/crypto.py:1335:    def get_signature_algorithm(self) -> bytes:
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/crypto.py:1337:        Return the signature algorithm used in the certificate.
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/crypto.py:1342:        :raises ValueError: If the signature algorithm is undefined.
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/crypto.py:1351:            raise ValueError("Undefined signature algorithm")
+.cache/uv/archive-v0/hca43zz2XIxkq30Ef_Qr2/OpenSSL/crypto.py:1708:    CHECK_SS_SIGNATURE: int = _lib.X509_V_FLAG_CHECK_SS_SIGNATURE
+.cache/uv/archive-v0/pdQrdIKih0h0nIrAQp6py/starlette/authentication.py:40:        sig = inspect.signature(func)
+.cache/uv/archive-v0/pdQrdIKih0h0nIrAQp6py/starlette/middleware/sessions.py:8:from itsdangerous.exc import BadSignature
+.cache/uv/archive-v0/pdQrdIKih0h0nIrAQp6py/starlette/middleware/sessions.py:52:            except BadSignature:
+.cache/uv/archive-v0/VHQ_uN4BlT6DO7vPdNQ1a/httpx/_client.py:104:    For example we use `timeout=USE_CLIENT_DEFAULT` in the `request()` signature.
+.cache/uv/archive-v0/_WawJeDpDdsSxkelCUM7J/gunicorn/util.py:125:    sig = inspect.signature(f)
+.cache/uv/archive-v0/jwKpRHuE8pm0eXgJBSy5h/fastapi/dependencies/utils.py:231:def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
+.cache/uv/archive-v0/jwKpRHuE8pm0eXgJBSy5h/fastapi/dependencies/utils.py:232:    signature = inspect.signature(call)
+.cache/uv/archive-v0/jwKpRHuE8pm0eXgJBSy5h/fastapi/dependencies/utils.py:241:        for param in signature.parameters.values()
+.cache/uv/archive-v0/jwKpRHuE8pm0eXgJBSy5h/fastapi/dependencies/utils.py:243:    typed_signature = inspect.Signature(typed_params)
+.cache/uv/archive-v0/jwKpRHuE8pm0eXgJBSy5h/fastapi/dependencies/utils.py:244:    return typed_signature
+~/workspace$ ^C
