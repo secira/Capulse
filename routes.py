@@ -5645,6 +5645,7 @@ def api_trade_execute_signal():
         # below — default behaviour is unchanged.
         try:
             from services import execution_proxy
+            from services import broker_order_writer
             if execution_proxy.is_enabled_for_user(current_user):
                 try:
                     eng_resp = execution_proxy.place_order(
@@ -5653,26 +5654,61 @@ def api_trade_execute_signal():
                         user_id=current_user.id,
                     )
                     logger.info(
-                        f"Remote exec OK user={current_user.id} broker={selected_broker.broker_name} "
-                        f"request_id={eng_resp.get('request_id')} latency_ms={eng_resp.get('latency_ms')}"
+                        f"Remote exec OK user={current_user.id} "
+                        f"broker={selected_broker.broker_name} "
+                        f"broker_type={selected_broker.broker_type} "
+                        f"request_id={eng_resp.get('request_id')} "
+                        f"latency_ms={eng_resp.get('latency_ms')} "
+                        f"broker_order_id={eng_resp.get('broker_order_id')}"
                     )
+                    # Persist into broker_orders (idempotent on broker_order_id)
+                    try:
+                        persisted = broker_order_writer.record_engine_order(
+                            broker_account=selected_broker,
+                            order_data=order_data,
+                            engine_response=eng_resp,
+                        )
+                        tc_order_id = persisted.id
+                        order_status = (persisted.order_status.value
+                                        if persisted.order_status else 'pending')
+                    except Exception as write_err:
+                        logger.error(
+                            f"Remote exec WRITE FAILED user={current_user.id} "
+                            f"request_id={eng_resp.get('request_id')} err={write_err}"
+                        )
+                        tc_order_id = None
+                        order_status = eng_resp.get('order_status', 'SUBMITTED')
+
                     return jsonify({
                         'success': True,
-                        'order_id': eng_resp.get('order_id'),
+                        'order_id': tc_order_id,
                         'broker_order_id': eng_resp.get('broker_order_id', 'PENDING'),
-                        'status': eng_resp.get('status', 'SUBMITTED'),
-                        'message': f'Order placed successfully with {selected_broker.broker_name} (remote engine)',
+                        'status': order_status,
+                        'message': (f'Order placed successfully with '
+                                    f'{selected_broker.broker_name}'),
                         'request_id': eng_resp.get('request_id'),
                         'via': 'remote_engine',
                     })
                 except execution_proxy.ExecutionProxyError as ep_err:
+                    # Mark broker as EXPIRED on auth/credential failures so
+                    # the user is prompted to reconnect.
+                    try:
+                        broker_order_writer.handle_engine_failure(
+                            selected_broker, ep_err.bucket, ep_err.message,
+                        )
+                    except Exception:
+                        pass
                     logger.error(
-                        f"Remote exec FAILED user={current_user.id} bucket={ep_err.bucket} "
+                        f"Remote exec FAILED user={current_user.id} "
+                        f"broker={selected_broker.broker_name} "
+                        f"broker_type={selected_broker.broker_type} "
+                        f"bucket={ep_err.bucket} status={ep_err.status_code} "
                         f"request_id={ep_err.request_id} err={ep_err.message}"
                     )
                     return jsonify({
                         'success': False,
-                        'error': ep_err.message,
+                        'error': ep_err.user_message(),
+                        'technical_error': ep_err.message,
                         'bucket': ep_err.bucket,
                         'request_id': ep_err.request_id,
                         'via': 'remote_engine',

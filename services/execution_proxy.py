@@ -52,29 +52,75 @@ DEFAULT_TIMEOUT = 15  # seconds — broker side can be 200-800ms; leave headroom
 class ExecutionProxyError(Exception):
     """Base class for proxy-side errors.
 
-    `bucket` mirrors the engine's four-bucket taxonomy so callers can map
-    to existing UI messages:
-        broker_error     — broker rejected / timed out
-        validation_error — payload invalid before the broker was contacted
-        auth_error       — HMAC / signature failure on either side
-        halted           — kill switch is engaged on the engine
-        network_error    — proxy could not reach the engine at all
+    `bucket` mirrors the engine's taxonomy so callers can map to UI
+    messages:
+        broker_error        — broker rejected / timed out
+        validation_error    — payload invalid before the broker was contacted
+        auth_error          — HMAC / signature failure on either side
+        invalid_credentials — broker rejected client_id/api_key (engine sub-bucket)
+        expired_token       — broker access_token expired and needs refresh
+        halted              — kill switch is engaged on the engine
+        network_error       — proxy could not reach the engine at all
     """
 
     def __init__(self, bucket: str, message: str, request_id: Optional[str] = None,
-                 status_code: Optional[int] = None):
+                 status_code: Optional[int] = None,
+                 broker_name: Optional[str] = None):
         super().__init__(message)
         self.bucket = bucket
         self.message = message
         self.request_id = request_id
         self.status_code = status_code
+        self.broker_name = broker_name
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             'bucket': self.bucket,
             'error': self.message,
+            'user_message': self.user_message(),
             'request_id': self.request_id,
         }
+
+    def user_message(self) -> str:
+        """Translate the technical bucket into a message safe for end-users."""
+        b = (self.bucket or '').lower()
+        broker = self.broker_name or 'your broker'
+        # Local auth errors (no status_code) come from missing/invalid
+        # EXECUTION_HMAC_SECRET — that's a server config issue, not a
+        # broker login problem.
+        if b == 'auth_error' and not self.status_code:
+            return ("Trade execution is temporarily misconfigured on the "
+                    "server. Please contact support.")
+        if b == 'invalid_credentials' or (
+                b == 'auth_error' and self.status_code and self.status_code >= 400):
+            return (f"Login to {broker} was rejected. Please reconnect the "
+                    f"broker from Settings → Broker Accounts and try again.")
+        if b in ('expired_token', 'token_expired'):
+            return (f"Your {broker} session has expired. Please reconnect "
+                    f"the broker (a fresh access token is required daily for "
+                    f"most Indian brokers).")
+        if b == 'halted':
+            return ("Trading is temporarily paused on the execution engine. "
+                    "Please try again in a few minutes.")
+        if b == 'network_error':
+            return ("Could not reach the trade execution service. Please try "
+                    "again in a moment.")
+        if b == 'validation_error':
+            return f"Order rejected: {self.message}"
+        # broker_error / unknown
+        return f"{broker} rejected the order: {self.message}"
+
+
+class BrokerCredentialError(ExecutionProxyError):
+    """Raised when a BrokerAccount is missing the credentials a given
+    broker requires (e.g. an Angel One account with no TOTP secret).
+
+    Surfaced before any HTTP call is made so we never leak partial data
+    to the engine and never count against engine rate-limits.
+    """
+
+    def __init__(self, message: str, broker_name: Optional[str] = None):
+        super().__init__('validation_error', message, broker_name=broker_name)
 
 
 def _engine_url() -> str:
@@ -125,25 +171,40 @@ def _headers(raw_body: bytes,
 def _request(method: str, path: str, payload: Optional[Dict[str, Any]] = None,
              idempotency_key: Optional[str] = None,
              request_id: Optional[str] = None,
-             timeout: int = DEFAULT_TIMEOUT) -> Dict[str, Any]:
+             timeout: int = DEFAULT_TIMEOUT,
+             broker_name: Optional[str] = None) -> Dict[str, Any]:
+    """Send a signed HTTPS call to the engine and return parsed JSON.
+
+    All sensitive fields (broker.client_id/access_token/api_secret/...)
+    are scrubbed from logs. Only the request_id, path, status, latency,
+    and broker_type are logged — never credentials.
+    """
     url = f"{_engine_url()}{path}"
     raw_body = json.dumps(payload or {}, separators=(',', ':'), sort_keys=True).encode('utf-8')
     headers, idem, rid = _headers(raw_body, idempotency_key, request_id)
+
+    broker_type = ((payload or {}).get('broker') or {}).get('broker_type', '?')
+    tc_ctx = (payload or {}).get('context') or {}
 
     started = time.time()
     try:
         resp = requests.request(method, url, data=raw_body, headers=headers, timeout=timeout)
     except requests.RequestException as e:
         logger.error(
-            "execution_proxy network_error request_id=%s path=%s err=%s",
-            rid, path, e,
+            "execution_proxy network_error request_id=%s path=%s broker_type=%s err=%s",
+            rid, path, broker_type, e,
         )
-        raise ExecutionProxyError('network_error', f'Engine unreachable: {e}', rid) from e
+        raise ExecutionProxyError(
+            'network_error', f'Engine unreachable: {e}', rid,
+            broker_name=broker_name,
+        ) from e
 
     latency_ms = int((time.time() - started) * 1000)
     logger.info(
-        "execution_proxy %s %s status=%s latency_ms=%d request_id=%s idem=%s",
+        "execution_proxy %s %s status=%s latency_ms=%d request_id=%s idem=%s "
+        "broker_type=%s tc_user=%s tc_broker_account=%s",
         method, path, resp.status_code, latency_ms, rid, idem,
+        broker_type, tc_ctx.get('tc_user_id'), tc_ctx.get('tc_broker_account_id'),
     )
 
     try:
@@ -152,13 +213,21 @@ def _request(method: str, path: str, payload: Optional[Dict[str, Any]] = None,
         raise ExecutionProxyError(
             'broker_error',
             f'Engine returned non-JSON response (status {resp.status_code}): {resp.text[:200]}',
-            rid, resp.status_code,
+            rid, resp.status_code, broker_name=broker_name,
         )
 
     if resp.status_code >= 400:
         bucket = (body.get('bucket') or body.get('error_type') or 'broker_error')
         message = body.get('error') or body.get('message') or f'Engine error ({resp.status_code})'
-        raise ExecutionProxyError(bucket, message, rid, resp.status_code)
+        logger.warning(
+            "execution_proxy engine_error request_id=%s path=%s status=%s "
+            "bucket=%s broker_type=%s msg=%s",
+            rid, path, resp.status_code, bucket, broker_type, message[:200],
+        )
+        raise ExecutionProxyError(
+            bucket, message, rid, resp.status_code,
+            broker_name=broker_name,
+        )
 
     body.setdefault('request_id', rid)
     body.setdefault('latency_ms', latency_ms)
@@ -180,6 +249,22 @@ _ASSET_FIELDS = {
 }
 
 
+# Per-broker required-credential matrix.
+# Engine maps these canonical fields to broker-SDK fields on its side.
+# If any required field is missing/empty we raise BEFORE calling the engine
+# so the user gets an actionable error and we don't burn an engine call.
+_BROKER_REQUIRED_FIELDS: Dict[str, Tuple[str, ...]] = {
+    'dhan':           ('client_id', 'access_token'),
+    'zerodha':        ('client_id', 'access_token'),
+    'upstox':         ('access_token',),
+    'fyers':          ('client_id', 'access_token', 'api_secret'),
+    '5paisa':         ('client_id', 'access_token'),
+    'alice_blue':     ('client_id', 'access_token'),
+    'shoonya':        ('client_id', 'access_token', 'api_secret'),
+    'angel_broking':  ('client_id', 'api_secret', 'totp_secret'),
+}
+
+
 def _build_broker_block(broker_account) -> Dict[str, Any]:
     """Decrypt the credentials on a BrokerAccount row and shape them for
     the engine. Engine is stateless: it uses these creds inline, never
@@ -187,6 +272,9 @@ def _build_broker_block(broker_account) -> Dict[str, Any]:
 
     For Angel One the api_secret field is stored as `"<api_secret>|<totp>"`
     after decryption — we split it back out here.
+
+    Validates against the per-broker required-field matrix and raises
+    BrokerCredentialError with a clear message when something is missing.
     """
     if broker_account is None:
         raise ExecutionProxyError(
@@ -204,16 +292,37 @@ def _build_broker_block(broker_account) -> Dict[str, Any]:
         api_secret, totp_secret = api_secret_raw.split('|', 1)
 
     broker_type = (broker_account.broker_type or '').lower()
+    broker_name = broker_account.broker_name or broker_type
 
     block: Dict[str, Any] = {
-        'broker_type': broker_type,                 # canonical key e.g. "dhan"
-        'broker_name': broker_account.broker_name,  # display name
+        'broker_type': broker_type,
+        'broker_name': broker_name,
         'client_id': client_id,
         'access_token': access_token,
         'api_secret': api_secret,
     }
     if totp_secret:
         block['totp_secret'] = totp_secret
+
+    required = _BROKER_REQUIRED_FIELDS.get(broker_type)
+    if required is None:
+        raise BrokerCredentialError(
+            f"Remote execution is not yet supported for broker '{broker_type}'. "
+            f"Supported: {sorted(_BROKER_REQUIRED_FIELDS.keys())}.",
+            broker_name=broker_name,
+        )
+    missing = [f for f in required if not block.get(f)]
+    if missing:
+        logger.warning(
+            "execution_proxy missing_credentials broker_type=%s tc_broker_account=%s missing=%s",
+            broker_type, broker_account.id, missing,
+        )
+        raise BrokerCredentialError(
+            f"{broker_name} is missing required credentials: "
+            f"{', '.join(missing)}. Please reconnect this broker from "
+            f"Settings → Broker Accounts.",
+            broker_name=broker_name,
+        )
     return block
 
 
@@ -254,41 +363,49 @@ def place_order(broker_account, order_data: Dict[str, Any],
     Returns a dict with at least: order_id, broker_order_id, status,
     request_id, latency_ms.
     """
+    broker = _build_broker_block(broker_account)
     asset, trade = _split_order_into_asset_and_trade(order_data)
     payload = {
-        'broker': _build_broker_block(broker_account),
+        'broker': broker,
         'asset': asset,
         'trade': trade,
         'context': _context_block(broker_account, user_id, request_id),
     }
-    return _request('POST', '/v1/orders', payload, idempotency_key, request_id)
+    return _request(
+        'POST', '/v1/orders', payload, idempotency_key, request_id,
+        broker_name=broker.get('broker_name'),
+    )
 
 
 def cancel_order(broker_account, broker_order_id: str,
                  user_id: Optional[int] = None,
                  request_id: Optional[str] = None) -> Dict[str, Any]:
+    broker = _build_broker_block(broker_account)
     payload = {
-        'broker': _build_broker_block(broker_account),
+        'broker': broker,
         'broker_order_id': broker_order_id,
         'context': _context_block(broker_account, user_id, request_id),
     }
     return _request(
         'POST', f'/v1/orders/{broker_order_id}/cancel', payload,
         request_id=request_id,
+        broker_name=broker.get('broker_name'),
     )
 
 
 def get_order_status(broker_account, broker_order_id: str,
                      user_id: Optional[int] = None,
                      request_id: Optional[str] = None) -> Dict[str, Any]:
+    broker = _build_broker_block(broker_account)
     payload = {
-        'broker': _build_broker_block(broker_account),
+        'broker': broker,
         'broker_order_id': broker_order_id,
         'context': _context_block(broker_account, user_id, request_id),
     }
     return _request(
         'POST', f'/v1/orders/{broker_order_id}/status', payload,
         request_id=request_id,
+        broker_name=broker.get('broker_name'),
     )
 
 
@@ -412,7 +529,10 @@ def map_bucket_to_status(bucket: str) -> int:
     return {
         'validation_error': 400,
         'auth_error': 401,
+        'invalid_credentials': 401,
+        'expired_token': 401,
+        'token_expired': 401,
         'halted': 503,
         'network_error': 502,
         'broker_error': 500,
-    }.get(bucket, 500)
+    }.get((bucket or '').lower(), 500)
