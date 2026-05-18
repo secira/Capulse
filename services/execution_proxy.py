@@ -177,7 +177,7 @@ _KNOWN_BUCKETS = {
 }
 
 
-def _extract_error(body: Dict[str, Any], status_code: int) -> Tuple[str, str]:
+def _extract_error(body: Any, status_code: int) -> Tuple[str, str]:
     """Normalise the engine's many possible error shapes into (bucket, message).
 
     Handles:
@@ -186,7 +186,19 @@ def _extract_error(body: Dict[str, Any], status_code: int) -> Tuple[str, str]:
       * `{"error": "halted"}`                       — kill-switch shortcut
       * `{"detail": "..."}` / `{"detail": [...]}`   — FastAPI default 422/4xx
       * `{}` or unknown                              — derive from status_code
+      * non-dict (list, str, None)                   — coerced safely
     """
+    # Defensive: engine *should* always send a JSON object, but tolerate
+    # lists, bare strings, None, etc. without throwing.
+    if not isinstance(body, dict):
+        bucket_inferred = (
+            'halted' if status_code == 503 else
+            'auth_error' if status_code in (401, 403) else
+            'validation_error' if status_code in (400, 422) else
+            'broker_error'
+        )
+        return bucket_inferred, (str(body)[:200] if body else f'Engine error ({status_code})')
+
     # 1) Explicit bucket field
     bucket = (body.get('bucket') or body.get('error_type') or '').strip().lower()
 
