@@ -920,7 +920,8 @@ function prePopulateForm(urlParams) {
 
 // ─── Trade Confirmation Modal ─────────────────────────────────────────────────
 function showTradeConfirmation() {
-    var symbol      = document.getElementById('assetSelect').value;
+    var assetSelect = document.getElementById('assetSelect');
+    var symbol      = assetSelect.value;
     var action      = currentAction;
     var price       = document.getElementById('entryPriceInput')?.value || '';
     var stopLoss    = document.getElementById('stopLossInput')?.value || '';
@@ -930,6 +931,34 @@ function showTradeConfirmation() {
     var productType = currentProductType;
 
     if (!symbol) { alert('Please select an asset first'); return; }
+
+    // Build a rich, unambiguous "what am I trading?" label so the user can
+    // confirm they're hitting the right contract — especially for F&O where
+    // the bare underlying ("NIFTY") tells you nothing about strike/CE-PE/expiry.
+    var selectedOpt   = assetSelect.options[assetSelect.selectedIndex];
+    var assetClass    = (selectedOpt && selectedOpt.dataset.assetClass) || '';
+    var companyName   = (selectedOpt && selectedOpt.dataset.company) || '';
+    var optFieldsVis  = !document.getElementById('optionsFields').classList.contains('d-none');
+    var expiry        = (document.querySelector('input[name="expiry_date"]')?.value)  || '';
+    var strike        = (document.querySelector('input[name="strike_price"]')?.value) || '';
+    var optType       = (document.querySelector('select[name="option_type"]')?.value) || '';
+    var optTypeShort  = optType === 'CALL' ? 'CE' : (optType === 'PUT' ? 'PE' : '');
+    var contractLabel = symbol;
+    if (assetClass === 'options' || optFieldsVis) {
+        // Prefer explicit F&O fields if filled, else fall back to dropdown text
+        // (typed symbols like "NIFTY24DEC25000CE" already carry the full info).
+        var extras = [];
+        if (strike)       extras.push(strike);
+        if (optTypeShort) extras.push(optTypeShort);
+        if (expiry)       extras.push(expiry);
+        if (extras.length) {
+            contractLabel = symbol + ' ' + extras.join(' ');
+        } else if (selectedOpt && selectedOpt.text && selectedOpt.text !== symbol) {
+            contractLabel = selectedOpt.text;
+        }
+    } else if (companyName && companyName !== symbol) {
+        contractLabel = symbol + ' — ' + companyName;
+    }
 
     var brokerSelect = document.getElementById('brokerSelect');
     var brokerName   = brokerSelect ? brokerSelect.options[brokerSelect.selectedIndex].text : 'Not Connected';
@@ -950,9 +979,9 @@ function showTradeConfirmation() {
                 </div>
                 <div class="modal-body p-4">
                     <div class="row g-3 mb-3">
-                        <div class="col-6">
-                            <small class="text-muted d-block">Symbol</small>
-                            <strong style="font-size:16px;">${symbol}</strong>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Contract</small>
+                            <strong style="font-size:16px;">${contractLabel}</strong>
                         </div>
                         <div class="col-6">
                             <small class="text-muted d-block">Action</small>
