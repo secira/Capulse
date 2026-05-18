@@ -168,6 +168,73 @@ def _headers(raw_body: bytes,
     return headers, idem, rid
 
 
+# Strings the engine (or its underlying FastAPI layer) may use as bucket
+# values OR as bare `error` strings. Mapped to our canonical bucket.
+_KNOWN_BUCKETS = {
+    'halted', 'validation_error', 'auth_error',
+    'invalid_credentials', 'expired_token', 'token_expired',
+    'network_error', 'broker_error',
+}
+
+
+def _extract_error(body: Dict[str, Any], status_code: int) -> Tuple[str, str]:
+    """Normalise the engine's many possible error shapes into (bucket, message).
+
+    Handles:
+      * `{"bucket": "...", "error": "..."}`         — engine canonical shape
+      * `{"error_type": "...", "message": "..."}`   — alt engine shape
+      * `{"error": "halted"}`                       — kill-switch shortcut
+      * `{"detail": "..."}` / `{"detail": [...]}`   — FastAPI default 422/4xx
+      * `{}` or unknown                              — derive from status_code
+    """
+    # 1) Explicit bucket field
+    bucket = (body.get('bucket') or body.get('error_type') or '').strip().lower()
+
+    # 2) `error` may either be free text or one of our known bucket names
+    err_field = body.get('error')
+    if not bucket and isinstance(err_field, str):
+        if err_field.strip().lower() in _KNOWN_BUCKETS:
+            bucket = err_field.strip().lower()
+
+    # 3) Message — prefer the most specific source available
+    message: str
+    if isinstance(err_field, str) and err_field.strip().lower() not in _KNOWN_BUCKETS:
+        message = err_field
+    elif body.get('message'):
+        message = str(body['message'])
+    elif 'detail' in body:
+        d = body['detail']
+        if isinstance(d, list):
+            # FastAPI validation error list — flatten to a short summary
+            parts = []
+            for item in d[:5]:
+                loc = '.'.join(str(x) for x in (item.get('loc') or [])[-2:])
+                msg = item.get('msg') or item.get('type') or 'invalid'
+                parts.append(f"{loc}: {msg}" if loc else msg)
+            message = '; '.join(parts) or f'Engine error ({status_code})'
+            if not bucket:
+                bucket = 'validation_error'
+        else:
+            message = str(d)
+            if not bucket and status_code in (401, 403):
+                bucket = 'auth_error'
+    else:
+        message = f'Engine error ({status_code})'
+
+    # 4) Last-resort bucket inference from HTTP status when engine sent none
+    if not bucket:
+        if status_code == 503:
+            bucket = 'halted'
+        elif status_code in (401, 403):
+            bucket = 'auth_error'
+        elif status_code in (400, 422):
+            bucket = 'validation_error'
+        else:
+            bucket = 'broker_error'
+
+    return bucket, message
+
+
 def _request(method: str, path: str, payload: Optional[Dict[str, Any]] = None,
              idempotency_key: Optional[str] = None,
              request_id: Optional[str] = None,
@@ -217,8 +284,7 @@ def _request(method: str, path: str, payload: Optional[Dict[str, Any]] = None,
         )
 
     if resp.status_code >= 400:
-        bucket = (body.get('bucket') or body.get('error_type') or 'broker_error')
-        message = body.get('error') or body.get('message') or f'Engine error ({resp.status_code})'
+        bucket, message = _extract_error(body, resp.status_code)
         logger.warning(
             "execution_proxy engine_error request_id=%s path=%s status=%s "
             "bucket=%s broker_type=%s msg=%s",
