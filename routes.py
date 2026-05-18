@@ -5648,9 +5648,9 @@ def api_trade_execute_signal():
             if execution_proxy.is_enabled_for_user(current_user):
                 try:
                     eng_resp = execution_proxy.place_order(
-                        user_id=current_user.id,
-                        broker_account_id=selected_broker.id,
+                        broker_account=selected_broker,
                         order_data=order_data,
+                        user_id=current_user.id,
                     )
                     logger.info(
                         f"Remote exec OK user={current_user.id} broker={selected_broker.broker_name} "

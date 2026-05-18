@@ -4,9 +4,26 @@ Execution Engine Proxy Client
 Forwards broker order placement / cancel / status to the standalone
 `tc-execution-engine` service (Railway today, AWS EC2 with static IP later).
 
-Wire contract: HMAC-SHA256 over `timestamp + raw_body` using the shared
-EXECUTION_HMAC_SECRET, with a 60-second timestamp window and a UUID v4
-idempotency key. Engine caches the idempotency key for 24h.
+Architecture model: the engine is a **stateless thin executor**. TC owns
+every byte of state — users, broker accounts, encrypted credentials,
+mappings. On every call TC sends a fully self-contained payload:
+
+    {
+      "broker":  { name, client_id, access_token, api_secret, ... },
+      "asset":   { symbol, exchange, security_id, instrument_type, ... },
+      "trade":   { side, quantity, order_type, price, trigger_price,
+                   target_price, stop_loss, product_type, validity },
+      "context": { tc_user_id, tc_broker_account_id, correlation_id }
+    }
+
+The engine: (1) connects to the broker with the credentials in the
+request, (2) places/cancels/queries the order, (3) returns
+broker_order_id + status. It writes nothing to its own DB — TC writes
+the resulting row into `broker_orders`.
+
+Wire contract: HMAC-SHA256 over `timestamp + "." + raw_body` using the
+shared EXECUTION_HMAC_SECRET, with a 60-second timestamp window and a
+UUID v4 idempotency key. Engine caches the idempotency key for 24h.
 
 This module is a pure HTTP client — it never imports Flask request state.
 The caller (routes.py) decides whether to use it based on the env-level
@@ -150,47 +167,110 @@ def _request(method: str, path: str, payload: Optional[Dict[str, Any]] = None,
 
 # ─── Public API ──────────────────────────────────────────────────────────────
 
-_FIELD_ALIASES = {
+_TRADE_FIELD_ALIASES = {
     'side': 'transaction_type',
     'qty': 'quantity',
     'product': 'product_type',
 }
 
+# Fields routed into the `asset` block (everything else goes into `trade`)
+_ASSET_FIELDS = {
+    'symbol', 'trading_symbol', 'exchange', 'security_id',
+    'instrument_type', 'expiry', 'strike', 'option_type', 'lot_size',
+}
 
-def _normalise_order(order_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Translate TC-side field names to the engine's expected schema."""
-    out: Dict[str, Any] = {}
+
+def _build_broker_block(broker_account) -> Dict[str, Any]:
+    """Decrypt the credentials on a BrokerAccount row and shape them for
+    the engine. Engine is stateless: it uses these creds inline, never
+    stores them.
+
+    For Angel One the api_secret field is stored as `"<api_secret>|<totp>"`
+    after decryption — we split it back out here.
+    """
+    if broker_account is None:
+        raise ExecutionProxyError(
+            'validation_error',
+            'broker_account is required for remote execution',
+        )
+
+    client_id = broker_account.decrypt_data(broker_account.api_key)
+    access_token = broker_account.decrypt_data(broker_account.access_token)
+    api_secret_raw = broker_account.decrypt_data(broker_account.api_secret)
+
+    api_secret: Optional[str] = api_secret_raw
+    totp_secret: Optional[str] = None
+    if api_secret_raw and '|' in api_secret_raw:
+        api_secret, totp_secret = api_secret_raw.split('|', 1)
+
+    broker_type = (broker_account.broker_type or '').lower()
+
+    block: Dict[str, Any] = {
+        'broker_type': broker_type,                 # canonical key e.g. "dhan"
+        'broker_name': broker_account.broker_name,  # display name
+        'client_id': client_id,
+        'access_token': access_token,
+        'api_secret': api_secret,
+    }
+    if totp_secret:
+        block['totp_secret'] = totp_secret
+    return block
+
+
+def _split_order_into_asset_and_trade(order_data: Dict[str, Any]
+                                      ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Partition the flat order_data dict TC passes today into the
+    engine's `asset` and `trade` blocks, applying field-name aliases."""
+    asset: Dict[str, Any] = {}
+    trade: Dict[str, Any] = {}
     for k, v in (order_data or {}).items():
-        out[_FIELD_ALIASES.get(k, k)] = v
-    return out
+        if k in _ASSET_FIELDS:
+            asset[k] = v
+        else:
+            trade[_TRADE_FIELD_ALIASES.get(k, k)] = v
+    return asset, trade
 
 
-def place_order(user_id, broker_account_id, order_data: Dict[str, Any],
+def _context_block(broker_account, user_id: Optional[int] = None,
+                   correlation_id: Optional[str] = None) -> Dict[str, Any]:
+    return {
+        'tc_user_id': int(user_id) if user_id is not None else int(broker_account.user_id),
+        'tc_broker_account_id': int(broker_account.id),
+        'tc_tenant_id': broker_account.tenant_id or 'live',
+        'correlation_id': correlation_id,
+    }
+
+
+def place_order(broker_account, order_data: Dict[str, Any],
+                user_id: Optional[int] = None,
                 idempotency_key: Optional[str] = None,
                 request_id: Optional[str] = None) -> Dict[str, Any]:
     """Place an order via the remote execution engine.
 
-    user_id / broker_account_id MUST be UUID strings recognised by the
-    engine (the engine maintains its own user + broker_account tables).
-    The engine writes the trade/broker_order rows into its own Postgres
-    so no DB writes are needed on this side.
+    Sends a fully self-contained payload — broker credentials, asset
+    details, trade parameters, and TC identifiers — so the engine can
+    execute without any local state of its own.
 
     Returns a dict with at least: order_id, broker_order_id, status,
     request_id, latency_ms.
     """
+    asset, trade = _split_order_into_asset_and_trade(order_data)
     payload = {
-        'user_id': str(user_id),
-        'broker_account_id': str(broker_account_id),
-        **_normalise_order(order_data),
+        'broker': _build_broker_block(broker_account),
+        'asset': asset,
+        'trade': trade,
+        'context': _context_block(broker_account, user_id, request_id),
     }
     return _request('POST', '/v1/orders', payload, idempotency_key, request_id)
 
 
-def cancel_order(user_id, broker_account_id, broker_order_id: str,
+def cancel_order(broker_account, broker_order_id: str,
+                 user_id: Optional[int] = None,
                  request_id: Optional[str] = None) -> Dict[str, Any]:
     payload = {
-        'user_id': str(user_id),
-        'broker_account_id': str(broker_account_id),
+        'broker': _build_broker_block(broker_account),
+        'broker_order_id': broker_order_id,
+        'context': _context_block(broker_account, user_id, request_id),
     }
     return _request(
         'POST', f'/v1/orders/{broker_order_id}/cancel', payload,
@@ -198,14 +278,16 @@ def cancel_order(user_id, broker_account_id, broker_order_id: str,
     )
 
 
-def get_order_status(user_id, broker_account_id, broker_order_id: str,
+def get_order_status(broker_account, broker_order_id: str,
+                     user_id: Optional[int] = None,
                      request_id: Optional[str] = None) -> Dict[str, Any]:
     payload = {
-        'user_id': str(user_id),
-        'broker_account_id': str(broker_account_id),
+        'broker': _build_broker_block(broker_account),
+        'broker_order_id': broker_order_id,
+        'context': _context_block(broker_account, user_id, request_id),
     }
     return _request(
-        'GET', f'/v1/orders/{broker_order_id}', payload,
+        'POST', f'/v1/orders/{broker_order_id}/status', payload,
         request_id=request_id,
     )
 
