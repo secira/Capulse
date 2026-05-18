@@ -385,19 +385,23 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         msg += f"\n⏰ <i>{_now_ist().strftime('%d/%m/%Y %I:%M %p')} IST</i>"
         msg += f"\n\n<a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital</a>"
 
-        resp = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML',
-                  'disable_web_page_preview': True},
-            timeout=10,
-        )
-        if resp.status_code == 200:
+        # Delegate the actual HTTP call to messaging_service.send_telegram_message
+        # — the SAME code path Market Intelligence and I-Score alerts use. On
+        # Railway that pipe is proven to work; the previous local requests.post
+        # was occasionally being blocked by Railway's egress on first cold call
+        # and never recovering for the worker.
+        from services.messaging_service import send_telegram_message
+        ok = send_telegram_message(msg, parse_mode='HTML')
+        if ok:
             logger.info(f"[{index_id}] Telegram alert sent: {signal_type}")
-            return True
-        logger.error(f"[{index_id}] Telegram error {resp.status_code}: {resp.text}")
-        return False
+        else:
+            logger.error(
+                f"[{index_id}] Telegram alert send_telegram_message returned False "
+                f"(signal_type={signal_type}, direction={direction}, conf={confidence})"
+            )
+        return ok
     except Exception as e:
-        logger.error(f"[{index_id}] Telegram alert error: {e}")
+        logger.error(f"[{index_id}] Telegram alert error: {e}", exc_info=True)
         return False
 
 
