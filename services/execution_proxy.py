@@ -396,6 +396,10 @@ def cancel_order(broker_account, broker_order_id: str,
 def get_order_status(broker_account, broker_order_id: str,
                      user_id: Optional[int] = None,
                      request_id: Optional[str] = None) -> Dict[str, Any]:
+    # NOTE: POST (not GET) is intentional. The engine is stateless and
+    # must receive the decrypted broker block to talk to the broker for
+    # status — a GET cannot carry that body safely. Same pattern as
+    # /v1/orders and /v1/orders/{id}/cancel.
     broker = _build_broker_block(broker_account)
     payload = {
         'broker': broker,
