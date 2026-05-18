@@ -150,28 +150,47 @@ def _request(method: str, path: str, payload: Optional[Dict[str, Any]] = None,
 
 # ─── Public API ──────────────────────────────────────────────────────────────
 
-def place_order(user_id: int, broker_account_id: int, order_data: Dict[str, Any],
+_FIELD_ALIASES = {
+    'side': 'transaction_type',
+    'qty': 'quantity',
+    'product': 'product_type',
+}
+
+
+def _normalise_order(order_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Translate TC-side field names to the engine's expected schema."""
+    out: Dict[str, Any] = {}
+    for k, v in (order_data or {}).items():
+        out[_FIELD_ALIASES.get(k, k)] = v
+    return out
+
+
+def place_order(user_id, broker_account_id, order_data: Dict[str, Any],
                 idempotency_key: Optional[str] = None,
                 request_id: Optional[str] = None) -> Dict[str, Any]:
     """Place an order via the remote execution engine.
 
+    user_id / broker_account_id MUST be UUID strings recognised by the
+    engine (the engine maintains its own user + broker_account tables).
+    The engine writes the trade/broker_order rows into its own Postgres
+    so no DB writes are needed on this side.
+
     Returns a dict with at least: order_id, broker_order_id, status,
-    request_id, latency_ms. The engine writes the trade/broker_order rows
-    into the shared Postgres so no DB writes are needed on this side.
+    request_id, latency_ms.
     """
     payload = {
-        'user_id': user_id,
-        'broker_account_id': broker_account_id,
-        'order': order_data,
+        'user_id': str(user_id),
+        'broker_account_id': str(broker_account_id),
+        **_normalise_order(order_data),
     }
     return _request('POST', '/v1/orders', payload, idempotency_key, request_id)
 
 
-def cancel_order(user_id: int, broker_account_id: int, broker_order_id: str,
+def cancel_order(user_id, broker_account_id, broker_order_id: str,
                  request_id: Optional[str] = None) -> Dict[str, Any]:
     payload = {
-        'user_id': user_id,
-        'broker_account_id': broker_account_id,
+        'user_id': str(user_id),
+        'broker_account_id': str(broker_account_id),
     }
     return _request(
         'POST', f'/v1/orders/{broker_order_id}/cancel', payload,
@@ -179,11 +198,11 @@ def cancel_order(user_id: int, broker_account_id: int, broker_order_id: str,
     )
 
 
-def get_order_status(user_id: int, broker_account_id: int, broker_order_id: str,
+def get_order_status(user_id, broker_account_id, broker_order_id: str,
                      request_id: Optional[str] = None) -> Dict[str, Any]:
     payload = {
-        'user_id': user_id,
-        'broker_account_id': broker_account_id,
+        'user_id': str(user_id),
+        'broker_account_id': str(broker_account_id),
     }
     return _request(
         'GET', f'/v1/orders/{broker_order_id}', payload,
