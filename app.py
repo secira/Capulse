@@ -430,6 +430,19 @@ with app.app_context():
     # ── Incremental column migrations (safe to run on every startup) ──────────
     # ADD COLUMN IF NOT EXISTS is idempotent — no-op when column already exists.
     _pending_migrations = [
+        # ProductType enum: add NRML (F&O carry-forward) and MTF (Pay Later)
+        # for Trade Now product-type pills. ALTER TYPE ... ADD VALUE is idempotent
+        # via the IF NOT EXISTS guard so it's safe on every startup.
+        '''DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumtypid='producttype'::regtype AND enumlabel='NRML') THEN
+                ALTER TYPE producttype ADD VALUE 'NRML';
+            END IF;
+        END $$''',
+        '''DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumtypid='producttype'::regtype AND enumlabel='MTF') THEN
+                ALTER TYPE producttype ADD VALUE 'MTF';
+            END IF;
+        END $$''',
         'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT \'en\'',
         'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS use_remote_execution BOOLEAN DEFAULT FALSE NOT NULL',
         'ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS expiry_date DATE',

@@ -170,7 +170,7 @@
             <i class="fas fa-spinner fa-spin me-1"></i>Fetching live price…
         </div>
 
-        <!-- Product type pills (Trading / Investing / NRML) -->
+        <!-- Product type pills (Trading / Investing / F&O / Pay Later) -->
         <div class="tn-pt" id="productTypeTabs" role="group">
             <button type="button" class="pt-tab active" data-pt="MIS" title="Intraday — broker squares off before close. Higher leverage.">
                 Trading <span class="pt-code">MIS</span>
@@ -180,6 +180,9 @@
             </button>
             <button type="button" class="pt-tab" data-pt="NRML" title="F&amp;O carry-forward — hold positions overnight until expiry.">
                 F&amp;O <span class="pt-code">NRML</span>
+            </button>
+            <button type="button" class="pt-tab" data-pt="MTF" title="Margin Trading Facility — buy delivery with broker funding (T+N pay later). Interest charged daily.">
+                Pay Later <span class="pt-code">MTF</span>
             </button>
         </div>
 
@@ -541,7 +544,11 @@ var PRODUCT_TYPE_INFO = {
     'NRML': { label: 'F&O Carry-forward (NRML)',
               short: 'F&O — hold overnight until expiry, lower leverage than MIS',
               body:  'Carry futures & options positions overnight until expiry. Full SPAN+Exposure margin required (no extra MIS leverage). Use for swing/positional F&O.',
-              bg:    '#eef2ff', border: '#c7d2fe', text: '#3730a3', accent: '#4338ca' }
+              bg:    '#eef2ff', border: '#c7d2fe', text: '#3730a3', accent: '#4338ca' },
+    'MTF':  { label: 'Pay Later (MTF)',
+              short: 'Margin Trading Facility — broker funds the trade, pay later with interest',
+              body:  'Buy approved stocks for delivery with broker funding. You pay only the margin (typically 20–25%), broker funds the rest. Interest charged daily until you square off or pay the balance. Equity only; SEBI-approved scrips only.',
+              bg:    '#fdf2f8', border: '#fbcfe8', text: '#9d174d', accent: '#be185d' }
 };
 
 function setProductType(pt) {

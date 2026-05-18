@@ -47,6 +47,8 @@ class ProductType(Enum):
     DELIVERY = "delivery"
     CNC = "cnc"
     MIS = "mis"
+    NRML = "nrml"   # F&O carry-forward / overnight
+    MTF  = "mtf"    # Margin Trading Facility (Pay Later)
 
 class OrderType(Enum):
     MARKET = "market"

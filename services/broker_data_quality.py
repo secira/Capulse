@@ -247,14 +247,21 @@ class BrokerDataQuality:
                 risk_pct = abs(price - stop_loss) / price * 100 if price else 0
                 checks.append({'check': 'Stop Loss', 'pass': True, 'detail': f'Risk: {risk_pct:.1f}% per unit'})
 
+        # Margin / balance is intentionally NOT pre-checked here.
+        # The broker is the source of truth — they know real-time available
+        # margin, applicable leverage for MIS/CNC/NRML/MTF, SPAN+Exposure for
+        # F&O, exchange limits, and any hold/pledge state. Locally cached
+        # `margin_available` can be stale and would cause false negatives
+        # (blocking valid orders) or false positives (allowing rejected ones).
+        # We pass the order through and let the broker's risk system decide.
+        # If they reject for funds, the engine surfaces their exact reason.
         margin = broker_account.margin_available or 0
-        estimated_cost = (price or 0) * (qty or 0)
-        if estimated_cost > 0 and margin > 0:
-            if estimated_cost > margin:
-                checks.append({'check': 'Margin Check', 'pass': False, 'detail': f'Estimated ₹{estimated_cost:,.0f} exceeds available margin ₹{margin:,.0f}'})
-                passed = False
-            else:
-                checks.append({'check': 'Margin Check', 'pass': True, 'detail': f'₹{margin:,.0f} available'})
+        if margin > 0:
+            checks.append({'check': 'Margin Check', 'pass': True,
+                           'detail': f'Broker will verify · last known ₹{margin:,.0f}'})
+        else:
+            checks.append({'check': 'Margin Check', 'pass': True,
+                           'detail': 'Broker will verify funds at order entry'})
 
         if symbol and qty and qty > 0:
             cutoff = datetime.utcnow() - DUPLICATE_ORDER_WINDOW

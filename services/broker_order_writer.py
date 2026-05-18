@@ -43,6 +43,8 @@ _ENUM_ALIASES = {
     ProductType: {
         'mis': ProductType.MIS, 'cnc': ProductType.CNC,
         'intraday': ProductType.INTRADAY, 'delivery': ProductType.DELIVERY,
+        'nrml': ProductType.NRML, 'normal': ProductType.NRML, 'carryforward': ProductType.NRML,
+        'mtf': ProductType.MTF, 'margin': ProductType.MTF, 'pay_later': ProductType.MTF, 'paylater': ProductType.MTF,
     },
     OrderStatus: {
         'open': OrderStatus.OPEN, 'pending': OrderStatus.PENDING,
