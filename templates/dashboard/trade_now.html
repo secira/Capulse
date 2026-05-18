@@ -682,14 +682,19 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (assetClass === 'futures') quantityInput.value = 1;
         else                               quantityInput.value = 1;
 
-        // Fetch live price
+        // Fetch live price — UNLESS prePopulateForm is about to do its own
+        // (richer) fetch with signal-target/SL overrides. Without this guard
+        // every URL-prepopulated page load hits /api/nse/quote/<symbol> twice
+        // in quick succession, which looked like a polling loop.
         var spinner = document.getElementById('livePriceSpinner');
         var bar     = document.getElementById('livePriceBar');
         var hintRow = document.getElementById('hintRow');
         if (spinner) spinner.classList.remove('d-none');
         if (bar)     bar.classList.add('d-none');
         if (hintRow) hintRow.classList.add('d-none');
-        fetchLivePrice(symbol, false, false);
+        if (!window.__suppressLivePriceFetch) {
+            fetchLivePrice(symbol, false, false);
+        }
         checkGuardrails();
     });
 
@@ -775,18 +780,31 @@ function prePopulateForm(urlParams) {
         if (qEl) qEl.value = parseInt(quantity);
     }
 
-    // Asset dropdown: find or inject
+    // Asset dropdown: find or inject. Suppress the change handler's own
+    // /api/nse/quote/ fetch — prePopulateForm fires its own richer fetch
+    // below that also applies signal-provided target/SL overrides.
+    // Wrapped in try/finally so the flag is guaranteed to reset even if
+    // the change handler throws.
+    window.__suppressLivePriceFetch = true;
     var assetSelect = document.getElementById('assetSelect');
     var found = false;
-    for (var i = 0; i < assetSelect.options.length; i++) {
-        if (assetSelect.options[i].value === symbol) {
-            assetSelect.selectedIndex = i;
-            found = true;
-            assetSelect.dispatchEvent(new Event('change'));
-            break;
+    try {
+        for (var i = 0; i < assetSelect.options.length; i++) {
+            if (assetSelect.options[i].value === symbol) {
+                assetSelect.selectedIndex = i;
+                found = true;
+                assetSelect.dispatchEvent(new Event('change'));
+                break;
+            }
         }
+        if (!found && symbol) {
+            _injectAndDispatch();
+        }
+    } finally {
+        window.__suppressLivePriceFetch = false;
     }
-    if (!found && symbol) {
+
+    function _injectAndDispatch() {
         // Detect asset class from URL or pattern (source can be 'fno', 'fno_nifty', etc.)
         var isFno = source && source.toLowerCase().indexOf('fno') === 0;
         var detectedCls = 'equity';
@@ -802,6 +820,7 @@ function prePopulateForm(urlParams) {
         assetSelect.insertBefore(opt, assetSelect.options[1]);
         assetSelect.dispatchEvent(new Event('change'));
     }
+
     // Belt-and-suspenders: always reveal banner with whatever we have
     if (symbol) {
         var _isFno = source && source.toLowerCase().indexOf('fno') === 0;
@@ -981,6 +1000,11 @@ function showTradeConfirmation() {
 
 // ─── Execute Trade ────────────────────────────────────────────────────────────
 function executeTrade() {
+    // Re-entrancy guard: even if the user manages to double-click the modal
+    // Execute button before it disables, only one in-flight request goes out.
+    if (window.__tradeExecInFlight) return;
+    window.__tradeExecInFlight = true;
+
     var urlParams   = new URLSearchParams(window.location.search);
     var symbol      = document.getElementById('assetSelect').value || urlParams.get('symbol');
     var action      = currentAction;
@@ -995,8 +1019,18 @@ function executeTrade() {
     var modal = bootstrap.Modal.getInstance(document.getElementById('tradeConfirmModal'));
     if (modal) modal.hide();
 
-    var btn = document.querySelector('#tradeConfirmModal .btn:last-child');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Executing…'; }
+    // Disable BOTH the modal Execute button AND the main Instant Buy/Sell CTA
+    // on the page itself so the user can't double-fire while we wait on the
+    // engine round-trip.
+    var modalBtn = document.querySelector('#tradeConfirmModal .btn:last-child');
+    if (modalBtn) { modalBtn.disabled = true; modalBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Executing…'; }
+    var mainCta = document.getElementById('instantTradeBtn');
+    var mainCtaOriginalHtml = null;
+    if (mainCta) {
+        mainCtaOriginalHtml = mainCta.innerHTML;
+        mainCta.disabled = true;
+        mainCta.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Waiting for broker…';
+    }
 
     fetch('/api/trade/execute-signal', {
         method: 'POST',
@@ -1014,16 +1048,43 @@ function executeTrade() {
             broker_id:    document.getElementById('brokerSelect') ? document.getElementById('brokerSelect').value : null
         })
     })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
+    .then(function(r) { return r.json().then(function(j){ return { status: r.status, body: j }; }); })
+    .then(function(resp) {
+        var data = resp.body || {};
         if (data.success) {
-            showTradeResult(true, 'Trade order sent successfully!\n\nOrder ID: ' + (data.order_id || 'Processing'));
-            setTimeout(function(){ location.reload(); }, 2500);
+            // Show the REAL engine response — status, broker order id, request id —
+            // and DO NOT auto-reload. User dismisses the modal when ready.
+            var lines = [];
+            lines.push('Order ID: ' + (data.order_id != null ? data.order_id : '—'));
+            if (data.broker_order_id) lines.push('Broker Order ID: ' + data.broker_order_id);
+            if (data.status)          lines.push('Status: ' + data.status);
+            if (data.via === 'remote_engine' && data.request_id) {
+                lines.push('Request ID: ' + data.request_id);
+            }
+            if (data.message)         lines.push('');
+            if (data.message)         lines.push(data.message);
+            showTradeResult(true, lines.join('\n'));
         } else {
-            showTradeResult(false, data.error || 'Unknown error', data.broker_settings_url || null);
+            // Surface the user-friendly engine message; include technical detail
+            // and request_id in smaller print so support can trace failures.
+            var errLines = [data.error || 'Unknown error'];
+            if (data.technical_error && data.technical_error !== data.error) {
+                errLines.push('');
+                errLines.push('Details: ' + data.technical_error);
+            }
+            if (data.request_id) errLines.push('Request ID: ' + data.request_id);
+            showTradeResult(false, errLines.join('\n'), data.broker_settings_url || null);
         }
     })
-    .catch(function(err) { showTradeResult(false, 'Network error: ' + err.message); });
+    .catch(function(err) { showTradeResult(false, 'Network error: ' + err.message); })
+    .finally(function() {
+        // Always restore the main CTA so the user can fix and retry without a reload.
+        if (mainCta) {
+            mainCta.disabled = false;
+            if (mainCtaOriginalHtml != null) mainCta.innerHTML = mainCtaOriginalHtml;
+        }
+        window.__tradeExecInFlight = false;
+    });
 }
 
 // ─── Trade Result Modal ───────────────────────────────────────────────────────
@@ -1076,7 +1137,9 @@ function showTradeResult(success, message, settingsUrl) {
     var m = new bootstrap.Modal(el);
     m.show();
     el.addEventListener('hidden.bs.modal', function(){ el.remove(); });
-    if (success) setTimeout(function(){ m.hide(); }, 3000);
+    // NOTE: do NOT auto-dismiss the result modal — the user must see the
+    // broker's actual status (order id, request id, fill state) and close
+    // it themselves. Auto-dismiss + page reload was the "loop" the user saw.
 }
 
 // ─── Scentric Behavioural Guardrails ─────────────────────────────────────────
