@@ -963,52 +963,182 @@ function showTradeConfirmation() {
     var brokerSelect = document.getElementById('brokerSelect');
     var brokerName   = brokerSelect ? brokerSelect.options[brokerSelect.selectedIndex].text : 'Not Connected';
 
+    // ── Extra reference info: live price, asset-class badge, order value,
+    //    margin, and signal context (if the page was opened from a signal).
+    var livePriceTxt = (document.getElementById('livePriceVal')?.textContent || '').trim();
+    var livePriceSrc = (document.getElementById('livePriceSrc')?.textContent || '').trim();
+    var livePriceChg = (document.getElementById('livePriceChg')?.textContent || '').trim();
+    var marginReqTxt = (document.getElementById('marginRequired')?.textContent || '').trim();
+    var marginAvlTxt = (document.getElementById('marginAvailable')?.textContent || '').trim();
+    var urlParamsCM  = new URLSearchParams(window.location.search);
+    var signalSource = urlParamsCM.get('source') || '';
+    var signalId     = urlParamsCM.get('signal_id') || '';
+    var riskLevel    = urlParamsCM.get('risk_level') || '';
+
+    var assetClassLabel = ({
+        'options': 'Options (F&O)',
+        'futures': 'Futures (F&O)',
+        'equity':  'Equity / Stock'
+    })[assetClass] || (assetClass ? (assetClass[0].toUpperCase() + assetClass.slice(1)) : 'Equity / Stock');
+    var assetClassColor = (assetClass === 'options' || assetClass === 'futures')
+        ? '#7c3aed' : '#0ea5e9';
+
+    // Estimated order value (numeric where possible)
+    var priceForCalc = parseFloat(price);
+    if (!priceForCalc || priceForCalc <= 0) {
+        // Fall back to live price for MARKET orders
+        priceForCalc = parseFloat((livePriceTxt || '').replace(/[^\d.]/g, ''));
+    }
+    var orderValueTxt = '';
+    if (priceForCalc > 0 && parseInt(quantity) > 0) {
+        var v = priceForCalc * parseInt(quantity);
+        orderValueTxt = '₹' + v.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
     var modal = document.createElement('div');
     modal.className = 'modal fade';
     modal.id = 'tradeConfirmModal';
     modal.setAttribute('tabindex', '-1');
     var isBuy = action === 'BUY';
+    var sideColor = isBuy ? '#16a34a' : '#dc2626';
+
+    // F&O detail block (expiry / strike / type) — only when we have the data
+    var fnoDetailHtml = '';
+    if (assetClass === 'options' || assetClass === 'futures' || optFieldsVis) {
+        var rows = [];
+        if (expiry)       rows.push(`<div class="col-4"><small class="text-muted d-block">Expiry</small><strong>${expiry}</strong></div>`);
+        if (strike)       rows.push(`<div class="col-4"><small class="text-muted d-block">Strike</small><strong>₹${strike}</strong></div>`);
+        if (optTypeShort) rows.push(`<div class="col-4"><small class="text-muted d-block">Type</small><strong>${optTypeShort === 'CE' ? 'CALL (CE)' : 'PUT (PE)'}</strong></div>`);
+        if (rows.length) {
+            fnoDetailHtml = `
+                <div class="mb-3 p-3 rounded-3" style="background:#faf5ff;border:1px solid #e9d5ff;">
+                    <small class="text-uppercase fw-bold d-block mb-2" style="color:#7c3aed;letter-spacing:.5px;font-size:11px;">F&O Contract Details</small>
+                    <div class="row g-2">${rows.join('')}</div>
+                </div>`;
+        }
+    }
+
+    // Signal-context block (only if user came from a signal)
+    var signalCtxHtml = '';
+    if (signalSource || signalId || riskLevel) {
+        var sourceLabels = {
+            'trading_signals': 'Admin Trading Signal',
+            'stock_picker':    'AI Stock Recommendation',
+            'my_portfolio':    'Portfolio Holding',
+            'daily_signals':   'Daily Trading Signal',
+            'research':        'Research Co-Pilot',
+            'market_pulse':    'Live Market Pulse',
+            'fno':             'F&O Engine',
+            'fno_nifty':       'F&O Engine — NIFTY'
+        };
+        var srcLabel = sourceLabels[signalSource] || signalSource || 'Signal';
+        var bits = [];
+        bits.push(`<span class="badge" style="background:#eef2ff;color:#4338ca;">${srcLabel}</span>`);
+        if (riskLevel) bits.push(`<span class="badge bg-warning text-dark">Risk: ${riskLevel}</span>`);
+        if (signalId)  bits.push(`<small class="text-muted">Signal #${signalId}</small>`);
+        signalCtxHtml = `
+            <div class="mb-3 p-2 rounded-3 d-flex align-items-center gap-2 flex-wrap" style="background:#f8fafc;border:1px solid #e2e8f0;">
+                <i class="fas fa-bullseye text-muted"></i>
+                <small class="text-muted me-1">Trade source:</small>
+                ${bits.join(' ')}
+            </div>`;
+    }
+
     modal.innerHTML = `
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content" style="border-radius:18px;overflow:hidden;">
-                <div class="modal-header" style="background:${isBuy ? '#16a34a' : '#dc2626'};color:#fff;padding:20px 24px;">
-                    <h5 class="modal-title fw-bold">
-                        <i class="fas fa-bolt me-2"></i>Confirm ${action} Order
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <div class="modal-header" style="background:${sideColor};color:#fff;padding:20px 24px;">
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1">
+                            <i class="fas fa-bolt me-2"></i>Confirm ${action} Order
+                        </h5>
+                        <small style="opacity:.9;">Review the full order details before sending to your broker.</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <div class="row g-3 mb-3">
-                        <div class="col-12">
-                            <small class="text-muted d-block">Contract</small>
-                            <strong style="font-size:16px;">${contractLabel}</strong>
+
+                    <!-- CONTRACT IDENTITY -->
+                    <div class="mb-3 p-3 rounded-3" style="background:#f0f9ff;border:1px solid #bae6fd;">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <small class="text-uppercase fw-bold" style="color:#0369a1;letter-spacing:.5px;font-size:11px;">Contract</small>
+                            <span class="badge" style="background:${assetClassColor};color:#fff;font-size:10px;">${assetClassLabel}</span>
                         </div>
-                        <div class="col-6">
-                            <small class="text-muted d-block">Action</small>
-                            <span class="badge px-3 py-2 fs-6" style="background:${isBuy ? '#16a34a' : '#dc2626'};color:#fff;">${action}</span>
-                        </div>
-                        <div class="col-4">
-                            <small class="text-muted d-block">Qty</small>
-                            <strong>${quantity}</strong>
-                        </div>
-                        <div class="col-4">
-                            <small class="text-muted d-block">Order</small>
-                            <strong>${orderType}</strong>
-                        </div>
-                        <div class="col-4">
-                            <small class="text-muted d-block">Product</small>
-                            <strong>${productType}</strong>
-                        </div>
-                        ${price ? `<div class="col-4"><small class="text-muted d-block">Price</small><strong>₹${price}</strong></div>` : ''}
-                        ${stopLoss ? `<div class="col-4"><small class="text-muted d-block">Stop Loss</small><strong class="text-danger">₹${stopLoss}</strong></div>` : ''}
-                        ${target ? `<div class="col-4"><small class="text-muted d-block">Target</small><strong class="text-success">₹${target}</strong></div>` : ''}
+                        <strong style="font-size:18px;line-height:1.3;display:block;">${contractLabel}</strong>
+                        ${(symbol && contractLabel !== symbol) ? `<small class="text-muted d-block mt-1">Symbol: <code>${symbol}</code></small>` : ''}
+                        ${livePriceTxt ? `
+                            <div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
+                                <small class="text-muted">Live price:</small>
+                                <strong>${livePriceTxt}</strong>
+                                ${livePriceChg ? `<small style="color:${livePriceChg.startsWith('-') ? '#dc2626' : '#16a34a'};">${livePriceChg}</small>` : ''}
+                                ${livePriceSrc ? `<small class="text-muted">· source: ${livePriceSrc}</small>` : ''}
+                            </div>` : ''}
                     </div>
-                    <div class="p-3 rounded-3 d-flex align-items-center gap-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
-                        <i class="fas fa-building text-muted"></i>
-                        <div>
-                            <small class="text-muted d-block">Executing via</small>
-                            <strong>${brokerName}</strong>
+
+                    ${fnoDetailHtml}
+                    ${signalCtxHtml}
+
+                    <!-- ORDER PARAMETERS -->
+                    <div class="mb-3 p-3 rounded-3" style="background:#fff;border:1px solid #e2e8f0;">
+                        <small class="text-uppercase fw-bold d-block mb-2" style="color:#475569;letter-spacing:.5px;font-size:11px;">Order</small>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <small class="text-muted d-block">Side</small>
+                                <span class="badge px-3 py-2" style="background:${sideColor};color:#fff;font-size:13px;">${action}</span>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Quantity</small>
+                                <strong style="font-size:15px;">${quantity}</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Order type</small>
+                                <strong>${orderType}</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Product type</small>
+                                <strong>${productType}</strong>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted d-block">${orderType === 'MARKET' ? 'Price (est.)' : 'Limit price'}</small>
+                                <strong>${price ? '₹' + price : (orderType === 'MARKET' ? 'At market' : '—')}</strong>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted d-block">Stop loss</small>
+                                <strong class="${stopLoss ? 'text-danger' : 'text-muted'}">${stopLoss ? '₹' + stopLoss : '—'}</strong>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted d-block">Target</small>
+                                <strong class="${target ? 'text-success' : 'text-muted'}">${target ? '₹' + target : '—'}</strong>
+                            </div>
+                            ${orderValueTxt ? `
+                            <div class="col-12 pt-2 border-top">
+                                <small class="text-muted d-block">Estimated order value</small>
+                                <strong style="font-size:15px;">${orderValueTxt}</strong>
+                                <small class="text-muted ms-1">(${quantity} × ${priceForCalc.toFixed(2)})</small>
+                            </div>` : ''}
                         </div>
+                    </div>
+
+                    <!-- BROKER + MARGIN -->
+                    <div class="p-3 rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
+                        <div class="d-flex align-items-center gap-3 mb-${(marginReqTxt && marginReqTxt !== '—') || (marginAvlTxt && marginAvlTxt !== '—') ? '2 pb-2 border-bottom' : '0'}">
+                            <i class="fas fa-building text-muted"></i>
+                            <div>
+                                <small class="text-muted d-block">Executing via</small>
+                                <strong>${brokerName}</strong>
+                            </div>
+                        </div>
+                        ${(marginReqTxt && marginReqTxt !== '—') || (marginAvlTxt && marginAvlTxt !== '—') ? `
+                        <div class="row g-2 mt-1">
+                            <div class="col-6">
+                                <small class="text-muted d-block">Margin required</small>
+                                <strong>${marginReqTxt || '—'}</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Margin available</small>
+                                <strong>${marginAvlTxt || '—'}</strong>
+                            </div>
+                        </div>` : ''}
                     </div>
                 </div>
                 <div class="modal-footer px-4 pb-4 border-0">
