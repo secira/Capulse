@@ -69,10 +69,17 @@
             </div>
             {% endif %}
 
-            <form method="POST" class="mt-3">
+            <form method="POST" class="mt-3 d-inline">
                 <input type="hidden" name="action" value="test">
                 <button type="submit" class="btn btn-outline-info btn-sm">
                     <i class="fas fa-vial me-1"></i> Send test message to group
+                </button>
+            </form>
+            <form method="POST" class="mt-3 d-inline ms-2">
+                <input type="hidden" name="action" value="test_fno">
+                <button type="submit" class="btn btn-outline-warning btn-sm"
+                        title="Exercises the exact F&amp;O alert code path (services/fno_monitor._send_telegram_alert) with a synthetic NIFTY TRADE_TRIGGER. Use this to verify the F&amp;O pipeline on Railway without waiting for market hours.">
+                    <i class="fas fa-bolt me-1"></i> Send test F&amp;O alert
                 </button>
             </form>
         </div>

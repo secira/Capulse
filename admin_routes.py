@@ -626,6 +626,32 @@ def telegram_messenger():
                 parse_mode='HTML',
             )
             flash('Test message sent ✓' if ok else 'Test FAILED — see diagnostics below', 'success' if ok else 'error')
+        elif action == 'test_fno':
+            try:
+                from services.fno_monitor import _send_telegram_alert
+                sample = {
+                    'trade_direction':  'BULLISH',
+                    'confidence':       85,
+                    'confidence_grade': 'STRONG',
+                    'entry_mode':       'CONFIRMED',
+                    'spot_price':       24500.0,
+                    'atm_strike':       24500,
+                    'signal_type':      'TRADE_TRIGGER',
+                    'trade_code':       'TEST-NIFTY-CE',
+                    'trades': [{
+                        'symbol': 'NIFTY 24500 CE', 'type': 'CE',
+                        'entry_price': 120, 'target': 165, 'sl': 95,
+                    }],
+                    'data_source':      'test',
+                }
+                ok = _send_telegram_alert(sample, 'NIFTY')
+                flash(
+                    'F&O test alert sent ✓ — Railway pipeline OK' if ok
+                    else 'F&O test alert FAILED — see server logs (token/chat_id/network)',
+                    'success' if ok else 'error',
+                )
+            except Exception as e:
+                flash(f'F&O test alert error: {e}', 'error')
         elif action == 'send_text':
             body = (request.form.get('message') or '').strip()
             if not body:
