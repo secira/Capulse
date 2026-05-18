@@ -5605,9 +5605,25 @@ def api_trade_execute_signal():
             }), 400
 
         order_type_raw = data.get('order_type', 'MARKET').upper()
-        # trigger_price is only valid for Stop-Loss order types; MARKET/LIMIT must send 0
+        # trigger_price is only valid for Stop-Loss / Trigger order types; MARKET/LIMIT must send 0.
+        # The form has a dedicated `trigger_price` input that appears when the user picks
+        # "Trigger" (STOP_LOSS / SL-M). Use that value first; fall back to stop_loss only if
+        # the trigger input was somehow empty so we never silently drop the user's price.
         is_sl_order = order_type_raw in ('STOP_LOSS', 'SL', 'SLM', 'SL-M', 'STOP_LOSS_MARKET')
-        trigger_price_val = float(data.get('stop_loss')) if (is_sl_order and data.get('stop_loss')) else 0
+        trigger_price_val = 0
+        if is_sl_order:
+            _tp_raw = data.get('trigger_price')
+            if _tp_raw in (None, '', 0, '0'):
+                _tp_raw = data.get('stop_loss')  # legacy fallback
+            try:
+                trigger_price_val = float(_tp_raw) if _tp_raw not in (None, '') else 0
+            except (TypeError, ValueError):
+                trigger_price_val = 0
+            if trigger_price_val <= 0:
+                return jsonify({
+                    'success': False,
+                    'error': 'Trigger price is required for Stop-Loss / Trigger orders.'
+                }), 400
 
         order_data = {
             'symbol': data.get('symbol'),

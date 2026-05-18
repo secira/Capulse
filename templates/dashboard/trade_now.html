@@ -926,11 +926,18 @@ function showTradeConfirmation() {
     var price       = document.getElementById('entryPriceInput')?.value || '';
     var stopLoss    = document.getElementById('stopLossInput')?.value || '';
     var target      = document.getElementById('targetPriceInput')?.value || '';
+    var triggerPx   = document.getElementById('triggerPriceInput')?.value || '';
     var quantity    = document.getElementById('quantityInput')?.value || 1;
     var orderType   = currentOrderType;
     var productType = currentProductType;
+    var isTriggerOrder = (orderType === 'STOP_LOSS' || orderType === 'SL' || orderType === 'SL-M' || orderType === 'SLM');
 
     if (!symbol) { alert('Please select an asset first'); return; }
+    if (isTriggerOrder && !(parseFloat(triggerPx) > 0)) {
+        alert('Trigger price is required for Trigger orders.');
+        document.getElementById('triggerPriceInput')?.focus();
+        return;
+    }
 
     // Build a rich, unambiguous "what am I trading?" label so the user can
     // confirm they're hitting the right contract — especially for F&O where
@@ -1099,9 +1106,14 @@ function showTradeConfirmation() {
                                 <strong>${productType}</strong>
                             </div>
                             <div class="col-4">
-                                <small class="text-muted d-block">${orderType === 'MARKET' ? 'Price (est.)' : 'Limit price'}</small>
-                                <strong>${price ? '₹' + price : (orderType === 'MARKET' ? 'At market' : '—')}</strong>
+                                <small class="text-muted d-block">${orderType === 'MARKET' ? 'Price (est.)' : (isTriggerOrder ? 'Limit price' : 'Limit price')}</small>
+                                <strong>${price ? '₹' + price : (orderType === 'MARKET' ? 'At market' : (isTriggerOrder ? 'Market on trigger' : '—'))}</strong>
                             </div>
+                            ${isTriggerOrder ? `
+                            <div class="col-4">
+                                <small class="text-muted d-block">Trigger price</small>
+                                <strong style="color:#7c3aed;">${triggerPx ? '₹' + triggerPx : '—'}</strong>
+                            </div>` : ''}
                             <div class="col-4">
                                 <small class="text-muted d-block">Stop loss</small>
                                 <strong class="${stopLoss ? 'text-danger' : 'text-muted'}">${stopLoss ? '₹' + stopLoss : '—'}</strong>
@@ -1195,16 +1207,17 @@ function executeTrade() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            symbol:       symbol,
-            action:       action,
-            quantity:     parseInt(quantity),
-            price:        parseFloat(price) || null,
-            stop_loss:    parseFloat(stopLoss) || null,
-            target_price: parseFloat(target) || null,
-            order_type:   orderType,
-            product_type: productType,
-            signal_id:    signalId ? parseInt(signalId) : null,
-            broker_id:    document.getElementById('brokerSelect') ? document.getElementById('brokerSelect').value : null
+            symbol:        symbol,
+            action:        action,
+            quantity:      parseInt(quantity),
+            price:         parseFloat(price) || null,
+            stop_loss:     parseFloat(stopLoss) || null,
+            target_price:  parseFloat(target) || null,
+            trigger_price: parseFloat(document.getElementById('triggerPriceInput')?.value) || null,
+            order_type:    orderType,
+            product_type:  productType,
+            signal_id:     signalId ? parseInt(signalId) : null,
+            broker_id:     document.getElementById('brokerSelect') ? document.getElementById('brokerSelect').value : null
         })
     })
     .then(function(r) { return r.json().then(function(j){ return { status: r.status, body: j }; }); })
