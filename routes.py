@@ -5759,6 +5759,37 @@ def api_trade_execute_signal():
                     'broker_settings_url': '/dashboard/broker-accounts'
                 }), 403
 
+            # DH-901: Invalid / expired access token — flip the broker account
+            # to EXPIRED so the dashboard prompts a reconnect, and show a
+            # short, plain-language message instead of the raw dict dump.
+            _l = err_str.lower()
+            if ('DH-901' in err_str
+                    or 'invalid_authentication' in _l
+                    or 'access token is invalid' in _l
+                    or 'access token is expired' in _l
+                    or 'token is invalid or expired' in _l):
+                try:
+                    from models_broker import ConnectionStatus
+                    selected_broker.connection_status = ConnectionStatus.EXPIRED.value
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'{selected_broker.broker_name} access token has expired.\n\n'
+                        'Your broker session is no longer valid, so the order was '
+                        'not placed. Reconnect the broker to continue trading:\n\n'
+                        '1. Open Broker Settings\n'
+                        f'2. Click "Reconnect" next to {selected_broker.broker_name}\n'
+                        '3. Generate a fresh access token from the broker portal\n'
+                        '4. Paste the new token and save\n\n'
+                        'Then come back here and retry the trade.'
+                    ),
+                    'broker_settings_url': '/dashboard/broker-accounts',
+                    'error_code': 'DH-901'
+                }), 401
+
             # DH-906: CDSL TPIN/DDPI authorization needed for CNC sell orders
             if 'DH-906' in err_str or 'Validate Qty from CDSL' in err_str or 'CDSL' in err_str:
                 return jsonify({
@@ -5778,9 +5809,25 @@ def api_trade_execute_signal():
                     'broker_settings_url': 'https://dhan.co'
                 }), 400
 
+            # Generic fallback — extract any human-readable error_message from
+            # the broker payload instead of dumping the raw Python dict.
+            import re as _re
+            friendly = err_str
+            m = _re.search(r"'error_message'\s*:\s*'([^']+)'", err_str)
+            if not m:
+                m = _re.search(r'"error_message"\s*:\s*"([^"]+)"', err_str)
+            if m:
+                friendly = m.group(1)
+            else:
+                # Strip the wrapper prefixes that broker_service.py adds
+                for prefix in ('Failed to place order: ', 'Dhan order failed: '):
+                    if friendly.startswith(prefix):
+                        friendly = friendly[len(prefix):]
+                # Drop trailing "(code: )" noise if empty
+                friendly = _re.sub(r'\s*\(code:\s*\)\s*$', '', friendly)
             return jsonify({
                 'success': False,
-                'error': f'Broker error: {err_str}'
+                'error': f'{selected_broker.broker_name} rejected the order: {friendly}'
             }), 500
         
     except Exception as e:
