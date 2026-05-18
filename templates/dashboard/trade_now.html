@@ -1239,6 +1239,8 @@ function executeTrade() {
     var orderType   = currentOrderType;
     var productType = currentProductType;
     var signalId    = urlParams.get('signal_id') || '';
+    var fnoTradeCode = urlParams.get('fno_trade_code') || '';
+    var tradeSource  = urlParams.get('source') || '';
 
     var modal = bootstrap.Modal.getInstance(document.getElementById('tradeConfirmModal'));
     if (modal) modal.hide();
@@ -1270,6 +1272,8 @@ function executeTrade() {
             order_type:    orderType,
             product_type:  productType,
             signal_id:     signalId ? parseInt(signalId) : null,
+            fno_trade_code: fnoTradeCode || null,
+            source:        tradeSource || null,
             broker_id:     document.getElementById('brokerSelect') ? document.getElementById('brokerSelect').value : null
         })
     })

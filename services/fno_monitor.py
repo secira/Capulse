@@ -304,15 +304,20 @@ def _dispatch_partner_webhook(signal_data: dict, index_id: str) -> None:
 
 def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
     try:
-        raw_token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
-        chat_id   = os.environ.get('TELEGRAM_CHAT_ID', '')
-        if not raw_token or not chat_id:
-            logger.warning("Telegram not configured for F&O alerts")
+        # Resolve env vars at CALL time via the shared helper. On Railway some
+        # deployments populate env after gunicorn imports modules, so reading
+        # TELEGRAM_BOT_TOKEN at import-time used to return '' for the lifetime
+        # of the worker and every send silently failed. messaging_service.
+        # _get_telegram_config() also strips wrapping quotes / 'Bot ' prefix.
+        from services.messaging_service import _get_telegram_config
+        token, chat_id = _get_telegram_config()
+        if not token or not chat_id:
+            logger.warning(
+                f"[{index_id}] Telegram not configured — "
+                f"token_present={bool(token)} chat_id_present={bool(chat_id)} "
+                f"(set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID on Railway)"
+            )
             return False
-
-        import re
-        match = re.search(r'(\d+:[A-Za-z0-9_-]+)', raw_token)
-        token = match.group(1) if match else raw_token
 
         display    = _INDEX_DISPLAY.get(index_id, index_id)
         direction  = signal_data.get('trade_direction', 'NEUTRAL')

@@ -284,7 +284,7 @@ def fno_pnl_history():
         utc_from       = from_ist - timedelta(hours=5, minutes=30)
 
         index_clause = "AND COALESCE(index_id,'NIFTY') = :index_id" if index_filter != 'ALL' else ""
-        params = {'from_date': utc_from}
+        params = {'from_date': utc_from, 'user_id': current_user.id}
         if index_filter != 'ALL':
             params['index_id'] = index_filter
 
@@ -294,6 +294,8 @@ def fno_pnl_history():
             FROM   fno_signal_history
             WHERE  signal_type = 'TRADE_TRIGGER'
               AND  outcome IS NOT NULL
+              AND  is_user_trade = TRUE
+              AND  executed_user_id = :user_id
               AND  created_at >= :from_date
               {index_clause}
             ORDER  BY created_at DESC

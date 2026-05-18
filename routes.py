@@ -5564,6 +5564,35 @@ def api_data_quality():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _mark_fno_signal_executed(req_data: dict, user_id: int, broker_order_id):
+    """When a trade originating from the F&O page is successfully placed,
+    flip the matching ``fno_signal_history`` row to is_user_trade=TRUE so it
+    surfaces in /api/pnl-history. Auto-monitor signals stay invisible.
+
+    Idempotent and best-effort — never raises.
+    """
+    try:
+        trade_code = (req_data or {}).get('fno_trade_code') or ''
+        source     = ((req_data or {}).get('source') or '').lower()
+        if not trade_code and not source.startswith('fno'):
+            return  # not a trade that originated from the F&O page
+        if not trade_code:
+            return  # no trade_code to match — leave it as a monitor signal
+        db.session.execute(db.text("""
+            UPDATE fno_signal_history
+               SET is_user_trade           = TRUE,
+                   executed_user_id        = :uid,
+                   executed_broker_order_id= :oid
+             WHERE trade_code = :tc
+               AND signal_type = 'TRADE_TRIGGER'
+        """), {'uid': user_id, 'oid': broker_order_id, 'tc': trade_code})
+        db.session.commit()
+        logger.info(f"F&O signal {trade_code} marked is_user_trade for user {user_id}")
+    except Exception as _e:
+        db.session.rollback()
+        logger.warning(f"_mark_fno_signal_executed skipped: {_e}")
+
+
 @app.route('/api/trade/execute-signal', methods=['POST'])
 @login_required
 @csrf.exempt
@@ -5695,6 +5724,8 @@ def api_trade_execute_signal():
                         tc_order_id = None
                         order_status = eng_resp.get('order_status', 'SUBMITTED')
 
+                    _mark_fno_signal_executed(data, current_user.id, tc_order_id)
+
                     return jsonify({
                         'success': True,
                         'order_id': tc_order_id,
@@ -5736,9 +5767,12 @@ def api_trade_execute_signal():
         try:
             order_result = BrokerService.place_order_via_broker(selected_broker, order_data)
 
+            _tc_order_id = order_result.id if hasattr(order_result, 'id') else None
+            _mark_fno_signal_executed(data, current_user.id, _tc_order_id)
+
             return jsonify({
                 'success': True,
-                'order_id': order_result.id if hasattr(order_result, 'id') else None,
+                'order_id': _tc_order_id,
                 'broker_order_id': order_result.broker_order_id if hasattr(order_result, 'broker_order_id') else 'PENDING',
                 'status': order_result.order_status if hasattr(order_result, 'order_status') else 'SUBMITTED',
                 'message': f'Order placed successfully with {selected_broker.broker_name}'

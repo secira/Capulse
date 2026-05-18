@@ -622,19 +622,21 @@ function buildTradeCard(t) {
     if (isBlocked) {
         buyBtnHtml = '<button class="btn btn-sm btn-secondary flex-fill" disabled title="Trading blocked by rules"><i class="fas fa-ban me-1"></i>Trading Blocked</button>';
     } else {
+        var _activeTc = (typeof _activeTradeData !== 'undefined' && _activeTradeData && _activeTradeData.trade_code) ? _activeTradeData.trade_code : '';
         var tnParams = new URLSearchParams({
-            symbol:       t.symbol,
-            script:       t.symbol,
-            action:       'BUY',
-            price:        (t.entry_price || t.ltp || 0).toString(),
-            quantity:     suggestedQty.toString(),
-            target:       (t.target || 0).toString(),
-            stop_loss:    (t.sl || 0).toString(),
-            product_type: 'NRML',
-            source:       FNO_SOURCE,
-            strike:       t.strike,
-            opt_type:     t.type,
-            expiry:       (t.expiry || '')
+            symbol:         t.symbol,
+            script:         t.symbol,
+            action:         'BUY',
+            price:          (t.entry_price || t.ltp || 0).toString(),
+            quantity:       suggestedQty.toString(),
+            target:         (t.target || 0).toString(),
+            stop_loss:      (t.sl || 0).toString(),
+            product_type:   'NRML',
+            source:         FNO_SOURCE,
+            strike:         t.strike,
+            opt_type:       t.type,
+            expiry:         (t.expiry || ''),
+            fno_trade_code: (t.trade_code || _activeTc || '')
         });
         buyBtnHtml = '<a href="/dashboard/trade-now?' + tnParams.toString() + '" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-shopping-cart me-1"></i>Buy ' + t.symbol + '</a>';
     }

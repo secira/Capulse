@@ -443,6 +443,13 @@ with app.app_context():
                 ALTER TYPE producttype ADD VALUE 'MTF';
             END IF;
         END $$''',
+        # F&O P&L analysis: separate auto-generated monitor signals from
+        # signals the user actually executed through a broker. The /api/pnl-history
+        # query now filters by is_user_trade=TRUE so the page only shows real trades.
+        'ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS is_user_trade BOOLEAN NOT NULL DEFAULT FALSE',
+        'ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS executed_user_id INTEGER',
+        'ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS executed_broker_order_id INTEGER',
+        'CREATE INDEX IF NOT EXISTS ix_fno_signal_user_trade ON fno_signal_history(is_user_trade, created_at DESC)',
         'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT \'en\'',
         'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS use_remote_execution BOOLEAN DEFAULT FALSE NOT NULL',
         'ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS expiry_date DATE',
