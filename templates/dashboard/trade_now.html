@@ -182,6 +182,17 @@
                 F&amp;O <span class="pt-code">NRML</span>
             </button>
         </div>
+
+        <!-- Live, plain-English description of the selected product type so the user
+             actually sees what changes between Trading / Investing / F&O. -->
+        <div id="productTypeHelp" class="mt-2 p-2 rounded-3 d-flex align-items-start gap-2"
+             style="background:#fff7ed;border:1px solid #fed7aa;font-size:12px;line-height:1.45;">
+            <i class="fas fa-info-circle mt-1" style="color:#b45309;"></i>
+            <div style="color:#7c2d12;">
+                <strong id="ptHelpTitle">Intraday (MIS)</strong>
+                <span id="ptHelpBody"> — Buy &amp; sell same day. Broker auto squares off open positions at ~3:20 PM IST. Up to ~5× leverage. No overnight risk.</span>
+            </div>
+        </div>
     </div>
 
     <!-- TABS ROW: Market / Limit / SL  +  Buy/Sell toggle -->
@@ -516,6 +527,23 @@ function setOrderType(ot) {
 }
 
 // ─── Product type tabs ────────────────────────────────────────────────────────
+// Plain-English meaning of each product code so users see what actually
+// changes between Trading / Investing / F&O.
+var PRODUCT_TYPE_INFO = {
+    'MIS':  { label: 'Intraday (MIS)',
+              short: 'Intraday — same-day square-off, higher leverage',
+              body:  'Buy & sell the same day. Broker auto squares off open positions at ~3:20 PM IST. Up to ~5× leverage. No overnight risk.',
+              bg:    '#fff7ed', border: '#fed7aa', text: '#7c2d12', accent: '#b45309' },
+    'CNC':  { label: 'Delivery (CNC)',
+              short: 'Delivery — shares go to demat, no leverage, hold forever',
+              body:  'Shares delivered to your demat account. Hold as long as you want. No leverage (1×). Equity only — not for F&O.',
+              bg:    '#ecfdf5', border: '#a7f3d0', text: '#065f46', accent: '#047857' },
+    'NRML': { label: 'F&O Carry-forward (NRML)',
+              short: 'F&O — hold overnight until expiry, lower leverage than MIS',
+              body:  'Carry futures & options positions overnight until expiry. Full SPAN+Exposure margin required (no extra MIS leverage). Use for swing/positional F&O.',
+              bg:    '#eef2ff', border: '#c7d2fe', text: '#3730a3', accent: '#4338ca' }
+};
+
 function setProductType(pt) {
     currentProductType = pt;
     document.getElementById('productTypeHidden').value = pt;
@@ -526,6 +554,23 @@ function setProductType(pt) {
         btn.style.fontWeight    = active ? '700' : '600';
         btn.style.background    = active ? '#fff' : 'transparent';
     });
+
+    // Update the live help box so the user actually sees what changed.
+    var info = PRODUCT_TYPE_INFO[pt] || PRODUCT_TYPE_INFO['MIS'];
+    var helpBox = document.getElementById('productTypeHelp');
+    var ttl     = document.getElementById('ptHelpTitle');
+    var body    = document.getElementById('ptHelpBody');
+    if (helpBox) {
+        helpBox.style.background   = info.bg;
+        helpBox.style.borderColor  = info.border;
+        helpBox.style.color        = info.text;
+        var icon = helpBox.querySelector('i');
+        if (icon) icon.style.color = info.accent;
+        var inner = helpBox.querySelector('div');
+        if (inner) inner.style.color = info.text;
+    }
+    if (ttl)  ttl.textContent  = info.label;
+    if (body) body.textContent = ' — ' + info.body;
 }
 
 // ─── More Options ─────────────────────────────────────────────────────────────
@@ -1103,7 +1148,8 @@ function showTradeConfirmation() {
                             </div>
                             <div class="col-6">
                                 <small class="text-muted d-block">Product type</small>
-                                <strong>${productType}</strong>
+                                <strong>${(PRODUCT_TYPE_INFO[productType] || {}).label || productType}</strong>
+                                <small class="text-muted d-block" style="font-size:11px;line-height:1.35;margin-top:2px;">${(PRODUCT_TYPE_INFO[productType] || {}).short || ''}</small>
                             </div>
                             <div class="col-4">
                                 <small class="text-muted d-block">${orderType === 'MARKET' ? 'Price (est.)' : (isTriggerOrder ? 'Limit price' : 'Limit price')}</small>
