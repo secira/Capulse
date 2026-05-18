@@ -511,20 +511,19 @@ def env_switch_on() -> bool:
 
 
 def is_enabled_for_user(user) -> bool:
-    """Simple single-switch routing.
+    """Two-gate routing — both gates must explicitly be True.
 
-    If the env-level USE_REMOTE_EXEC switch is on, route every user's trades
-    through the engine. Otherwise, use the existing in-process path.
-    The per-user `use_remote_execution` column is still honoured as an
-    additional opt-out: an admin can set it to False to keep a specific
-    user on the local path even when the env switch is on.
+    Gate 1: env-level `USE_REMOTE_EXEC` must be on.
+    Gate 2: per-user `User.use_remote_execution` must be exactly True
+            (None / missing / anything-not-True → local path).
+
+    Explicit opt-in keeps users on the proven in-process path until an
+    operator deliberately moves them to the engine — important during
+    rollout and any partial-outage of the engine.
     """
     if not env_switch_on():
         return False
-    opt_out = getattr(user, 'use_remote_execution', None)
-    if opt_out is False:
-        return False
-    return True
+    return getattr(user, 'use_remote_execution', False) is True
 
 
 def map_bucket_to_status(bucket: str) -> int:
