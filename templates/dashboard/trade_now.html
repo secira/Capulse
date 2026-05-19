@@ -1241,6 +1241,11 @@ function executeTrade() {
     var signalId    = urlParams.get('signal_id') || '';
     var fnoTradeCode = urlParams.get('fno_trade_code') || '';
     var tradeSource  = urlParams.get('source') || '';
+    var fnoStrike    = urlParams.get('strike') || '';
+    var fnoOptType   = urlParams.get('opt_type') || '';
+    var fnoExpiry    = urlParams.get('expiry') || '';
+    var fnoIndexId   = urlParams.get('index_id') || '';
+    var fnoEntryPrice= urlParams.get('entry_price') || '';
 
     var modal = bootstrap.Modal.getInstance(document.getElementById('tradeConfirmModal'));
     if (modal) modal.hide();
@@ -1274,6 +1279,11 @@ function executeTrade() {
             signal_id:     signalId ? parseInt(signalId) : null,
             fno_trade_code: fnoTradeCode || null,
             source:        tradeSource || null,
+            fno_strike:    fnoStrike || null,
+            fno_opt_type:  fnoOptType || null,
+            fno_expiry:    fnoExpiry || null,
+            fno_index_id:  fnoIndexId || null,
+            fno_entry_price: fnoEntryPrice || null,
             broker_id:     document.getElementById('brokerSelect') ? document.getElementById('brokerSelect').value : null
         })
     })

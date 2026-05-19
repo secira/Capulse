@@ -5565,32 +5565,152 @@ def api_data_quality():
 
 
 def _mark_fno_signal_executed(req_data: dict, user_id: int, broker_order_id):
-    """When a trade originating from the F&O page is successfully placed,
-    flip the matching ``fno_signal_history`` row to is_user_trade=TRUE so it
-    surfaces in /api/pnl-history. Auto-monitor signals stay invisible.
+    """Record a user-initiated F&O trade into ``fno_signal_history`` so it
+    surfaces in Today's Recommendations, P&L Analysis and Telegram alerts.
+
+    Two paths:
+      1. If a TRADE_TRIGGER row already exists for the supplied trade_code
+         (auto-monitor locked it before the user clicked Buy) → flip
+         is_user_trade=TRUE so it's attributable to this user.
+      2. Otherwise, INSERT a synthetic TRADE_TRIGGER row with is_user_trade=TRUE
+         capturing the trade details and fire a Telegram alert. This is the
+         common case — the engine shows trade cards even when no scheduler
+         lock exists, so most user-clicked buys land here.
 
     Idempotent and best-effort — never raises.
     """
     try:
-        trade_code = (req_data or {}).get('fno_trade_code') or ''
-        source     = ((req_data or {}).get('source') or '').lower()
-        if not trade_code and not source.startswith('fno'):
-            return  # not a trade that originated from the F&O page
-        if not trade_code:
-            return  # no trade_code to match — leave it as a monitor signal
+        d          = req_data or {}
+        source     = (d.get('source') or '').lower()
+        if not source.startswith('fno'):
+            return  # not an F&O-page trade
+
+        trade_code = (d.get('fno_trade_code') or '').strip()
+
+        # ── Path 1: existing scheduler-locked TRIGGER → flip flag ─────────
+        if trade_code:
+            res = db.session.execute(db.text("""
+                UPDATE fno_signal_history
+                   SET is_user_trade           = TRUE,
+                       executed_user_id        = :uid,
+                       executed_broker_order_id= :oid
+                 WHERE trade_code = :tc
+                   AND signal_type = 'TRADE_TRIGGER'
+            """), {'uid': user_id, 'oid': broker_order_id, 'tc': trade_code})
+            db.session.commit()
+            if (res.rowcount or 0) > 0:
+                logger.info(f"F&O signal {trade_code} marked is_user_trade for user {user_id}")
+                return
+
+        # ── Path 2: no matching TRIGGER row → INSERT a synthetic one ─────
+        # Derive index_id (NIFTY / BANKNIFTY / FINNIFTY / SENSEX) from explicit
+        # form field, then fall back to parsing the source key.
+        idx = (d.get('fno_index_id') or '').upper().strip()
+        if not idx:
+            src_map = {
+                'fno_nifty':     'NIFTY',
+                'fno-nifty':     'NIFTY',
+                'fno_banknifty': 'BANKNIFTY',
+                'fno-banknifty': 'BANKNIFTY',
+                'fno_finnifty':  'FINNIFTY',
+                'fno-finnifty':  'FINNIFTY',
+                'fno_sensex':    'SENSEX',
+                'fno-sensex':    'SENSEX',
+            }
+            idx = src_map.get(source, 'NIFTY')
+
+        opt_type = (d.get('fno_opt_type') or '').upper().strip()
+        if opt_type not in ('CE', 'PE'):
+            # Infer from symbol like "NIFTY 24500 CE"
+            sym = (d.get('symbol') or '').upper()
+            opt_type = 'CE' if sym.endswith(' CE') else 'PE' if sym.endswith(' PE') else 'CE'
+        direction = 'BULLISH' if opt_type == 'CE' else 'BEARISH'
+
+        def _f(v, default=0):
+            try:
+                return float(v) if v not in (None, '', 'null') else default
+            except (TypeError, ValueError):
+                return default
+
+        strike       = int(_f(d.get('fno_strike'), 0)) or None
+        entry_price  = _f(d.get('fno_entry_price') or d.get('price'), 0)
+        sl_price     = _f(d.get('stop_loss'), 0)
+        target_price = _f(d.get('target_price') or d.get('target'), 0)
+        symbol       = d.get('symbol') or f"{idx} {strike or ''} {opt_type}".strip()
+
+        # Generate a user-trade code so the row is identifiable in the UI
+        try:
+            from services.fno_monitor import _generate_trade_code
+            gen_code = _generate_trade_code(app, idx)
+            # Prefix with 'U' so user-trades are visually distinct from
+            # auto-monitor codes (e.g. "UNIFTYT03").
+            new_code = f"U{gen_code}"
+        except Exception:
+            from datetime import datetime as _dt
+            new_code = f"U{idx[:3]}{_dt.utcnow().strftime('%H%M%S')}"
+
+        trades_json = str([{
+            'symbol':       symbol,
+            'type':         opt_type,
+            'strike':       strike,
+            'expiry':       d.get('fno_expiry') or '',
+            'entry_price':  entry_price,
+            'sl':           sl_price,
+            'target':       target_price,
+            'moneyness':    'ATM',
+        }])
+
         db.session.execute(db.text("""
-            UPDATE fno_signal_history
-               SET is_user_trade           = TRUE,
-                   executed_user_id        = :uid,
-                   executed_broker_order_id= :oid
-             WHERE trade_code = :tc
-               AND signal_type = 'TRADE_TRIGGER'
-        """), {'uid': user_id, 'oid': broker_order_id, 'tc': trade_code})
+            INSERT INTO fno_signal_history
+                (index_id, signal_type, direction, confidence, confidence_grade,
+                 entry_mode, spot_price, atm_strike, trades_json, layers_json,
+                 alert_sent, data_source, trade_code, outcome,
+                 is_user_trade, executed_user_id, executed_broker_order_id)
+            VALUES
+                (:index_id, 'TRADE_TRIGGER', :direction, :confidence, 'USER',
+                 'USER TRADE', 0, :atm_strike, :trades_json, '{}',
+                 TRUE, 'user_trade', :trade_code, NULL,
+                 TRUE, :uid, :oid)
+        """), {
+            'index_id':    idx,
+            'direction':   direction,
+            'confidence':  100,   # user-initiated = max confidence
+            'atm_strike':  strike or 0,
+            'trades_json': trades_json,
+            'trade_code':  new_code,
+            'uid':         user_id,
+            'oid':         broker_order_id,
+        })
         db.session.commit()
-        logger.info(f"F&O signal {trade_code} marked is_user_trade for user {user_id}")
+        logger.info(f"F&O user trade {new_code} ({symbol}) inserted for user {user_id}")
+
+        # ── Fire Telegram alert for the user execution ───────────────────
+        try:
+            from services.fno_monitor import _send_telegram_alert
+            _send_telegram_alert({
+                'trade_direction':  direction,
+                'confidence':       100,
+                'confidence_grade': 'USER',
+                'entry_mode':       'USER TRADE',
+                'spot_price':       0,
+                'atm_strike':       strike or 0,
+                'signal_type':      'TRADE_TRIGGER',
+                'trade_code':       new_code,
+                'trades': [{
+                    'symbol':      symbol,
+                    'type':        opt_type,
+                    'entry_price': entry_price,
+                    'target':      target_price,
+                    'sl':          sl_price,
+                }],
+                'data_source':      'user_trade',
+            }, idx)
+        except Exception as _te:
+            logger.warning(f"User-trade Telegram alert skipped: {_te}")
+
     except Exception as _e:
         db.session.rollback()
-        logger.warning(f"_mark_fno_signal_executed skipped: {_e}")
+        logger.warning(f"_mark_fno_signal_executed skipped: {_e}", exc_info=True)
 
 
 @app.route('/api/trade/execute-signal', methods=['POST'])

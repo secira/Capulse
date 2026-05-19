@@ -636,6 +636,8 @@ function buildTradeCard(t) {
             strike:         t.strike,
             opt_type:       t.type,
             expiry:         (t.expiry || ''),
+            index_id:       FNO_INDEX_ID,
+            entry_price:    (t.entry_price || t.ltp || 0).toString(),
             fno_trade_code: (t.trade_code || _activeTc || '')
         });
         buyBtnHtml = '<a href="/dashboard/trade-now?' + tnParams.toString() + '" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-shopping-cart me-1"></i>Buy ' + t.symbol + '</a>';
