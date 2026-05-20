@@ -186,25 +186,35 @@ class NSERealTimeService:
         }
 
     def _yfinance_fallback(self, symbol: str) -> Dict:
-        """Use yfinance fast_info as fallback — avoids slow history download."""
+        """Use yfinance fast_info as fallback — avoids slow history download.
+
+        Falls back to `previous_close` when `last_price` is 0 (some symbols
+        report only previous_close outside market hours), so the UI never
+        shows "price unavailable" for a valid NSE stock just because the
+        market is shut.
+        """
         try:
             import yfinance as yf
             fi = yf.Ticker(f"{symbol}.NS").fast_info
             ltp  = float(getattr(fi, 'last_price', 0) or 0)
             prev = float(getattr(fi, 'previous_close', 0) or 0)
-            if ltp > 0:
-                change     = round(ltp - prev, 2) if prev else 0.0
-                change_pct = round(change / prev * 100, 2) if prev else 0.0
-                logger.info(f"yfinance fast_info for {symbol}: ₹{ltp:.2f}")
+            # If live LTP is missing, fall back to previous close so the
+            # user always sees the last known traded price.
+            effective = ltp if ltp > 0 else prev
+            if effective > 0:
+                change     = round(ltp - prev, 2) if (ltp > 0 and prev) else 0.0
+                change_pct = round(change / prev * 100, 2) if (ltp > 0 and prev) else 0.0
+                src = 'yfinance' if ltp > 0 else 'yfinance (prev close)'
+                logger.info(f"yfinance fast_info for {symbol}: ₹{effective:.2f} ({src})")
                 return {
                     'success': True,
                     'symbol': symbol,
-                    'price': round(ltp, 2),
-                    'current_price': round(ltp, 2),
+                    'price': round(effective, 2),
+                    'current_price': round(effective, 2),
                     'change': change,
                     'change_percent': change_pct,
                     'volume': int(getattr(fi, 'three_month_average_volume', 0) or 0),
-                    'source': 'yfinance',
+                    'source': src,
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }
         except Exception as e:

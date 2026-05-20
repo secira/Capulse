@@ -873,11 +873,21 @@ from flask import request, jsonify
 from datetime import datetime
 from sqlalchemy import text
 
-# Service worker route for PWA support
+# Service worker route — serves the self-destruct SW with NO HTTP cache
+# so every browser visit re-checks the script and any stale old SW is
+# evicted on the next navigation. Previously, the old PWA SW
+# (networkFirst on /api/*) hung on /dashboard/trade-now's /api/nse/quote
+# request and the browser kept serving the cached script.
 @app.route('/sw.js')
+@app.route('/static/sw.js')
 def service_worker():
-    """Serve the service worker for PWA functionality"""
-    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+    """Serve the service worker for PWA functionality."""
+    resp = send_from_directory('static', 'sw.js', mimetype='application/javascript')
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    resp.headers['Service-Worker-Allowed'] = '/'
+    return resp
 
 # Health check endpoints for production monitoring
 @app.route('/health')
