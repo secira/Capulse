@@ -250,13 +250,35 @@ def get_eq_quote(symbol: str, user_id: Optional[int] = None) -> Optional[Dict]:
     if sec_id is None:
         logger.debug(f"get_eq_quote({symbol}): no security ID in instrument master")
         return None
-    broker = _get_dhan_broker(user_id) or _get_any_dhan_broker()
-    if broker is None:
-        logger.debug(f"get_eq_quote({symbol}): no Dhan broker available")
-        return None
+
+    # Wrap broker resolve + OHLC fetch in a hard timeout — both
+    # broker.connect() (calls Dhan get_fund_limits) and broker.get_eq_ohlc()
+    # are blocking HTTP calls with no per-request timeout in the SDK.
+    # Without this guard, a slow/unreachable Dhan endpoint hangs the whole
+    # Flask request forever (observed: "Fetching live price…" never resolved
+    # on /dashboard/trade-now).
+    import concurrent.futures
+
+    def _do_dhan_fetch():
+        broker = _get_dhan_broker(user_id) or _get_any_dhan_broker()
+        if broker is None:
+            return ("no_broker", None)
+        raw = broker.get_eq_ohlc([sec_id])
+        return ("ok", raw)
+
     try:
         logger.debug(f"get_eq_quote({symbol}): cache miss — fetching from Dhan")
-        raw = broker.get_eq_ohlc([sec_id])
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(_do_dhan_fetch)
+            try:
+                status, raw = future.result(timeout=4.0)
+            except concurrent.futures.TimeoutError:
+                logger.warning(f"get_eq_quote({symbol}): Dhan call timed out after 4s — falling through")
+                return None
+
+        if status == "no_broker" or raw is None:
+            logger.debug(f"get_eq_quote({symbol}): no Dhan broker available")
+            return None
         row = raw.get(str(sec_id))
         if row and row.get("ltp", 0) > 0:
             row["source"] = "Dhan"
