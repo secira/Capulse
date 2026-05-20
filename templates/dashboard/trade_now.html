@@ -835,8 +835,9 @@ function prePopulateForm(urlParams) {
     // Asset dropdown: find or inject. Suppress the change handler's own
     // /api/nse/quote/ fetch — prePopulateForm fires its own richer fetch
     // below that also applies signal-provided target/SL overrides.
-    // Wrapped in try/finally so the flag is guaranteed to reset even if
-    // the change handler throws.
+    // Wrapped in try/catch so a throw inside the change handler can never
+    // prevent the explicit fetch further down (this was the root cause of
+    // the "Fetching live price…" spinner getting stuck forever).
     window.__suppressLivePriceFetch = true;
     var assetSelect = document.getElementById('assetSelect');
     var found = false;
@@ -845,12 +846,14 @@ function prePopulateForm(urlParams) {
             if (assetSelect.options[i].value === symbol) {
                 assetSelect.selectedIndex = i;
                 found = true;
-                assetSelect.dispatchEvent(new Event('change'));
+                try { assetSelect.dispatchEvent(new Event('change')); }
+                catch (e) { console.warn('asset change handler threw:', e); }
                 break;
             }
         }
         if (!found && symbol) {
-            _injectAndDispatch();
+            try { _injectAndDispatch(); }
+            catch (e) { console.warn('_injectAndDispatch threw:', e); }
         }
     } finally {
         window.__suppressLivePriceFetch = false;

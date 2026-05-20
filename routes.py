@@ -1798,7 +1798,36 @@ def get_nse_quote(symbol):
                                                        'Configure a Data API broker (Dashboard) or an '
                                                        'admin Data Source (Admin → Data Sources & API Plan).'})
 
-        quote = nse_service.get_stock_quote(sym)
+        uid = current_user.id if getattr(current_user, "is_authenticated", False) else None
+        try:
+            from services.dhan_service import get_eq_quote
+            dhan_data = get_eq_quote(sym, user_id=uid)
+            if dhan_data and dhan_data.get("ltp", 0) > 0:
+                ltp = float(dhan_data["ltp"])
+                prev_close = float(dhan_data.get("close", 0))
+                change_amt = float(dhan_data.get("change", ltp - prev_close if prev_close else 0))
+                change_pct = float(dhan_data.get("pct_change",
+                                   (change_amt / prev_close * 100) if prev_close else 0))
+                return jsonify({'success': True, 'data': {
+                    'symbol': sym,
+                    'company_name': sym,
+                    'current_price': ltp,
+                    'previous_close': prev_close,
+                    'change_amount': change_amt,
+                    'change_percent': change_pct,
+                    'volume': 0,
+                    'day_high': float(dhan_data.get("high", ltp)),
+                    'day_low': float(dhan_data.get("low", ltp)),
+                    'week_52_high': 0.0,
+                    'week_52_low': 0.0,
+                    'market_cap': None,
+                    'pe_ratio': None,
+                    'data_source': 'Dhan' + (' (your broker)' if uid else ''),
+                }})
+        except Exception as e:
+            logging.debug(f"User-broker Dhan EQ lookup failed for {sym}: {e}")
+
+        quote = nse_service.get_stock_quote(sym, skip_dhan=True)
         if quote:
             return jsonify({'success': True, 'data': quote})
         return jsonify({'success': False, 'error': 'Stock not found'})
