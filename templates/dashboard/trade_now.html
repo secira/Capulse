@@ -147,6 +147,13 @@
             <span class="ab-sym" id="abSym">—</span>
             <span class="ab-co" id="abCo"></span>
             <span class="ab-cls" id="abCls">EQ</span>
+            <!-- Inline live price right next to the symbol -->
+            <span id="abPrice" class="ab-price" style="margin-left:12px;font-size:18px;font-weight:700;color:#0f172a;"></span>
+            <span id="abChg" class="ab-chg" style="margin-left:6px;font-size:12px;font-weight:600;padding:2px 6px;border-radius:6px;"></span>
+            <span id="abSrc" class="ab-src" style="margin-left:6px;font-size:11px;color:#64748b;"></span>
+            <span id="abSpin" class="ab-spin text-muted d-none" style="margin-left:10px;font-size:12px;">
+                <i class="fas fa-spinner fa-spin me-1"></i>fetching price…
+            </span>
             <button type="button" class="ab-clear" id="abClear" title="Clear">&times;</button>
         </div>
 
@@ -631,6 +638,7 @@ function fetchLivePrice(symbol, keepTarget, keepSL) {
     if (spinner) { spinner.classList.remove('d-none'); }
     if (bar)     { bar.classList.add('d-none'); }
     if (hintRow) { hintRow.classList.add('d-none'); }
+    showAssetBannerPriceLoading();
 
     var _ctrl = new AbortController();
     var _timer = setTimeout(function() { _ctrl.abort(); }, 8000);
@@ -641,6 +649,7 @@ function fetchLivePrice(symbol, keepTarget, keepSL) {
             if (spinner) spinner.classList.add('d-none');
             if (data.success && data.data && parseFloat(data.data.current_price) > 0) {
                 populatePriceDefaults(data.data.current_price, keepTarget, keepSL);
+                updateAssetBannerPrice(data.data);
                 // Update data source badge
                 var srcEl = document.getElementById('livePriceSrc');
                 if (srcEl && data.data.data_source) {
@@ -656,12 +665,61 @@ function fetchLivePrice(symbol, keepTarget, keepSL) {
                 }
             } else {
                 if (bar) { bar.classList.remove('d-none'); document.getElementById('livePriceVal').textContent = 'Price unavailable'; }
+                showAssetBannerPriceUnavailable();
             }
         })
         .catch(function() {
             if (spinner) spinner.classList.add('d-none');
             if (bar) { bar.classList.remove('d-none'); document.getElementById('livePriceVal').textContent = 'Price unavailable'; }
+            showAssetBannerPriceUnavailable();
         });
+}
+
+// ─── Inline live price (next to symbol) ──────────────────────────────────────
+function showAssetBannerPriceLoading() {
+    var spin = document.getElementById('abSpin');
+    var p    = document.getElementById('abPrice');
+    var c    = document.getElementById('abChg');
+    var s    = document.getElementById('abSrc');
+    if (spin) spin.classList.remove('d-none');
+    if (p) p.textContent = '';
+    if (c) { c.textContent = ''; c.style.background = ''; c.style.color = ''; }
+    if (s) s.textContent = '';
+}
+function showAssetBannerPriceUnavailable() {
+    var spin = document.getElementById('abSpin');
+    var p    = document.getElementById('abPrice');
+    var s    = document.getElementById('abSrc');
+    if (spin) spin.classList.add('d-none');
+    if (p) { p.textContent = 'price unavailable'; p.style.color = '#dc2626'; p.style.fontSize = '13px'; p.style.fontWeight = '500'; }
+    if (s) s.textContent = '';
+}
+function updateAssetBannerPrice(d) {
+    var spin = document.getElementById('abSpin');
+    var p    = document.getElementById('abPrice');
+    var c    = document.getElementById('abChg');
+    var s    = document.getElementById('abSrc');
+    if (spin) spin.classList.add('d-none');
+    var px = parseFloat(d && d.current_price);
+    if (!(px > 0)) { showAssetBannerPriceUnavailable(); return; }
+    if (p) {
+        p.textContent = '₹' + px.toFixed(2);
+        p.style.color = '#0f172a'; p.style.fontSize = '18px'; p.style.fontWeight = '700';
+    }
+    if (c) {
+        var pct = parseFloat(d.change_percent);
+        var amt = parseFloat(d.change_amount);
+        if (!isNaN(pct)) {
+            var sign = pct >= 0 ? '+' : '';
+            var amtTxt = (!isNaN(amt) && amt !== 0) ? (' (' + (amt >= 0 ? '+' : '') + amt.toFixed(2) + ')') : '';
+            c.textContent = sign + pct.toFixed(2) + '%' + amtTxt;
+            c.style.background = pct >= 0 ? '#dcfce7' : '#fee2e2';
+            c.style.color      = pct >= 0 ? '#16a34a' : '#dc2626';
+        } else {
+            c.textContent = '';
+        }
+    }
+    if (s && d.data_source) s.textContent = '· ' + d.data_source;
 }
 
 function populatePriceDefaults(currentPrice, keepTarget, keepSL) {
@@ -898,6 +956,7 @@ function prePopulateForm(urlParams) {
         if (spinner) spinner.classList.remove('d-none');
         if (bar)     bar.classList.add('d-none');
 
+        showAssetBannerPriceLoading();
         var _ctrl2 = new AbortController();
         var _timer2 = setTimeout(function() { _ctrl2.abort(); }, 8000);
         fetch('/api/nse/quote/' + encodeURIComponent(symbol) + '?_=' + Date.now(),
@@ -908,6 +967,7 @@ function prePopulateForm(urlParams) {
                 if (data.success && data.data && parseFloat(data.data.current_price) > 0) {
                     var livePrice = parseFloat(data.data.current_price);
                     populatePriceDefaults(livePrice, hasSignalTarget, hasSignalSL);
+                    updateAssetBannerPrice(data.data);
 
                     // Price change badge
                     var chgEl = document.getElementById('livePriceChg');
@@ -949,7 +1009,10 @@ function prePopulateForm(urlParams) {
                     if (panel && panel.classList.contains('d-none')) toggleMoreOptions();
                 }
             })
-            .catch(function() { if (spinner) spinner.classList.add('d-none'); });
+            .catch(function() {
+                if (spinner) spinner.classList.add('d-none');
+                showAssetBannerPriceUnavailable();
+            });
     }
 
     // Signal info card
