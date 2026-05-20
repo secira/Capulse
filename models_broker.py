@@ -461,3 +461,89 @@ class DataApiBroker(db.Model):
                 'api_secret': None,
                 'credentials_valid': False,
             }
+
+
+class AdminDataBroker(db.Model):
+    """
+    Admin-managed broker data sources (invisible to users).
+    Used as a fallback tier in the F&O / market-data chain:
+      1. User's own Data API broker (DataApiBroker / BrokerAccount.is_data_broker)
+      2. AdminDataBroker priority=1 (primary)
+      3. AdminDataBroker priority=2 (secondary)
+      4. TrueData (if admin plan = nse_truedata)
+      5. NSE Python
+      6. Estimated (yfinance)
+    Only brokers supported: zerodha, fyers, dhan.
+    """
+    __tablename__ = 'admin_data_broker'
+
+    id = db.Column(db.Integer, primary_key=True)
+    priority = db.Column(db.Integer, nullable=False, unique=True)  # 1 = primary, 2 = secondary
+    broker_type = db.Column(db.String(50), nullable=False)         # 'dhan' | 'zerodha' | 'fyers'
+    broker_name = db.Column(db.String(100), nullable=False)
+
+    api_key = db.Column(db.Text, nullable=True)
+    access_token = db.Column(db.Text, nullable=True)
+    api_secret = db.Column(db.Text, nullable=True)
+
+    is_active = db.Column(db.Boolean, default=True)
+    connection_status = db.Column(db.String(20), default='disconnected')
+    last_connected = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = db.Column(db.String(100), nullable=True)
+
+    def _get_encryption_key(self):
+        try:
+            from security.environment_config import setup_secure_environment
+            secure_config = setup_secure_environment()
+            return secure_config["encryption_key"]
+        except (ImportError, KeyError):
+            key = os.environ.get('BROKER_ENCRYPTION_KEY')
+            if not key:
+                environment = os.environ.get("ENVIRONMENT", "development")
+                if environment == "production":
+                    raise ValueError("BROKER_ENCRYPTION_KEY is required in production")
+                key = "Target Capital_Dev_Key_32_Chars_Long_123="
+                import base64
+                key = base64.urlsafe_b64encode(key.encode()[:32].ljust(32, b'0'))
+            return key.encode() if isinstance(key, str) else key
+
+    def encrypt_data(self, data):
+        if not data:
+            return None
+        fernet = Fernet(self._get_encryption_key())
+        return fernet.encrypt(data.encode()).decode()
+
+    def decrypt_data(self, encrypted_data):
+        if not encrypted_data:
+            return None
+        try:
+            fernet = Fernet(self._get_encryption_key())
+            return fernet.decrypt(encrypted_data.encode()).decode()
+        except Exception:
+            return None
+
+    def set_credentials(self, client_id, access_token=None, api_secret=None):
+        if client_id:
+            self.api_key = self.encrypt_data(client_id)
+        if access_token:
+            self.access_token = self.encrypt_data(access_token)
+        if api_secret:
+            self.api_secret = self.encrypt_data(api_secret)
+
+    def get_credentials(self):
+        try:
+            return {
+                'client_id': self.decrypt_data(self.api_key),
+                'access_token': self.decrypt_data(self.access_token),
+                'api_secret': self.decrypt_data(self.api_secret),
+                'credentials_valid': True,
+            }
+        except Exception:
+            return {
+                'client_id': None,
+                'access_token': None,
+                'api_secret': None,
+                'credentials_valid': False,
+            }

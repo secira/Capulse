@@ -83,6 +83,32 @@ def get_data_broker_for_user(user_id: int) -> Optional[BrokerBase]:
         return None
 
 
+def get_admin_data_brokers() -> list:
+    """
+    Return admin-managed data-source brokers ordered by priority (1=primary, 2=secondary).
+    Invisible to end users — used as a system-wide fallback after the user's own broker.
+    Returns a list of (priority, broker_type, broker_name, BrokerBase) tuples.
+    Failures to instantiate are skipped so the chain still falls through.
+    """
+    out = []
+    try:
+        from models_broker import AdminDataBroker
+        rows = AdminDataBroker.query.filter_by(is_active=True).order_by(AdminDataBroker.priority.asc()).all()
+        for row in rows:
+            try:
+                creds = row.get_credentials()
+                broker = get_broker(row.broker_type, creds)
+                if broker:
+                    out.append((row.priority, row.broker_type, row.broker_name, broker))
+                else:
+                    logger.warning(f"Admin data broker priority={row.priority} ({row.broker_type}) could not be instantiated")
+            except Exception as e:
+                logger.error(f"Admin data broker priority={row.priority} init error: {e}")
+    except Exception as e:
+        logger.error(f"get_admin_data_brokers failed: {e}")
+    return out
+
+
 def get_supported_brokers() -> list:
     return [
         {"key": "dhan", "name": "Dhan", "supports_direct_chain": True},

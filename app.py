@@ -548,6 +548,21 @@ with app.app_context():
         )''',
         '''INSERT INTO data_api_plan (plan_type, is_active) SELECT 'user_data', true
             WHERE NOT EXISTS (SELECT 1 FROM data_api_plan)''',
+        '''CREATE TABLE IF NOT EXISTS admin_data_broker (
+            id SERIAL PRIMARY KEY,
+            priority INTEGER NOT NULL UNIQUE,
+            broker_type VARCHAR(50) NOT NULL,
+            broker_name VARCHAR(100) NOT NULL,
+            api_key TEXT,
+            access_token TEXT,
+            api_secret TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            connection_status VARCHAR(20) DEFAULT 'disconnected',
+            last_connected TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            updated_by VARCHAR(100)
+        )''',
         'ALTER TABLE research_list ADD COLUMN IF NOT EXISTS hist_data_source VARCHAR(50)',
         # fno_signal_history — columns added for multi-index support (BANKNIFTY, FINNIFTY, SENSEX)
         # and trade-lifecycle tracking (trade_code, outcome, exit_spot, exit_time).

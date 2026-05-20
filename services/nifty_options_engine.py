@@ -261,6 +261,62 @@ class NiftyOptionsEngine:
             logger.error(f"Broker data API error: {e}")
             return None, None, None, []
 
+    def _get_admin_broker_data(self) -> tuple:
+        """
+        Iterate admin-managed data brokers (priority 1 → 2) and return the first
+        broker that returns a valid (spot, chain). Invisible to end users.
+        Returns (spot, engine_chain, broker_name, expiry_list) or (None, None, None, []).
+        """
+        try:
+            from services.broker_factory import get_admin_data_brokers
+            admin_brokers = get_admin_data_brokers()
+            if not admin_brokers:
+                return None, None, None, []
+
+            for priority, broker_type, broker_name, broker in admin_brokers:
+                try:
+                    if not broker.connect():
+                        logger.warning(f"Admin data broker P{priority} ({broker_name}) failed to connect")
+                        continue
+
+                    broker_expiries = []
+                    if hasattr(broker, 'get_expiry_list'):
+                        try:
+                            broker_expiries = broker.get_expiry_list(self.dhan_symbol) or []
+                        except Exception as ex:
+                            logger.warning(f"Admin P{priority} get_expiry_list({self.dhan_symbol}) failed: {ex}")
+
+                    chain_raw = []
+                    spot = 0.0
+                    if broker_expiries:
+                        nearest_expiry = broker_expiries[0]
+                        chain_raw = broker.get_option_chain(self.dhan_symbol, nearest_expiry)
+                        spot = float(chain_raw[0].get("spot", 0)) if chain_raw else 0.0
+                        if not spot or spot <= 0:
+                            spot = broker.get_price(self.dhan_symbol)
+                    else:
+                        spot = broker.get_price(self.dhan_symbol)
+                        chain_raw = broker.get_option_chain(self.dhan_symbol) if spot and spot > 0 else []
+
+                    if chain_raw and spot and spot > 0:
+                        from services.option_chain_builder import chain_to_engine_format
+                        engine_chain = chain_to_engine_format(chain_raw, spot)
+                        logger.info(
+                            f"✅ Admin Data Broker P{priority} ({broker_name}): "
+                            f"spot={spot:.2f}, chain_strikes={len(chain_raw)}, expiries={len(broker_expiries)}"
+                        )
+                        self._broker_adapter = broker
+                        return float(spot), engine_chain, f"Admin/{broker_name}", broker_expiries
+                    else:
+                        logger.warning(f"Admin P{priority} ({broker_name}) returned empty data — trying next")
+                except Exception as e:
+                    logger.error(f"Admin data broker P{priority} ({broker_name}) error: {e}")
+                    continue
+            return None, None, None, []
+        except Exception as e:
+            logger.error(f"_get_admin_broker_data fatal: {e}")
+            return None, None, None, []
+
     def _get_active_data_source(self) -> str:
         try:
             from app import db
@@ -1889,24 +1945,39 @@ class NiftyOptionsEngine:
 
         admin_plan = self._get_admin_data_plan()
 
-        if admin_plan == 'nse_truedata':
-            td_spot, td_chain, td_name = self._get_truedata()
-            if td_spot and td_chain:
-                data_source = f'broker:{td_name}'
-                spot = td_spot
-                current_chain = td_chain
-                next_chain = {}
-        elif admin_plan == 'user_data':
+        # ── Step 1: User's own Data API broker (if any) ──────────────────────
+        if not current_chain and self.user_id:
             broker_spot, broker_chain, broker_name, broker_expiry_list = self._get_broker_data()
             if broker_spot and broker_chain:
                 data_source = f'broker:{broker_name}'
                 spot = broker_spot
                 current_chain = broker_chain
                 next_chain = {}
-                # Build expiry_picks from the broker's expiry list
                 if broker_expiry_list:
                     expiry_picks = self._pick_expiries(broker_expiry_list)
 
+        # ── Step 2: Admin-managed broker data sources (primary → secondary) ──
+        if not current_chain:
+            adm_spot, adm_chain, adm_name, adm_expiry_list = self._get_admin_broker_data()
+            if adm_spot and adm_chain:
+                data_source = f'broker:{adm_name}'
+                spot = adm_spot
+                current_chain = adm_chain
+                next_chain = {}
+                if adm_expiry_list:
+                    expiry_picks = self._pick_expiries(adm_expiry_list)
+                    broker_expiry_list = adm_expiry_list
+
+        # ── Step 3: TrueData (when admin plan selects it) ────────────────────
+        if not current_chain and admin_plan == 'nse_truedata':
+            td_spot, td_chain, td_name = self._get_truedata()
+            if td_spot and td_chain:
+                data_source = f'broker:{td_name}'
+                spot = td_spot
+                current_chain = td_chain
+                next_chain = {}
+
+        # ── Step 4: NSE Python (final live-data fallback) ────────────────────
         if not current_chain:
             raw_nse = self._get_nse_option_chain_raw()
             expiry_dates = self._parse_expiry_dates(raw_nse)

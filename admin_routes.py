@@ -1906,7 +1906,119 @@ def data_api_plan():
     except Exception:
         pass
 
-    return render_template('admin/data_api_plan.html', plan=plan, user_data_broker_count=user_data_broker_count)
+    # Admin-managed broker data sources (invisible to users)
+    admin_brokers = {1: None, 2: None}
+    try:
+        from models_broker import AdminDataBroker
+        for row in AdminDataBroker.query.order_by(AdminDataBroker.priority.asc()).all():
+            admin_brokers[row.priority] = {
+                'id': row.id,
+                'priority': row.priority,
+                'broker_type': row.broker_type,
+                'broker_name': row.broker_name,
+                'is_active': row.is_active,
+                'connection_status': row.connection_status,
+                'has_api_key': bool(row.api_key),
+                'has_access_token': bool(row.access_token),
+                'has_api_secret': bool(row.api_secret),
+                'updated_at': row.updated_at,
+                'updated_by': row.updated_by,
+            }
+    except Exception as e:
+        flash(f'AdminDataBroker load error: {e}', 'error')
+
+    return render_template(
+        'admin/data_api_plan.html',
+        plan=plan,
+        user_data_broker_count=user_data_broker_count,
+        admin_brokers=admin_brokers,
+    )
+
+
+@admin_bp.route('/admin-data-broker/save', methods=['POST'])
+@admin_required
+def save_admin_data_broker():
+    """Create/update an admin-managed broker data source (primary or secondary)."""
+    from models_broker import AdminDataBroker
+
+    try:
+        priority = int(request.form.get('priority', '0'))
+    except (TypeError, ValueError):
+        priority = 0
+    if priority not in (1, 2):
+        flash('Invalid priority (must be 1 or 2).', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+
+    broker_type = (request.form.get('broker_type') or '').strip().lower()
+    if broker_type not in ('dhan', 'zerodha', 'fyers'):
+        flash('Admin data source broker must be Dhan, Zerodha, or Fyers.', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+
+    broker_name = (request.form.get('broker_name') or broker_type.title()).strip()
+    api_key = (request.form.get('api_key') or '').strip()
+    access_token = (request.form.get('access_token') or '').strip()
+    api_secret = (request.form.get('api_secret') or '').strip()
+    is_active = request.form.get('is_active', 'true').lower() in ('true', '1', 'on', 'yes')
+
+    admin_name = 'admin'
+    try:
+        from flask import session as flask_session
+        admin_name = flask_session.get('admin_username', 'admin')
+    except Exception:
+        pass
+
+    try:
+        row = AdminDataBroker.query.filter_by(priority=priority).first()
+        if row is None:
+            row = AdminDataBroker(priority=priority, broker_type=broker_type, broker_name=broker_name)
+            db.session.add(row)
+        else:
+            row.broker_type = broker_type
+            row.broker_name = broker_name
+
+        row.is_active = is_active
+        row.updated_by = admin_name
+        # Encrypted setters; leave existing creds in place if blanks are submitted (edit mode)
+        row.set_credentials(
+            client_id=api_key or None,
+            access_token=access_token or None,
+            api_secret=api_secret or None,
+        )
+        if api_key or access_token or api_secret:
+            row.connection_status = 'configured'
+
+        db.session.commit()
+        flash(f'Admin Broker Data Source (P{priority}: {broker_name}) saved.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error saving admin broker: {e}', 'error')
+
+    return redirect(url_for('admin.data_api_plan'))
+
+
+@admin_bp.route('/admin-data-broker/delete', methods=['POST'])
+@admin_required
+def delete_admin_data_broker():
+    from models_broker import AdminDataBroker
+    try:
+        priority = int(request.form.get('priority', '0'))
+    except (TypeError, ValueError):
+        priority = 0
+    if priority not in (1, 2):
+        flash('Invalid priority.', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+    try:
+        row = AdminDataBroker.query.filter_by(priority=priority).first()
+        if row:
+            db.session.delete(row)
+            db.session.commit()
+            flash(f'Admin Broker Data Source (P{priority}) removed.', 'success')
+        else:
+            flash(f'No admin broker at priority {priority}.', 'error')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting admin broker: {e}', 'error')
+    return redirect(url_for('admin.data_api_plan'))
 
 
 @admin_bp.route('/data-api-plan/set', methods=['POST'])
