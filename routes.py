@@ -1762,13 +1762,46 @@ def seed_demo_data():
 @app.route('/api/nse/quote/<symbol>')
 @login_required
 def get_nse_quote(symbol):
-    """Get real-time NSE stock quote"""
+    """Get real-time quote for any symbol — stocks, indices, futures, options.
+
+    For index / future / option symbols the underlying spot is resolved through
+    the data-broker fallback chain (user broker → admin primary → admin secondary)
+    because nse_service.get_stock_quote() only knows the NSE equity universe.
+    """
+    sym = symbol.upper().strip()
     try:
-        quote = nse_service.get_stock_quote(symbol.upper())
+        from services.broker_factory import _underlying_from_symbol, get_index_price_with_fallback
+
+        underlying = _underlying_from_symbol(sym)
+        if underlying:
+            uid = current_user.id if getattr(current_user, "is_authenticated", False) else None
+            price, source = get_index_price_with_fallback(sym, user_id=uid)
+            if price > 0:
+                return jsonify({'success': True, 'data': {
+                    'symbol': sym,
+                    'company_name': underlying,
+                    'current_price': price,
+                    'previous_close': price,
+                    'change_amount': 0.0,
+                    'change_percent': 0.0,
+                    'volume': 0,
+                    'day_high': price,
+                    'day_low': price,
+                    'week_52_high': 0.0,
+                    'week_52_low': 0.0,
+                    'market_cap': None,
+                    'pe_ratio': None,
+                    'data_source': source,
+                }})
+            logging.warning(f"Quote: no broker price for index/derivative {sym} (source={source})")
+            return jsonify({'success': False, 'error': f'Live price unavailable for {sym}. '
+                                                       'Configure a Data API broker (Dashboard) or an '
+                                                       'admin Data Source (Admin → Data Sources & API Plan).'})
+
+        quote = nse_service.get_stock_quote(sym)
         if quote:
             return jsonify({'success': True, 'data': quote})
-        else:
-            return jsonify({'success': False, 'error': 'Stock not found'})
+        return jsonify({'success': False, 'error': 'Stock not found'})
     except Exception as e:
         logging.error(f"Error fetching NSE quote for {symbol}: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to fetch stock data'})

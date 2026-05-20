@@ -109,6 +109,76 @@ def get_admin_data_brokers() -> list:
     return out
 
 
+INDEX_SYMBOLS = {"NIFTY", "BANKNIFTY", "FINNIFTY", "SENSEX", "INDIAVIX", "INDIA VIX"}
+
+
+def _underlying_from_symbol(symbol: str) -> Optional[str]:
+    """
+    Map an index / future / option contract symbol to its underlying index name
+    that admin / user brokers know via get_price(). Returns None for equities.
+
+    Examples:
+      NIFTY                        → NIFTY
+      BANKNIFTY                    → BANKNIFTY
+      NIFTY25NOV24500CE            → NIFTY     (option)
+      NIFTYFUT / NIFTY-FUT         → NIFTY     (future)
+      RELIANCE                     → None
+    """
+    if not symbol:
+        return None
+    s = symbol.upper().strip().replace(" ", "")
+    if s in {"NIFTY", "NIFTY50"}:
+        return "NIFTY"
+    if s in {"INDIAVIX", "VIX"}:
+        return "INDIA VIX"
+    for idx in ("BANKNIFTY", "FINNIFTY", "SENSEX", "NIFTY"):
+        if s.startswith(idx):
+            tail = s[len(idx):]
+            if not tail or tail.endswith(("CE", "PE", "FUT")) or tail.startswith(("FUT", "-FUT")):
+                return idx
+    return None
+
+
+def get_index_price_with_fallback(symbol: str, user_id: Optional[int] = None) -> tuple:
+    """
+    Resolve a live index price via the data-broker fallback chain:
+      1. User's own data broker (BrokerAccount / DataApiBroker)
+      2. Admin primary data broker
+      3. Admin secondary data broker
+
+    Returns (price, source_label). price = 0.0 when no broker could supply one.
+    source_label is e.g. 'user:Dhan', 'admin:Fyers (P1)', or 'unavailable'.
+    """
+    underlying = _underlying_from_symbol(symbol) or symbol.upper()
+
+    if user_id:
+        try:
+            ub = get_data_broker_for_user(user_id)
+            if ub:
+                try:
+                    if ub.connect():
+                        px = float(ub.get_price(underlying) or 0)
+                        if px > 0:
+                            return px, f"user:{ub.__class__.__name__.replace('Broker','')}"
+                except Exception as e:
+                    logger.debug(f"user data broker get_price({underlying}) failed: {e}")
+        except Exception as e:
+            logger.debug(f"user data broker lookup failed: {e}")
+
+    for prio, btype, bname, broker in get_admin_data_brokers():
+        try:
+            if not broker.connect():
+                continue
+            px = float(broker.get_price(underlying) or 0)
+            if px > 0:
+                return px, f"admin:{bname} (P{prio})"
+        except Exception as e:
+            logger.debug(f"admin broker P{prio} {btype} get_price({underlying}) failed: {e}")
+            continue
+
+    return 0.0, "unavailable"
+
+
 def get_supported_brokers() -> list:
     return [
         {"key": "dhan", "name": "Dhan", "supports_direct_chain": True},
