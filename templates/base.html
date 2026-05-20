@@ -6,8 +6,14 @@
     <!-- Clear stale PWA caches and reload once -->
     <script>
     (function() {
-        var v = 'tc_cache_v8';
-        if (!localStorage.getItem(v)) {
+        // Bumped to v9 (2026-05-20) — force a one-time SW unregister + reload
+        // for every user so the new sw.js (which bypasses /api/nse/* and other
+        // real-time endpoints) takes control. Previous SW was intercepting
+        // /api/nse/quote/* on /dashboard/trade-now and stalling the live price.
+        var v = 'tc_cache_v9';
+        var hasController = ('serviceWorker' in navigator) && !!navigator.serviceWorker.controller;
+        var needsCleanup = !localStorage.getItem(v) || hasController;
+        if (needsCleanup) {
             localStorage.setItem(v, '1');
             var p1 = ('serviceWorker' in navigator) ?
                 navigator.serviceWorker.getRegistrations().then(function(regs) {
@@ -18,7 +24,11 @@
                     return Promise.all(keys.map(function(k) { return caches.delete(k); }));
                 }) : Promise.resolve();
             Promise.all([p1, p2]).then(function() {
-                window.location.reload();
+                if (hasController) {
+                    // A SW was controlling this page — must reload so the next
+                    // request runs with NO SW in the way.
+                    window.location.reload();
+                }
             });
         }
     })();
