@@ -161,14 +161,11 @@
                         <a href="{{ url_for('admin.blog_list') }}" class="nav-link admin-nav-link {{ 'active' if 'blog' in request.endpoint else '' }}">
                             <i class="fas fa-blog me-2"></i>Blog Management
                         </a>
-                        <a href="{{ url_for('admin.data_sources') }}" class="nav-link admin-nav-link {{ 'active' if 'data_sources' in request.endpoint else '' }}">
-                            <i class="fas fa-database me-2"></i>Data Input Source
-                        </a>
                         <a href="{{ url_for('admin.branding') }}" class="nav-link admin-nav-link {{ 'active' if 'branding' in request.endpoint else '' }}">
                             <i class="fas fa-building me-2"></i>Branding
                         </a>
-                        <a href="{{ url_for('admin.data_api_plan') }}" class="nav-link admin-nav-link {{ 'active' if 'data_api_plan' in request.endpoint else '' }}">
-                            <i class="fas fa-satellite-dish me-2"></i>Data API Plan
+                        <a href="{{ url_for('admin.data_api_plan') }}" class="nav-link admin-nav-link {{ 'active' if 'data_api_plan' in request.endpoint or 'data_sources' in request.endpoint else '' }}">
+                            <i class="fas fa-satellite-dish me-2"></i>Data Sources &amp; API Plan
                         </a>
                         <a href="{{ url_for('admin.partner_api') }}" class="nav-link admin-nav-link {{ 'active' if 'partner_api' in request.endpoint else '' }}">
                             <i class="fas fa-code me-2"></i>Partner API

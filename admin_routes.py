@@ -1774,18 +1774,8 @@ def blog_toggle_featured(post_id):
 @admin_bp.route('/data-sources')
 @admin_required
 def data_sources():
-    try:
-        rows = db.session.execute(db.text(
-            "SELECT id, source_key, display_name, description, icon, is_active FROM data_source_config ORDER BY id"
-        )).fetchall()
-        sources = [{'id': r[0], 'source_key': r[1], 'display_name': r[2], 'description': r[3], 'icon': r[4], 'is_active': r[5]} for r in rows]
-    except Exception:
-        sources = [
-            {'id': 1, 'source_key': 'nse_python', 'display_name': 'NSE Python (Default)', 'description': 'Uses NSEPython, yfinance, and NSE official API for option chain and market data. Free, no API key required.', 'icon': 'fa-code', 'is_active': True},
-            {'id': 2, 'source_key': 'truedata', 'display_name': 'TrueData API', 'description': 'Professional real-time data feed with sub-second latency. Requires TrueData subscription and API key.', 'icon': 'fa-bolt', 'is_active': False},
-            {'id': 3, 'source_key': 'user_custom', 'display_name': 'User Data Source', 'description': 'Manual CSV upload or custom data input for backtesting and historical analysis.', 'icon': 'fa-upload', 'is_active': False},
-        ]
-    return render_template('admin/data_sources.html', sources=sources)
+    # Legacy URL — merged into Data API Plan page
+    return redirect(url_for('admin.data_api_plan'))
 
 
 @admin_bp.route('/data-sources/set', methods=['POST'])
@@ -1794,7 +1784,7 @@ def set_data_source():
     source_key = request.form.get('source_key')
     if not source_key:
         flash('No data source selected.', 'error')
-        return redirect(url_for('admin.data_sources'))
+        return redirect(url_for('admin.data_api_plan'))
     try:
         db.session.execute(db.text("UPDATE data_source_config SET is_active = false"))
         db.session.execute(db.text("UPDATE data_source_config SET is_active = true WHERE source_key = :key"), {'key': source_key})
@@ -1803,7 +1793,7 @@ def set_data_source():
     except Exception as e:
         db.session.rollback()
         flash(f'Error switching data source: {e}', 'error')
-    return redirect(url_for('admin.data_sources'))
+    return redirect(url_for('admin.data_api_plan'))
 
 
 @admin_bp.route('/execution-engine', methods=['GET', 'POST'])
@@ -1927,11 +1917,25 @@ def data_api_plan():
     except Exception as e:
         flash(f'AdminDataBroker load error: {e}', 'error')
 
+    # Data Input Sources (merged from former /admin/data-sources page)
+    try:
+        rows = db.session.execute(db.text(
+            "SELECT id, source_key, display_name, description, icon, is_active FROM data_source_config ORDER BY id"
+        )).fetchall()
+        sources = [{'id': r[0], 'source_key': r[1], 'display_name': r[2], 'description': r[3], 'icon': r[4], 'is_active': r[5]} for r in rows]
+    except Exception:
+        sources = [
+            {'id': 1, 'source_key': 'nse_python', 'display_name': 'NSE Python (Default)', 'description': 'Uses NSEPython, yfinance, and NSE official API for option chain and market data. Free, no API key required.', 'icon': 'fa-code', 'is_active': True},
+            {'id': 2, 'source_key': 'truedata', 'display_name': 'TrueData API', 'description': 'Professional real-time data feed with sub-second latency. Requires TrueData subscription and API key.', 'icon': 'fa-bolt', 'is_active': False},
+            {'id': 3, 'source_key': 'user_custom', 'display_name': 'User Data Source', 'description': 'Manual CSV upload or custom data input for backtesting and historical analysis.', 'icon': 'fa-upload', 'is_active': False},
+        ]
+
     return render_template(
         'admin/data_api_plan.html',
         plan=plan,
         user_data_broker_count=user_data_broker_count,
         admin_brokers=admin_brokers,
+        sources=sources,
     )
 
 
