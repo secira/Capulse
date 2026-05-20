@@ -1,7 +1,7 @@
 // Target Capital Service Worker for PWA functionality
-const CACHE_NAME = 'tcapital-v1.0.0';
-const STATIC_CACHE = 'tcapital-static-v1.0.0';
-const DYNAMIC_CACHE = 'tcapital-dynamic-v1.0.0';
+const CACHE_NAME = 'tcapital-v1.0.2';
+const STATIC_CACHE = 'tcapital-static-v1.0.2';
+const DYNAMIC_CACHE = 'tcapital-dynamic-v1.0.2';
 
 // Static assets to cache immediately
 const STATIC_ASSETS = [
@@ -72,20 +72,35 @@ self.addEventListener('activate', function(event) {
 self.addEventListener('fetch', function(event) {
     const url = new URL(event.request.url);
     const path = url.pathname;
-    
+
     // Skip non-GET requests
     if (event.request.method !== 'GET') {
         return;
     }
-    
+
     // Skip WebSocket connections
     if (event.request.headers.get('upgrade') === 'websocket') {
         return;
     }
-    
+
+    // CRITICAL: never intercept real-time data endpoints — these must
+    // always hit the network fresh and must never be served from the
+    // SW cache. A stale/hung SW fetch on these paths was the cause of
+    // "Fetching live price…" sticking on /dashboard/trade-now.
+    if (
+        path.startsWith('/api/nse/') ||
+        path.startsWith('/api/equities/') ||
+        path.startsWith('/api/market/') ||
+        path.startsWith('/api/market-pulse/') ||
+        path.startsWith('/api/data-quality') ||
+        path.startsWith('/api/live-data-status')
+    ) {
+        return; // let the browser handle it directly, no SW intercept
+    }
+
     // Determine caching strategy
     const strategy = getCacheStrategy(path);
-    
+
     event.respondWith(
         handleRequest(event.request, strategy)
     );
