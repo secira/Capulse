@@ -2000,6 +2000,80 @@ def save_admin_data_broker():
     return redirect(url_for('admin.data_api_plan'))
 
 
+@admin_bp.route('/admin-data-broker/test', methods=['POST'])
+@admin_required
+def test_admin_data_broker():
+    """Probe a configured admin data broker: connect() then get_price('NIFTY').
+    Updates last_connected + connection_status and flashes a result message."""
+    from models_broker import AdminDataBroker
+    from services.broker_factory import get_broker
+    from datetime import datetime as _dt
+
+    try:
+        priority = int(request.form.get('priority', '0'))
+    except (TypeError, ValueError):
+        priority = 0
+    if priority not in (1, 2):
+        flash('Invalid priority.', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+
+    row = AdminDataBroker.query.filter_by(priority=priority).first()
+    if not row:
+        flash(f'No admin broker configured at priority {priority}.', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+
+    label = f"P{priority} {row.broker_name} ({row.broker_type})"
+    try:
+        creds = row.get_credentials()
+        if not creds.get('credentials_valid') or not creds.get('client_id'):
+            row.connection_status = 'failed'
+            db.session.commit()
+            flash(f'❌ {label}: stored credentials could not be decrypted.', 'error')
+            return redirect(url_for('admin.data_api_plan'))
+
+        broker = get_broker(row.broker_type, creds)
+        if broker is None:
+            row.connection_status = 'failed'
+            db.session.commit()
+            flash(f'❌ {label}: broker adapter not available.', 'error')
+            return redirect(url_for('admin.data_api_plan'))
+
+        if not broker.connect():
+            row.connection_status = 'failed'
+            db.session.commit()
+            flash(f'❌ {label}: connect() failed — check API key / access token.', 'error')
+            return redirect(url_for('admin.data_api_plan'))
+
+        # Connect OK — now try a real data pull
+        spot = 0.0
+        price_err = None
+        try:
+            spot = float(broker.get_price('NIFTY') or 0)
+        except Exception as ex:
+            price_err = str(ex)
+
+        if spot and spot > 0:
+            row.connection_status = 'connected'
+            row.last_connected = _dt.utcnow()
+            db.session.commit()
+            flash(f'✅ {label}: connected. NIFTY spot = {spot:.2f}.', 'success')
+        else:
+            row.connection_status = 'partial'
+            row.last_connected = _dt.utcnow()
+            db.session.commit()
+            suffix = f' ({price_err})' if price_err else ''
+            flash(f'⚠️ {label}: auth succeeded but NIFTY price returned 0/empty{suffix}. Broker may need market hours or a different symbol.', 'warning')
+    except Exception as e:
+        try:
+            row.connection_status = 'failed'
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        flash(f'❌ {label}: {e}', 'error')
+
+    return redirect(url_for('admin.data_api_plan'))
+
+
 @admin_bp.route('/admin-data-broker/delete', methods=['POST'])
 @admin_required
 def delete_admin_data_broker():

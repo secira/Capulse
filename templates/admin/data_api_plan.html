@@ -207,6 +207,14 @@
                             <i class="fas fa-edit me-1"></i>{{ 'Update' if ab else 'Configure' }}
                         </button>
                         {% if ab %}
+                        <form method="POST" action="{{ url_for('admin.test_admin_data_broker') }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="priority" value="{{ prio }}">
+                            <button type="submit" class="btn btn-sm btn-outline-success"
+                                    title="Connect to broker and fetch NIFTY spot price">
+                                <i class="fas fa-plug me-1"></i>Test
+                            </button>
+                        </form>
                         <form method="POST" action="{{ url_for('admin.delete_admin_data_broker') }}" class="d-inline"
                               onsubmit="return confirm('Remove the {{ ab.broker_name }} admin data source?');">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
