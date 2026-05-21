@@ -157,13 +157,25 @@
               </form>
             </div>
           {% else %}
-            <button class="btn btn-primary btn-lg px-5" data-bs-toggle="modal" data-bs-target="#modal-zerodha">
-              {% if zerodha and zerodha.account and zerodha.account.api_key %}
-                <i class="fas fa-sign-in-alt me-2"></i>Re-login with Saved Credentials
-              {% else %}
-                <i class="fas fa-sign-in-alt me-2"></i>Login with Zerodha
+            <div class="d-flex gap-2 justify-content-md-end flex-wrap">
+              <button class="btn btn-primary btn-lg px-4" data-bs-toggle="modal" data-bs-target="#modal-zerodha">
+                {% if zerodha and zerodha.account and zerodha.account.api_key %}
+                  <i class="fas fa-sign-in-alt me-2"></i>Re-login with Saved Credentials
+                {% else %}
+                  <i class="fas fa-sign-in-alt me-2"></i>Login with Zerodha
+                {% endif %}
+              </button>
+              {# Allow removing a stale/failed Zerodha account so the user can start fresh #}
+              {% if zerodha and zerodha.account %}
+              <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug='zerodha') }}" class="d-inline"
+                    onsubmit="return confirm('Remove saved Zerodha credentials and start fresh?');">
+                <button type="submit" class="btn btn-outline-danger btn-lg"
+                        title="Remove the saved Zerodha account and clear stored credentials">
+                  <i class="fas fa-unlink me-1"></i>Disconnect
+                </button>
+              </form>
               {% endif %}
-            </button>
+            </div>
           {% endif %}
         </div>
       </div>
