@@ -673,6 +673,9 @@ with app.app_context():
         '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)
            VALUES ('snapshot_preclose', 'Market Intelligence — Pre-Close', 'Pre-close confirmation snapshot before the last hour of trading.', 13, 30, 40)
            ON CONFLICT (schedule_key) DO NOTHING''',
+        '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)
+           VALUES ('snapshot_close', 'Market Intelligence — Market Close', 'Market-close snapshot at 3:20 PM IST with final PCR, support/resistance and end-of-day direction across NIFTY 50, BANK NIFTY, FIN NIFTY and SENSEX.', 15, 20, 50)
+           ON CONFLICT (schedule_key) DO NOTHING''',
     ]
     # Run column migrations on EVERY boot (dev and prod).  All statements use
     # IF NOT EXISTS / ON CONFLICT and are idempotent, so on a healthy DB this

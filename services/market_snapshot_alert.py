@@ -169,6 +169,7 @@ def send_market_snapshot(slot: str = 'manual') -> bool:
         'opening':    "Opening Read · 09:20 IST",
         'midsession': "Mid-Session Check · 12:00 IST",
         'preclose':   "Pre-Close Confirmation · 13:30 IST",
+        'close':      "Market Close · 15:20 IST",
         'manual':     f"Snapshot · {ist_now.strftime('%I:%M %p')} IST",
     }
     subtitle = slot_titles.get(slot, slot_titles['manual'])

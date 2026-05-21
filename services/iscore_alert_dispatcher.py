@@ -55,6 +55,7 @@ SCHEDULE_REGISTRY = {
     'snapshot_opening':    lambda: _fire_market_snapshot('opening'),
     'snapshot_midsession': lambda: _fire_market_snapshot('midsession'),
     'snapshot_preclose':   lambda: _fire_market_snapshot('preclose'),
+    'snapshot_close':      lambda: _fire_market_snapshot('close'),
 }
 
 
