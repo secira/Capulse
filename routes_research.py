@@ -443,10 +443,22 @@ def api_research_analyze():
                 db.session.commit()
             except Exception:
                 db.session.rollback()
-            payload = cached.result_payload or {}
+            payload = dict(cached.result_payload or {})
+            # Defensive: cache only ever stores successful results, but older
+            # rows may pre-date the `success` field. Always mark cached hits
+            # as successful so the frontend doesn't show "Analysis failed".
+            payload['success'] = True
+            payload.setdefault('symbol', symbol)
+            payload.setdefault('asset_type', asset_type)
+            payload.setdefault('iscore', cached.overall_score or 0)
+            payload.setdefault('recommendation', cached.recommendation or 'HOLD')
             payload['_from_cache'] = True
             payload['_cached_at']  = cached.computed_at.isoformat() if cached.computed_at else today_str
-            logger.info(f"Returning cached I-Score for {symbol} (hits={cached.hit_count})")
+            logger.info(
+                f"Returning cached I-Score for {symbol} "
+                f"(hits={cached.hit_count}, size={len(str(payload))}b, "
+                f"has_components={'components' in payload})"
+            )
             return jsonify(payload)
 
         from services.langgraph_iscore_engine import LangGraphIScoreEngine

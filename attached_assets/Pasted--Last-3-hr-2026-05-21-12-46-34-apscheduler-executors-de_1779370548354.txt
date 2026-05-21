@@ -1,0 +1,179 @@
+
+
+Last 3 hr
+
+
+2026-05-21 12:46:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "scan_once (trigger: interval[0:30:00], next run at: 2026-05-21 13:16:34 UTC)" executed successfully
+2026-05-21 12:47:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:48:34 UTC)" (scheduled at 2026-05-21 12:47:34.453402+00:00)
+2026-05-21 12:47:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:48:34 UTC)" executed successfully
+2026-05-21 12:48:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:49:34 UTC)" (scheduled at 2026-05-21 12:48:34.453402+00:00)
+2026-05-21 12:48:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:49:34 UTC)" executed successfully
+2026-05-21 12:49:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:50:34 UTC)" (scheduled at 2026-05-21 12:49:34.453402+00:00)
+2026-05-21 12:49:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:50:34 UTC)" executed successfully
+2026-05-21 12:50:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:51:34 UTC)" (scheduled at 2026-05-21 12:50:34.453402+00:00)
+2026-05-21 12:50:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:51:34 UTC)" executed successfully
+2026-05-21 12:51:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:52:34 UTC)" (scheduled at 2026-05-21 12:51:34.453402+00:00)
+2026-05-21 12:51:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:52:34 UTC)" executed successfully
+2026-05-21 12:52:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:53:34 UTC)" (scheduled at 2026-05-21 12:52:34.453402+00:00)
+2026-05-21 12:52:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:53:34 UTC)" executed successfully
+2026-05-21 12:53:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:54:34 UTC)" (scheduled at 2026-05-21 12:53:34.453402+00:00)
+2026-05-21 12:53:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:54:34 UTC)" executed successfully
+2026-05-21 12:54:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:55:34 UTC)" (scheduled at 2026-05-21 12:54:34.453402+00:00)
+2026-05-21 12:54:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:55:34 UTC)" executed successfully
+2026-05-21 12:55:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:56:34 UTC)" (scheduled at 2026-05-21 12:55:34.453402+00:00)
+2026-05-21 12:55:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:56:34 UTC)" executed successfully
+2026-05-21 12:56:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:57:34 UTC)" (scheduled at 2026-05-21 12:56:34.453402+00:00)
+2026-05-21 12:56:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:57:34 UTC)" executed successfully
+2026-05-21 12:57:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:58:34 UTC)" (scheduled at 2026-05-21 12:57:34.453402+00:00)
+2026-05-21 12:57:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:58:34 UTC)" executed successfully
+2026-05-21 12:58:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:59:34 UTC)" (scheduled at 2026-05-21 12:58:34.453402+00:00)
+2026-05-21 12:58:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 12:59:34 UTC)" executed successfully
+2026-05-21 12:59:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:00:34 UTC)" (scheduled at 2026-05-21 12:59:34.453402+00:00)
+2026-05-21 12:59:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:00:34 UTC)" executed successfully
+2026-05-21 13:00:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:01:34 UTC)" (scheduled at 2026-05-21 13:00:34.453402+00:00)
+2026-05-21 13:00:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:01:34 UTC)" executed successfully
+2026-05-21 13:01:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:02:34 UTC)" (scheduled at 2026-05-21 13:01:34.453402+00:00)
+2026-05-21 13:01:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:02:34 UTC)" executed successfully
+2026-05-21 13:02:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:03:34 UTC)" (scheduled at 2026-05-21 13:02:34.453402+00:00)
+2026-05-21 13:02:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:03:34 UTC)" executed successfully
+2026-05-21 13:03:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:04:34 UTC)" (scheduled at 2026-05-21 13:03:34.453402+00:00)
+2026-05-21 13:03:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:04:34 UTC)" executed successfully
+2026-05-21 13:04:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:05:34 UTC)" (scheduled at 2026-05-21 13:04:34.453402+00:00)
+2026-05-21 13:04:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:05:34 UTC)" executed successfully
+2026-05-21 13:05:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:06:34 UTC)" (scheduled at 2026-05-21 13:05:34.453402+00:00)
+2026-05-21 13:05:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:06:34 UTC)" executed successfully
+2026-05-21 13:06:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:07:34 UTC)" (scheduled at 2026-05-21 13:06:34.453402+00:00)
+2026-05-21 13:06:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:07:34 UTC)" executed successfully
+2026-05-21 13:07:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:08:34 UTC)" (scheduled at 2026-05-21 13:07:34.453402+00:00)
+2026-05-21 13:07:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:08:34 UTC)" executed successfully
+2026-05-21 13:08:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:09:34 UTC)" (scheduled at 2026-05-21 13:08:34.453402+00:00)
+2026-05-21 13:08:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:09:34 UTC)" executed successfully
+2026-05-21 13:09:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:10:34 UTC)" (scheduled at 2026-05-21 13:09:34.453402+00:00)
+2026-05-21 13:09:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:10:34 UTC)" executed successfully
+2026-05-21 13:10:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:11:34 UTC)" (scheduled at 2026-05-21 13:10:34.453402+00:00)
+2026-05-21 13:10:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:11:34 UTC)" executed successfully
+2026-05-21 13:11:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:12:34 UTC)" (scheduled at 2026-05-21 13:11:34.453402+00:00)
+2026-05-21 13:11:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:12:34 UTC)" executed successfully
+2026-05-21 13:12:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:13:34 UTC)" (scheduled at 2026-05-21 13:12:34.453402+00:00)
+2026-05-21 13:12:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:13:34 UTC)" executed successfully
+2026-05-21 13:13:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:14:34 UTC)" (scheduled at 2026-05-21 13:13:34.453402+00:00)
+2026-05-21 13:13:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:14:34 UTC)" executed successfully
+2026-05-21 13:14:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:15:34 UTC)" (scheduled at 2026-05-21 13:14:34.453402+00:00)
+2026-05-21 13:14:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:15:34 UTC)" executed successfully
+2026-05-21 13:15:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:16:34 UTC)" (scheduled at 2026-05-21 13:15:34.453402+00:00)
+2026-05-21 13:15:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:16:34 UTC)" executed successfully
+2026-05-21 13:16:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:17:34 UTC)" (scheduled at 2026-05-21 13:16:34.453402+00:00)
+2026-05-21 13:16:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:17:34 UTC)" executed successfully
+2026-05-21 13:16:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "scan_once (trigger: interval[0:30:00], next run at: 2026-05-21 13:46:34 UTC)" (scheduled at 2026-05-21 13:16:34.468571+00:00)
+2026-05-21 13:16:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "scan_once (trigger: interval[0:30:00], next run at: 2026-05-21 13:46:34 UTC)" executed successfully
+2026-05-21 13:17:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:18:34 UTC)" (scheduled at 2026-05-21 13:17:34.453402+00:00)
+2026-05-21 13:17:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:18:34 UTC)" executed successfully
+2026-05-21 13:18:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:19:34 UTC)" (scheduled at 2026-05-21 13:18:34.453402+00:00)
+2026-05-21 13:18:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:19:34 UTC)" executed successfully
+2026-05-21 13:19:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:20:34 UTC)" (scheduled at 2026-05-21 13:19:34.453402+00:00)
+2026-05-21 13:19:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:20:34 UTC)" executed successfully
+2026-05-21 13:20:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:21:34 UTC)" (scheduled at 2026-05-21 13:20:34.453402+00:00)
+2026-05-21 13:20:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:21:34 UTC)" executed successfully
+2026-05-21 13:21:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:22:34 UTC)" (scheduled at 2026-05-21 13:21:34.453402+00:00)
+2026-05-21 13:21:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:22:34 UTC)" executed successfully
+2026-05-21 13:22:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:23:34 UTC)" (scheduled at 2026-05-21 13:22:34.453402+00:00)
+2026-05-21 13:22:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:23:34 UTC)" executed successfully
+2026-05-21 13:23:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:24:34 UTC)" (scheduled at 2026-05-21 13:23:34.453402+00:00)
+2026-05-21 13:23:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:24:34 UTC)" executed successfully
+2026-05-21 13:24:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:25:34 UTC)" (scheduled at 2026-05-21 13:24:34.453402+00:00)
+2026-05-21 13:24:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:25:34 UTC)" executed successfully
+2026-05-21 13:25:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:26:34 UTC)" (scheduled at 2026-05-21 13:25:34.453402+00:00)
+2026-05-21 13:25:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:26:34 UTC)" executed successfully
+2026-05-21 13:26:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:27:34 UTC)" (scheduled at 2026-05-21 13:26:34.453402+00:00)
+2026-05-21 13:26:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:27:34 UTC)" executed successfully
+2026-05-21 13:27:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:28:34 UTC)" (scheduled at 2026-05-21 13:27:34.453402+00:00)
+2026-05-21 13:27:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:28:34 UTC)" executed successfully
+2026-05-21 13:28:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:29:34 UTC)" (scheduled at 2026-05-21 13:28:34.453402+00:00)
+2026-05-21 13:28:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:29:34 UTC)" executed successfully
+1:M 21 May 2026 13:29:27.090 * 1 changes in 60 seconds. Saving...
+1:M 21 May 2026 13:29:27.091 * Background saving started by pid 9420
+9420:C 21 May 2026 13:29:27.114 * DB saved on disk
+9420:C 21 May 2026 13:29:27.114 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+1:M 21 May 2026 13:29:27.191 * Background saving terminated with success
+122.167.96.199 - - [21/May/2026:13:29:27 +0000] "GET /admin/research-list/nightly-status HTTP/1.1" 200 327 "https://www.targetcapital.ai/admin/research-list" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 77721
+2026-05-21 13:29:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:30:34 UTC)" (scheduled at 2026-05-21 13:29:34.453402+00:00)
+2026-05-21 13:29:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:30:34 UTC)" executed successfully
+1:M 21 May 2026 13:30:28.027 * 1 changes in 60 seconds. Saving...
+1:M 21 May 2026 13:30:28.028 * Background saving started by pid 9421
+9421:C 21 May 2026 13:30:28.045 * DB saved on disk
+9421:C 21 May 2026 13:30:28.046 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+1:M 21 May 2026 13:30:28.134 * Background saving terminated with success
+2026-05-21 13:30:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:31:34 UTC)" executed successfully
+122.167.96.199 - - [21/May/2026:13:30:26 +0000] "GET /admin/research-list/nightly-status HTTP/1.1" 200 240 "https://www.targetcapital.ai/admin/research-list" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 74885
+2026-05-21 13:30:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:31:34 UTC)" (scheduled at 2026-05-21 13:30:34.453402+00:00)
+122.167.96.199 - - [21/May/2026:13:31:26 +0000] "GET /admin/research-list/nightly-status HTTP/1.1" 200 327 "https://www.targetcapital.ai/admin/research-list" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 76654
+2026-05-21 13:31:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:32:34 UTC)" (scheduled at 2026-05-21 13:31:34.453402+00:00)
+2026-05-21 13:31:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:32:34 UTC)" executed successfully
+1:M 21 May 2026 13:31:29.076 * 1 changes in 60 seconds. Saving...
+1:M 21 May 2026 13:31:29.077 * Background saving started by pid 9422
+9422:C 21 May 2026 13:31:29.087 * DB saved on disk
+9422:C 21 May 2026 13:31:29.087 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+1:M 21 May 2026 13:31:29.177 * Background saving terminated with success
+122.167.96.199 - - [21/May/2026:13:31:45 +0000] "GET /admin/research-list/nightly-status HTTP/1.1" 200 240 "https://www.targetcapital.ai/admin/research-list" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 72599
+122.167.96.199 - - [21/May/2026:13:31:46 +0000] "GET /admin/research-list HTTP/1.1" 200 10135 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 106629
+122.167.96.199 - - [21/May/2026:13:31:50 +0000] "GET /admin/daily-signals HTTP/1.1" 200 4624 "https://www.targetcapital.ai/admin/research-list" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 104590
+122.167.96.199 - - [21/May/2026:13:31:50 +0000] "GET /admin/daily-signals HTTP/1.1" 200 4624 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 78676
+122.167.96.199 - - [21/May/2026:13:31:51 +0000] "GET /admin/research-list HTTP/1.1" 200 10135 "https://www.targetcapital.ai/admin/daily-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 96417
+122.167.96.199 - - [21/May/2026:13:31:51 +0000] "GET /admin/research-list HTTP/1.1" 200 10135 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 77990
+122.167.96.199 - - [21/May/2026:13:31:51 +0000] "GET /admin/research-list/nightly-status HTTP/1.1" 200 327 "https://www.targetcapital.ai/admin/research-list" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 19671
+122.167.96.199 - - [21/May/2026:13:32:04 +0000] "GET /admin/daily-signals HTTP/1.1" 200 4624 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 53668
+122.167.96.199 - - [21/May/2026:13:32:08 +0000] "GET /admin/research-list/nightly-status HTTP/1.1" 200 240 "https://www.targetcapital.ai/admin/research-list" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 19946
+122.167.96.199 - - [21/May/2026:13:32:08 +0000] "GET /admin/research-list HTTP/1.1" 200 10127 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 77003
+122.167.96.199 - - [21/May/2026:13:32:09 +0000] "GET /static/css/style.css?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 22484
+122.167.96.199 - - [21/May/2026:13:32:09 +0000] "GET /static/css/mobile-first.css?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 27222
+122.167.96.199 - - [21/May/2026:13:32:09 +0000] "GET /static/css/tradingview-custom.css?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 24652
+122.167.96.199 - - [21/May/2026:13:32:09 +0000] "GET /static/css/landing-enhancements.css?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 24522
+122.167.96.199 - - [21/May/2026:13:32:09 +0000] "GET /static/images/logo.png?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 22015
+122.167.96.199 - - [21/May/2026:13:32:09 +0000] "GET /dashboard/research HTTP/1.1" 200 15953 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 123729
+122.167.96.199 - - [21/May/2026:13:32:09 +0000] "GET /static/css/dashboard.css?v=4 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 27268
+122.167.96.199 - - [21/May/2026:13:32:14 +0000] "GET /dashboard/research HTTP/1.1" 200 15953 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 128342
+122.167.96.199 - - [21/May/2026:13:32:14 +0000] "GET /api/live-data-status HTTP/1.1" 200 291 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 26467
+122.167.96.199 - - [21/May/2026:13:32:14 +0000] "GET /static/js/tradingview-widget.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 18172
+122.167.96.199 - - [21/May/2026:13:32:14 +0000] "GET /static/js/tradingview-datafeed.js?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 19227
+122.167.96.199 - - [21/May/2026:13:32:14 +0000] "GET /static/js/main.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 16759
+122.167.96.199 - - [21/May/2026:13:32:27 +0000] "GET /dashboard/research?q=&sector=&reco=&sort=iscore_desc&quick=&page=92 HTTP/1.1" 200 14957 "https://www.targetcapital.ai/dashboard/research" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 124206
+122.167.96.199 - - [21/May/2026:13:32:27 +0000] "GET /static/js/tradingview-datafeed.js?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research?q=&sector=&reco=&sort=iscore_desc&quick=&page=92" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 19892
+122.167.96.199 - - [21/May/2026:13:32:27 +0000] "GET /static/js/tradingview-widget.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research?q=&sector=&reco=&sort=iscore_desc&quick=&page=92" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 21237
+122.167.96.199 - - [21/May/2026:13:32:27 +0000] "GET /static/js/main.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research?q=&sector=&reco=&sort=iscore_desc&quick=&page=92" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 20263
+122.167.96.199 - - [21/May/2026:13:32:27 +0000] "GET /dashboard/research?q=&sector=&reco=&sort=iscore_desc&quick=&page=92 HTTP/1.1" 200 14957 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 180106
+122.167.96.199 - - [21/May/2026:13:32:27 +0000] "GET /api/live-data-status HTTP/1.1" 200 291 "https://www.targetcapital.ai/dashboard/research?q=&sector=&reco=&sort=iscore_desc&quick=&page=92" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 26114
+122.167.96.199 - - [21/May/2026:13:32:33 +0000] "GET /dashboard/research/stocks?symbol=HILTON HTTP/1.1" 200 28474 "https://www.targetcapital.ai/dashboard/research?q=&sector=&reco=&sort=iscore_desc&quick=&page=92" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 45099
+122.167.96.199 - - [21/May/2026:13:32:34 +0000] "GET /static/js/tradingview-widget.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research/stocks?symbol=HILTON" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 18621
+122.167.96.199 - - [21/May/2026:13:32:34 +0000] "GET /dashboard/research/stocks?symbol=HILTON HTTP/1.1" 200 28474 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 43477
+122.167.96.199 - - [21/May/2026:13:32:34 +0000] "GET /static/js/tradingview-datafeed.js?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research/stocks?symbol=HILTON" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 19379
+122.167.96.199 - - [21/May/2026:13:32:34 +0000] "GET /static/js/main.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/research/stocks?symbol=HILTON" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 19599
+122.167.96.199 - - [21/May/2026:13:32:34 +0000] "GET /api/live-data-status HTTP/1.1" 200 291 "https://www.targetcapital.ai/dashboard/research/stocks?symbol=HILTON" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 23301
+122.167.96.199 - - [21/May/2026:13:32:34 +0000] "GET /api/research/cached/HILTON?asset_type=stocks HTTP/1.1" 200 1073 "https://www.targetcapital.ai/dashboard/research/stocks?symbol=HILTON" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 44050
+2026-05-21 13:32:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:33:34 UTC)" (scheduled at 2026-05-21 13:32:34.453402+00:00)
+2026-05-21 13:32:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:33:34 UTC)" executed successfully
+2026-05-21 13:32:38 - routes_research - INFO - [routes_research.py:437] - Returning cached I-Score for HILTON (hits=2)
+122.167.96.199 - - [21/May/2026:13:32:38 +0000] "POST /api/research/analyze HTTP/1.1" 200 1067 "https://www.targetcapital.ai/dashboard/research/stocks?symbol=HILTON" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 47869
+1:M 21 May 2026 13:32:30.015 * 1 changes in 60 seconds. Saving...
+1:M 21 May 2026 13:32:30.016 * Background saving started by pid 9423
+9423:C 21 May 2026 13:32:30.029 * DB saved on disk
+9423:C 21 May 2026 13:32:30.030 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+1:M 21 May 2026 13:32:30.116 * Background saving terminated with success
+2026-05-21 13:32:40 - routes_research - INFO - [routes_research.py:437] - Returning cached I-Score for HILTON (hits=3)
+122.167.96.199 - - [21/May/2026:13:32:40 +0000] "POST /api/research/analyze HTTP/1.1" 200 1067 "https://www.targetcapital.ai/dashboard/research/stocks?symbol=HILTON" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 46256
+1:M 21 May 2026 13:33:31.068 * 1 changes in 60 seconds. Saving...
+1:M 21 May 2026 13:33:31.068 * Background saving started by pid 9424
+9424:C 21 May 2026 13:33:31.076 * DB saved on disk
+9424:C 21 May 2026 13:33:31.076 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+1:M 21 May 2026 13:33:31.169 * Background saving terminated with success
+2026-05-21 13:33:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:34:34 UTC)" (scheduled at 2026-05-21 13:33:34.453402+00:00)
+2026-05-21 13:33:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:34:34 UTC)" executed successfully
+122.167.96.199 - - [21/May/2026:13:33:37 +0000] "GET /dashboard/research/stocks?symbol=HILTON HTTP/1.1" 200 28474 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36" 50422
+2026-05-21 13:34:16.964 UTC [76] LOG:  checkpoint starting: time
+2026-05-21 13:34:18.725 UTC [76] LOG:  checkpoint complete: wrote 18 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.713 s, sync=0.025 s, total=1.761 s; sync files=11, longest=0.023 s, average=0.003 s; distance=61 kB, estimate=1721 kB; lsn=0/5D992D8, redo lsn=0/5D99280
+1:M 21 May 2026 13:34:32.096 * 1 changes in 60 seconds. Saving...
+1:M 21 May 2026 13:34:32.096 * Background saving started by pid 9425
+9425:C 21 May 2026 13:34:32.115 * DB saved on disk
+9425:C 21 May 2026 13:34:32.115 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+1:M 21 May 2026 13:34:32.197 * Background saving terminated with success
+2026-05-21 13:34:34 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:35:34 UTC)" (scheduled at 2026-05-21 13:34:34.453402+00:00)
+2026-05-21 13:34:34 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-05-21 13:35:34 UTC)" executed successfully
