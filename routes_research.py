@@ -10,6 +10,7 @@ from decorators import paid_plan_required
 from models import TradingSignal, ResearchCache, ResearchRun, ResearchList
 from datetime import datetime, timezone, date
 import logging
+import os
 import threading
 import time
 import uuid
@@ -412,7 +413,18 @@ def api_research_analyze():
         
         if asset_type not in ASSET_TYPES:
             return jsonify({'success': False, 'error': f'Invalid asset type: {asset_type}'}), 400
-        
+
+        # ── Pre-flight: required env vars (catches missing keys on deploy) ─
+        missing_keys = [k for k in ('OPENAI_API_KEY',) if not os.environ.get(k)]
+        if missing_keys:
+            msg = (
+                f"Research Co-Pilot is mis-configured on this server: "
+                f"missing environment variable(s) {', '.join(missing_keys)}. "
+                "Please set them in your hosting platform (e.g. Railway → Variables) and redeploy."
+            )
+            logger.error(msg)
+            return jsonify({'success': False, 'error': msg}), 503
+
         # ── Check shared ResearchCache first (saves API costs + time) ──────
         import hashlib
         today_str = date.today().isoformat()
@@ -523,10 +535,27 @@ def api_research_analyze():
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"I-Score analysis error for {symbol if 'symbol' in dir() else 'unknown'}: {e}")
+        # Surface the actual root cause so production users (e.g. Railway)
+        # can see *why* the analysis failed (missing API key, broker token
+        # expired, upstream rate limit, etc.) instead of a generic message.
+        import traceback as _tb
+        err_type = type(e).__name__
+        err_msg  = str(e) or 'no detail'
+        sym = symbol if 'symbol' in dir() and symbol else 'unknown'
+        logger.error(
+            f"I-Score analysis error for {sym}: {err_type}: {err_msg}\n"
+            f"{_tb.format_exc()}"
+        )
+        # Friendly hint for the most common Railway cause
+        hint = ''
+        low = err_msg.lower()
+        if 'api key' in low or 'apikey' in low or 'authentication' in low or 'unauthorized' in low:
+            hint = ' Hint: check that OPENAI_API_KEY (and PERPLEXITY_API_KEY) are set on your server.'
+        elif 'timeout' in low or 'timed out' in low:
+            hint = ' Hint: upstream data provider timed out — try again in a few seconds.'
         return jsonify({
             'success': False,
-            'error': 'Analysis failed. Please try again later.'
+            'error': f'Analysis failed ({err_type}): {err_msg}.{hint}'
         }), 500
 
 
