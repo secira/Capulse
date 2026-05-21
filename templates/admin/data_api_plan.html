@@ -3,50 +3,8 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="fas fa-satellite-dish me-2"></i>Data Sources &amp; API Plan</h2>
+  <h2><i class="fas fa-satellite-dish me-2"></i>Data Sources &amp; API Plan</h2>
 </div>
-
-{% if sources %}
-<div class="card border-0 shadow-sm mb-4" style="border-radius:12px; border-left:4px solid #6f42c1">
-    <div class="card-body p-4">
-        <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-                <h5 class="fw-bold mb-1"><i class="fas fa-database text-primary me-2"></i>Data Input Source</h5>
-                <p class="text-muted mb-0" style="font-size:13px">
-                    Default market-data backend used when no broker source returns data. Switch between NSE Python (free), TrueData (low-latency), or custom upload.
-                </p>
-            </div>
-        </div>
-        <div class="row g-3">
-            {% for src in sources %}
-            <div class="col-lg-4">
-                <div class="card border h-100" style="border-radius:10px;{% if src.is_active %}border:2px solid #22c55e{% endif %}">
-                    <div class="card-body p-3">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h6 class="fw-bold mb-0">{{ src.display_name }}</h6>
-                            <i class="fas {{ src.icon }} fa-lg" style="color:{% if src.is_active %}#22c55e{% else %}#94a3b8{% endif %}"></i>
-                        </div>
-                        <span class="badge {% if src.is_active %}bg-success{% else %}bg-secondary{% endif %} mb-2">
-                            {{ 'ACTIVE' if src.is_active else 'INACTIVE' }}
-                        </span>
-                        <p class="text-muted small mb-3">{{ src.description }}</p>
-                        {% if not src.is_active %}
-                        <form method="POST" action="{{ url_for('admin.set_data_source') }}">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="source_key" value="{{ src.source_key }}">
-                            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check me-1"></i>Set Active</button>
-                        </form>
-                        {% else %}
-                        <span class="btn btn-success btn-sm disabled"><i class="fas fa-check-circle me-1"></i>Currently Active</span>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-</div>
-{% endif %}
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
@@ -59,252 +17,263 @@
   {% endif %}
 {% endwith %}
 
-<div class="row g-4 mb-4">
-    <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100" style="border-radius:12px;{% if plan.plan_type == 'user_data' %}border:2px solid #22c55e{% endif %}">
-            <div class="card-body p-4">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <div>
-                        <h5 class="fw-bold mb-1">User Data API</h5>
-                        <span class="badge {% if plan.plan_type == 'user_data' %}bg-success{% else %}bg-secondary{% endif %}">
-                            {% if plan.plan_type == 'user_data' %}ACTIVE{% else %}INACTIVE{% endif %}
-                        </span>
-                    </div>
-                    <i class="fas fa-user-cog fa-2x" style="color:{% if plan.plan_type == 'user_data' %}#22c55e{% else %}#94a3b8{% endif %}"></i>
-                </div>
-                <p class="text-muted mb-3" style="font-size:14px">Each user connects their own broker Data API (Dhan, Fyers, Upstox, etc.) from the Dashboard. Market data is fetched using each user's own credentials.</p>
-                <div class="mb-3">
-                    <span class="badge bg-light text-dark me-1">Per-user credentials</span>
-                    <span class="badge bg-light text-dark me-1">No platform cost</span>
-                    <span class="badge bg-light text-dark">Self-managed</span>
-                </div>
-                <div class="small text-muted mb-3">
-                    <i class="fas fa-users me-1"></i> {{ user_data_broker_count }} user{{ 's' if user_data_broker_count != 1 else '' }} with active Data API broker
-                </div>
-                {% if plan.plan_type != 'user_data' %}
-                <form method="POST" action="{{ url_for('admin.set_data_api_plan') }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="plan_type" value="user_data">
-                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check me-1"></i>Set as Active</button>
-                </form>
-                {% else %}
-                <span class="btn btn-success btn-sm disabled"><i class="fas fa-check-circle me-1"></i>Currently Active</span>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100" style="border-radius:12px;{% if plan.plan_type == 'nse_truedata' %}border:2px solid #22c55e{% endif %}">
-            <div class="card-body p-4">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <div>
-                        <h5 class="fw-bold mb-1">NSE + TrueData</h5>
-                        <span class="badge {% if plan.plan_type == 'nse_truedata' %}bg-success{% else %}bg-secondary{% endif %}">
-                            {% if plan.plan_type == 'nse_truedata' %}ACTIVE{% else %}INACTIVE{% endif %}
-                        </span>
-                    </div>
-                    <i class="fas fa-bolt fa-2x" style="color:{% if plan.plan_type == 'nse_truedata' %}#22c55e{% else %}#94a3b8{% endif %}"></i>
-                </div>
-                <p class="text-muted mb-3" style="font-size:14px">Platform-wide TrueData API subscription. All users receive live market data from TrueData. NSE is the final fallback. Future: Direct NSE approval.</p>
-                <div class="mb-3">
-                    <span class="badge bg-light text-dark me-1">TrueData API</span>
-                    <span class="badge bg-light text-dark me-1">All users covered</span>
-                    <span class="badge bg-light text-dark">Low latency</span>
-                </div>
-                <div class="small mb-3">
-                    <i class="fas fa-key me-1 {% if plan.has_truedata_key %}text-success{% else %}text-danger{% endif %}"></i>
-                    API Key: {% if plan.has_truedata_key %}<span class="text-success">Configured</span>{% else %}<span class="text-danger">Not set</span>{% endif %}
-                </div>
-                {% if plan.plan_type != 'nse_truedata' %}
-                <button class="btn btn-primary btn-sm" onclick="document.getElementById('truedataConfig').style.display='block'; this.style.display='none';">
-                    <i class="fas fa-check me-1"></i>Set as Active
-                </button>
-                {% else %}
-                <span class="btn btn-success btn-sm disabled me-2"><i class="fas fa-check-circle me-1"></i>Currently Active</span>
-                <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('truedataConfig').style.display='block';">
-                    <i class="fas fa-edit me-1"></i>Update Credentials
-                </button>
-                {% endif %}
-
-                <div id="truedataConfig" style="display:none;" class="mt-3 pt-3 border-top">
-                    <form method="POST" action="{{ url_for('admin.set_data_api_plan') }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="plan_type" value="nse_truedata">
-                        <div class="mb-2">
-                            <label class="form-label small fw-semibold">TrueData API Key</label>
-                            <input type="password" name="truedata_api_key" class="form-control form-control-sm"
-                                   placeholder="Enter TrueData API Key" {% if not plan.has_truedata_key %}required{% endif %}>
-                            {% if plan.has_truedata_key %}
-                            <small class="text-muted">Leave blank to keep existing key</small>
-                            {% endif %}
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold">TrueData API Secret (optional)</label>
-                            <input type="password" name="truedata_api_secret" class="form-control form-control-sm"
-                                   placeholder="Enter TrueData API Secret">
-                            {% if plan.has_truedata_secret %}
-                            <small class="text-muted">Leave blank to keep existing secret</small>
-                            {% endif %}
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Save & Activate</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ── Admin Broker Data Sources (hidden from end users) ───────────────── -->
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ADMIN DATA ACCESS — always-on, three tiers, platform-managed
+     ═════════════════════════════════════════════════════════════════════ -->
 <div class="card border-0 shadow-sm mb-4" style="border-radius:12px; border-left:4px solid #0d6efd">
-    <div class="card-body p-4">
-        <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-                <h5 class="fw-bold mb-1"><i class="fas fa-shield-halved text-primary me-2"></i>Admin Broker Data Sources</h5>
-                <p class="text-muted mb-0" style="font-size:13px">
-                    Platform-owned broker connections used as fallback when the user has no Data API broker configured.
-                    <strong>Invisible to end users.</strong> Supported: Dhan, Zerodha, Fyers.
-                </p>
-            </div>
-            <span class="badge bg-primary">Internal only</span>
-        </div>
-
-        <div class="row g-3">
-        {% for prio in [1, 2] %}
-            {% set ab = admin_brokers.get(prio) %}
-            <div class="col-md-6">
-                <div class="card border" style="border-radius:10px">
-                    <div class="card-body p-3">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="fw-bold mb-0">
-                                {% if prio == 1 %}<i class="fas fa-star text-warning me-1"></i>Primary{% else %}<i class="fas fa-clone text-secondary me-1"></i>Secondary{% endif %}
-                            </h6>
-                            {% if ab %}
-                                <span class="badge {% if ab.is_active %}bg-success{% else %}bg-secondary{% endif %}">
-                                    {{ 'ACTIVE' if ab.is_active else 'INACTIVE' }}
-                                </span>
-                            {% else %}
-                                <span class="badge bg-light text-dark">Not configured</span>
-                            {% endif %}
-                        </div>
-
-                        {% if ab %}
-                        <div class="small text-muted mb-2">
-                            <div><strong>{{ ab.broker_name }}</strong> <span class="text-muted">({{ ab.broker_type }})</span></div>
-                            <div>
-                                <i class="fas fa-key me-1 {% if ab.has_api_key %}text-success{% else %}text-danger{% endif %}"></i>API Key
-                                <i class="fas fa-shield ms-2 me-1 {% if ab.has_access_token %}text-success{% else %}text-muted{% endif %}"></i>Access Token
-                                <i class="fas fa-lock ms-2 me-1 {% if ab.has_api_secret %}text-success{% else %}text-muted{% endif %}"></i>Secret
-                            </div>
-                            {% if ab.updated_at %}
-                            <div class="mt-1"><small>Updated {{ ab.updated_at.strftime('%d %b %Y, %I:%M %p') }} by {{ ab.updated_by or 'admin' }}</small></div>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-
-                        <button class="btn btn-sm btn-outline-primary" type="button"
-                                onclick="document.getElementById('adminBrokerForm{{ prio }}').style.display='block'; this.style.display='none';">
-                            <i class="fas fa-edit me-1"></i>{{ 'Update' if ab else 'Configure' }}
-                        </button>
-                        {% if ab %}
-                        <form method="POST" action="{{ url_for('admin.test_admin_data_broker') }}" class="d-inline">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="priority" value="{{ prio }}">
-                            <button type="submit" class="btn btn-sm btn-outline-success"
-                                    title="Connect to broker and fetch NIFTY spot price">
-                                <i class="fas fa-plug me-1"></i>Test
-                            </button>
-                        </form>
-                        <form method="POST" action="{{ url_for('admin.delete_admin_data_broker') }}" class="d-inline"
-                              onsubmit="return confirm('Remove the {{ ab.broker_name }} admin data source?');">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="priority" value="{{ prio }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
-                        </form>
-                        {% endif %}
-
-                        <div id="adminBrokerForm{{ prio }}" style="display:none" class="mt-3 pt-3 border-top">
-                            <form method="POST" action="{{ url_for('admin.save_admin_data_broker') }}">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <input type="hidden" name="priority" value="{{ prio }}">
-                                <div class="mb-2">
-                                    <label class="form-label small fw-semibold">Broker</label>
-                                    <select name="broker_type" class="form-select form-select-sm" required>
-                                        <option value="">-- choose --</option>
-                                        {% for opt in ['dhan', 'zerodha', 'fyers'] %}
-                                        <option value="{{ opt }}" {% if ab and ab.broker_type == opt %}selected{% endif %}>{{ opt.title() }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label small fw-semibold">Label</label>
-                                    <input type="text" name="broker_name" class="form-control form-control-sm"
-                                           value="{{ ab.broker_name if ab else '' }}" placeholder="e.g. Admin Dhan #1">
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label small fw-semibold">API Key / Client ID</label>
-                                    <input type="password" name="api_key" class="form-control form-control-sm"
-                                           placeholder="{% if ab and ab.has_api_key %}•••••• (leave blank to keep){% else %}Enter API key{% endif %}"
-                                           {% if not ab or not ab.has_api_key %}required{% endif %}>
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label small fw-semibold">Access Token</label>
-                                    <input type="password" name="access_token" class="form-control form-control-sm"
-                                           placeholder="{% if ab and ab.has_access_token %}•••••• (leave blank to keep){% else %}Enter access token{% endif %}">
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label small fw-semibold">API Secret</label>
-                                    <input type="password" name="api_secret" class="form-control form-control-sm"
-                                           placeholder="{% if ab and ab.has_api_secret %}•••••• (leave blank to keep){% else %}Enter API secret{% endif %}">
-                                </div>
-                                <div class="form-check mb-3">
-                                    <input class="form-check-input" type="checkbox" name="is_active" value="true"
-                                           id="abActive{{ prio }}" {% if not ab or ab.is_active %}checked{% endif %}>
-                                    <label class="form-check-label small" for="abActive{{ prio }}">Active</label>
-                                </div>
-                                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Save</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        {% endfor %}
-        </div>
+  <div class="card-body p-4">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <h5 class="fw-bold mb-1"><i class="fas fa-shield-halved text-primary me-2"></i>Admin Data Access <span class="badge bg-success ms-2">Always On</span></h5>
+        <p class="text-muted mb-0" style="font-size:13px">
+          Platform-wide data tiers, tried in order for every user. <strong>Invisible to end users.</strong>
+          Three slots: <strong>Primary Broker → Secondary Broker → TrueData</strong>. Configure once here.
+        </p>
+      </div>
     </div>
+
+    <div class="row g-3">
+      <!-- ── PRIMARY + SECONDARY BROKER (admin-owned credentials) ──── -->
+      {% for prio in [1, 2] %}
+        {% set ab = admin_brokers.get(prio) %}
+        <div class="col-lg-4">
+          <div class="card border h-100" style="border-radius:10px;{% if ab and ab.is_active and ab.connection_status == 'connected' %}border:2px solid #22c55e{% endif %}">
+            <div class="card-body p-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold mb-0">
+                  {% if prio == 1 %}
+                    <i class="fas fa-star text-warning me-1"></i>Tier 1 · Primary Broker
+                  {% else %}
+                    <i class="fas fa-clone text-secondary me-1"></i>Tier 2 · Secondary Broker
+                  {% endif %}
+                </h6>
+                {% if ab %}
+                  <span class="badge {% if ab.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                    {{ 'ACTIVE' if ab.is_active else 'INACTIVE' }}
+                  </span>
+                {% else %}
+                  <span class="badge bg-light text-dark">Not configured</span>
+                {% endif %}
+              </div>
+
+              {% if ab %}
+              <div class="small text-muted mb-2">
+                <div><strong>{{ ab.broker_name }}</strong> <span class="text-muted">({{ ab.broker_type }})</span></div>
+                <div>
+                  <i class="fas fa-key me-1 {% if ab.has_api_key %}text-success{% else %}text-danger{% endif %}"></i>API Key
+                  <i class="fas fa-shield ms-2 me-1 {% if ab.has_access_token %}text-success{% else %}text-muted{% endif %}"></i>Token
+                  <i class="fas fa-lock ms-2 me-1 {% if ab.has_api_secret %}text-success{% else %}text-muted{% endif %}"></i>Secret
+                </div>
+                {% if ab.updated_at %}
+                <div class="mt-1"><small>Updated {{ ab.updated_at.strftime('%d %b %Y, %I:%M %p') }} by {{ ab.updated_by or 'admin' }}</small></div>
+                {% endif %}
+              </div>
+              {% else %}
+              <p class="text-muted small mb-2">No {{ 'primary' if prio == 1 else 'secondary' }} broker configured. Add one for platform-wide live data.</p>
+              {% endif %}
+
+              <div class="d-flex gap-1 flex-wrap">
+                <button class="btn btn-sm btn-outline-primary" type="button"
+                        onclick="document.getElementById('adminBrokerForm{{ prio }}').style.display='block'; this.style.display='none';">
+                  <i class="fas fa-edit me-1"></i>{{ 'Update' if ab else 'Configure' }}
+                </button>
+                {% if ab %}
+                <form method="POST" action="{{ url_for('admin.test_admin_data_broker') }}" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="priority" value="{{ prio }}">
+                  <button type="submit" class="btn btn-sm btn-outline-success" title="Connect and fetch NIFTY spot">
+                    <i class="fas fa-plug"></i>
+                  </button>
+                </form>
+                <form method="POST" action="{{ url_for('admin.delete_admin_data_broker') }}" class="d-inline"
+                      onsubmit="return confirm('Remove the {{ ab.broker_name }} admin data source?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="priority" value="{{ prio }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                </form>
+                {% endif %}
+              </div>
+
+              <div id="adminBrokerForm{{ prio }}" style="display:none" class="mt-3 pt-3 border-top">
+                <form method="POST" action="{{ url_for('admin.save_admin_data_broker') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="priority" value="{{ prio }}">
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold">Broker</label>
+                    <select name="broker_type" class="form-select form-select-sm" required>
+                      <option value="">-- choose --</option>
+                      {% for opt in ['dhan', 'zerodha', 'fyers'] %}
+                      <option value="{{ opt }}" {% if ab and ab.broker_type == opt %}selected{% endif %}>{{ opt.title() }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold">Label</label>
+                    <input type="text" name="broker_name" class="form-control form-control-sm"
+                           value="{{ ab.broker_name if ab else '' }}" placeholder="e.g. Admin Dhan #1">
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold">API Key / Client ID</label>
+                    <input type="password" name="api_key" class="form-control form-control-sm"
+                           placeholder="{% if ab and ab.has_api_key %}•••••• (leave blank to keep){% else %}Enter API key{% endif %}"
+                           {% if not ab or not ab.has_api_key %}required{% endif %}>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold">Access Token</label>
+                    <input type="password" name="access_token" class="form-control form-control-sm"
+                           placeholder="{% if ab and ab.has_access_token %}•••••• (leave blank to keep){% else %}Enter access token{% endif %}">
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold">API Secret</label>
+                    <input type="password" name="api_secret" class="form-control form-control-sm"
+                           placeholder="{% if ab and ab.has_api_secret %}•••••• (leave blank to keep){% else %}Enter API secret{% endif %}">
+                  </div>
+                  <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="is_active" value="true"
+                           id="abActive{{ prio }}" {% if not ab or ab.is_active %}checked{% endif %}>
+                    <label class="form-check-label small" for="abActive{{ prio }}">Active</label>
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Save</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+
+      <!-- ── TIER 3: TRUEDATA (admin-owned subscription) ──── -->
+      <div class="col-lg-4">
+        <div class="card border h-100" style="border-radius:10px;{% if plan.has_truedata_key %}border:2px solid #22c55e{% endif %}">
+          <div class="card-body p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="fw-bold mb-0"><i class="fas fa-bolt text-warning me-1"></i>Tier 3 · TrueData</h6>
+              <span class="badge {% if plan.has_truedata_key %}bg-success{% else %}bg-secondary{% endif %}">
+                {{ 'ACTIVE' if plan.has_truedata_key else 'NOT SET' }}
+              </span>
+            </div>
+            <div class="small text-muted mb-2">
+              <div><strong>TrueData API</strong> <span class="text-muted">(low-latency tick feed)</span></div>
+              <div>
+                <i class="fas fa-key me-1 {% if plan.has_truedata_key %}text-success{% else %}text-danger{% endif %}"></i>API Key
+                <i class="fas fa-lock ms-2 me-1 {% if plan.has_truedata_secret %}text-success{% else %}text-muted{% endif %}"></i>Secret
+              </div>
+            </div>
+            <button class="btn btn-sm btn-outline-primary" type="button"
+                    onclick="document.getElementById('truedataConfig').style.display='block'; this.style.display='none';">
+              <i class="fas fa-edit me-1"></i>{{ 'Update' if plan.has_truedata_key else 'Configure' }}
+            </button>
+
+            <div id="truedataConfig" style="display:none;" class="mt-3 pt-3 border-top">
+              <form method="POST" action="{{ url_for('admin.set_data_api_plan') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="plan_type" value="nse_truedata">
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold">TrueData API Key</label>
+                  <input type="password" name="truedata_api_key" class="form-control form-control-sm"
+                         placeholder="{% if plan.has_truedata_key %}•••••• (leave blank to keep){% else %}Enter TrueData API Key{% endif %}"
+                         {% if not plan.has_truedata_key %}required{% endif %}>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-semibold">TrueData API Secret (optional)</label>
+                  <input type="password" name="truedata_api_secret" class="form-control form-control-sm"
+                         placeholder="{% if plan.has_truedata_secret %}•••••• (leave blank to keep){% else %}Enter TrueData API Secret{% endif %}">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Save</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div class="card border-0 shadow-sm" style="border-radius:12px">
-    <div class="card-body p-4">
-        <h5 class="fw-bold mb-3"><i class="fas fa-info-circle text-primary me-2"></i>Data Fallback Chain</h5>
-        <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
-            <span class="badge bg-primary p-2">1. User's Data API Broker</span>
-            <i class="fas fa-arrow-right text-muted"></i>
-            <span class="badge bg-info text-dark p-2">2. Admin Primary Broker</span>
-            <i class="fas fa-arrow-right text-muted"></i>
-            <span class="badge bg-info text-dark p-2">3. Admin Secondary Broker</span>
-            {% if plan.plan_type == 'nse_truedata' %}
-            <i class="fas fa-arrow-right text-muted"></i>
-            <span class="badge bg-secondary p-2">4. TrueData API</span>
-            {% endif %}
-            <i class="fas fa-arrow-right text-muted"></i>
-            <span class="badge bg-secondary p-2">{{ 5 if plan.plan_type == 'nse_truedata' else 4 }}. NSE API</span>
-            <i class="fas fa-arrow-right text-muted"></i>
-            <span class="badge bg-warning text-dark p-2">{{ 6 if plan.plan_type == 'nse_truedata' else 5 }}. Estimated (yfinance)</span>
-        </div>
-        <div class="row">
-            <div class="col-md-6">
-                <h6 class="fw-semibold">User Data API (Default)</h6>
-                <p class="text-muted small">Each user configures their own broker from the Dashboard. Best for early stage — no platform data cost. Users who don't configure a broker get estimated data.</p>
-            </div>
-            <div class="col-md-6">
-                <h6 class="fw-semibold">NSE + TrueData</h6>
-                <p class="text-muted small">Admin enters TrueData API credentials once. All users get live data from TrueData. NSE is the final fallback. Future: when NSE approval is received, switch to direct NSE feed.</p>
-            </div>
-        </div>
-        {% if plan.updated_at %}
-        <hr>
-        <small class="text-muted">Last updated: {{ plan.updated_at.strftime('%d %b %Y, %I:%M %p') if plan.updated_at }} by {{ plan.updated_by or 'admin' }}</small>
-        {% endif %}
+<!-- ═══════════════════════════════════════════════════════════════════════
+     USER DATA ACCESS — optional per-user override
+     ═════════════════════════════════════════════════════════════════════ -->
+<div class="card border-0 shadow-sm mb-4" style="border-radius:12px; border-left:4px solid #94a3b8">
+  <div class="card-body p-4">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <h5 class="fw-bold mb-1"><i class="fas fa-user-cog text-secondary me-2"></i>User Data Access <span class="badge bg-light text-dark ms-2">Optional</span></h5>
+        <p class="text-muted mb-0" style="font-size:13px">
+          Users may optionally connect <em>their own</em> broker as a personal Data API to override the platform feed. Configured per-user from their Dashboard → Data API Broker. Not required — admin data tiers above serve everyone by default.
+        </p>
+      </div>
+      <span class="badge bg-secondary"><i class="fas fa-users me-1"></i>{{ user_data_broker_count }} user{{ 's' if user_data_broker_count != 1 else '' }} opted-in</span>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     INDEX DATA INPUT SOURCE — final fallback (NSE / yfinance / etc.)
+     ═════════════════════════════════════════════════════════════════════ -->
+{% if sources %}
+<div class="card border-0 shadow-sm mb-4" style="border-radius:12px; border-left:4px solid #6f42c1">
+  <div class="card-body p-4">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <h5 class="fw-bold mb-1"><i class="fas fa-database text-primary me-2"></i>Final Fallback — Index Data Input Source</h5>
+        <p class="text-muted mb-0" style="font-size:13px">
+          Used <em>only</em> if every admin and user broker source above fails. NSE Python (free), or custom upload.
+        </p>
+      </div>
+    </div>
+    <div class="row g-3">
+      {% for src in sources %}
+      <div class="col-lg-4">
+        <div class="card border h-100" style="border-radius:10px;{% if src.is_active %}border:2px solid #22c55e{% endif %}">
+          <div class="card-body p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <h6 class="fw-bold mb-0">{{ src.display_name }}</h6>
+              <i class="fas {{ src.icon }} fa-lg" style="color:{% if src.is_active %}#22c55e{% else %}#94a3b8{% endif %}"></i>
+            </div>
+            <span class="badge {% if src.is_active %}bg-success{% else %}bg-secondary{% endif %} mb-2">{{ 'ACTIVE' if src.is_active else 'INACTIVE' }}</span>
+            <p class="text-muted small mb-3">{{ src.description }}</p>
+            {% if not src.is_active %}
+            <form method="POST" action="{{ url_for('admin.set_data_source') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="source_key" value="{{ src.source_key }}">
+              <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check me-1"></i>Set Active</button>
+            </form>
+            {% else %}
+            <span class="btn btn-success btn-sm disabled"><i class="fas fa-check-circle me-1"></i>Currently Active</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     FALLBACK CHAIN VISUAL
+     ═════════════════════════════════════════════════════════════════════ -->
+<div class="card border-0 shadow-sm" style="border-radius:12px">
+  <div class="card-body p-4">
+    <h5 class="fw-bold mb-3"><i class="fas fa-info-circle text-primary me-2"></i>Effective Data Fallback Chain</h5>
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
+      <span class="badge bg-light text-dark p-2" style="border:1px dashed #94a3b8">0. User's own Data API <small>(optional)</small></span>
+      <i class="fas fa-arrow-right text-muted"></i>
+      <span class="badge bg-info text-dark p-2">1. Admin Primary Broker</span>
+      <i class="fas fa-arrow-right text-muted"></i>
+      <span class="badge bg-info text-dark p-2">2. Admin Secondary Broker</span>
+      <i class="fas fa-arrow-right text-muted"></i>
+      <span class="badge bg-info text-dark p-2">3. TrueData</span>
+      <i class="fas fa-arrow-right text-muted"></i>
+      <span class="badge bg-secondary p-2">4. NSE API</span>
+      <i class="fas fa-arrow-right text-muted"></i>
+      <span class="badge bg-warning text-dark p-2">5. Estimated (yfinance)</span>
+    </div>
+    <p class="text-muted small mb-0">
+      The first source that returns valid spot + chain wins. Admin sources (1–3) are always tried — users do not need to configure anything for the platform to work. The user-level optional override (0) only applies to that user if they configure it on their Dashboard.
+    </p>
+    {% if plan.updated_at %}
+    <hr>
+    <small class="text-muted">Last updated: {{ plan.updated_at.strftime('%d %b %Y, %I:%M %p') if plan.updated_at }} by {{ plan.updated_by or 'admin' }}</small>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

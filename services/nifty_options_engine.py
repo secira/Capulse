@@ -133,7 +133,7 @@ class NiftyOptionsEngine:
         try:
             from app import db
             row = db.session.execute(
-                db.text("SELECT truedata_api_key, truedata_api_secret FROM data_api_plan WHERE is_active = true AND plan_type = 'nse_truedata' LIMIT 1")
+                db.text("SELECT truedata_api_key, truedata_api_secret FROM data_api_plan WHERE is_active = true AND truedata_api_key IS NOT NULL AND truedata_api_key <> '' LIMIT 1")
             ).fetchone()
             if not row or not row[0]:
                 return None, None, None
@@ -1969,7 +1969,9 @@ class NiftyOptionsEngine:
                     broker_expiry_list = adm_expiry_list
 
         # ── Step 3: TrueData (when admin plan selects it) ────────────────────
-        if not current_chain and admin_plan == 'nse_truedata':
+        # TrueData is part of the always-on admin data tier — try it whenever an
+        # API key is configured, regardless of the legacy plan_type flag.
+        if not current_chain:
             td_spot, td_chain, td_name = self._get_truedata()
             if td_spot and td_chain:
                 data_source = f'broker:{td_name}'
