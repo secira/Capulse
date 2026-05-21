@@ -264,6 +264,8 @@ def callback_zerodha():
         kite = KiteConnect(api_key=api_key)
         data = kite.generate_session(request_token, api_secret=api_secret)
         access_token = data.get('access_token')
+        kite_user_id = data.get('user_id') or ''
+        kite_user_name = data.get('user_name') or ''
 
         if not access_token:
             raise ValueError("Empty access token returned by Zerodha")
@@ -273,12 +275,19 @@ def callback_zerodha():
             access_token=access_token,
             api_secret=api_secret,
         )
+        # Surface the Zerodha account identity in the broker_name so the UI shows
+        # "Zerodha (AB1234)" — useful when a user connects multiple brokers.
+        if kite_user_id:
+            account.broker_name = f"Zerodha ({kite_user_id})"
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
         db.session.commit()
 
-        flash('Zerodha connected successfully!', 'success')
-        logger.info(f"Zerodha connected for user {current_user.id}")
+        who = f" as {kite_user_name} ({kite_user_id})" if kite_user_id else ""
+        flash(f'Zerodha connected successfully{who}!', 'success')
+        logger.info(
+            f"Zerodha connected for user {current_user.id} — kite_user_id={kite_user_id}"
+        )
     except Exception as e:
         logger.error(f"Zerodha token exchange failed: {e}")
         flash(f'Zerodha connection failed: {str(e)}', 'error')
