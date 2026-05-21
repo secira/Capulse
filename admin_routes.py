@@ -13,8 +13,8 @@ from werkzeug.security import check_password_hash
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 from app import db
-from models import Admin, User, PricingPlan, DailyTradingSignal, ResearchList, BlogPost, ContactMessage
-from models_broker import BrokerAccount
+from models import Admin, User, PricingPlan, DailyTradingSignal, ResearchList, BlogPost, ContactMessage, ResearchCache
+from models_broker import BrokerAccount, AdminDataBroker, DataApiBroker
 
 # ── Batch I-Score Job State ──────────────────────────────────────────────────
 # Simple in-memory tracker (survives single server restart scenarios)
@@ -88,31 +88,142 @@ def logout():
 @admin_bp.route('/dashboard')
 @admin_required
 def dashboard():
-    """Admin dashboard with overview statistics"""
-    # Get statistics for dashboard
-    total_users = User.query.count()
-    active_signals = TradingSignal.query.filter_by(status='ACTIVE').count()
-    today_payments = UserPayment.query.filter(
-        func.date(UserPayment.created_at) == datetime.utcnow().date(),
+    """Admin dashboard with overview statistics for all platform features."""
+    now           = datetime.utcnow()
+    today         = now.date()
+    current_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_24h      = now - timedelta(hours=24)
+
+    # ── Core metrics ──────────────────────────────────────────────────
+    total_users     = User.query.count()
+    active_signals  = TradingSignal.query.filter_by(status='ACTIVE').count()
+    today_payments  = UserPayment.query.filter(
+        func.date(UserPayment.created_at) == today,
         UserPayment.status == 'COMPLETED'
     ).count()
-    
-    # Recent trading signals
-    recent_signals = TradingSignal.query.order_by(desc(TradingSignal.created_at)).limit(5).all()
-    
-    # Payment summary for current month
-    current_month = datetime.utcnow().replace(day=1)
     monthly_revenue = db.session.query(func.sum(UserPayment.amount)).filter(
         UserPayment.created_at >= current_month,
         UserPayment.status == 'COMPLETED'
     ).scalar() or 0
-    
-    return render_template('admin/dashboard.html',
-                         total_users=total_users,
-                         active_signals=active_signals,
-                         today_payments=today_payments,
-                         recent_signals=recent_signals,
-                         monthly_revenue=monthly_revenue)
+
+    # ── Subscription mix ──────────────────────────────────────────────
+    plan_counts = dict(
+        db.session.query(User.pricing_plan, func.count(User.id))
+        .group_by(User.pricing_plan).all()
+    )
+    plan_breakdown = {
+        'free':        plan_counts.get(PricingPlan.FREE, 0),
+        'target_plus': plan_counts.get(PricingPlan.TARGET_PLUS, 0),
+        'target_pro':  plan_counts.get(PricingPlan.TARGET_PRO, 0),
+        'hni':         plan_counts.get(PricingPlan.HNI, 0),
+    }
+
+    # 30-day trial users (FREE plan, created within last 30 days)
+    trial_cutoff = now - timedelta(days=30)
+    trial_users  = User.query.filter(
+        User.pricing_plan == PricingPlan.FREE,
+        User.created_at >= trial_cutoff,
+    ).count()
+
+    new_users_24h = User.query.filter(User.created_at >= last_24h).count()
+
+    # ── Research / I-Score ────────────────────────────────────────────
+    research_total       = ResearchList.query.filter_by(is_active=True).count()
+    research_strong_buy  = ResearchList.query.filter_by(is_active=True, recommendation='STRONG_BUY').count()
+    research_buy         = ResearchList.query.filter_by(is_active=True, recommendation='BUY').count()
+    research_sell        = ResearchList.query.filter(
+        ResearchList.is_active.is_(True),
+        ResearchList.recommendation.in_(['SELL', 'STRONG_SELL', 'CAUTIONARY_SELL'])
+    ).count()
+    iscores_cached_today = ResearchCache.query.filter(
+        ResearchCache.analysis_date == today,
+        ResearchCache.is_valid.is_(True),
+    ).count()
+
+    # ── Brokers ───────────────────────────────────────────────────────
+    connected_brokers = BrokerAccount.query.filter_by(is_active=True).count()
+    brokers_stale     = BrokerAccount.query.filter(
+        BrokerAccount.is_active.is_(True),
+        BrokerAccount.sync_status == 'failed'
+    ).count()
+    admin_data_brokers = AdminDataBroker.query.filter_by(is_active=True).count()
+    user_data_brokers  = DataApiBroker.query.count()
+
+    # ── Daily Signals (today) ─────────────────────────────────────────
+    daily_signals_today = DailyTradingSignal.query.filter(
+        func.date(DailyTradingSignal.created_at) == today
+    ).count()
+
+    # ── Engagement: contact messages, blog ────────────────────────────
+    unread_messages = ContactMessage.query.filter_by(status='UNREAD').count()
+    blog_published  = BlogPost.query.filter_by(is_published=True).count()
+    blog_drafts     = BlogPost.query.filter_by(is_published=False).count()
+
+    # ── Data API Plan mode (raw SQL — table managed outside ORM) ──────
+    data_plan_mode      = 'user_data'
+    truedata_configured = False
+    try:
+        row = db.session.execute(db.text(
+            "SELECT plan_type, truedata_api_key FROM data_api_plan "
+            "WHERE is_active = true LIMIT 1"
+        )).fetchone()
+        if row:
+            data_plan_mode      = row[0] or 'user_data'
+            truedata_configured = bool(row[1])
+    except Exception:
+        db.session.rollback()
+
+    # ── F&O monitor: signals stored in last 24h ───────────────────────
+    fno_signals_24h = 0
+    try:
+        fno_signals_24h = db.session.execute(db.text(
+            "SELECT COUNT(*) FROM fno_signal_history WHERE created_at >= :cutoff"
+        ), {'cutoff': last_24h}).scalar() or 0
+    except Exception:
+        db.session.rollback()
+
+    # ── Recents ───────────────────────────────────────────────────────
+    recent_signals = TradingSignal.query.order_by(desc(TradingSignal.created_at)).limit(5).all()
+    recent_users   = User.query.order_by(desc(User.created_at)).limit(5).all()
+    recent_msgs    = ContactMessage.query.order_by(desc(ContactMessage.created_at)).limit(5).all()
+
+    return render_template(
+        'admin/dashboard.html',
+        # core
+        total_users=total_users,
+        active_signals=active_signals,
+        today_payments=today_payments,
+        monthly_revenue=monthly_revenue,
+        # subscriptions
+        plan_breakdown=plan_breakdown,
+        trial_users=trial_users,
+        new_users_24h=new_users_24h,
+        # research
+        research_total=research_total,
+        research_strong_buy=research_strong_buy,
+        research_buy=research_buy,
+        research_sell=research_sell,
+        iscores_cached_today=iscores_cached_today,
+        # brokers
+        connected_brokers=connected_brokers,
+        brokers_stale=brokers_stale,
+        admin_data_brokers=admin_data_brokers,
+        user_data_brokers=user_data_brokers,
+        # signals
+        daily_signals_today=daily_signals_today,
+        fno_signals_24h=fno_signals_24h,
+        # engagement
+        unread_messages=unread_messages,
+        blog_published=blog_published,
+        blog_drafts=blog_drafts,
+        # config
+        data_plan_mode=data_plan_mode,
+        truedata_configured=truedata_configured,
+        # lists
+        recent_signals=recent_signals,
+        recent_users=recent_users,
+        recent_msgs=recent_msgs,
+    )
 
 @admin_bp.route('/users')
 @admin_bp.route('/users/<int:page>')

@@ -4,7 +4,7 @@
 {% block page_title %}Dashboard Overview{% endblock %}
 
 {% block content %}
-<!-- Statistics Cards -->
+<!-- ═══════════════ TOP-LEVEL KPIs ═══════════════ -->
 <div class="row mb-4">
     <div class="col-md-3">
         <div class="admin-stat-card">
@@ -12,78 +12,294 @@
                 <div>
                     <h3 class="mb-0">{{ total_users|default(0) }}</h3>
                     <p class="mb-0">Total Users</p>
+                    <small class="text-white-50">+{{ new_users_24h|default(0) }} in 24h</small>
                 </div>
                 <i class="fas fa-users fa-2x"></i>
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-3">
         <div class="admin-stat-card success">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h3 class="mb-0">{{ active_signals|default(0) }}</h3>
                     <p class="mb-0">Active Signals</p>
+                    <small class="text-white-50">{{ daily_signals_today|default(0) }} created today</small>
                 </div>
                 <i class="fas fa-chart-line fa-2x"></i>
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-3">
         <div class="admin-stat-card warning">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h3 class="mb-0">{{ today_payments|default(0) }}</h3>
                     <p class="mb-0">Today's Payments</p>
+                    <small class="text-white-50">Monthly: ₹{{ "{:,.0f}".format(monthly_revenue|default(0)) }}</small>
                 </div>
                 <i class="fas fa-credit-card fa-2x"></i>
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-3">
         <div class="admin-stat-card danger">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h3 class="mb-0">₹{{ "{:,.0f}".format(monthly_revenue|default(0)) }}</h3>
-                    <p class="mb-0">Monthly Revenue</p>
+                    <h3 class="mb-0">{{ connected_brokers|default(0) }}</h3>
+                    <p class="mb-0">Connected Brokers</p>
+                    {% if brokers_stale and brokers_stale > 0 %}
+                        <small class="text-white-50"><i class="fas fa-exclamation-triangle"></i> {{ brokers_stale }} sync failed</small>
+                    {% else %}
+                        <small class="text-white-50">All sync healthy</small>
+                    {% endif %}
                 </div>
-                <i class="fas fa-rupee-sign fa-2x"></i>
+                <i class="fas fa-plug fa-2x"></i>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Quick Actions -->
+<!-- ═══════════════ FEATURE-MODULE STATS ═══════════════ -->
+<div class="row mb-4">
+    <!-- I-Score / Research -->
+    <div class="col-md-6 col-lg-4 mb-3">
+        <div class="card admin-card h-100">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-microscope me-2"></i>Research & I-Score</h6>
+                <a href="{{ url_for('admin.research_list') }}" class="btn btn-sm btn-outline-light">Open</a>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Stocks tracked</span>
+                    <strong>{{ research_total|default(0) }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-success"><i class="fas fa-arrow-up"></i> Strong Buy</span>
+                    <strong>{{ research_strong_buy|default(0) }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-primary">Buy</span>
+                    <strong>{{ research_buy|default(0) }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-danger"><i class="fas fa-arrow-down"></i> Sell / Cautionary</span>
+                    <strong>{{ research_sell|default(0) }}</strong>
+                </div>
+                <hr class="my-2">
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted small">I-Scores cached today</span>
+                    <span class="badge bg-info">{{ iscores_cached_today|default(0) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subscription Mix -->
+    <div class="col-md-6 col-lg-4 mb-3">
+        <div class="card admin-card h-100">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-layer-group me-2"></i>Subscription Mix</h6>
+                <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-light">Users</a>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span><span class="badge bg-secondary me-1">Starter</span> Free</span>
+                    <strong>{{ plan_breakdown.free|default(0) }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span><span class="badge bg-info me-1">Growth</span> Target+</span>
+                    <strong>{{ plan_breakdown.target_plus|default(0) }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span><span class="badge bg-primary me-1">Pro</span> Target Pro</span>
+                    <strong>{{ plan_breakdown.target_pro|default(0) }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span><span class="badge bg-warning text-dark me-1">Elite</span> HNI</span>
+                    <strong>{{ plan_breakdown.hni|default(0) }}</strong>
+                </div>
+                <hr class="my-2">
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted small">In 30-day trial</span>
+                    <span class="badge bg-success">{{ trial_users|default(0) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Sources / API Plan -->
+    <div class="col-md-6 col-lg-4 mb-3">
+        <div class="card admin-card h-100">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-satellite-dish me-2"></i>Data API Plan</h6>
+                <a href="{{ url_for('admin.data_api_plan') }}" class="btn btn-sm btn-outline-light">Configure</a>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <span class="text-muted small">Active Mode</span><br>
+                    {% if data_plan_mode == 'nse_truedata' %}
+                        <span class="badge bg-success">NSE + TrueData (admin)</span>
+                    {% else %}
+                        <span class="badge bg-info">User Data API</span>
+                    {% endif %}
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted small">TrueData key</span>
+                    {% if truedata_configured %}
+                        <span class="badge bg-success"><i class="fas fa-check"></i> Configured</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Not set</span>
+                    {% endif %}
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted small">Admin data brokers (Tier 1/2)</span>
+                    <strong>{{ admin_data_brokers|default(0) }}</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted small">User data brokers</span>
+                    <strong>{{ user_data_brokers|default(0) }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- F&O Monitor -->
+    <div class="col-md-6 col-lg-4 mb-3">
+        <div class="card admin-card h-100">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-rocket me-2"></i>F&amp;O Continuous Monitor</h6>
+                <a href="{{ url_for('admin.execution_engine') }}" class="btn btn-sm btn-outline-light">Engine</a>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Status</span>
+                    <span class="badge bg-success"><i class="fas fa-circle"></i> Scanning</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Scan interval</span>
+                    <strong>60 s</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Signals (24h)</span>
+                    <span class="badge bg-info">{{ fno_signals_24h|default(0) }}</span>
+                </div>
+                <hr class="my-2">
+                <small class="text-muted">
+                    Auto-alerts (Telegram) for confidence &gt; 75, max 3/day per direction.
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Engagement -->
+    <div class="col-md-6 col-lg-4 mb-3">
+        <div class="card admin-card h-100">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-bullhorn me-2"></i>Engagement</h6>
+                <a href="{{ url_for('admin.contact_messages') }}" class="btn btn-sm btn-outline-light">Messages</a>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted"><i class="fas fa-envelope me-1"></i> Unread messages</span>
+                    {% if unread_messages and unread_messages > 0 %}
+                        <span class="badge bg-danger">{{ unread_messages }}</span>
+                    {% else %}
+                        <span class="badge bg-success">0</span>
+                    {% endif %}
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted"><i class="fas fa-blog me-1"></i> Blog posts published</span>
+                    <strong>{{ blog_published|default(0) }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Drafts</span>
+                    <strong>{{ blog_drafts|default(0) }}</strong>
+                </div>
+                <hr class="my-2">
+                <a href="{{ url_for('admin.blog_list') }}" class="btn btn-sm btn-outline-secondary me-1">Blog</a>
+                <a href="{{ url_for('admin.telegram_messenger') }}" class="btn btn-sm btn-outline-info">Telegram</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Research Config / Partner API -->
+    <div class="col-md-6 col-lg-4 mb-3">
+        <div class="card admin-card h-100">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Platform Config</h6>
+            </div>
+            <div class="card-body">
+                <a href="{{ url_for('admin.research_config') }}" class="d-block text-decoration-none mb-2">
+                    <i class="fas fa-brain text-primary me-2"></i>I-Score Weights &amp; Thresholds
+                </a>
+                <a href="{{ url_for('admin.partner_api') }}" class="d-block text-decoration-none mb-2">
+                    <i class="fas fa-code text-success me-2"></i>Partner API (B2B)
+                </a>
+                <a href="{{ url_for('admin.alert_schedules') }}" class="d-block text-decoration-none mb-2">
+                    <i class="fas fa-clock text-warning me-2"></i>Alert Schedules
+                </a>
+                <a href="{{ url_for('admin.branding') }}" class="d-block text-decoration-none mb-2">
+                    <i class="fas fa-building text-info me-2"></i>Branding
+                </a>
+                <a href="{{ url_for('admin.account_handling') }}" class="d-block text-decoration-none">
+                    <i class="fas fa-user-cog text-secondary me-2"></i>Account Handling
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════ QUICK ACTIONS ═══════════════ -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card admin-card">
             <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-bolt me-2"></i>Quick Actions
-                </h5>
+                <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3">
-                        <a href="{{ url_for('admin.add_daily_signal') }}" class="btn btn-success admin-btn w-100 mb-2">
+                <div class="row g-2">
+                    <div class="col-md-3 col-6">
+                        <a href="{{ url_for('admin.add_daily_signal') }}" class="btn btn-success admin-btn w-100">
                             <i class="fas fa-plus me-2"></i>Add Trading Signal
                         </a>
                     </div>
-                    <div class="col-md-3">
-                        <a href="{{ url_for('admin.daily_signals') }}" class="btn btn-info admin-btn w-100 mb-2">
+                    <div class="col-md-3 col-6">
+                        <a href="{{ url_for('admin.daily_signals') }}" class="btn btn-info admin-btn w-100">
                             <i class="fas fa-chart-line me-2"></i>Manage Signals
                         </a>
                     </div>
-                    <div class="col-md-3">
-                        <a href="{{ url_for('admin.users') }}" class="btn btn-warning admin-btn w-100 mb-2">
+                    <div class="col-md-3 col-6">
+                        <a href="{{ url_for('admin.research_list') }}" class="btn btn-dark admin-btn w-100">
+                            <i class="fas fa-microscope me-2"></i>Research List
+                        </a>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <a href="{{ url_for('admin.data_api_plan') }}" class="btn btn-warning admin-btn w-100">
+                            <i class="fas fa-satellite-dish me-2"></i>Data API Plan
+                        </a>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <a href="{{ url_for('admin.execution_engine') }}" class="btn btn-danger admin-btn w-100">
+                            <i class="fas fa-rocket me-2"></i>Execution Engine
+                        </a>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <a href="{{ url_for('admin.users') }}" class="btn btn-secondary admin-btn w-100">
                             <i class="fas fa-users me-2"></i>User Management
                         </a>
                     </div>
-                    <div class="col-md-3">
-                        <a href="{{ url_for('admin.payments') }}" class="btn btn-secondary admin-btn w-100 mb-2">
-                            <i class="fas fa-credit-card me-2"></i>View Payments
+                    <div class="col-md-3 col-6">
+                        <a href="{{ url_for('admin.payments') }}" class="btn btn-primary admin-btn w-100">
+                            <i class="fas fa-credit-card me-2"></i>Payments
+                        </a>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <a href="{{ url_for('admin.research_config') }}" class="btn btn-outline-primary admin-btn w-100">
+                            <i class="fas fa-brain me-2"></i>I-Score Config
                         </a>
                     </div>
                 </div>
@@ -92,14 +308,13 @@
     </div>
 </div>
 
-<!-- Recent Trading Signals -->
+<!-- ═══════════════ RECENT ACTIVITY ═══════════════ -->
 <div class="row">
+    <!-- Recent Trading Signals -->
     <div class="col-md-8">
         <div class="card admin-card">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="fas fa-chart-line me-2"></i>Recent Trading Signals
-                </h5>
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Recent Trading Signals</h5>
                 <a href="{{ url_for('admin.daily_signals') }}" class="btn btn-sm btn-light">View All</a>
             </div>
             <div class="card-body">
@@ -111,7 +326,7 @@
                                     <th>Symbol</th>
                                     <th>Type</th>
                                     <th>Action</th>
-                                    <th>Entry Price</th>
+                                    <th>Entry</th>
                                     <th>Target</th>
                                     <th>Status</th>
                                     <th>Created</th>
@@ -126,38 +341,12 @@
                                             <br><small class="text-muted">{{ signal.company_name }}</small>
                                         {% endif %}
                                     </td>
-                                    <td>
-                                        <span class="signal-type-badge bg-info text-white">
-                                            {{ signal.signal_type.title() }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="signal-type-badge action-{{ signal.action.lower() }}">
-                                            {{ signal.action }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        {% if signal.entry_price %}
-                                            ₹{{ "{:.2f}".format(signal.entry_price) }}
-                                        {% else %}
-                                            -
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if signal.target_price %}
-                                            ₹{{ "{:.2f}".format(signal.target_price) }}
-                                        {% else %}
-                                            -
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-{{ 'success' if signal.status == 'ACTIVE' else 'secondary' }}">
-                                            {{ signal.status }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <small>{{ signal.created_at.strftime('%m/%d %H:%M') }}</small>
-                                    </td>
+                                    <td><span class="signal-type-badge bg-info text-white">{{ signal.signal_type.title() }}</span></td>
+                                    <td><span class="signal-type-badge action-{{ signal.action.lower() }}">{{ signal.action }}</span></td>
+                                    <td>{% if signal.entry_price %}₹{{ "{:.2f}".format(signal.entry_price) }}{% else %}-{% endif %}</td>
+                                    <td>{% if signal.target_price %}₹{{ "{:.2f}".format(signal.target_price) }}{% else %}-{% endif %}</td>
+                                    <td><span class="badge bg-{{ 'success' if signal.status == 'ACTIVE' else 'secondary' }}">{{ signal.status }}</span></td>
+                                    <td><small>{{ signal.created_at.strftime('%m/%d %H:%M') }}</small></td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -175,50 +364,61 @@
             </div>
         </div>
     </div>
-    
-    <!-- System Information -->
+
+    <!-- Right Column: Recent Users + Recent Messages -->
     <div class="col-md-4">
-        <div class="card admin-card">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-info-circle me-2"></i>System Information
-                </h5>
+        <div class="card admin-card mb-3">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-user-plus me-2"></i>Recent Users</h6>
+                <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-light">All</a>
             </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <h6 class="text-muted">System Status</h6>
-                    <span class="badge bg-success">
-                        <i class="fas fa-check-circle me-1"></i>All Systems Operational
-                    </span>
-                </div>
-                
-                <div class="mb-3">
-                    <h6 class="text-muted">Last Signal Created</h6>
-                    {% if recent_signals %}
-                        <small>{{ recent_signals[0].created_at.strftime('%B %d, %Y at %I:%M %p') }}</small>
-                    {% else %}
-                        <small>No signals created yet</small>
-                    {% endif %}
-                </div>
-                
-                <div class="mb-3">
-                    <h6 class="text-muted">Admin Actions</h6>
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-outline-primary btn-sm admin-btn" onclick="refreshDashboard()">
-                            <i class="fas fa-sync-alt me-1"></i>Refresh Data
-                        </button>
-                        <button class="btn btn-outline-info btn-sm admin-btn" onclick="exportData()">
-                            <i class="fas fa-download me-1"></i>Export Reports
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="alert alert-info">
-                    <small>
-                        <i class="fas fa-lightbulb me-1"></i>
-                        <strong>Tip:</strong> Use the Quick Actions above to manage trading signals efficiently.
-                    </small>
-                </div>
+            <div class="card-body p-0">
+                {% if recent_users %}
+                    <ul class="list-group list-group-flush">
+                        {% for u in recent_users %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                            <div>
+                                <a href="{{ url_for('admin.user_detail', user_id=u.id) }}" class="text-decoration-none">
+                                    <strong>{{ u.email }}</strong>
+                                </a><br>
+                                <small class="text-muted">{{ u.created_at.strftime('%b %d, %Y') }}</small>
+                            </div>
+                            <span class="badge bg-secondary">
+                                {{ u.pricing_plan.value if u.pricing_plan and u.pricing_plan.value else 'free' }}
+                            </span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="p-3 text-center text-muted"><small>No users yet.</small></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card admin-card">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-envelope me-2"></i>Recent Messages</h6>
+                <a href="{{ url_for('admin.contact_messages') }}" class="btn btn-sm btn-light">All</a>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_msgs %}
+                    <ul class="list-group list-group-flush">
+                        {% for m in recent_msgs %}
+                        <li class="list-group-item py-2">
+                            <a href="{{ url_for('admin.view_contact_message', message_id=m.id) }}" class="text-decoration-none">
+                                <strong>{{ m.name or m.email }}</strong>
+                            </a>
+                            {% if m.status == 'UNREAD' %}
+                                <span class="badge bg-danger ms-1">New</span>
+                            {% endif %}
+                            <br>
+                            <small class="text-muted">{{ (m.subject or m.message or '')[:60] }}{% if (m.subject or m.message or '')|length > 60 %}…{% endif %}</small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="p-3 text-center text-muted"><small>No messages yet.</small></div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -227,26 +427,16 @@
 
 {% block scripts %}
 <script>
-function refreshDashboard() {
-    location.reload();
-}
+function refreshDashboard() { location.reload(); }
 
-function exportData() {
-    // TODO: Implement data export functionality
-    alert('Data export functionality will be implemented soon.');
-}
-
-// Auto-refresh dashboard every 5 minutes
+// Light background refresh every 5 min — only counts updates, not full reload
 setInterval(function() {
-    // Only refresh if user is active (to avoid disrupting work)
     if (document.hasFocus()) {
         fetch('{{ url_for("admin.api_signals_today") }}')
-            .then(response => response.json())
-            .then(data => {
-                console.log('Dashboard data refreshed:', data.length + ' signals today');
-            })
-            .catch(error => console.error('Error refreshing dashboard:', error));
+            .then(r => r.json())
+            .then(d => console.log('Dashboard ping:', (d && d.length) || 0, 'signals today'))
+            .catch(e => console.error('Dashboard ping error:', e));
     }
-}, 300000); // 5 minutes
+}, 300000);
 </script>
 {% endblock %}
