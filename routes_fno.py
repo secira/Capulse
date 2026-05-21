@@ -249,6 +249,27 @@ def fno_signal_history():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@fno_bp.route('/premarket')
+@login_required
+@paid_plan_required
+def fno_premarket():
+    from services.premarket_report import build_premarket_report
+    try:
+        report = build_premarket_report()
+    except Exception as e:
+        logger.error(f"premarket page build failed: {e}", exc_info=True)
+        report = {'generated_at_ist': '', 'indices': []}
+    resp = make_response(render_template(
+        'dashboard/fno_premarket.html',
+        fno_active_tab='premarket',
+        report=report,
+    ))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
+
+
 @fno_bp.route('/pnl-analysis')
 @login_required
 @paid_plan_required

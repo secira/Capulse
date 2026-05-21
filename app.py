@@ -665,6 +665,9 @@ with app.app_context():
            VALUES ('top10_digest', 'Top 10 Stocks to Buy', 'Daily Telegram digest of the highest-rated I-Score BUY stocks with entry, target, stop-loss and hold duration.', 8, 30, 10)
            ON CONFLICT (schedule_key) DO NOTHING''',
         '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)
+           VALUES ('premarket_report', 'Pre-Market Report', 'Pre-market levels report at 9:00 AM IST with 4 actionable intraday levels (Long Breakout, Long Reversal, Short Breakdown, Short Reversal) for NIFTY 50, BANK NIFTY, FIN NIFTY and SENSEX. 5-min candle close on the trigger.', 9, 0, 5)
+           ON CONFLICT (schedule_key) DO NOTHING''',
+        '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)
            VALUES ('snapshot_opening', 'Market Intelligence — Opening Read', 'Snapshot of NIFTY 50, BANK NIFTY, FIN NIFTY and SENSEX with prev close, open, support, resistance, PCR and direction.', 9, 20, 20)
            ON CONFLICT (schedule_key) DO NOTHING''',
         '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)

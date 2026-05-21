@@ -50,8 +50,14 @@ def _fire_market_snapshot(slot: str):
     return send_market_snapshot(slot=slot)
 
 
+def _fire_premarket_report():
+    from services.premarket_report import send_premarket_report
+    return send_premarket_report()
+
+
 SCHEDULE_REGISTRY = {
     'top10_digest':        lambda: _fire_top10_digest(),
+    'premarket_report':    lambda: _fire_premarket_report(),
     'snapshot_opening':    lambda: _fire_market_snapshot('opening'),
     'snapshot_midsession': lambda: _fire_market_snapshot('midsession'),
     'snapshot_preclose':   lambda: _fire_market_snapshot('preclose'),
