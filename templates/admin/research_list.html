@@ -24,6 +24,20 @@
     </div>
 </div>
 
+<!-- Nightly Scheduler Status Panel -->
+<div class="alert alert-secondary border mb-4" id="nightlyPanel">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <strong><i class="fas fa-moon me-2"></i>Nightly Auto-Run</strong>
+            <span class="text-muted ms-2" id="nightlyStatusText">Loading…</span>
+        </div>
+        <button class="btn btn-sm btn-outline-primary" id="nightlyRunNowBtn" onclick="runNightlyNow()">
+            <i class="fas fa-bolt me-1"></i>Run Nightly Job Now
+        </button>
+    </div>
+    <small class="text-muted d-block mt-1" id="nightlyMetaText"></small>
+</div>
+
 <!-- Batch I-Score Progress Panel -->
 <div id="batchProgressPanel" style="display:none;" class="alert alert-info border mb-4">
     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -385,6 +399,58 @@ function showDetails(stockId) {
             content.innerHTML = '<div class="text-center text-danger py-4"><i class="fas fa-exclamation-triangle fa-3x mb-3"></i><p>Error loading details</p></div>';
         });
 }
+
+// ── Nightly Scheduler Status ──────────────────────────────────────────────────
+function _fmtIst(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true }); }
+    catch (e) { return iso; }
+}
+function refreshNightlyStatus() {
+    fetch('/admin/research-list/nightly-status')
+        .then(r => r.json())
+        .then(d => {
+            if (!d.success) {
+                document.getElementById('nightlyStatusText').textContent = 'Scheduler unavailable';
+                return;
+            }
+            const running = d.currently_running;
+            const started = d.scheduler_started;
+            let badge;
+            if (running) {
+                badge = '<span class="badge bg-info">Running now</span>';
+            } else if (started) {
+                badge = '<span class="badge bg-success">Active</span>';
+            } else {
+                badge = '<span class="badge bg-secondary">Inactive on this worker</span>';
+            }
+            const last = d.last_run_finished
+                ? `Last run: ${_fmtIst(d.last_run_finished)} — ${d.last_run_status} (${d.last_run_success}✓ / ${d.last_run_errors}✗ of ${d.last_run_total})`
+                : 'Last run: never';
+            const next = d.next_run ? `Next run: ${_fmtIst(d.next_run)}` : 'Next run: —';
+            document.getElementById('nightlyStatusText').innerHTML = `${badge} &nbsp; ${next}`;
+            document.getElementById('nightlyMetaText').textContent = last + '  •  Runs daily at 02:00 IST';
+            document.getElementById('nightlyRunNowBtn').disabled = running;
+        })
+        .catch(() => {
+            document.getElementById('nightlyStatusText').textContent = 'Status check failed';
+        });
+}
+function runNightlyNow() {
+    if (!confirm('Trigger the nightly batch right now? It runs in the background — you can leave this page.')) return;
+    document.getElementById('nightlyRunNowBtn').disabled = true;
+    fetch('/admin/research-list/nightly-run-now', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+            alert(d.message || (d.success ? 'Started' : 'Failed'));
+            setTimeout(refreshNightlyStatus, 1500);
+        })
+        .catch(e => alert('Network error: ' + e));
+}
+document.addEventListener('DOMContentLoaded', function() {
+    refreshNightlyStatus();
+    setInterval(refreshNightlyStatus, 15000);   // refresh every 15 s
+});
 
 // ── Batch I-Score ─────────────────────────────────────────────────────────────
 let _batchJobId = null;

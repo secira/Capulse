@@ -435,6 +435,32 @@ def batch_iscore_status():
     })
 
 
+@admin_bp.route('/research-list/nightly-status', methods=['GET'])
+@admin_required
+def research_nightly_status():
+    """Return current state of the nightly I-Score scheduler."""
+    try:
+        from services.iscore_nightly_scheduler import get_status
+        return jsonify({'success': True, **get_status()})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@admin_bp.route('/research-list/nightly-run-now', methods=['POST'])
+@admin_required
+def research_nightly_run_now():
+    """Manually trigger the nightly batch (admin convenience)."""
+    try:
+        from app import app as flask_app
+        from services.iscore_nightly_scheduler import trigger_now
+        result = trigger_now(flask_app)
+        if result == 'already_running':
+            return jsonify({'success': False, 'message': 'Nightly job already running.'})
+        return jsonify({'success': True, 'message': 'Nightly batch started in background.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
 @admin_bp.route('/research-list/<int:stock_id>/details')
 @admin_required
 def research_stock_details(stock_id):

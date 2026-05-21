@@ -764,6 +764,14 @@ if not os.environ.get("SKIP_SCHEDULER"):
     except Exception as e:
         logging.warning(f"I-Score partner scheduler not started: {e}")
 
+    # Nightly batch — runs Pending I-Scores at 02:00 IST so morning users
+    # see fresh data. Singleton via Postgres advisory lock.
+    try:
+        from services.iscore_nightly_scheduler import start_scheduler as start_iscore_nightly
+        start_iscore_nightly(app)
+    except Exception as e:
+        logging.warning(f"I-Score nightly scheduler not started: {e}")
+
 
 # WebSocket Server Management
 websocket_threads = []
