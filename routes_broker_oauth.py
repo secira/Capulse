@@ -210,6 +210,78 @@ def broker_connect():
 @broker_oauth.route('/broker/auth/zerodha', methods=['POST'])
 @login_required
 def auth_zerodha():
+    """Two connect modes for Zerodha:
+      1) Direct Token (recommended) — user pastes api_key + access_token directly,
+         we validate against Kite, save it, done. Works exactly like Dhan.
+      2) OAuth Redirect — user pastes api_key + api_secret, we redirect to
+         kite.zerodha.com which redirects back to /broker/callback/zerodha.
+    The form's "Direct Token" tab uses *_direct field names so we can tell them
+    apart without a hidden mode switch.
+    """
+    # ── Mode 1: Direct Token (Dhan-style: paste credentials → save) ──────────
+    direct_api_key      = (request.form.get('api_key_direct') or '').strip()
+    direct_access_token = (request.form.get('access_token_direct') or '').strip()
+    direct_api_secret   = (request.form.get('api_secret_direct') or '').strip()
+
+    if direct_access_token:
+        # Fall back to stored values for any blank fields
+        merged = _merge_with_stored(
+            'zerodha',
+            api_key=direct_api_key,
+            api_secret=direct_api_secret,
+            access_token=direct_access_token,
+        )
+        api_key = merged['api_key']
+        access_token = merged['access_token']
+        api_secret = merged['api_secret']  # optional
+        if not api_key or not access_token:
+            flash('Direct Token mode needs both API Key and Access Token.', 'error')
+            return redirect(url_for('broker_oauth.broker_connect'))
+
+        limit_err = _check_broker_plan_limit('zerodha')
+        if limit_err:
+            flash(limit_err, 'error')
+            return redirect(url_for('broker_oauth.broker_connect'))
+
+        # Live-validate against Kite (and capture user_id) before saving as CONNECTED
+        try:
+            from kiteconnect import KiteConnect
+            kite = KiteConnect(api_key=api_key)
+            kite.set_access_token(access_token)
+            profile = kite.profile()
+            kite_user_id = profile.get('user_id') or ''
+            kite_user_name = profile.get('user_name') or ''
+        except Exception as e:
+            logger.error(f"Zerodha direct-token validation failed for user {current_user.id}: {e}")
+            flash(
+                f'Zerodha rejected those credentials: {e}. '
+                'Make sure the access_token was generated today (they expire ~06:00 IST).',
+                'error',
+            )
+            return redirect(url_for('broker_oauth.broker_connect'))
+
+        # All good — upsert + mark connected
+        account = _save_pending_account('zerodha', api_key, api_secret or '')
+        account.set_credentials(
+            client_id=api_key,
+            access_token=access_token,
+            api_secret=api_secret or '',
+        )
+        if kite_user_id:
+            account.broker_name = f"Zerodha ({kite_user_id})"
+        account.connection_status = ConnectionStatus.CONNECTED.value
+        account.last_connected = datetime.utcnow()
+        db.session.commit()
+
+        who = f" as {kite_user_name} ({kite_user_id})" if kite_user_id else ""
+        flash(f'Zerodha connected successfully{who}!', 'success')
+        logger.info(
+            f"Zerodha direct-token connected for user {current_user.id} — "
+            f"kite_user_id={kite_user_id}"
+        )
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    # ── Mode 2: OAuth redirect (original flow) ───────────────────────────────
     merged = _merge_with_stored(
         'zerodha',
         api_key=request.form.get('api_key', ''),
