@@ -2067,7 +2067,8 @@ def test_admin_data_broker():
         if not broker.connect():
             row.connection_status = 'failed'
             db.session.commit()
-            flash(f'❌ {label}: connect() failed — check API key / access token.', 'error')
+            detail = getattr(broker, 'last_error', '') or 'check API key / access token.'
+            flash(f'❌ {label}: connect() failed — {detail}', 'error')
             return redirect(url_for('admin.data_api_plan'))
 
         # Connect OK — now try a real data pull

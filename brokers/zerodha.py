@@ -23,6 +23,7 @@ class ZerodhaBroker(BrokerBase):
         self.api_key = credentials.get("client_id", credentials.get("api_key", ""))
         self.access_token = credentials.get("access_token", "")
         self.base_url = "https://api.kite.trade"
+        self.last_error: str = ""
         self._update_headers()
 
     def _update_headers(self):
@@ -34,14 +35,43 @@ class ZerodhaBroker(BrokerBase):
         self.session.headers.update(self.headers)
 
     def connect(self) -> bool:
+        self.last_error = ""
+        if not self.api_key:
+            self.last_error = "Missing API key (client_id)."
+            logger.warning(f"Zerodha connect failed: {self.last_error}")
+            return False
+        if not self.access_token:
+            self.last_error = (
+                "Missing access_token. Zerodha access tokens are valid only until ~06:00 IST "
+                "the next day — generate a fresh one via Kite Connect login."
+            )
+            logger.warning(f"Zerodha connect failed: {self.last_error}")
+            return False
         try:
             resp = self.session.get(f"{self.base_url}/user/profile", timeout=10)
             if resp.status_code == 200:
                 self._connected = True
                 return True
-            logger.warning(f"Zerodha connect failed: {resp.status_code} — token may have expired (valid 1 day only)")
+            # Try to surface Kite's structured error
+            try:
+                body = resp.json()
+                err_type = body.get("error_type", "")
+                err_msg = body.get("message", "")
+            except Exception:
+                err_type, err_msg = "", (resp.text or "")[:200]
+
+            hint = ""
+            if resp.status_code in (401, 403) or err_type in ("TokenException", "InputException"):
+                hint = " Zerodha access tokens expire daily (~06:00 IST). Regenerate via Kite Connect login."
+            self.last_error = (
+                f"HTTP {resp.status_code}"
+                f"{' ' + err_type if err_type else ''}"
+                f"{': ' + err_msg if err_msg else ''}.{hint}"
+            )
+            logger.warning(f"Zerodha connect failed: {self.last_error}")
             return False
         except Exception as e:
+            self.last_error = f"Network/exception: {e}"
             logger.error(f"Zerodha connect error: {e}")
             return False
 
