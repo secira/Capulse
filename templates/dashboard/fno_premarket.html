@@ -1,8 +1,10 @@
 {% extends "dashboard/dashboard_base.html" %}
 
-{% block title %}Pre-Market Levels · Target Capital{% endblock %}
+{% block title %}Pre-Market Levels — F&O Engine | Target Capital{% endblock %}
+{% block dashboard_title %}Pre-Market Levels{% endblock %}
+{% block dashboard_subtitle %}4 actionable intraday levels per index — gated on 5-min candle close{% endblock %}
 
-{% block content %}
+{% block dashboard_content %}
 <style>
   .pm-wrap   { max-width: 1280px; margin: 0 auto; padding: 18px; }
   .pm-head   { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:18px; }
