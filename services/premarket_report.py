@@ -57,15 +57,33 @@ def _classic_pivots(prev_h: float, prev_l: float, prev_c: float) -> dict:
 
 
 def _fetch_prev_day_ohlc(yf_ticker: str) -> dict:
-    """Fetch yesterday's daily H/L/C via yfinance. Returns {} on failure."""
+    """Fetch the last *fully-closed* daily H/L/C via yfinance.
+
+    Railway-safe:
+      • Explicitly drops any row dated today-IST so a mid-day "Send Now"
+        never picks up the in-progress daily candle.
+      • All failures (network, rate-limit, empty frame) return ``{}`` and
+        the caller falls back to pivot-only mode.
+    """
     try:
         import yfinance as yf
-        hist = yf.Ticker(yf_ticker).history(period='7d', interval='1d')
+        hist = yf.Ticker(yf_ticker).history(period='10d', interval='1d')
         if hist is None or hist.empty:
             return {}
-        # Use the most recent fully-closed session (yesterday).
-        # If today's row exists (mid-session call), drop it.
-        last = hist.iloc[-1]
+
+        # Drop today's (possibly partial) row — compare in IST so it's
+        # robust regardless of the Railway container's local timezone.
+        today_ist = datetime.now(IST).date()
+        try:
+            idx_dates = [d.date() if hasattr(d, 'date') else d for d in hist.index]
+            closed_rows = [row for row, d in zip(hist.iloc, idx_dates) if d < today_ist]
+        except Exception:
+            closed_rows = list(hist.iloc)[:-1] or list(hist.iloc)
+
+        if not closed_rows:
+            return {}
+
+        last = closed_rows[-1]
         return {
             'high':  float(last['High']),
             'low':   float(last['Low']),
@@ -94,8 +112,14 @@ def _nearest_below(values: list[float], reference: float) -> float | None:
 
 # ───────────────────────── per-index computation ───────────────────────
 
-def _build_index_levels(index_code: str) -> dict:
-    """Return a structured dict of 4 levels for one index. Never raises."""
+def _build_index_levels(index_code: str, quotes: dict | None = None) -> dict:
+    """Return a structured dict of 4 levels for one index. Never raises.
+
+    ``quotes`` is the result of a single ``get_index_quotes()`` call shared
+    across all four indices — passing it in avoids 4× broker resolution on
+    every report build (important on Railway where each Dhan call adds
+    network latency and a failure surface).
+    """
     from services.dhan_service import get_index_quotes, get_option_chain
     from services.nifty_options_engine import NiftyOptionsEngine, INDEX_CONFIGS
 
@@ -120,12 +144,13 @@ def _build_index_levels(index_code: str) -> dict:
         'short_reversal': {'trigger': None, 'target': None, 'source': '—'},
     }
 
-    # 1) Spot + today's open + prev close from Dhan
-    try:
-        quotes = get_index_quotes()
-    except Exception as e:
-        logger.warning(f"premarket: get_index_quotes failed: {e}")
-        quotes = {}
+    # 1) Spot + today's open + prev close from Dhan (shared call when batched)
+    if quotes is None:
+        try:
+            quotes = get_index_quotes()
+        except Exception as e:
+            logger.warning(f"premarket: get_index_quotes failed: {e}")
+            quotes = {}
     q = quotes.get(index_code, {}) if isinstance(quotes, dict) else {}
     ltp        = float(q.get('ltp')   or 0)
     today_open = float(q.get('open')  or 0)
@@ -237,10 +262,18 @@ def _build_index_levels(index_code: str) -> dict:
 
 def build_premarket_report() -> dict:
     """Return {generated_at_ist, indices: [ {label, short_label, levels...}, ... ]}"""
+    # One shared quotes fetch for all 4 indices — Railway-friendly.
+    from services.dhan_service import get_index_quotes
+    try:
+        quotes = get_index_quotes() or {}
+    except Exception as e:
+        logger.warning(f"premarket: shared get_index_quotes failed: {e}")
+        quotes = {}
+
     items = []
     for code, label, short in INDICES:
         try:
-            data = _build_index_levels(code)
+            data = _build_index_levels(code, quotes=quotes)
         except Exception as e:
             logger.error(f"premarket: build_index_levels failed for {code}: {e}", exc_info=True)
             data = {'index_code': code}
