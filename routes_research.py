@@ -604,11 +604,18 @@ def api_research_cached(symbol):
                 db.session.commit()
             except Exception:
                 db.session.rollback()
+            payload = dict(cached.result_payload) if isinstance(cached.result_payload, dict) else cached.result_payload
+            cached_at_iso = cached.computed_at.isoformat() if cached.computed_at else None
+            if isinstance(payload, dict):
+                md = dict(payload.get('market_data') or {})
+                if not md.get('timestamp') and cached_at_iso:
+                    md['timestamp'] = cached_at_iso
+                    payload['market_data'] = md
             return jsonify({
                 'success': True,
                 'cached': True,
-                'cached_at': cached.computed_at.isoformat() if cached.computed_at else None,
-                'result': cached.result_payload,
+                'cached_at': cached_at_iso,
+                'result': payload,
             })
 
         # ── 2. ResearchList master entry (any vintage) ────────────────────────
