@@ -634,6 +634,7 @@ def api_research_cached(symbol):
                     'current_price':  float(rl.current_price) if rl.current_price else None,
                     'previous_close': float(rl.previous_close) if rl.previous_close else None,
                     'change_pct':     float(rl.price_change_pct) if rl.price_change_pct else None,
+                    'timestamp':      computed_at.isoformat() if computed_at else None,
                 },
                 'data_source': rl.hist_data_source or '',
                 '_from_cache': True,
