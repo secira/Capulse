@@ -155,9 +155,9 @@ def dashboard():
     ).count()
 
     # ── Engagement: contact messages, blog ────────────────────────────
-    unread_messages = ContactMessage.query.filter_by(status='UNREAD').count()
-    blog_published  = BlogPost.query.filter_by(is_published=True).count()
-    blog_drafts     = BlogPost.query.filter_by(is_published=False).count()
+    unread_messages = ContactMessage.query.filter_by(status='new').count()
+    blog_published  = BlogPost.query.filter_by(status='published').count()
+    blog_drafts     = BlogPost.query.filter(BlogPost.status != 'published').count()
 
     # ── Data API Plan mode (raw SQL — table managed outside ORM) ──────
     data_plan_mode      = 'user_data'

@@ -408,7 +408,7 @@
                             <a href="{{ url_for('admin.view_contact_message', message_id=m.id) }}" class="text-decoration-none">
                                 <strong>{{ m.name or m.email }}</strong>
                             </a>
-                            {% if m.status == 'UNREAD' %}
+                            {% if m.status == 'new' %}
                                 <span class="badge bg-danger ms-1">New</span>
                             {% endif %}
                             <br>
