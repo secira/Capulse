@@ -25,17 +25,22 @@
 </div>
 
 <!-- Nightly Scheduler Status Panel -->
-<div class="alert alert-secondary border mb-4" id="nightlyPanel">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div>
-            <strong><i class="fas fa-moon me-2"></i>Nightly Auto-Run</strong>
-            <span class="text-muted ms-2" id="nightlyStatusText">Loading…</span>
+<div class="card border-primary mb-4" id="nightlyPanel"
+     style="background: linear-gradient(135deg, #e8f4ff 0%, #f5e8ff 100%); border-width: 2px;">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="mb-1 text-primary">
+                    <i class="fas fa-moon me-2"></i>Nightly Auto-Run Scheduler
+                </h5>
+                <div id="nightlyStatusText" class="fs-6">Loading…</div>
+            </div>
+            <button class="btn btn-primary" id="nightlyRunNowBtn" onclick="runNightlyNow()">
+                <i class="fas fa-bolt me-1"></i>Run Nightly Job Now
+            </button>
         </div>
-        <button class="btn btn-sm btn-outline-primary" id="nightlyRunNowBtn" onclick="runNightlyNow()">
-            <i class="fas fa-bolt me-1"></i>Run Nightly Job Now
-        </button>
+        <small class="text-muted d-block mt-2" id="nightlyMetaText">Runs daily at 02:00 IST</small>
     </div>
-    <small class="text-muted d-block mt-1" id="nightlyMetaText"></small>
 </div>
 
 <!-- Batch I-Score Progress Panel -->
@@ -407,34 +412,30 @@ function _fmtIst(iso) {
     catch (e) { return iso; }
 }
 function refreshNightlyStatus() {
+    const statusEl = document.getElementById('nightlyStatusText');
+    const metaEl   = document.getElementById('nightlyMetaText');
+    const btnEl    = document.getElementById('nightlyRunNowBtn');
+    // Panel not on this page (e.g. user navigated away) — silently skip.
+    if (!statusEl || !metaEl || !btnEl) return;
     fetch('/admin/research-list/nightly-status')
         .then(r => r.json())
         .then(d => {
-            if (!d.success) {
-                document.getElementById('nightlyStatusText').textContent = 'Scheduler unavailable';
-                return;
-            }
+            if (!d.success) { statusEl.textContent = 'Scheduler unavailable'; return; }
             const running = d.currently_running;
             const started = d.scheduler_started;
             let badge;
-            if (running) {
-                badge = '<span class="badge bg-info">Running now</span>';
-            } else if (started) {
-                badge = '<span class="badge bg-success">Active</span>';
-            } else {
-                badge = '<span class="badge bg-secondary">Inactive on this worker</span>';
-            }
+            if (running)      badge = '<span class="badge bg-info">Running now</span>';
+            else if (started) badge = '<span class="badge bg-success">Active</span>';
+            else              badge = '<span class="badge bg-secondary">Inactive on this worker</span>';
             const last = d.last_run_finished
                 ? `Last run: ${_fmtIst(d.last_run_finished)} — ${d.last_run_status} (${d.last_run_success}✓ / ${d.last_run_errors}✗ of ${d.last_run_total})`
                 : 'Last run: never';
             const next = d.next_run ? `Next run: ${_fmtIst(d.next_run)}` : 'Next run: —';
-            document.getElementById('nightlyStatusText').innerHTML = `${badge} &nbsp; ${next}`;
-            document.getElementById('nightlyMetaText').textContent = last + '  •  Runs daily at 02:00 IST';
-            document.getElementById('nightlyRunNowBtn').disabled = running;
+            statusEl.innerHTML = `${badge} &nbsp; ${next}`;
+            metaEl.textContent = last + '  •  Runs daily at 02:00 IST';
+            btnEl.disabled = running;
         })
-        .catch(() => {
-            document.getElementById('nightlyStatusText').textContent = 'Status check failed';
-        });
+        .catch(() => { if (statusEl) statusEl.textContent = 'Status check failed'; });
 }
 function runNightlyNow() {
     if (!confirm('Trigger the nightly batch right now? It runs in the background — you can leave this page.')) return;
