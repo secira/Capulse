@@ -305,18 +305,21 @@ def fno_pnl_history():
         utc_from       = from_ist - timedelta(hours=5, minutes=30)
 
         index_clause = "AND COALESCE(index_id,'NIFTY') = :index_id" if index_filter != 'ALL' else ""
-        params = {'from_date': utc_from, 'user_id': current_user.id}
+        params = {'from_date': utc_from}
         if index_filter != 'ALL':
             params['index_id'] = index_filter
 
+        # Show ALL closed F&O signals (auto-monitor + user trades). The
+        # is_user_trade flag is preserved for attribution but no longer
+        # filters this view — users want to see how every triggered trade
+        # performed (Target Hit, SL Hit, Time Exit), not just the ones
+        # they personally clicked Buy on from the F&O page.
         rows = db.session.execute(db.text(f"""
             SELECT index_id, direction, confidence, atm_strike, trades_json,
                    created_at, trade_code, outcome, exit_spot, exit_time
             FROM   fno_signal_history
             WHERE  signal_type = 'TRADE_TRIGGER'
               AND  outcome IS NOT NULL
-              AND  is_user_trade = TRUE
-              AND  executed_user_id = :user_id
               AND  created_at >= :from_date
               {index_clause}
             ORDER  BY created_at DESC
