@@ -459,31 +459,42 @@
         </div>
 
         <div class="row g-4 justify-content-center">
-            <div class="col-md-4">
-                <div class="h-100 p-4 text-center" style="border:1px solid #e5e7eb;border-radius:16px;">
+            <div class="col-md-6 col-lg-3">
+                <div class="h-100 p-4 text-center d-flex flex-column" style="border:1px solid #e5e7eb;border-radius:16px;">
                     <div style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Starter</div>
                     <div class="my-3"><span style="font-size:2.4rem;font-weight:700;color:#00091a;">₹0</span><span class="text-muted">/mo</span></div>
-                    <p class="text-muted mb-3" style="font-size:14px;">30-day free trial · 1 broker connection · High-confidence signals</p>
-                    <a href="{{ url_for('register') }}" class="btn w-100 py-2 fw-semibold" style="background:#fff;color:#00091a;border:1.5px solid #00091a;border-radius:8px;">Start Free</a>
+                    <p class="text-muted mb-3" style="font-size:14px;">30-day free trial · Dashboard access · Live Market Pulse · Manual portfolio upload</p>
+                    <a href="{{ url_for('register') }}" class="btn w-100 py-2 fw-semibold mt-auto" style="background:#fff;color:#00091a;border:1.5px solid #00091a;border-radius:8px;">Start Free</a>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="h-100 p-4 text-center position-relative" style="border:2px solid #16a34a;border-radius:16px;background:#f0fdf4;">
-                    <span class="position-absolute top-0 start-50 translate-middle px-3 py-1" style="background:#16a34a;color:#fff;font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;border-radius:20px;">Most popular</span>
-                    <div style="font-size:13px;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Pro</div>
+            <div class="col-md-6 col-lg-3">
+                <div class="h-100 p-4 text-center d-flex flex-column" style="border:1px solid #16a34a;border-radius:16px;">
+                    <div style="font-size:13px;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Growth</div>
+                    <div class="my-3"><span style="font-size:2.4rem;font-weight:700;color:#00091a;">₹1,499</span><span class="text-muted">/mo</span></div>
+                    <p class="text-muted mb-3" style="font-size:14px;">1 broker (trading + data API) · AI Research Co-Pilot · Behavioural AI · Daily signals</p>
+                    <a href="{{ url_for('subscribe', plan_type='target_plus') }}" class="btn w-100 py-2 fw-semibold text-white mt-auto" style="background:#16a34a;border-radius:8px;">Upgrade to Growth</a>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="h-100 p-4 text-center position-relative d-flex flex-column" style="border:2px solid #4338ca;border-radius:16px;background:#f5f3ff;">
+                    <span class="position-absolute top-0 start-50 translate-middle px-3 py-1" style="background:#4338ca;color:#fff;font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;border-radius:20px;">Most popular</span>
+                    <div style="font-size:13px;color:#4338ca;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Pro</div>
                     <div class="my-3"><span style="font-size:2.4rem;font-weight:700;color:#00091a;">₹2,499</span><span class="text-muted">/mo</span></div>
-                    <p class="text-muted mb-3" style="font-size:14px;">All signals · Full breakdown · Multi-broker · Behavioural AI</p>
-                    <a href="{{ url_for('pricing') }}" class="btn w-100 py-2 fw-semibold text-white" style="background:#16a34a;border-radius:8px;">View All Plans</a>
+                    <p class="text-muted mb-3" style="font-size:14px;">3 brokers (trading) · 1 data API · All Growth features · Multi-broker Trade Now · Portfolio optimization</p>
+                    <a href="{{ url_for('subscribe', plan_type='target_pro') }}" class="btn w-100 py-2 fw-semibold text-white mt-auto" style="background:#4338ca;border-radius:8px;">Upgrade to Pro</a>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="h-100 p-4 text-center" style="border:1px solid #e5e7eb;border-radius:16px;">
-                    <div style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Elite</div>
+            <div class="col-md-6 col-lg-3">
+                <div class="h-100 p-4 text-center d-flex flex-column" style="border:1px solid #d97706;border-radius:16px;">
+                    <div style="font-size:13px;color:#d97706;text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Elite</div>
                     <div class="my-3"><span style="font-size:2.4rem;font-weight:700;color:#00091a;">₹4,999</span><span class="text-muted">/mo</span></div>
-                    <p class="text-muted mb-3" style="font-size:14px;">Partner API · Backtesting · Advanced filters · Priority support</p>
-                    <a href="{{ url_for('pricing') }}" class="btn w-100 py-2 fw-semibold" style="background:#fff;color:#00091a;border:1.5px solid #00091a;border-radius:8px;">See Elite</a>
+                    <p class="text-muted mb-3" style="font-size:14px;">3 brokers (trading) · 1 data API · All Pro features · Dedicated account manager · Premium 24/7 support</p>
+                    <a href="{{ url_for('subscribe', plan_type='hni') }}" class="btn w-100 py-2 fw-semibold text-dark mt-auto" style="background:#fef3c7;border:1.5px solid #d97706;border-radius:8px;">Upgrade to Elite</a>
                 </div>
             </div>
+        </div>
+        <div class="text-center mt-4">
+            <a href="{{ url_for('pricing') }}" class="text-decoration-none" style="color:#4338ca;font-weight:600;font-size:14px;">Compare all features &rarr;</a>
         </div>
     </div>
 </section>
