@@ -1,0 +1,111 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}System Notifications | Target Capital Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1"><i class="fas fa-heartbeat me-2 text-danger"></i>System Notifications</h2>
+        <p class="text-muted mb-0">Live health monitor for every external dependency, data source, and scheduled job.</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <small class="text-muted">Generated {{ report.generated_at }} · {{ report.elapsed_ms }} ms</small>
+        <a href="{{ url_for('admin.notifications') }}" class="btn btn-admin">
+            <i class="fas fa-sync me-1"></i>Run Checks Now
+        </a>
+    </div>
+</div>
+
+<!-- Summary strip -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm" style="border-left:4px solid #16a34a !important">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase fw-bold">Healthy</div>
+                <div class="display-6 fw-bold text-success">{{ report.counts.ok }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm" style="border-left:4px solid #f59e0b !important">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase fw-bold">Warnings</div>
+                <div class="display-6 fw-bold text-warning">{{ report.counts.warn }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm" style="border-left:4px solid #dc2626 !important">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase fw-bold">Failures</div>
+                <div class="display-6 fw-bold text-danger">{{ report.counts.fail }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm" style="border-left:4px solid #64748b !important">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase fw-bold">Disabled / N/A</div>
+                <div class="display-6 fw-bold text-secondary">{{ report.counts.disabled }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% set status_meta = {
+    'ok':       {'badge': 'success', 'icon': 'fa-check-circle',     'label': 'OK'},
+    'warn':     {'badge': 'warning', 'icon': 'fa-exclamation-triangle', 'label': 'WARN'},
+    'fail':     {'badge': 'danger',  'icon': 'fa-times-circle',     'label': 'FAIL'},
+    'disabled': {'badge': 'secondary','icon': 'fa-pause-circle',    'label': 'DISABLED'},
+} %}
+{% set category_meta = {
+    'messaging': {'icon': 'fa-paper-plane',     'label': 'Messaging & Alerts'},
+    'data':      {'icon': 'fa-database',        'label': 'Market Data Sources'},
+    'llm':       {'icon': 'fa-brain',           'label': 'AI / LLM Providers'},
+    'billing':   {'icon': 'fa-credit-card',     'label': 'Billing & Payments'},
+    'engine':    {'icon': 'fa-rocket',          'label': 'TC Execution Engine'},
+    'jobs':      {'icon': 'fa-clock',           'label': 'Scheduled / Nightly Jobs'},
+    'system':    {'icon': 'fa-server',          'label': 'System'},
+} %}
+
+{% set category_order = ['messaging', 'data', 'llm', 'billing', 'engine', 'jobs', 'system'] %}
+
+{% for cat in category_order %}
+    {% set group = report.cards | selectattr('category', 'equalto', cat) | list %}
+    {% if group %}
+        {% set meta = category_meta[cat] %}
+        <h4 class="mt-4 mb-3"><i class="fas {{ meta.icon }} me-2 text-muted"></i>{{ meta.label }}</h4>
+        <div class="row g-3">
+        {% for c in group %}
+            {% set s = status_meta[c.status] %}
+            <div class="col-md-6 col-xl-4">
+                <div class="card border-0 shadow-sm h-100"
+                     style="border-left:4px solid var(--bs-{{ s.badge }}) !important">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title mb-0 fw-bold">{{ c.name }}</h6>
+                            <span class="badge bg-{{ s.badge }} text-uppercase">
+                                <i class="fas {{ s.icon }} me-1"></i>{{ s.label }}
+                            </span>
+                        </div>
+                        <p class="small text-muted mb-0">{{ c.message }}</p>
+                        {% if c.detail %}
+                        <details class="mt-2">
+                            <summary class="small text-muted" style="cursor:pointer">Details</summary>
+                            <pre class="small mt-2 mb-0 p-2 rounded"
+                                 style="background:#f8fafc;border:1px solid #e2e8f0;max-height:200px;overflow:auto">{{ c.detail | tojson(indent=2) }}</pre>
+                        </details>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+{% endfor %}
+
+<div class="alert alert-info mt-4 mb-0 small">
+    <i class="fas fa-info-circle me-1"></i>
+    Checks run live each time this page loads (5&nbsp;s timeout per probe).
+    Anything red here means real-user impact — fix critical/high-severity items first.
+</div>
+{% endblock %}

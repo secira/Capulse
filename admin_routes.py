@@ -740,6 +740,20 @@ def api_share_signal(signal_id):
 # ============================================================================
 # TELEGRAM MESSENGER — diagnostics + manual send + per-signal re-broadcast
 # ============================================================================
+@admin_bp.route('/notifications')
+@admin_required
+def notifications():
+    """System Notifications — live health monitor for every external dependency.
+
+    Runs probes against Telegram, primary/secondary data brokers, yfinance,
+    LLM providers, Razorpay, Twilio, TC Execution Engine and scheduled jobs.
+    Renders a colour-coded card grid grouped by category.
+    """
+    from services.system_health import run_all_checks
+    report = run_all_checks()
+    return render_template('admin/notifications.html', report=report)
+
+
 @admin_bp.route('/telegram', methods=['GET', 'POST'])
 @admin_required
 def telegram_messenger():

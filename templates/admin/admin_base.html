@@ -287,6 +287,9 @@
                 <a href="{{ url_for('admin.telegram_messenger') }}" class="admin-nav-item {{ 'active' if 'telegram' in request.endpoint }}">
                     <i class="fab fa-telegram-plane me-2"></i>Telegram
                 </a>
+                <a href="{{ url_for('admin.notifications') }}" class="admin-nav-item {{ 'active' if 'notifications' in request.endpoint }}">
+                    <i class="fas fa-heartbeat me-2"></i>Notifications
+                </a>
                 <a href="{{ url_for('admin.contact_messages') }}" class="admin-nav-item {{ 'active' if 'contact_message' in request.endpoint }}">
                     <i class="fas fa-envelope me-2"></i>Contact Messages
                 </a>
