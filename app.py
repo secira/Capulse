@@ -145,6 +145,7 @@ if is_production:
             'https://kit.fontawesome.com',
             'https://s3.tradingview.com',
             'https://cdn.razorpay.com',
+            'https://checkout.razorpay.com',
         ],
         'style-src': [
             "'self'",
@@ -177,6 +178,23 @@ if is_production:
             'https://cdn.jsdelivr.net',
             'https://cdnjs.cloudflare.com',
             'https://ka-f.fontawesome.com',
+            'https://api.razorpay.com',
+            'https://lumberjack.razorpay.com',
+            'https://lumberjack-cx.razorpay.com',
+            'https://checkout.razorpay.com',
+        ],
+        'frame-src': [
+            "'self'",
+            'https://api.razorpay.com',
+            'https://checkout.razorpay.com',
+            'https://*.razorpay.com',
+            'https://s3.tradingview.com',
+            'https://*.tradingview.com',
+        ],
+        'form-action': [
+            "'self'",
+            'https://api.razorpay.com',
+            'https://*.razorpay.com',
         ],
         'frame-ancestors': [
             "'self'",
