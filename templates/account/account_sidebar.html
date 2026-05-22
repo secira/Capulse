@@ -13,13 +13,13 @@
                 <span class="plan-name">{{ current_user.get_plan_display_name() }}</span>
                 <span class="plan-badge {{ current_user.pricing_plan.value }}">
                     {% if current_user.pricing_plan.value == 'free' %}
-                    Free
+                    Starter
                     {% elif current_user.pricing_plan.value == 'target_plus' %}
-                    Target Plus
+                    Growth
                     {% elif current_user.pricing_plan.value == 'target_pro' %}
-                    Target Pro
+                    Pro
                     {% else %}
-                    HNI Account
+                    Elite
                     {% endif %}
                 </span>
             </div>

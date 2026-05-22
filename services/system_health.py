@@ -450,6 +450,113 @@ def _check_scheduled_jobs() -> List[Dict[str, Any]]:
     return out
 
 
+# ── 8. Partner broker connections (per-user trading/data broker accounts) ───
+def _check_partner_brokers() -> List[Dict[str, Any]]:
+    """One card per configured partner broker.
+
+    Surfaces licensing / authentication failures (e.g. Dhan DH-901, Zerodha
+    expired token, Angel One TOTP failures) and stale syncs so admins can
+    proactively reach out to users / reissue tokens.
+    """
+    from app import db
+    from models_broker import BrokerAccount
+    from datetime import datetime, timezone
+
+    out: List[Dict[str, Any]] = []
+    try:
+        rows = (BrokerAccount.query
+                .filter(BrokerAccount.is_active.is_(True))
+                .order_by(BrokerAccount.broker_type.asc(),
+                          BrokerAccount.last_connected.desc().nullslast())
+                .limit(50)
+                .all())
+    except Exception as e:  # noqa: BLE001
+        return [{
+            'key': 'partner_brokers',
+            'name': 'Partner Broker Connections',
+            'status': 'fail',
+            'message': f'Could not read user_brokers table: {e}',
+            'category': 'partners',
+            'severity': 'high',
+        }]
+
+    if not rows:
+        return [{
+            'key': 'partner_brokers',
+            'name': 'Partner Broker Connections',
+            'status': 'disabled',
+            'message': 'No partner broker accounts configured yet.',
+            'category': 'partners',
+            'severity': 'low',
+        }]
+
+    # Aggregate per broker_type to keep the page compact
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        bt = (r.broker_type or 'unknown').lower()
+        g = grouped.setdefault(bt, {
+            'total': 0, 'connected': 0, 'failed': 0, 'pending': 0,
+            'sync_failed': 0, 'stale': 0, 'last_error_at': None,
+        })
+        g['total'] += 1
+        cs = (r.connection_status or '').lower()
+        if cs == 'connected':
+            g['connected'] += 1
+        elif cs in ('failed', 'rejected', 'expired', 'invalid'):
+            g['failed'] += 1
+        else:
+            g['pending'] += 1
+        if (r.sync_status or '').lower() == 'failed':
+            g['sync_failed'] += 1
+            if r.last_sync and (not g['last_error_at'] or r.last_sync > g['last_error_at']):
+                g['last_error_at'] = r.last_sync
+        # Stale = no last_connected, or > 24h old
+        if not r.last_connected:
+            g['stale'] += 1
+        else:
+            age = datetime.utcnow() - r.last_connected.replace(tzinfo=None)
+            if age.total_seconds() > 86400:
+                g['stale'] += 1
+
+    for bt, g in sorted(grouped.items()):
+        label = bt.title()
+        if g['failed'] >= g['total']:
+            status, sev = 'fail', 'critical'
+            msg = (f"{g['failed']}/{g['total']} {label} accounts REJECTED by broker "
+                   f"(licensing/auth). Users need to reconnect.")
+        elif g['failed'] or g['sync_failed']:
+            status, sev = 'warn', 'high'
+            parts = []
+            if g['failed']:
+                parts.append(f"{g['failed']} auth-rejected")
+            if g['sync_failed']:
+                parts.append(f"{g['sync_failed']} sync-failed")
+            msg = f"{g['connected']}/{g['total']} {label} connected — " + ", ".join(parts) + "."
+        elif g['stale'] >= g['total']:
+            status, sev = 'warn', 'medium'
+            msg = f"All {g['total']} {label} accounts stale (>24h since last connect)."
+        else:
+            status, sev = 'ok', 'medium'
+            msg = (f"{g['connected']}/{g['total']} {label} accounts healthy"
+                   + (f" ({g['stale']} stale)" if g['stale'] else "") + ".")
+
+        out.append({
+            'key': f'partner_{bt}',
+            'name': f'Partner · {label}',
+            'status': status,
+            'message': msg,
+            'detail': {
+                'total': g['total'], 'connected': g['connected'],
+                'auth_failed': g['failed'], 'sync_failed': g['sync_failed'],
+                'stale_over_24h': g['stale'],
+                'last_error_at': g['last_error_at'].isoformat() if g['last_error_at'] else None,
+            },
+            'category': 'partners',
+            'severity': sev,
+        })
+    return out
+
+
 # ── Public entry point ──────────────────────────────────────────────────────
 def run_all_checks() -> Dict[str, Any]:
     started = time.time()
@@ -464,6 +571,11 @@ def run_all_checks() -> Dict[str, Any]:
     cards.append(_safe(_check_perplexity))
     cards.append(_safe(_check_razorpay))
     cards.append(_safe(_check_twilio))
+    partners = _safe(_check_partner_brokers)
+    if isinstance(partners, list):
+        cards.extend(partners)
+    elif isinstance(partners, dict):
+        cards.append(partners)
     cards.append(_safe(_check_tc_engine))
     jobs = _safe(_check_scheduled_jobs)
     if isinstance(jobs, list):

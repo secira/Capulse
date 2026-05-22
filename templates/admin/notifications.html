@@ -63,11 +63,12 @@
     'llm':       {'icon': 'fa-brain',           'label': 'AI / LLM Providers'},
     'billing':   {'icon': 'fa-credit-card',     'label': 'Billing & Payments'},
     'engine':    {'icon': 'fa-rocket',          'label': 'TC Execution Engine'},
+    'partners':  {'icon': 'fa-handshake',       'label': 'Partner Broker Connections'},
     'jobs':      {'icon': 'fa-clock',           'label': 'Scheduled / Nightly Jobs'},
     'system':    {'icon': 'fa-server',          'label': 'System'},
 } %}
 
-{% set category_order = ['messaging', 'data', 'llm', 'billing', 'engine', 'jobs', 'system'] %}
+{% set category_order = ['messaging', 'data', 'partners', 'llm', 'billing', 'engine', 'jobs', 'system'] %}
 
 {% for cat in category_order %}
     {% set group = report.cards | selectattr('category', 'equalto', cat) | list %}
