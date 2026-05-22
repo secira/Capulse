@@ -35,16 +35,35 @@ if [ "${ENVIRONMENT}" = "production" ]; then
         echo "  ✓ All required production env vars present"
     fi
 
-    # ─── Optional notification channel checks (non-blocking) ────────────
-    # Surface telegram credential status so the F&O / signal alerts
-    # don't silently fail in production.
-    if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${TELEGRAM_CHAT_ID}" ]; then
-        echo "  ℹ️  Telegram alerts DISABLED — set TELEGRAM_BOT_TOKEN and"
-        echo "     TELEGRAM_CHAT_ID in Railway Variables to enable."
-        echo "     After setting them, visit /admin/telegram to verify."
+    # ─── Optional notification / integration channel checks (non-blocking) ──
+    # These mirror the probes shown on /admin/notifications. Missing values
+    # don't block boot — they just degrade specific features.
+    _warn_if_missing() {
+        # $1=label  $2..=env var names (any missing → warn)
+        local label="$1"; shift
+        local miss=""
+        for v in "$@"; do
+            if [ -z "$(eval echo \$$v)" ]; then miss="$miss $v"; fi
+        done
+        if [ -n "$miss" ]; then
+            echo "  ℹ️  $label DISABLED — missing:$miss"
+        else
+            echo "  ✓ $label credentials present"
+        fi
+    }
+    _warn_if_missing "Telegram alerts"        TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID
+    _warn_if_missing "Anthropic (Claude)"     ANTHROPIC_API_KEY
+    _warn_if_missing "OpenAI (GPT)"           OPENAI_API_KEY
+    _warn_if_missing "Perplexity (Sonar)"     PERPLEXITY_API_KEY
+    _warn_if_missing "Razorpay (billing)"     RAZORPAY_KEY_ID RAZORPAY_KEY_SECRET
+    _warn_if_missing "Twilio (SMS/WhatsApp)"  TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER
+    _warn_if_missing "Google OAuth"           GOOGLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET
+    if [ -n "${EXECUTION_ENGINE_URL}" ]; then
+        echo "  ✓ TC Execution Engine: ${EXECUTION_ENGINE_URL}"
     else
-        echo "  ✓ Telegram credentials present (verify at /admin/telegram)"
+        echo "  ℹ️  TC Execution Engine routing OFF — set EXECUTION_ENGINE_URL to enable."
     fi
+    echo "  → Verify everything live at /admin/notifications after boot."
     if [ "${RUN_MIGRATIONS}" = "1" ]; then
         echo "  ℹ️  RUN_MIGRATIONS=1 — schema/index migrations WILL run"
         echo "     (remove this flag after a successful deploy)"

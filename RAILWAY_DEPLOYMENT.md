@@ -76,6 +76,28 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 ---
 
+## Post-deploy verification — `/admin/notifications`
+
+After every Railway deploy, sign in as admin and open **`/admin/notifications`**.
+It runs live health probes (5 s timeout each) against every external
+dependency the platform uses and renders one card per check, grouped by
+category:
+
+| Category                | What it covers |
+|-------------------------|----------------|
+| Messaging & Alerts      | Telegram bot (`getMe`), Twilio account |
+| Market Data Sources     | Primary & Secondary Admin Data Brokers, yfinance fallback |
+| Partner Broker Connections | One card per broker (Dhan / Zerodha / Angel / …) showing connected vs auth-rejected vs sync-failed counts. Surfaces real licensing problems (e.g. Dhan DH-901 "invalid access token"). |
+| AI / LLM Providers      | Anthropic `/v1/models`, OpenAI `/v1/models`, Perplexity key presence |
+| Billing & Payments      | Razorpay `/v1/payments` auth |
+| TC Execution Engine     | `$EXECUTION_ENGINE_URL/healthz` + version |
+| Scheduled / Nightly Jobs| APScheduler liveness + one card per `alert_schedule` row |
+
+A red **FAIL** card means real user impact — fix critical/high-severity items
+first. Disabled cards just indicate the corresponding env var isn't set.
+
+---
+
 ## One-time setup flags
 
 These environment variables run heavy operations on the **next deploy only**.
