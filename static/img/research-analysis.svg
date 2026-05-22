@@ -1,0 +1,55 @@
+<svg width="500" height="400" viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg">
+  <rect width="500" height="400" fill="#f8f9fa" rx="8"/>
+
+  <rect x="0" y="0" width="500" height="50" fill="#ffffff" stroke="#dee2e6" rx="8 8 0 0"/>
+  <text x="20" y="30" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#212529">AI Research &amp; I-Score Engine</text>
+
+  <!-- Search / query bar -->
+  <rect x="30" y="70" width="440" height="36" fill="#ffffff" stroke="#dee2e6" rx="6"/>
+  <circle cx="50" cy="88" r="7" fill="none" stroke="#6c757d" stroke-width="2"/>
+  <line x1="55" y1="93" x2="62" y2="100" stroke="#6c757d" stroke-width="2"/>
+  <text x="75" y="93" font-family="Arial, sans-serif" font-size="12" fill="#6c757d">Should I buy RELIANCE for the next quarter?</text>
+
+  <!-- I-Score gauge -->
+  <g transform="translate(120,235)">
+    <path d="M -90,0 A 90,90 0 0,1 90,0" fill="none" stroke="#e9ecef" stroke-width="14" stroke-linecap="round"/>
+    <path d="M -90,0 A 90,90 0 0,1 65,-62" fill="none" stroke="#28a745" stroke-width="14" stroke-linecap="round"/>
+    <text x="0" y="-10" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="#212529" text-anchor="middle">82</text>
+    <text x="0" y="12" font-family="Arial, sans-serif" font-size="11" fill="#6c757d" text-anchor="middle">I-Score</text>
+    <text x="0" y="30" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#28a745" text-anchor="middle">STRONG BUY</text>
+  </g>
+
+  <!-- Component bars -->
+  <g transform="translate(260,130)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Component Scores</text>
+
+    <text x="0" y="22" font-family="Arial, sans-serif" font-size="11" fill="#212529">Quantitative</text>
+    <rect x="100" y="14" width="120" height="8" fill="#e9ecef" rx="4"/>
+    <rect x="100" y="14" width="102" height="8" fill="#007bff" rx="4"/>
+
+    <text x="0" y="44" font-family="Arial, sans-serif" font-size="11" fill="#212529">Trend</text>
+    <rect x="100" y="36" width="120" height="8" fill="#e9ecef" rx="4"/>
+    <rect x="100" y="36" width="96" height="8" fill="#28a745" rx="4"/>
+
+    <text x="0" y="66" font-family="Arial, sans-serif" font-size="11" fill="#212529">Risk</text>
+    <rect x="100" y="58" width="120" height="8" fill="#e9ecef" rx="4"/>
+    <rect x="100" y="58" width="84" height="8" fill="#ffc107" rx="4"/>
+
+    <text x="0" y="88" font-family="Arial, sans-serif" font-size="11" fill="#212529">Qualitative</text>
+    <rect x="100" y="80" width="120" height="8" fill="#e9ecef" rx="4"/>
+    <rect x="100" y="80" width="90" height="8" fill="#6f42c1" rx="4"/>
+
+    <text x="0" y="110" font-family="Arial, sans-serif" font-size="11" fill="#212529">Sentiment</text>
+    <rect x="100" y="102" width="120" height="8" fill="#e9ecef" rx="4"/>
+    <rect x="100" y="102" width="78" height="8" fill="#e83e8c" rx="4"/>
+
+    <text x="0" y="132" font-family="Arial, sans-serif" font-size="11" fill="#212529">Market Ctx</text>
+    <rect x="100" y="124" width="120" height="8" fill="#e9ecef" rx="4"/>
+    <rect x="100" y="124" width="88" height="8" fill="#17a2b8" rx="4"/>
+  </g>
+
+  <!-- Sources / citations -->
+  <rect x="30" y="320" width="440" height="60" fill="#ffffff" stroke="#dee2e6" rx="4"/>
+  <text x="50" y="340" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Sources cited</text>
+  <text x="50" y="360" font-family="Arial, sans-serif" font-size="11" fill="#6c757d">NSE • Moneycontrol • Annual Report • Perplexity • Anthropic Claude</text>
+</svg>
