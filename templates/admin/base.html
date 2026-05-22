@@ -179,6 +179,9 @@
                         <a href="{{ url_for('admin.telegram_messenger') }}" class="nav-link admin-nav-link {{ 'active' if 'telegram' in request.endpoint else '' }}">
                             <i class="fab fa-telegram-plane me-2"></i>Telegram
                         </a>
+                        <a href="{{ url_for('admin.notifications') }}" class="nav-link admin-nav-link {{ 'active' if 'notifications' in request.endpoint else '' }}">
+                            <i class="fas fa-heartbeat me-2"></i>Notifications
+                        </a>
 
                         <hr class="my-3" style="border-color: rgba(255,255,255,0.2);">
                         
