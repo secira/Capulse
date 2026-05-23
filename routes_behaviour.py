@@ -10,7 +10,7 @@ from decorators import paid_plan_required
 import logging
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +199,29 @@ def _parse_scrip_name(scrip):
         detail = f"{underlying.upper()} {opt_type.upper()} ₹{int(float(strike))} {day}{mon}{year}"
         return symbol, 'OPTION', detail, expiry_dt
 
+    # OPTIONS (Dhan Trade History): <UNDERLYING> <DD> <Mon> <STRIKE> <CALL|PUT>
+    # e.g. "NIFTY 19 MAY 23650 PUT"  (no year, PUT/CALL spelled out)
+    m = re.match(
+        r'^(\w+)\s+(\d{1,2})\s+(\w{3})\s+([\d.]+)\s+(CALL|PUT|CE|PE)$',
+        scrip, re.IGNORECASE
+    )
+    if m:
+        underlying, day, mon, strike, opt_type = m.groups()
+        opt_type_u = opt_type.upper()
+        short = 'CE' if opt_type_u in ('CALL', 'CE') else 'PE'
+        # Year not present — assume current year, roll forward if expiry already past
+        try:
+            now = datetime.utcnow()
+            expiry_dt = datetime(now.year, MONTH_MAP.get(mon.capitalize(), now.month), int(day))
+            if expiry_dt < now - timedelta(days=180):
+                expiry_dt = expiry_dt.replace(year=now.year + 1)
+        except Exception:
+            expiry_dt = None
+        symbol = f"{underlying.upper()}{int(float(strike))}{short}"
+        year_str = expiry_dt.strftime('%Y') if expiry_dt else ''
+        detail = f"{underlying.upper()} {short} ₹{int(float(strike))} {day}{mon.capitalize()}{year_str}"
+        return symbol, 'OPTION', detail, expiry_dt
+
     # FUTURES: FUT <UNDERLYING> <DD> <Mon> <YYYY>
     m = re.match(r'^FUT\s+(\w+)\s+(\d{1,2})\s+(\w{3})\s+(\d{4})$', scrip, re.IGNORECASE)
     if m:
@@ -222,13 +245,162 @@ def _parse_scrip_name(scrip):
 
 
 def _detect_format(content):
-    """Return 'dhan', 'zerodha', or 'generic' based on file content."""
-    first_lines = content[:500].lower()
-    if 'pnl report' in first_lines or 'scrip name' in first_lines:
-        return 'dhan'
-    if 'trade date' in first_lines and 'tradingsymbol' in first_lines:
+    """Return 'dhan_pnl', 'dhan_trades', 'zerodha', or 'generic' based on file content."""
+    head = content[:1000].lower()
+    # Dhan P&L export
+    if 'pnl report' in head or 'scrip name' in head:
+        return 'dhan_pnl'
+    # Dhan Trade History export — header has these exact columns
+    if 'buy/sell' in head and 'trade price' in head and 'quantity/lot' in head:
+        return 'dhan_trades'
+    if 'trade date' in head and 'tradingsymbol' in head:
         return 'zerodha'
     return 'generic'
+
+
+def _parse_dhan_trade_history(content):
+    """
+    Parse Dhan Trade History CSV (individual BUY/SELL legs) into round-trip trades.
+
+    Columns: Date,Time,Name,Buy/Sell,Order,Exchange,Segment,Quantity/Lot,Trade Price,Trade Value,Status
+
+    Strategy: group rows by symbol Name, sort chronologically, then FIFO-match
+    BUY legs against SELL legs to produce one round-trip trade per matched pair.
+    Open positions (unmatched legs) are skipped.
+    """
+    from collections import defaultdict, deque
+
+    reader = csv.DictReader(io.StringIO(content))
+    if not reader.fieldnames:
+        raise ValueError('CSV appears empty.')
+
+    # Validate it's actually Dhan Trade History
+    headers_lc = {h.strip().lower() for h in reader.fieldnames}
+    needed = {'date', 'time', 'name', 'buy/sell', 'quantity/lot', 'trade price'}
+    if not needed.issubset(headers_lc):
+        raise ValueError(
+            'Could not find Dhan Trade History columns. Expected: Date, Time, Name, '
+            'Buy/Sell, Quantity/Lot, Trade Price.'
+        )
+
+    # Bucket legs per symbol
+    legs_by_symbol = defaultdict(list)
+    for row in reader:
+        row = {k.strip(): (v or '').strip() for k, v in row.items() if k}
+        status = row.get('Status', '').strip().lower()
+        if status and status != 'traded':
+            continue  # skip cancelled / rejected
+        name = row.get('Name', '').strip()
+        side = row.get('Buy/Sell', '').strip().upper()
+        if not name or side not in ('BUY', 'SELL'):
+            continue
+        try:
+            dt_str = f"{row.get('Date','').strip()} {row.get('Time','').strip()}".strip()
+            ts = _parse_date_any(dt_str)
+            qty = int(float(row.get('Quantity/Lot', '0') or '0'))
+            price = float((row.get('Trade Price', '0') or '0').replace(',', ''))
+            if qty <= 0 or price <= 0:
+                continue
+        except Exception as e:
+            logger.warning(f'Dhan trade-history row skipped (parse): {e} :: {row}')
+            continue
+        legs_by_symbol[name].append({
+            'ts': ts, 'side': side, 'qty': qty, 'price': price,
+            'segment': row.get('Segment', '').strip(),
+            'exchange': row.get('Exchange', 'NSE').strip(),
+        })
+
+    trades = []
+    for name, legs in legs_by_symbol.items():
+        legs.sort(key=lambda x: x['ts'])
+        # Parse symbol once
+        try:
+            symbol, asset_type, detail, expiry_dt = _parse_scrip_name(name)
+        except Exception:
+            symbol, asset_type, detail, expiry_dt = name.upper()[:50], 'STOCK', name, None
+        # If parser fell back to STOCK but segment says Derivative, treat as OPTION
+        # so downstream behavioural modules apply F&O rules.
+        seg_lc = (legs[0].get('segment') or '').lower()
+        if asset_type == 'STOCK' and 'deriv' in seg_lc:
+            asset_type = 'OPTION'
+
+        # FIFO matching: two queues — opens (long buys waiting for sell), shorts (sells waiting for buy-back)
+        opens = deque()   # holds {'ts','qty','price'} BUY legs awaiting SELL
+        shorts = deque()  # holds {'ts','qty','price'} SELL legs awaiting BUY (short cover)
+
+        for leg in legs:
+            qty_remaining = leg['qty']
+            if leg['side'] == 'BUY':
+                # First close any outstanding shorts (cover)
+                while qty_remaining > 0 and shorts:
+                    s = shorts[0]
+                    match_qty = min(qty_remaining, s['qty'])
+                    # Closed short trade: entry=SELL price, exit=BUY price
+                    trades.append(_build_round_trip(
+                        symbol, asset_type, detail, expiry_dt,
+                        entry_ts=s['ts'], entry_price=s['price'],
+                        exit_ts=leg['ts'], exit_price=leg['price'],
+                        qty=match_qty, direction='SHORT',
+                    ))
+                    s['qty'] -= match_qty
+                    qty_remaining -= match_qty
+                    if s['qty'] == 0:
+                        shorts.popleft()
+                if qty_remaining > 0:
+                    opens.append({'ts': leg['ts'], 'qty': qty_remaining, 'price': leg['price']})
+            else:  # SELL
+                # First close any outstanding longs
+                while qty_remaining > 0 and opens:
+                    o = opens[0]
+                    match_qty = min(qty_remaining, o['qty'])
+                    trades.append(_build_round_trip(
+                        symbol, asset_type, detail, expiry_dt,
+                        entry_ts=o['ts'], entry_price=o['price'],
+                        exit_ts=leg['ts'], exit_price=leg['price'],
+                        qty=match_qty, direction='LONG',
+                    ))
+                    o['qty'] -= match_qty
+                    qty_remaining -= match_qty
+                    if o['qty'] == 0:
+                        opens.popleft()
+                if qty_remaining > 0:
+                    shorts.append({'ts': leg['ts'], 'qty': qty_remaining, 'price': leg['price']})
+
+        # Unmatched legs remain open positions — silently skipped (no round trip yet)
+
+    return trades
+
+
+def _build_round_trip(symbol, asset_type, detail, expiry_dt,
+                       entry_ts, entry_price, exit_ts, exit_price, qty, direction):
+    """Build a ManualTradeImport dict from a matched BUY/SELL pair."""
+    if direction == 'LONG':
+        realized_pnl = (exit_price - entry_price) * qty
+    else:  # SHORT
+        realized_pnl = (entry_price - exit_price) * qty
+    pnl_pct = round((realized_pnl / (entry_price * qty)) * 100, 2) if entry_price and qty else 0.0
+    hold_hrs = max(0.0, (exit_ts - entry_ts).total_seconds() / 3600)
+    result = 'WIN' if realized_pnl > 0 else ('LOSS' if realized_pnl < 0 else 'BREAKEVEN')
+    return {
+        'symbol': symbol,
+        'asset_type': asset_type,
+        'instrument_detail': detail,
+        'quantity': qty,
+        'entry_price': round(entry_price, 4),
+        'exit_price': round(exit_price, 4),
+        'realized_pnl': round(realized_pnl, 2),
+        'pnl_percentage': pnl_pct,
+        'holding_period_hours': round(hold_hrs, 2),
+        'trade_result': result,
+        'exit_reason': 'MANUAL',
+        'broker_name': 'Dhan',
+        'total_charges': 0.0,
+        'net_pnl': round(realized_pnl, 2),
+        'entry_time': entry_ts,
+        'exit_time': exit_ts,
+        'strategy_name': f'{asset_type} {direction}',
+        'source': 'dhan_trades',
+    }
 
 
 def _parse_dhan_pnl(content):
@@ -354,11 +526,22 @@ def behaviour_upload_trades():
     errors = []
 
     # ── Broker-specific parsers ──────────────────────────────────────────────
-    if fmt == 'dhan':
+    if fmt in ('dhan_pnl', 'dhan_trades'):
         try:
-            trade_dicts = _parse_dhan_pnl(content)
+            if fmt == 'dhan_pnl':
+                trade_dicts = _parse_dhan_pnl(content)
+            else:
+                trade_dicts = _parse_dhan_trade_history(content)
         except ValueError as e:
             flash(str(e), 'danger')
+            return redirect(url_for('behavioural_insights'))
+
+        if not trade_dicts:
+            flash(
+                'No completed round-trip trades found in this CSV. '
+                'Dhan Trade History only produces a trade once a BUY is matched with a SELL '
+                '(or vice-versa). Open positions are skipped.', 'warning'
+            )
             return redirect(url_for('behavioural_insights'))
 
         for td in trade_dicts:
@@ -719,7 +902,7 @@ def behaviour_pre_trade_check():
 @login_required
 def acknowledge_behaviour_alert(alert_id):
     from models import BehaviouralAlert
-    from datetime import datetime
+    from datetime import datetime, timedelta
     alert = BehaviouralAlert.query.filter_by(
         id=alert_id, user_id=current_user.id
     ).first_or_404()
