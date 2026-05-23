@@ -4,9 +4,10 @@
 {% block dashboard_title %}Behavioural Analysis Dashboard{% endblock %}
 {% block dashboard_subtitle %}Your trading psychology analyzed across 20 modules — powered by the Scentric AI Decision Engine{% endblock %}
 
+{% set connected_brokers = broker_accounts | selectattr('connection_status', 'equalto', 'connected') | list if broker_accounts else [] %}
+
 {% block dashboard_toolbar %}
 <div class="header-actions d-flex align-items-center gap-2">
-    {% set connected_brokers = broker_accounts | selectattr('connection_status', 'equalto', 'connected') | list if broker_accounts else [] %}
     {% if connected_brokers %}
     <div class="dropdown">
         <button class="btn btn-outline-primary btn-sm dropdown-toggle" id="baiSyncBtn" data-bs-toggle="dropdown" aria-expanded="false">
@@ -39,6 +40,9 @@
         </ul>
     </div>
     {% endif %}
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#importTradesModal">
+        <i class="fas fa-plus me-1"></i>Import Trades
+    </button>
     <a href="{{ url_for('broker_management') }}" class="btn btn-outline-secondary btn-sm">
         <i class="fas fa-plug me-1"></i>Manage Brokers
     </a>
@@ -852,24 +856,129 @@ new Chart(document.getElementById('hourChart'), {
 {% endif %}
 </script>
 
-{% if not analysis or not analysis.has_data %}
+{# ══════════════════ IMPORT TRADES MODAL (always available) ══════════════════ #}
+<div class="modal fade" id="importTradesModal" tabindex="-1" aria-labelledby="importTradesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content" style="border:none;border-radius:16px;overflow:hidden;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:none;">
+        <h5 class="modal-title fw-bold" id="importTradesModalLabel"><i class="fas fa-cloud-upload-alt me-2"></i>Import More Trades</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <p class="text-muted small mb-4">Re-import as often as you like — duplicates are de-duplicated by symbol + entry/exit time. The Behavioural AI re-analyses after each import.</p>
+
+        {# ─── Option 1: Sync from connected broker ─── #}
+        <div class="mb-4">
+          <h6 class="section-label mb-3"><i class="fas fa-bolt text-warning me-1"></i>Option 1 — Sync from a connected broker</h6>
+          {% if connected_brokers %}
+            <div class="list-group" style="border-radius:10px;overflow:hidden;">
+              {% for acct in connected_brokers %}
+              <div class="list-group-item d-flex align-items-center justify-content-between" style="border-color:#e5e7eb;">
+                <div class="d-flex align-items-center gap-3">
+                  <div style="width:36px;height:36px;border-radius:10px;background:#eef2ff;color:#4f46e5;display:flex;align-items:center;justify-content:center;"><i class="fas fa-building"></i></div>
+                  <div>
+                    <div class="fw-semibold">{{ acct.broker_name }}</div>
+                    <div class="text-muted" style="font-size:.75rem;">
+                      {% if acct.sync_status == 'success' %}<span class="text-success">●</span> Synced
+                      {% elif acct.sync_status == 'failed' %}<span class="text-danger">●</span> Last sync failed
+                      {% else %}<span class="text-secondary">●</span> Pending sync{% endif %}
+                      {% if acct.last_sync %} · {{ acct.last_sync.strftime('%d %b %H:%M') }}{% endif %}
+                    </div>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-primary" onclick="baiSyncOne({{ acct.id }}, '{{ acct.broker_name|e }}')">
+                  <i class="fas fa-download me-1"></i>Pull trades
+                </button>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="d-flex gap-2 mt-3">
+              <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1" onclick="baiSyncAll()">
+                <i class="fas fa-sync-alt me-1"></i>Sync all brokers
+              </button>
+              <a href="{{ url_for('broker_oauth.broker_connect') }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-plus me-1"></i>Connect another</a>
+            </div>
+          {% else %}
+            <div class="bg-light rounded p-3 text-center">
+              <p class="text-muted small mb-2">No brokers connected yet. Live sync gives the most accurate behavioural analysis.</p>
+              <a href="{{ url_for('broker_oauth.broker_connect') }}" class="btn btn-sm btn-primary"><i class="fas fa-plug me-1"></i>Connect a broker</a>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="d-flex align-items-center my-4">
+          <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+          <span class="px-3 text-muted small fw-semibold">OR</span>
+          <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+        </div>
+
+        {# ─── Option 2: Upload CSV ─── #}
+        <div>
+          <h6 class="section-label mb-3"><i class="fas fa-file-csv text-info me-1"></i>Option 2 — Upload a CSV</h6>
+          <div class="bg-light rounded p-3 mb-3 small">
+            <div class="fw-semibold mb-1"><i class="fas fa-check-circle text-success me-1"></i>Auto-detects format:</div>
+            <div class="d-flex flex-wrap gap-1 mb-2">
+              <span class="badge bg-success-subtle text-success">Dhan P&L Export</span>
+              <span class="badge bg-primary-subtle text-primary">Target Capital Template</span>
+              <span class="badge bg-secondary-subtle text-secondary">Generic CSV</span>
+            </div>
+            <div class="text-muted">Supports <strong>Stocks, F&amp;O and Mutual Funds</strong>. Re-upload any time — new trades are merged.</div>
+          </div>
+          <form method="POST" action="{{ url_for('behaviour_upload_trades') }}" enctype="multipart/form-data">
+            <div class="upload-zone mb-3" id="modalUploadZone" onclick="document.getElementById('modalTradeFile').click()">
+              <input type="file" name="trade_file" id="modalTradeFile" accept=".csv">
+              <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2 d-block"></i>
+              <div id="modalUploadLabel" class="fw-semibold small">Click to choose your CSV file</div>
+              <div class="text-muted" style="font-size:.75rem">or drag and drop here</div>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-info text-white flex-grow-1" id="modalUploadBtn" disabled><i class="fas fa-upload me-2"></i>Import Trades</button>
+              <a href="{{ url_for('behaviour_csv_template') }}" class="btn btn-outline-secondary" title="Download template"><i class="fas fa-download me-1"></i>Template</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-function showFileName(input) {
-  if (input.files && input.files[0]) {
-    document.getElementById('uploadLabel').textContent = input.files[0].name;
-    document.getElementById('uploadBtn').disabled = false;
+// Wire up CSV file pickers + drag-and-drop for both the onboarding form (#tradeFile)
+// and the always-available modal form (#modalTradeFile).
+(function() {
+  function wireUploadZone(zoneSel, fileId, labelId, btnId) {
+    const zone = document.querySelector(zoneSel);
+    const file = document.getElementById(fileId);
+    const label = document.getElementById(labelId);
+    const btn = document.getElementById(btnId);
+    if (!zone || !file || !label || !btn) return;
+    const updateFromFile = () => {
+      if (file.files && file.files[0]) {
+        label.textContent = file.files[0].name;
+        btn.disabled = false;
+      }
+    };
+    file.addEventListener('change', updateFromFile);
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) { file.files = e.dataTransfer.files; updateFromFile(); }
+    });
   }
-}
-const zone = document.querySelector('.upload-zone');
-if (zone) {
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-  zone.addEventListener('drop', e => {
-    e.preventDefault(); zone.classList.remove('drag-over');
-    const fi = document.getElementById('tradeFile');
-    if (e.dataTransfer.files.length) { fi.files = e.dataTransfer.files; showFileName(fi); }
-  });
-}
+  // Onboarding form (only rendered when there is no data yet)
+  wireUploadZone('.upload-zone:not(#modalUploadZone)', 'tradeFile', 'uploadLabel', 'uploadBtn');
+  // Always-available modal form
+  wireUploadZone('#modalUploadZone', 'modalTradeFile', 'modalUploadLabel', 'modalUploadBtn');
+  // Backwards-compat: the onboarding template still calls showFileName(this)
+  window.showFileName = function(input) {
+    if (input.files && input.files[0]) {
+      const label = document.getElementById('uploadLabel');
+      const btn = document.getElementById('uploadBtn');
+      if (label) label.textContent = input.files[0].name;
+      if (btn) btn.disabled = false;
+    }
+  };
+})();
 </script>
-{% endif %}
 {% endblock %}
