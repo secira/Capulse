@@ -718,19 +718,26 @@ def connect_broker(broker_id):
             is_active=True
         ).first()
         
-        if connected_broker and connected_broker.id != broker_id:
-            return jsonify({
-                'success': False, 
-                'message': f'You already have {connected_broker.broker_name} connected. Disconnect it first to connect another broker.'
-            })
-        
-        # TODO: Validate API credentials by calling actual broker API
-        # For now, we'll simulate validation success
-        # In production, this would call the broker's API to test connection
-        
+        # Note: We no longer block multi-broker connections here — the
+        # per-plan limit is enforced by routes_broker_oauth._check_broker_plan_limit
+        # (Growth=1, Pro/Elite=3). Multiple brokers can be connected concurrently;
+        # only ONE is designated as the primary trading broker.
+
         # Update broker status atomically
         broker.connection_status = 'connected'
         broker.last_connected = datetime.utcnow()
+
+        # Auto-promote to primary if the user has no primary trading broker yet.
+        # This keeps single-broker (Growth) users frictionless and gives Pro/Elite
+        # users a sensible default they can later change from the UI.
+        existing_primary = BrokerAccount.query.filter_by(
+            user_id=current_user.id,
+            is_active=True,
+            is_primary=True,
+        ).first()
+        if not existing_primary:
+            broker.is_primary = True
+
         db.session.commit()
         
         flash(f'{broker.broker_name} connected successfully and is now active for trading!', 'success')
@@ -5828,26 +5835,48 @@ def api_trade_execute_signal():
         
         data = request.get_json()
 
-        selected_broker_id = data.get('broker_id')
-        if selected_broker_id:
-            selected_broker = BrokerAccount.query.filter_by(
-                id=int(selected_broker_id),
-                user_id=current_user.id,
-                is_active=True,
-                connection_status='connected'
-            ).first()
-        else:
-            selected_broker = BrokerAccount.query.filter_by(
-                user_id=current_user.id,
-                is_active=True,
-                connection_status='connected'
-            ).first()
+        # Only the user's designated PRIMARY broker can place trades.
+        # Other connected brokers are data-sync only (unified portfolio view,
+        # behavioural intelligence). This keeps trade execution unambiguous
+        # and matches the plan model:
+        #   Growth → 1 broker (also primary by default)
+        #   Pro / Elite → up to 3 brokers, exactly 1 designated for trading
+        primary_broker = BrokerAccount.query.filter_by(
+            user_id=current_user.id,
+            is_active=True,
+            connection_status='connected',
+            is_primary=True,
+        ).first()
 
-        if not selected_broker:
+        # Fallback: if no primary set but the user has exactly one connected
+        # broker, auto-promote it. This keeps single-broker users (Growth)
+        # frictionless and recovers from older accounts created before the
+        # primary-broker flow existed.
+        if not primary_broker:
+            connected = BrokerAccount.query.filter_by(
+                user_id=current_user.id,
+                is_active=True,
+                connection_status='connected',
+            ).all()
+            if len(connected) == 1:
+                connected[0].is_primary = True
+                db.session.commit()
+                primary_broker = connected[0]
+
+        if not primary_broker:
             return jsonify({
                 'success': False,
-                'error': 'No broker selected or connected. Please connect a broker first.'
+                'error': 'No primary trading broker set. Open Broker Management → "Set as Trading" to designate which broker should place orders.'
             }), 400
+
+        selected_broker_id = data.get('broker_id')
+        if selected_broker_id and int(selected_broker_id) != primary_broker.id:
+            return jsonify({
+                'success': False,
+                'error': f'Trades can only be placed via your primary trading broker ({primary_broker.broker_name}). Other connected brokers are data-sync only.'
+            }), 400
+
+        selected_broker = primary_broker
 
         order_type_raw = data.get('order_type', 'MARKET').upper()
         # trigger_price is only valid for Stop-Loss / Trigger order types; MARKET/LIMIT must send 0.

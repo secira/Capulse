@@ -115,6 +115,17 @@
     </div>
     <div class="card-body p-4">
 {% if brokers %}
+<div class="alert d-flex align-items-start gap-3 mb-4" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px;">
+    <i class="fas fa-bolt mt-1" style="color:#16a34a; font-size:18px;"></i>
+    <div style="font-size:13px; color:#15803d;">
+        <strong>One broker for trading, the rest for data.</strong>
+        Only your <span class="badge" style="background:#16a34a; color:#fff; font-size:10px;"><i class="fas fa-bolt me-1"></i>TRADING</span> broker places live orders from Trade Now.
+        Others sync holdings &amp; positions for the unified portfolio view and Behavioural AI, but cannot execute trades.
+        Switch any time using <strong>"Set as Trading"</strong>.
+    </div>
+</div>
+{% endif %}
+{% if brokers %}
 <div class="row g-4">
     {% for broker in brokers %}
     {% set sync_st = broker.sync_status or 'pending' %}
@@ -129,7 +140,11 @@
                     </div>
                     <div>
                         <div style="font-size:17px; font-weight:700; color:#1e293b;">{{ broker.broker_name }}</div>
-                        {% if broker.is_primary %}<span class="badge bg-dark" style="font-size:10px;">PRIMARY</span>{% endif %}
+                        {% if broker.is_primary %}
+                            <span class="badge" style="background:#16a34a; color:#fff; font-size:10px;" title="Trades will be placed via this broker"><i class="fas fa-bolt me-1"></i>TRADING</span>
+                        {% elif broker.connection_status == 'connected' %}
+                            <span class="badge" style="background:#e0e7ff; color:#4338ca; font-size:10px;" title="Holdings & positions sync only — no trade execution"><i class="fas fa-database me-1"></i>DATA SYNC ONLY</span>
+                        {% endif %}
                     </div>
                 </div>
                 {% set _needs_reconnect = broker.needs_reconnect() %}
@@ -221,6 +236,13 @@
                 {% endif %}
                 {% if broker.connection_status == 'connected' %}
                 <div class="d-flex gap-2 flex-wrap">
+                    {% if not broker.is_primary %}
+                    <button class="btn btn-sm flex-fill" onclick="setPrimaryBroker({{ broker.id }}, '{{ broker.broker_name }}')"
+                            style="background:#16a34a; color:#fff; border-radius:8px; font-size:13px; font-weight:600; padding:8px 12px;"
+                            title="Make this the broker that places live orders">
+                        <i class="fas fa-bolt me-1"></i>Set as Trading
+                    </button>
+                    {% endif %}
                     <button class="btn btn-sm flex-fill" id="syncBtn-{{ broker.id }}" onclick="syncBroker({{ broker.id }})"
                             style="background:#00091a; color:#fff; border-radius:8px; font-size:13px; font-weight:600; padding:8px 12px;">
                         <i class="fas fa-sync-alt me-1"></i>Sync Holdings
@@ -611,6 +633,24 @@ function deleteBroker(brokerId) {
             alert('Error deleting broker');
         });
     }
+}
+
+function setPrimaryBroker(brokerId, brokerName) {
+    if (!confirm(`Set ${brokerName} as your TRADING broker?\n\nAll live orders from Trade Now will be placed via ${brokerName}. Other connected brokers will continue to sync holdings/positions for portfolio view but cannot place trades.`)) return;
+    fetch(`/api/broker/set-primary/${brokerId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.message || 'Could not set trading broker'));
+        }
+    })
+    .catch(err => { console.error(err); alert('Error setting trading broker'); });
 }
 
 function connectBroker(brokerId) {
