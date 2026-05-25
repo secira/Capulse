@@ -245,15 +245,15 @@ function testConnection() {
     if (data.success) {
       resultDiv.innerHTML = '<div class="alert alert-success mb-0 py-2"><i class="fas fa-check-circle me-2"></i>' + data.message + '</div>';
     } else {
+      // Server already includes broker-specific re-auth guidance in data.message.
+      // We just append a link to the Broker Accounts page so the user can act on it.
       resultDiv.innerHTML =
         '<div class="alert alert-danger mb-0 py-2">' +
           '<i class="fas fa-times-circle me-2"></i>' + data.message +
           '<hr class="my-2">' +
-          '<strong>To fix:</strong> ' +
-          '<a href="/dashboard/broker-accounts" class="alert-link">Go to Broker Accounts</a> ' +
-          'and remove then re-add your Dhan connection with a fresh access token from ' +
-          '<a href="https://app.dhan.co" target="_blank" class="alert-link">app.dhan.co <i class="fas fa-external-link-alt fa-xs"></i></a> ' +
-          '→ Profile → Generate Access Token.' +
+          '<strong>Next:</strong> ' +
+          '<a href="/dashboard/broker-accounts" class="alert-link">Open Broker Accounts</a>' +
+          ' to update your credentials and re-test.' +
         '</div>';
     }
   })

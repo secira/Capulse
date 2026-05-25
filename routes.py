@@ -548,17 +548,39 @@ def api_data_api_broker_test():
             detail = ''
 
         broker_name = account.broker_name or broker_type
-        # Give broker-specific guidance
-        if broker_type == 'dhan':
-            fix_hint = (' Your Dhan access token may have expired. '
-                        'Go to app.dhan.co → Profile → Generate Access Token, '
-                        'then re-save your credentials here.')
-        else:
-            fix_hint = ' Please re-enter your API credentials.'
+        # Per-broker re-auth guidance. Most Indian brokers issue daily-expiring
+        # access tokens that must be regenerated via their login portal.
+        _BROKER_FIX_HINTS = {
+            'dhan': ('Your Dhan access token may have expired. '
+                     'Go to app.dhan.co → Profile → Generate Access Token, '
+                     'then re-save your credentials here.'),
+            'zerodha': ('Zerodha (Kite Connect) access tokens expire daily around 06:00 IST. '
+                        'Generate a fresh token via the Kite Connect login flow at '
+                        'kite.trade/connect/login, then re-save your credentials here.'),
+            'angel': ('Your Angel One (SmartAPI) session may have expired. '
+                      'Re-login at smartapi.angelbroking.com to regenerate JWT/feed tokens, '
+                      'then re-save your credentials here.'),
+            'upstox': ('Your Upstox access token may have expired (Upstox tokens expire daily ~03:30 AM IST). '
+                       'Re-authorise via the Upstox OAuth flow, then re-save your credentials here.'),
+            'fyers': ('Your Fyers access token may have expired (tokens are valid for the trading day only). '
+                      'Re-login via api.fyers.in to generate a fresh token, then re-save here.'),
+            'shoonya': ('Your Shoonya (Finvasia) session token may have expired. '
+                        'Re-login at shoonya.finvasia.com to regenerate, then re-save your credentials.'),
+            'aliceblue': ('Your Alice Blue (ANT) session may have expired. '
+                          'Re-login at ant.aliceblueonline.com to refresh your token, then re-save here.'),
+            '5paisa': ('Your 5paisa session may have expired. '
+                       'Re-login via 5paisa\'s OAuth flow, then re-save your credentials here.'),
+        }
+        fix_hint = ' ' + _BROKER_FIX_HINTS.get(
+            broker_type.lower(),
+            'Please re-enter your API credentials from the broker\'s developer portal.'
+        )
 
         return jsonify(
             success=False,
-            message=f'{broker_name} connection failed.{detail}{fix_hint}'
+            message=f'{broker_name} connection failed.{detail}{fix_hint}',
+            broker_type=broker_type,
+            broker_name=broker_name,
         )
     except Exception as e:
         logger.error(f"api_data_api_broker_test error: {e}")
