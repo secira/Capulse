@@ -434,55 +434,31 @@
         <div class="modal-body">
           {{ saved_notice('zerodha') }}
 
-          <!-- Two-tab connect: Direct Token (works like Dhan) OR OAuth redirect -->
+          <!-- Two-tab connect: OAuth (recommended — just api_key + api_secret) OR Direct Token (advanced) -->
           <ul class="nav nav-pills nav-fill mb-3" role="tablist">
             <li class="nav-item" role="presentation">
-              <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#zerodha-tab-token" type="button" role="tab">
-                <i class="fas fa-key me-1"></i>Direct Token <span class="badge bg-success ms-1">Recommended</span>
+              <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#zerodha-tab-oauth" type="button" role="tab">
+                <i class="fas fa-sign-in-alt me-1"></i>Login with Kite <span class="badge bg-success ms-1">Recommended</span>
               </button>
             </li>
             <li class="nav-item" role="presentation">
-              <button class="nav-link" data-bs-toggle="pill" data-bs-target="#zerodha-tab-oauth" type="button" role="tab">
-                <i class="fas fa-sign-in-alt me-1"></i>OAuth Redirect
+              <button class="nav-link" data-bs-toggle="pill" data-bs-target="#zerodha-tab-token" type="button" role="tab">
+                <i class="fas fa-key me-1"></i>Paste Token <small class="text-muted">(advanced)</small>
               </button>
             </li>
           </ul>
 
           <div class="tab-content">
-            <!-- TAB 1: DIRECT TOKEN — paste API key + access token, no redirect -->
-            <div class="tab-pane fade show active" id="zerodha-tab-token" role="tabpanel">
+            <!-- TAB 1: OAUTH REDIRECT — only api_key + api_secret needed -->
+            <div class="tab-pane fade show active" id="zerodha-tab-oauth" role="tabpanel">
               <div class="alert alert-info small mb-3">
                 <i class="fas fa-lightbulb me-1"></i>
-                Paste your API Key + a freshly-generated Access Token. Get the token by logging into
-                <a href="https://kite.zerodha.com/connect/login?v=3&api_key=YOUR_API_KEY" target="_blank">Kite Connect login</a>
-                (replace <code>YOUR_API_KEY</code>), then exchange the <code>request_token</code> for an
-                <code>access_token</code> in your <a href="https://developers.kite.trade/apps" target="_blank">Kite developer console</a>.
-                Works exactly like Dhan — no redirect needed.
-              </div>
-              <div class="mb-3">
-                <label class="form-label fw-semibold">API Key <span class="text-danger">*</span></label>
-                <input type="text" name="api_key_direct" class="form-control" placeholder="e.g. xxxyyy123" autocomplete="off">
-              </div>
-              <div class="mb-3">
-                <label class="form-label fw-semibold">Access Token <span class="text-danger">*</span></label>
-                <input type="password" name="access_token_direct" class="form-control" placeholder="Paste the Kite access_token" autocomplete="off">
-                <small class="text-muted">Access tokens expire daily ~06:00 IST — regenerate &amp; paste again each morning.</small>
-              </div>
-              <div class="mb-2">
-                <label class="form-label fw-semibold">API Secret <small class="text-muted">(optional, for OAuth re-login later)</small></label>
-                <input type="password" name="api_secret_direct" class="form-control" placeholder="Kite API secret (optional)" autocomplete="off">
-              </div>
-            </div>
-
-            <!-- TAB 2: OAUTH REDIRECT — original flow -->
-            <div class="tab-pane fade" id="zerodha-tab-oauth" role="tabpanel">
-              <div class="alert alert-info small mb-3">
-                <i class="fas fa-lightbulb me-1"></i>
-                Create an app at <a href="https://developers.kite.trade/apps" target="_blank">developers.kite.trade</a>
-                and set the Redirect URL to <code>{{ request.host_url.rstrip('/') }}/broker/callback/zerodha</code>
-              </div>
-              <div class="alert alert-warning small mb-2 py-2">
-                <i class="fas fa-clock me-1"></i><strong>Note:</strong> Zerodha tokens expire every day at midnight. Use <strong>Re-login</strong> each morning.
+                <strong>Easiest way</strong> — just paste your two API credentials below. We redirect you
+                to Kite, you complete login + 2FA, and we save the daily access token automatically.
+                <br><br>
+                Get your API Key + Secret from
+                <a href="https://developers.kite.trade/apps" target="_blank">developers.kite.trade</a>.
+                Set the Redirect URL on your Kite app to <code>{{ request.host_url.rstrip('/') }}/broker/callback/zerodha</code>.
               </div>
               <div class="mb-3">
                 <label class="form-label fw-semibold">API Key <span class="text-danger">*</span></label>
@@ -492,7 +468,35 @@
                 <label class="form-label fw-semibold">API Secret <span class="text-danger">*</span></label>
                 <input type="password" name="api_secret" class="form-control" placeholder="Kite API secret" autocomplete="off">
               </div>
-              <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>You'll be redirected to Zerodha to complete login.</p>
+              <div class="alert alert-warning small mt-3 mb-0 py-2">
+                <i class="fas fa-clock me-1"></i>
+                Zerodha tokens expire daily ~06:00 IST. Use the <strong>Re-login</strong> button each morning
+                — credentials are saved, so it's a one-click refresh.
+              </div>
+              <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock me-1 text-success"></i>Encrypted at rest. You'll be redirected to kite.zerodha.com for login.</p>
+            </div>
+
+            <!-- TAB 2: DIRECT TOKEN — for advanced users who already have an access_token -->
+            <div class="tab-pane fade" id="zerodha-tab-token" role="tabpanel">
+              <div class="alert alert-info small mb-3">
+                <i class="fas fa-lightbulb me-1"></i>
+                Already have a fresh <code>access_token</code>? Paste it here directly. Useful if you
+                generate tokens via your own script. You'll need to repeat this every morning after
+                ~06:00 IST when Zerodha expires the token.
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">API Key <span class="text-danger">*</span></label>
+                <input type="text" name="api_key_direct" class="form-control" placeholder="e.g. xxxyyy123" autocomplete="off">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Access Token <span class="text-danger">*</span></label>
+                <input type="password" name="access_token_direct" class="form-control" placeholder="Paste the Kite access_token" autocomplete="off">
+                <small class="text-muted">Expires daily ~06:00 IST.</small>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold">API Secret <small class="text-muted">(optional, for OAuth re-login later)</small></label>
+                <input type="password" name="api_secret_direct" class="form-control" placeholder="Kite API secret (optional)" autocomplete="off">
+              </div>
             </div>
           </div>
         </div>
