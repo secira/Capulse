@@ -330,6 +330,30 @@ def auth_zerodha():
     account = _save_pending_account('zerodha', api_key, api_secret)
     session['zerodha_account_id'] = account.id
 
+    # FORCE FRESH OAUTH: clear any stale access_token so this account is in a
+    # known "pending" state. The callback will then either save a new token
+    # (success) or leave the account empty (failure) — never a half-state
+    # where Test Connection silently reuses a dead token. Also marks status
+    # as 'expired' so the UI clearly shows the account needs re-auth until
+    # the callback completes successfully.
+    try:
+        account.set_credentials(
+            client_id=api_key,
+            access_token='',          # blank = no usable token
+            api_secret=api_secret,
+        )
+        account.connection_status = ConnectionStatus.EXPIRED.value
+        db.session.commit()
+        logger.info(
+            f"Zerodha OAuth: cleared stale access_token on account {account.id} "
+            f"before redirect (user {current_user.id})"
+        )
+    except Exception as _clr_err:
+        logger.warning(
+            f"Zerodha OAuth: failed to clear stale token on account {account.id}: {_clr_err}"
+        )
+        db.session.rollback()
+
     # Redirect to Zerodha Kite login. URL-encode api_key defensively even
     # though valid keys never need encoding.
     from urllib.parse import quote as _urlquote
