@@ -576,11 +576,28 @@ def api_data_api_broker_test():
             'Please re-enter your API credentials from the broker\'s developer portal.'
         )
 
+        # For brokers with a one-click re-OAuth route, hand the URL to the UI
+        # so it can render a "Reconnect now" button instead of a generic link.
+        _RECONNECT_ROUTES = {
+            'zerodha': 'broker_oauth.reconnect_zerodha',
+            'angel':   'broker_oauth.reconnect_angel',
+            'upstox':  'broker_oauth.reconnect_upstox',
+            'fyers':   'broker_oauth.reconnect_fyers',
+        }
+        reconnect_url = None
+        try:
+            endpoint = _RECONNECT_ROUTES.get(broker_type.lower())
+            if endpoint:
+                reconnect_url = url_for(endpoint)
+        except Exception:
+            reconnect_url = None
+
         return jsonify(
             success=False,
             message=f'{broker_name} connection failed.{detail}{fix_hint}',
             broker_type=broker_type,
             broker_name=broker_name,
+            reconnect_url=reconnect_url,
         )
     except Exception as e:
         logger.error(f"api_data_api_broker_test error: {e}")

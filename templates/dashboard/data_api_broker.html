@@ -245,15 +245,29 @@ function testConnection() {
     if (data.success) {
       resultDiv.innerHTML = '<div class="alert alert-success mb-0 py-2"><i class="fas fa-check-circle me-2"></i>' + data.message + '</div>';
     } else {
-      // Server already includes broker-specific re-auth guidance in data.message.
-      // We just append a link to the Broker Accounts page so the user can act on it.
+      // If the server gave us a one-click reconnect URL (Zerodha/Angel/etc.),
+      // render a real form-POST button so the user can re-auth in one click.
+      var actionHtml;
+      if (data.reconnect_url) {
+        var brokerLabel = data.broker_name || data.broker_type || 'broker';
+        actionHtml =
+          '<form method="POST" action="' + data.reconnect_url + '" style="display:inline;">' +
+            '<button type="submit" class="btn btn-warning btn-sm fw-semibold">' +
+              '<i class="fas fa-sync-alt me-1"></i>Reconnect ' + brokerLabel + ' now' +
+            '</button>' +
+          '</form>' +
+          ' <small class="text-muted ms-2">You\'ll be redirected to the broker\'s login page.</small>';
+      } else {
+        actionHtml =
+          '<strong>Next:</strong> ' +
+          '<a href="/dashboard/broker-accounts" class="alert-link">Open Broker Accounts</a>' +
+          ' to update your credentials and re-test.';
+      }
       resultDiv.innerHTML =
         '<div class="alert alert-danger mb-0 py-2">' +
           '<i class="fas fa-times-circle me-2"></i>' + data.message +
           '<hr class="my-2">' +
-          '<strong>Next:</strong> ' +
-          '<a href="/dashboard/broker-accounts" class="alert-link">Open Broker Accounts</a>' +
-          ' to update your credentials and re-test.' +
+          actionHtml +
         '</div>';
     }
   })
