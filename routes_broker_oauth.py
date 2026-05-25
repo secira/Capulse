@@ -297,14 +297,30 @@ def auth_zerodha():
         return redirect(url_for('broker_oauth.broker_connect'))
 
     # ── Mode 2: OAuth redirect (original flow) ───────────────────────────────
+    # Strip whitespace — Kite API keys/secrets are alphanumeric; any stray
+    # space from a copy-paste will make Kite reject the OAuth round-trip with
+    # an opaque "Missing or empty field `authorize`" InputException.
     merged = _merge_with_stored(
         'zerodha',
-        api_key=request.form.get('api_key', ''),
-        api_secret=request.form.get('api_secret', ''),
+        api_key=(request.form.get('api_key') or '').strip(),
+        api_secret=(request.form.get('api_secret') or '').strip(),
     )
-    api_key, api_secret = merged['api_key'], merged['api_secret']
+    api_key = (merged['api_key'] or '').strip()
+    api_secret = (merged['api_secret'] or '').strip()
     if not api_key or not api_secret:
         flash('API Key and API Secret are required for Zerodha.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+    # Basic shape check — Kite API keys are typically 6–32 alphanumeric chars.
+    # Catching obviously wrong inputs here gives a useful error instead of a
+    # cryptic Kite-side rejection.
+    import re as _re
+    if not _re.fullmatch(r'[A-Za-z0-9]{4,64}', api_key):
+        flash(
+            'That API Key looks malformed — Kite Connect keys are alphanumeric '
+            '(no spaces/quotes/punctuation). Please copy it again from '
+            'developers.kite.trade.',
+            'error',
+        )
         return redirect(url_for('broker_oauth.broker_connect'))
     limit_err = _check_broker_plan_limit('zerodha')
     if limit_err:
@@ -314,8 +330,11 @@ def auth_zerodha():
     account = _save_pending_account('zerodha', api_key, api_secret)
     session['zerodha_account_id'] = account.id
 
-    # Redirect to Zerodha Kite login
-    kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={api_key}"
+    # Redirect to Zerodha Kite login. URL-encode api_key defensively even
+    # though valid keys never need encoding.
+    from urllib.parse import quote as _urlquote
+    kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={_urlquote(api_key, safe='')}"
+    logger.info(f"Zerodha OAuth: redirecting user {current_user.id} to Kite login (api_key={api_key[:4]}…)")
     return redirect(kite_url)
 
 
