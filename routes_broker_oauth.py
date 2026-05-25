@@ -705,12 +705,26 @@ def auth_angel():
 
     client_id = (request.form.get('client_id', '').strip() or stored.get('client_id') or '')
     api_key = (request.form.get('api_key', '').strip() or stored_api_key)
-    totp_secret = (request.form.get('totp_secret', '').strip() or stored_totp)
+    totp_secret_raw = (request.form.get('totp_secret', '').strip() or stored_totp)
     password = (request.form.get('password', '').strip() or stored_pin)
+
+    import re as _re
+    totp_secret = _re.sub(r'[\s\-_]', '', totp_secret_raw).upper()
 
     if not all([client_id, api_key, totp_secret, password]):
         flash('All fields are required for Angel One.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
+
+    if not _re.fullmatch(r'[A-Z2-7]+=*', totp_secret) or len(totp_secret) < 16:
+        flash(
+            'Invalid TOTP Secret. It must be the long base32 string (A–Z and 2–7 only, '
+            '16+ chars) you got when enabling 2FA on smartapi.angelbroking.com — NOT the '
+            '6-digit code from your authenticator app. Reset 2FA on SmartAPI and click '
+            '"Can\'t scan? Use this key" to copy the correct secret.',
+            'error',
+        )
+        return redirect(url_for('broker_oauth.broker_connect'))
+
     limit_err = _check_broker_plan_limit('angel_broking')
     if limit_err:
         flash(limit_err, 'error')
