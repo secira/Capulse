@@ -358,7 +358,14 @@ def auth_zerodha():
     # though valid keys never need encoding.
     from urllib.parse import quote as _urlquote
     kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={_urlquote(api_key, safe='')}"
-    logger.info(f"Zerodha OAuth: redirecting user {current_user.id} to Kite login (api_key={api_key[:4]}…)")
+    # Full diagnostic log — api_key is a PUBLIC client identifier (like an
+    # OAuth client_id), not a secret. Safe to log so we can debug "Missing
+    # or empty field `api_key`" errors from Kite's /finish endpoint.
+    logger.info(
+        f"Zerodha OAuth: user {current_user.id} → Kite | "
+        f"api_key={api_key!r} (len={len(api_key)}, "
+        f"bytes={api_key.encode('utf-8')!r}) | url={kite_url}"
+    )
     # CRITICAL: must break out of any embedding iframe (e.g. Replit's
     # workspace_iframe.html) before sending the browser to kite.zerodha.com.
     # If Kite loads inside a cross-origin iframe, modern browsers block its
