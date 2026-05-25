@@ -988,50 +988,78 @@ class AngelBrokerClient(BaseBrokerClient):
             raise BrokerAPIError("Angel One library not available. Install with: pip install smartapi-python pyotp")
     
     def connect(self) -> bool:
-        """Connect to Angel One SmartAPI"""
+        """Connect to Angel One SmartAPI.
+
+        Credentials stored by the auth_angel route:
+          client_id    = Angel trading client code (e.g. 'P50495139')
+          access_token = JWT token from last login
+          api_secret   = composite "api_key:totp_secret:pin"
+        """
         try:
-            api_key = self.credentials.get('client_id')  # API Key
-            username = self.credentials.get('access_token')  # Client Code
-            password = self.credentials.get('api_secret')  # Trading PIN
-            totp_secret = self.credentials.get('totp_secret')  # TOTP Secret
-            
-            if not api_key or not username or not password:
-                raise BrokerAPIError("Missing Angel One credentials")
-            
-            self._client = SmartConnect(api_key)
-            
-            # Generate TOTP if available
-            totp = None
-            if totp_secret:
+            client_code = (self.credentials.get('client_id') or '').strip()
+            access_token = (self.credentials.get('access_token') or '').strip()
+            api_secret_raw = self.credentials.get('api_secret') or ''
+            parts = api_secret_raw.split(':')
+            api_key = parts[0] if parts else ''
+            totp_secret = parts[1] if len(parts) > 1 else ''
+            pin = parts[2] if len(parts) > 2 else ''
+
+            if not client_code or not api_key:
+                raise BrokerAPIError(
+                    "Missing Angel One credentials (client_code or api_key)"
+                )
+
+            self._client = SmartConnect(api_key=api_key)
+
+            # Path A: try the stored JWT first (fast path, no fresh login).
+            if access_token:
                 try:
-                    totp = pyotp.TOTP(totp_secret).now()
-                except:
+                    self._client.setAccessToken(access_token)
+                except Exception:
                     pass
-            
-            if not totp:
-                # Use static TOTP for now (user needs to provide current TOTP)
-                totp = password[-6:] if len(password) > 6 else "123456"
-            
-            # Generate session
-            data = self._client.generateSession(username, password, totp)
-            
-            if data.get('status') == False:
-                raise BrokerAPIError(f"Angel One login failed: {data.get('message', 'Authentication failed')}")
-            
-            # Store tokens
-            self._auth_token = data['data']['jwtToken']
-            self._refresh_token = data['data']['refreshToken']
-            self._feed_token = self._client.getfeedToken()
-            
-            # Test connection with profile
-            profile = self._client.getProfile(self._refresh_token)
-            if profile and profile.get('status'):
-                self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
-                logger.info(f"Successfully connected to Angel One for account {username}")
-                return True
-            else:
-                raise BrokerAPIError("Failed to get Angel One profile")
-                
+                self._auth_token = access_token
+                try:
+                    profile = self._client.getProfile(access_token)
+                    if profile and profile.get('status'):
+                        self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
+                        logger.info(f"Angel One reused stored JWT for {client_code}")
+                        return True
+                except Exception as e:
+                    logger.info(f"Angel One stored JWT rejected, will re-login: {e}")
+
+            # Path B: stored JWT missing/expired — fresh TOTP login.
+            if not totp_secret or not pin:
+                raise BrokerAPIError(
+                    "Stored Angel One TOTP secret or PIN missing — reconnect required"
+                )
+            totp = pyotp.TOTP(totp_secret).now()
+            data = self._client.generateSession(client_code, pin, totp)
+            if not data or data.get('status') is False:
+                raise BrokerAPIError(
+                    f"Angel One login failed: {(data or {}).get('message', 'Authentication failed')}"
+                )
+
+            new_jwt = data['data']['jwtToken']
+            new_refresh = data['data'].get('refreshToken') or ''
+            self._auth_token = new_jwt
+            self._refresh_token = new_refresh
+            try:
+                self._feed_token = self._client.getfeedToken()
+            except Exception:
+                self._feed_token = ''
+
+            # Persist refreshed JWT so subsequent syncs reuse it.
+            self.broker_account.set_credentials(
+                client_id=client_code,
+                access_token=new_jwt,
+                api_secret=api_secret_raw,
+            )
+            if new_refresh:
+                self.broker_account.set_refresh_token(new_refresh)
+            self.broker_account.update_connection_status(ConnectionStatus.CONNECTED)
+            logger.info(f"Angel One re-logged in for {client_code}")
+            return True
+
         except Exception as e:
             error_msg = f"Failed to connect to Angel One: {str(e)}"
             self.broker_account.update_connection_status(ConnectionStatus.ERROR, error_msg)
@@ -2398,6 +2426,14 @@ class BrokerService:
         client = BrokerService.get_broker_client(broker_account)
         if not client.connect():
             raise BrokerAPIError("Failed to connect to broker")
+
+        # Persist any connection-status updates made inside client.connect()
+        # before running follow-up queries, otherwise the dirty broker_account
+        # row triggers an autoflush mid-sync that can fail.
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
         results: Dict[str, int] = {}
         start_time = time.time()
