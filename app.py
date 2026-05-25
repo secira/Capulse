@@ -470,6 +470,9 @@ with app.app_context():
         'CREATE INDEX IF NOT EXISTS ix_fno_signal_user_trade ON fno_signal_history(is_user_trade, created_at DESC)',
         'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT \'en\'',
         'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS use_remote_execution BOOLEAN DEFAULT FALSE NOT NULL',
+        # Trial extension (14-day base + one-time 7-day extension)
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS trial_extended_until TIMESTAMP',
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS trial_extended_at TIMESTAMP',
         'ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS expiry_date DATE',
         'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS asset_type VARCHAR(20) DEFAULT \'STOCK\'',
         'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS instrument_detail VARCHAR(100) DEFAULT \'\'',

@@ -1,0 +1,72 @@
+[parameters: {'pk_1': 1, 'tenant_id_1': 'live'}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+[2026-05-25 13:47:53 +0000] [215] [ERROR] Error handling request GET /
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column user.trial_extended_until does not exist
+LINE 1: ...ral_code, "user".referred_by AS user_referred_by, "user".tri...
+                                                             ^
+The above exception was the direct cause of the following exception:
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/routes.py", line 198, in index
+    return render_template('index.html', testimonials=testimonials)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/templating.py", line 151, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask/templating.py", line 128, in _render
+    app.update_template_context(context)
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 530, in update_template_context
+    return dict(current_user=_get_user())
+                             ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/flask_login/utils.py", line 370, in _get_user
+    current_app.login_manager._load_user()
+  File "/usr/local/lib/python3.11/site-packages/flask_login/login_manager.py", line 364, in _load_user
+    user = self._user_callback(user_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/app.py", line 324, in load_user
+    return User.query.get(int(user_id))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in get
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/deprecations.py", line 386, in warned
+    return fn(*args, **kwargs)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 1127, in get
+    return self._get_impl(ident, loading.load_on_pk_identity)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 1136, in _get_impl
+    return self.session._get_impl(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 3880, in _get_impl
+    result = conn.execute(
+    return db_load_fn(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2270, in _execute_internal
+             ^^^^^^^^^^^^^
+           ^^^^^^^^^^^
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/loading.py", line 695, in load_on_pk_identity
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1421, in execute
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    session.execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2372, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+FROM "user" 
+  File "/usr/local/lib/python3.11/site-packages/flask/app.py", line 530, in update_template_context
+Railway rate limit of 500 logs/sec reached for replica, update your application to reduce the logging rate. Messages dropped: 455
