@@ -266,10 +266,24 @@ def auth_zerodha():
             kite_user_id = profile.get('user_id') or ''
             kite_user_name = profile.get('user_name') or ''
         except Exception as e:
-            logger.error(f"Zerodha direct-token validation failed for user {current_user.id}: {e}")
+            # Detailed diagnostic: api_key is a public client identifier
+            # (not a secret) so safe to log. access_token IS secret — log
+            # only length + first/last 4 chars so we can spot truncation
+            # or whitespace issues without leaking the full value.
+            _at = access_token or ''
+            _at_preview = f"{_at[:4]}…{_at[-4:]}" if len(_at) > 8 else "<short>"
+            logger.error(
+                f"Zerodha direct-token validation FAILED for user {current_user.id} | "
+                f"api_key={api_key!r} (len={len(api_key)}, bytes={api_key.encode('utf-8')!r}) | "
+                f"access_token preview={_at_preview} (len={len(_at)}) | "
+                f"kite error: {e}"
+            )
             flash(
                 f'Zerodha rejected those credentials: {e}. '
-                'Make sure the access_token was generated today (they expire ~06:00 IST).',
+                'This usually means (1) the API Key is wrong — copy it again from '
+                'developers.kite.trade (it is shown right under your app name, lowercase '
+                'alphanumeric, ~10–12 chars), or (2) the access_token is stale — Zerodha '
+                'tokens expire daily at ~06:00 IST and must be regenerated.',
                 'error',
             )
             return redirect(url_for('broker_oauth.broker_connect'))
