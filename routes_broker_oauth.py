@@ -335,7 +335,32 @@ def auth_zerodha():
     from urllib.parse import quote as _urlquote
     kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={_urlquote(api_key, safe='')}"
     logger.info(f"Zerodha OAuth: redirecting user {current_user.id} to Kite login (api_key={api_key[:4]}…)")
-    return redirect(kite_url)
+    # CRITICAL: must break out of any embedding iframe (e.g. Replit's
+    # workspace_iframe.html) before sending the browser to kite.zerodha.com.
+    # If Kite loads inside a cross-origin iframe, modern browsers block its
+    # session/CSRF cookies and the login fails with the opaque
+    # "Missing or empty field `authorize`" InputException at /finish.
+    # We return a tiny HTML shim that escapes to top-level then navigates.
+    from markupsafe import escape as _esc
+    safe_url = str(_esc(kite_url))
+    html = (
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<title>Redirecting to Zerodha Kite…</title>"
+        f"<meta http-equiv='refresh' content='0;url={safe_url}'>"
+        "</head><body style='font-family:sans-serif;padding:2rem;text-align:center'>"
+        "<p>Redirecting you to Zerodha Kite login…</p>"
+        "<p>If you are not redirected, "
+        f"<a href='{safe_url}' target='_top' rel='noopener'>click here</a>.</p>"
+        "<script>"
+        f"var u={safe_url!r};"
+        "try{if(window.top&&window.top!==window.self){window.top.location.href=u;}"
+        "else{window.location.href=u;}}catch(e){window.location.href=u;}"
+        "</script></body></html>"
+    )
+    from flask import make_response
+    resp = make_response(html)
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return resp
 
 
 @broker_oauth.route('/broker/callback/zerodha')
