@@ -1031,11 +1031,12 @@ _TRIAL_EXEMPT_ENDPOINTS: frozenset = frozenset({
     # Settings & account management
     'account_profile', 'update_profile', 'account_settings',
     'account_billing', 'change_password', 'update_notification_settings',
+    'extend_trial',
 })
 
 @app.before_request
 def check_trial_expiry():
-    """Redirect FREE users to pricing once their 30-day trial has expired."""
+    """Redirect FREE users to pricing once their 14-day trial (+ optional 7-day extension) has expired."""
     from flask import request, redirect, url_for, flash
     from flask_login import current_user
 
@@ -1062,11 +1063,18 @@ def check_trial_expiry():
         return
 
     # Trial expired → send to pricing
-    flash(
-        'Your 30-day free trial has ended. '
-        'Please upgrade to continue using all features of Target Capital.',
-        'warning'
-    )
+    if current_user.can_extend_trial():
+        flash(
+            'Your free trial has ended. You have a one-time 7-day extension available — '
+            'claim it from the sidebar, or upgrade to keep all features.',
+            'warning'
+        )
+    else:
+        flash(
+            'Your free trial has ended. '
+            'Please upgrade to continue using all features of Target Capital.',
+            'warning'
+        )
     return redirect(url_for('pricing'))
 # ── END TRIAL EXPIRY GUARD ────────────────────────────────────────────────────
 

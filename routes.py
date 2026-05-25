@@ -6992,6 +6992,37 @@ def update_profile():
         
     return redirect(url_for('account_profile'))
 
+@app.route('/account/extend-trial', methods=['POST'])
+@login_required
+def extend_trial():
+    """One-time 7-day trial extension for FREE users."""
+    if not current_user.can_extend_trial():
+        if current_user.trial_extended_at is not None:
+            flash('You have already used your one-time 7-day trial extension.', 'warning')
+        else:
+            flash('Trial extension is no longer available for your account.', 'warning')
+        return redirect(url_for('pricing'))
+
+    if current_user.extend_trial():
+        try:
+            db.session.commit()
+            flash(
+                f'🎉 7 extra days added to your trial — you now have '
+                f'{current_user.trial_days_remaining()} day(s) of full access. '
+                'Make them count!',
+                'success'
+            )
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"extend_trial commit failed for user {current_user.id}: {e}")
+            flash('Could not apply the extension. Please try again or contact support.', 'error')
+            return redirect(url_for('pricing'))
+        return redirect(url_for('dashboard'))
+
+    flash('Trial extension could not be applied.', 'warning')
+    return redirect(url_for('pricing'))
+
+
 @app.route('/account')
 @login_required
 def account_settings():

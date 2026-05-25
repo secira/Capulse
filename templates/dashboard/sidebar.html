@@ -18,13 +18,43 @@
 
         {% set is_free = current_user.is_authenticated and current_user.pricing_plan.value == 'FREE' %}
         {% set trial_days = current_user.trial_days_remaining() if is_free else 0 %}
+        {% set can_extend = is_free and current_user.can_extend_trial() %}
+        {% set is_extended = is_free and current_user.trial_extended_at is not none %}
+        {% set urgent = is_free and trial_days <= 4 %}
 
         <!-- Trial countdown banner for FREE users -->
         {% if is_free and current_user.is_trial_active() %}
-        <div class="sidebar-trial-banner">
-            <i class="fas fa-clock"></i>
-            <span><strong>{{ trial_days }} day{{ 's' if trial_days != 1 else '' }}</strong> left in trial</span>
+        <div class="sidebar-trial-banner {{ 'sidebar-trial-banner-urgent' if urgent else '' }}"
+             {% if urgent %}style="background:#fff3cd;border-left:4px solid #f0b429;"{% endif %}>
+            <i class="fas {{ 'fa-exclamation-triangle' if urgent else 'fa-clock' }}"></i>
+            <span>
+                <strong>{{ trial_days }} day{{ 's' if trial_days != 1 else '' }}</strong> left
+                {% if is_extended %}<small class="d-block" style="font-size:.65rem;opacity:.8;">(extended)</small>{% endif %}
+            </span>
             <a href="{{ url_for('pricing') }}" class="sidebar-trial-upgrade">Upgrade</a>
+        </div>
+        {% if can_extend and trial_days <= 3 %}
+        <form method="POST" action="{{ url_for('extend_trial') }}" class="px-2 mb-2"
+              onsubmit="return confirm('Add 7 more days of full access? This is a one-time extension.');">
+            <button type="submit" class="btn btn-sm w-100"
+                    style="background:#198754;color:white;font-size:.78rem;font-weight:600;">
+                <i class="fas fa-gift me-1"></i>+ 7 free days (one-time)
+            </button>
+        </form>
+        {% endif %}
+        {% elif is_free and can_extend %}
+        <!-- Trial expired but extension still available -->
+        <div class="px-2 mb-2">
+            <div class="p-2 mb-2 rounded text-center" style="background:#f8d7da;color:#842029;font-size:.78rem;">
+                <i class="fas fa-exclamation-circle me-1"></i>Trial ended
+            </div>
+            <form method="POST" action="{{ url_for('extend_trial') }}"
+                  onsubmit="return confirm('Add 7 more days of full access? This is a one-time extension.');">
+                <button type="submit" class="btn btn-sm w-100"
+                        style="background:#198754;color:white;font-size:.78rem;font-weight:600;">
+                    <i class="fas fa-gift me-1"></i>Claim +7 free days
+                </button>
+            </form>
         </div>
         {% endif %}
 

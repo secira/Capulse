@@ -360,6 +360,10 @@ class User(UserMixin, db.Model):
     total_payments = db.Column(db.Float, default=0.0)
     referral_code = db.Column(db.String(20), unique=True, nullable=True)
     referred_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    # 14-day free trial + one-time 7-day extension
+    trial_extended_until = db.Column(db.DateTime, nullable=True)
+    trial_extended_at = db.Column(db.DateTime, nullable=True)
     
     # Relationship to watchlist
     watchlist = db.relationship('WatchlistItem', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -378,10 +382,11 @@ class User(UserMixin, db.Model):
     def can_access_menu(self, menu_item):
         """Check if user can access a specific menu item.
 
-        Under the 30-day full-access trial model this simply mirrors
-        has_full_access() — paid users and trial-active FREE users get
-        everything; expired-trial FREE users get nothing (and are also
-        redirected to /pricing by the check_trial_expiry hook).
+        Under the 14-day full-access trial model (with optional one-time
+        +7-day extension) this simply mirrors has_full_access() — paid users
+        and trial-active FREE users get everything; expired-trial FREE users
+        get nothing (and are also redirected to /pricing by the
+        check_trial_expiry hook).
         """
         return self.has_full_access()
 
@@ -413,8 +418,9 @@ class User(UserMixin, db.Model):
     def can_execute_trades(self):
         """Return True if the user is allowed to execute live broker trades.
 
-        All paid plans (Growth, Pro, Elite) and FREE users in their 30-day trial
-        can execute trades.  Expired FREE accounts cannot.
+        All paid plans (Growth, Pro, Elite) and FREE users in their 14-day trial
+        (plus optional +7-day extension) can execute trades.  Expired FREE
+        accounts cannot.
         """
         return self.has_full_access()
 
@@ -448,51 +454,90 @@ class User(UserMixin, db.Model):
         }
         return prices.get(self.pricing_plan, 0)
     
-    def is_trial_active(self):
-        """Returns True if this FREE user is within the 30-day trial period."""
+    # ─────────────────────────────────────────────────────────────────────
+    # 14-day free trial (with optional one-time +7-day extension)
+    # ─────────────────────────────────────────────────────────────────────
+    TRIAL_BASE_DAYS = 14
+    TRIAL_EXTENSION_DAYS = 7
+
+    def trial_end_date(self):
+        """The datetime when this FREE user's trial ends (or None for paid users).
+
+        Equals created_at + 14 days, unless the user has used their one-time
+        7-day extension — then it equals trial_extended_until.
+        """
         if self.pricing_plan != PricingPlan.FREE:
-            return False
-        if not self.created_at:
-            return True  # No creation date recorded — allow access
+            return None
         from datetime import timedelta
         created = self.created_at
+        if not created:
+            return None
         if hasattr(created, 'tzinfo') and created.tzinfo is not None:
             created = created.replace(tzinfo=None)
-        return datetime.utcnow() < (created + timedelta(days=30))
+        base_end = created + timedelta(days=self.TRIAL_BASE_DAYS)
+        extended = self.trial_extended_until
+        if extended is not None:
+            if hasattr(extended, 'tzinfo') and extended.tzinfo is not None:
+                extended = extended.replace(tzinfo=None)
+            return max(base_end, extended)
+        return base_end
+
+    def is_trial_active(self):
+        """Returns True if this FREE user is still inside their trial window."""
+        if self.pricing_plan != PricingPlan.FREE:
+            return False
+        end = self.trial_end_date()
+        if end is None:
+            return True  # No creation date recorded — allow access
+        return datetime.utcnow() < end
 
     def has_full_access(self):
         """Returns True if user should have full feature access.
 
-        Paid plan users always do.  FREE users do during their 30-day trial.
+        Paid plan users always do.  FREE users do during their trial window.
         """
         if self.pricing_plan != PricingPlan.FREE:
             return True
         return self.is_trial_active()
 
-    def trial_end_date(self):
-        """Returns the datetime when the 30-day trial ends (or None for paid users)."""
-        if self.pricing_plan != PricingPlan.FREE:
-            return None
-        from datetime import timedelta
-        created = self.created_at
-        if not created:
-            return None
-        if hasattr(created, 'tzinfo') and created.tzinfo is not None:
-            created = created.replace(tzinfo=None)
-        return created + timedelta(days=30)
-
     def trial_days_remaining(self):
         """Returns whole days left in the trial (0 if expired or paid plan)."""
         if not self.is_trial_active():
             return 0
-        from datetime import timedelta
-        created = self.created_at
-        if not created:
-            return 30
-        if hasattr(created, 'tzinfo') and created.tzinfo is not None:
-            created = created.replace(tzinfo=None)
-        remaining = (created + timedelta(days=30) - datetime.utcnow()).days
+        end = self.trial_end_date()
+        if end is None:
+            return self.TRIAL_BASE_DAYS
+        remaining = (end - datetime.utcnow()).days
         return max(0, remaining)
+
+    def can_extend_trial(self):
+        """One-time 7-day extension. Available to FREE users who haven't used it yet
+        and whose trial is still active or expired within the last 7 days
+        (so users who just expired can still claim the extension and return)."""
+        if self.pricing_plan != PricingPlan.FREE:
+            return False
+        if self.trial_extended_until is not None or self.trial_extended_at is not None:
+            return False
+        if not self.created_at:
+            return True
+        from datetime import timedelta
+        # Allow extension up to 7 days after trial naturally ended
+        end = self.trial_end_date()
+        if end is None:
+            return True
+        return datetime.utcnow() < (end + timedelta(days=7))
+
+    def extend_trial(self):
+        """Grant the one-time 7-day extension. Returns True if applied, False otherwise."""
+        if not self.can_extend_trial():
+            return False
+        from datetime import timedelta
+        end = self.trial_end_date() or datetime.utcnow()
+        # Extension is added on top of the natural end date (or today if already expired)
+        anchor = max(end, datetime.utcnow())
+        self.trial_extended_until = anchor + timedelta(days=self.TRIAL_EXTENSION_DAYS)
+        self.trial_extended_at = datetime.utcnow()
+        return True
 
     def is_subscription_active(self):
         """Check if user has active subscription"""
