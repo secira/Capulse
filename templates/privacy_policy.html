@@ -2,7 +2,7 @@
 
 {% block title %}Privacy Policy | Target Capital{% endblock %}
 
-{% block description %}Target Capital's privacy policy outlining how we collect, use, and protect your personal information and trading data.{% endblock %}
+{% block description %}Target Capital's privacy policy under the Digital Personal Data Protection Act, 2023 (India) — how we collect, use, and protect your personal data as a Data Fiduciary.{% endblock %}
 
 {% block content %}
 <!-- Hero Section -->
@@ -11,11 +11,14 @@
         <div class="row">
             <div class="col-lg-8 mx-auto text-center">
                 <h1 class="display-4 fw-bold text-dark mb-4">Privacy Policy</h1>
-                <p class="lead text-muted mb-4">
-                    Last updated: January 28, 2026
+                <p class="lead text-muted mb-2">
+                    Last updated: 25 May 2026
                 </p>
                 <p class="text-muted">
-                    We take your privacy seriously. This policy explains how we collect, use, and protect your information.
+                    This policy describes how <strong>Scentric Network Private Limited</strong>
+                    (operating the "Target Capital" platform) processes your personal data
+                    in compliance with the <strong>Digital Personal Data Protection Act, 2023 (DPDP Act)</strong>,
+                    the Information Technology Act, 2000 and applicable SEBI regulations.
                 </p>
             </div>
         </div>
@@ -29,104 +32,143 @@
             <div class="col-lg-8 mx-auto">
                 <div class="card border-0 shadow-sm" style="border-radius: 16px;">
                     <div class="card-body p-5">
-                        
-                        <!-- Information We Collect -->
-                        <div class="mb-5">
-                            <h3 class="fw-bold text-dark mb-3">1. Information We Collect</h3>
-                            <p class="text-muted mb-3">We collect information you provide directly to us, such as:</p>
-                            <ul class="text-muted">
-                                <li>Account registration information (name, email, phone number)</li>
-                                <li>Identity verification documents</li>
-                                <li>Financial information for account funding</li>
-                                <li>Trading preferences and investment goals</li>
-                                <li>Communications with our support team</li>
-                            </ul>
-                        </div>
 
-                        <!-- How We Use Information -->
-                        <div class="mb-5">
-                            <h3 class="fw-bold text-dark mb-3">2. How We Use Your Information</h3>
-                            <p class="text-muted mb-3">We use your information to:</p>
-                            <ul class="text-muted">
-                                <li>Provide and maintain our trading platform</li>
-                                <li>Process transactions and manage your account</li>
-                                <li>Deliver personalized AI-powered recommendations</li>
-                                <li>Comply with legal and regulatory requirements</li>
-                                <li>Communicate important account information</li>
-                                <li>Improve our services and user experience</li>
-                            </ul>
-                        </div>
-
-                        <!-- Information Sharing -->
-                        <div class="mb-5">
-                            <h3 class="fw-bold text-dark mb-3">3. Information Sharing</h3>
-                            <p class="text-muted mb-3">We do not sell your personal information. We may share information with:</p>
-                            <ul class="text-muted">
-                                <li>Service providers who assist in platform operations</li>
-                                <li>Financial institutions for transaction processing</li>
-                                <li>Regulatory authorities when required by law</li>
-                                <li>Professional advisors (lawyers, auditors) under confidentiality agreements</li>
-                            </ul>
-                        </div>
-
-                        <!-- Data Security -->
-                        <div class="mb-5">
-                            <h3 class="fw-bold text-dark mb-3">4. Data Security</h3>
-                            <p class="text-muted">
-                                We implement industry-standard security measures including encryption, secure data centers, 
-                                multi-factor authentication, and regular security audits to protect your information.
+                        <!-- Data Fiduciary Declaration (DPDP §5) -->
+                        <div class="alert alert-primary mb-4" role="alert" style="border-left:4px solid #1e40af;">
+                            <h5 class="fw-bold mb-2"><i class="fas fa-shield-alt me-2"></i>Data Fiduciary Declaration</h5>
+                            <p class="mb-1 small">
+                                Under the DPDP Act, 2023, Scentric Network Private Limited is the
+                                <strong>Data Fiduciary</strong> for personal data processed on the Target Capital platform.
+                                You ("the user") are the <strong>Data Principal</strong>. We process your personal data only for
+                                the specific, lawful purposes described in this policy and on the basis of your consent
+                                (or other lawful grounds permitted under §7 of the Act).
+                            </p>
+                            <p class="mb-0 small">
+                                <strong>Data Fiduciary:</strong> Scentric Network Private Limited &middot;
+                                <strong>Registered office:</strong> Chennai, Tamil Nadu, India &middot;
+                                <strong>Email:</strong> <a href="mailto:dpo@targetcapital.ai">dpo@targetcapital.ai</a>
                             </p>
                         </div>
 
-                        <!-- Your Rights -->
+                        <!-- 1. Information We Collect -->
                         <div class="mb-5">
-                            <h3 class="fw-bold text-dark mb-3">5. Your Rights</h3>
-                            <p class="text-muted mb-3">You have the right to:</p>
+                            <h3 class="fw-bold text-dark mb-3">1. Personal Data We Collect</h3>
+                            <p class="text-muted mb-3">In order to provide the Target Capital platform we may collect:</p>
                             <ul class="text-muted">
-                                <li>Access and review your personal information</li>
-                                <li>Correct inaccurate information</li>
-                                <li>Request deletion of your data (subject to legal requirements)</li>
-                                <li>Opt out of marketing communications</li>
-                                <li>Data portability where technically feasible</li>
+                                <li><strong>Identity &amp; contact data:</strong> name, email, mobile number, date of birth.</li>
+                                <li><strong>KYC data:</strong> PAN, Aadhaar reference (masked), address proof, bank-account details — collected only when required by SEBI/RBI rules or by your broker.</li>
+                                <li><strong>Broker connection data:</strong> API keys / access tokens for connected brokers (Zerodha, Dhan, Angel One, etc.), stored in encrypted form (Fernet AES-128 with a per-tenant master key).</li>
+                                <li><strong>Portfolio &amp; trade data:</strong> holdings, positions, order history fetched from your broker via authorised APIs.</li>
+                                <li><strong>Usage &amp; device data:</strong> IP address, browser, device type, pages visited, feature interactions (used for security and analytics).</li>
+                                <li><strong>Payment data:</strong> subscription transaction IDs from Razorpay; we do not store card numbers or CVV.</li>
                             </ul>
                         </div>
 
-                        <!-- Cookies -->
+                        <!-- 2. Purposes (DPDP §6/§7) -->
                         <div class="mb-5">
-                            <h3 class="fw-bold text-dark mb-3">6. Cookies and Tracking</h3>
-                            <p class="text-muted">
-                                We use cookies and similar technologies to enhance user experience, analyze platform usage, 
-                                and provide personalized content. You can manage cookie preferences through your browser settings.
+                            <h3 class="fw-bold text-dark mb-3">2. Purposes &amp; Lawful Basis</h3>
+                            <p class="text-muted mb-3">We process your personal data for the following specified purposes:</p>
+                            <ul class="text-muted">
+                                <li>To provide the Scentric AI Decision Engine, portfolio analytics and trading-signal services you have signed up for.</li>
+                                <li>To route orders to your selected broker when you click "Execute".</li>
+                                <li>To comply with SEBI / exchange / RBI / DPDP / IT Act obligations and respond to lawful requests from regulators or courts.</li>
+                                <li>To detect, prevent and investigate fraud, security incidents and abuse of the platform.</li>
+                                <li>To send service communications (account alerts, broker token expiry, signal delivery). Marketing communications are sent only with your separate consent and you may withdraw it at any time.</li>
+                            </ul>
+                            <p class="text-muted small mb-0">
+                                Lawful basis: your <strong>consent</strong> under §6 of the DPDP Act for primary processing, and "legitimate uses" under §7 (compliance with law, employment, public interest where applicable).
                             </p>
                         </div>
 
-                        <!-- Data Retention -->
+                        <!-- 3. Sharing -->
+                        <div class="mb-5">
+                            <h3 class="fw-bold text-dark mb-3">3. Sharing of Personal Data</h3>
+                            <p class="text-muted mb-3">We do <strong>not</strong> sell your personal data. We may share it with:</p>
+                            <ul class="text-muted">
+                                <li><strong>Your connected broker(s)</strong> — to authenticate, fetch data and place orders on your instruction.</li>
+                                <li><strong>Data Processors</strong> we engage under written contract: cloud hosting (Railway, AWS region: ap-south-1 where applicable), Razorpay (payments), Twilio/Telegram (notifications), Anthropic/OpenAI/Perplexity (AI inference on anonymised prompts wherever possible).</li>
+                                <li><strong>Regulators, exchanges and law-enforcement</strong> — only when required by Indian law or a valid court / SEBI / RBI order.</li>
+                                <li><strong>Professional advisers</strong> (auditors, lawyers, CAs) under confidentiality obligations.</li>
+                            </ul>
+                            <p class="text-muted small mb-0">
+                                Where personal data is transferred to a processor located outside India, such transfer is made only to jurisdictions permitted by the Central Government under §16 of the DPDP Act and under contractual safeguards.
+                            </p>
+                        </div>
+
+                        <!-- 4. Security -->
+                        <div class="mb-5">
+                            <h3 class="fw-bold text-dark mb-3">4. Security Safeguards</h3>
+                            <p class="text-muted">
+                                We implement "reasonable security practices and procedures" within the meaning of §8(5) of the DPDP Act
+                                and the IT (Reasonable Security Practices) Rules, 2011, including TLS in transit, AES/Fernet encryption
+                                at rest for broker tokens, per-tenant key isolation, PostgreSQL Row-Level Security, MFA on admin
+                                accounts, audit logging and regular vulnerability scanning. In the event of a personal-data breach,
+                                we will notify the Data Protection Board of India and affected Data Principals as required by §8(6).
+                            </p>
+                        </div>
+
+                        <!-- 5. Rights of the Data Principal (DPDP §11–§14) -->
+                        <div class="mb-5">
+                            <h3 class="fw-bold text-dark mb-3">5. Your Rights as a Data Principal</h3>
+                            <p class="text-muted mb-3">Under §§11–14 of the DPDP Act you have the right to:</p>
+                            <ul class="text-muted">
+                                <li><strong>Access</strong> — a summary of the personal data we process and the processing activities.</li>
+                                <li><strong>Correction &amp; erasure</strong> — to correct inaccurate data and request deletion where no legal retention obligation applies.</li>
+                                <li><strong>Withdraw consent</strong> — at any time, with the same ease with which it was given.</li>
+                                <li><strong>Nomination</strong> — to nominate another individual to exercise your rights in case of death or incapacity.</li>
+                                <li><strong>Grievance redressal</strong> — to a readily available mechanism (see §8 below).</li>
+                            </ul>
+                            <p class="text-muted small mb-0">
+                                Requests may be made by email to <a href="mailto:dpo@targetcapital.ai">dpo@targetcapital.ai</a>.
+                                We respond within the timelines specified by the DPDP Rules (currently within 30 days).
+                            </p>
+                        </div>
+
+                        <!-- 6. Cookies -->
+                        <div class="mb-5">
+                            <h3 class="fw-bold text-dark mb-3">6. Cookies &amp; Tracking</h3>
+                            <p class="text-muted">
+                                We use first-party cookies for session management and security, and a limited set of analytics
+                                cookies to understand platform usage. You can manage cookie preferences through your browser settings.
+                                We do not use cookies for cross-site advertising tracking.
+                            </p>
+                        </div>
+
+                        <!-- 7. Retention -->
                         <div class="mb-5">
                             <h3 class="fw-bold text-dark mb-3">7. Data Retention</h3>
                             <p class="text-muted">
-                                We retain your information for as long as necessary to provide services and comply with 
-                                legal obligations. Financial records are typically retained for 7 years as required by regulation.
+                                We retain personal data only for as long as necessary for the purposes for which it was collected
+                                or as required by SEBI / IT Act / income-tax rules. Financial and audit-trail records are typically
+                                retained for <strong>8 years</strong> in line with SEBI record-keeping norms. Broker access tokens
+                                are deleted within 30 days of you disconnecting the broker or closing your account.
                             </p>
                         </div>
 
-                        <!-- Contact Information -->
-                        <div class="mb-4">
-                            <h3 class="fw-bold text-dark mb-3">8. Contact Us</h3>
-                            <p class="text-muted mb-3">
-                                For privacy-related questions or to exercise your rights, contact us at:
-                            </p>
-                            <div class="bg-light p-3 rounded">
-                                <p class="mb-1"><strong>Email:</strong> support@targetcapital.ai</p>
-                                <p class="mb-1"><strong>Phone:</strong> +91 72001 89076</p>
-                                <p class="mb-0"><strong>Mail:</strong> Chennai, India</p>
+                        <!-- 8. Grievance Officer (mandated by DPDP + SPDI Rules) -->
+                        <div class="mb-5">
+                            <h3 class="fw-bold text-dark mb-3">8. Grievance Officer &amp; Data Protection Officer</h3>
+                            <div class="bg-light p-3 rounded mb-3">
+                                <p class="mb-1"><strong>Grievance Redressal Officer / Data Protection Officer:</strong> Mukund Krishnasamy</p>
+                                <p class="mb-1"><strong>Email:</strong> <a href="mailto:dpo@targetcapital.ai">dpo@targetcapital.ai</a> / <a href="mailto:grievance@targetcapital.ai">grievance@targetcapital.ai</a></p>
+                                <p class="mb-1"><strong>Phone:</strong> +91 72001 89076 (Mon–Fri, 10:00–18:00 IST)</p>
+                                <p class="mb-0"><strong>Address:</strong> Scentric Network Private Limited, Chennai, Tamil Nadu, India</p>
                             </div>
+                            <p class="text-muted mb-2 small">
+                                We acknowledge complaints within <strong>48 hours</strong> and aim to resolve them within
+                                <strong>30 days</strong>. If you are not satisfied with the resolution, you may escalate to the
+                                <strong>Data Protection Board of India</strong> under §27 of the DPDP Act, or — for investment-related
+                                grievances — to the SEBI SCORES portal at
+                                <a href="https://scores.sebi.gov.in" target="_blank" rel="noopener">scores.sebi.gov.in</a>.
+                            </p>
                         </div>
 
                         <!-- Updates -->
                         <div class="alert alert-info" role="alert">
                             <i class="fas fa-info-circle me-2"></i>
-                            <strong>Policy Updates:</strong> We may update this policy periodically. 
-                            Material changes will be communicated via email or platform notification.
+                            <strong>Policy Updates:</strong> We may update this policy as the DPDP Rules are notified
+                            or as our services evolve. Material changes will be communicated via email or platform notification
+                            at least 7 days in advance.
                         </div>
                     </div>
                 </div>

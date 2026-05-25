@@ -73,12 +73,13 @@
                                     </ul>
                                 </div>
                                 <div class="col-md-6">
-                                    <h5 class="fw-semibold mb-2">Options Trading</h5>
+                                    <h5 class="fw-semibold mb-2">Options Trading (NSE F&amp;O)</h5>
                                     <ul class="text-muted small">
-                                        <li>Time decay (theta risk)</li>
-                                        <li>Unlimited loss potential</li>
-                                        <li>Complex strategies require experience</li>
-                                        <li>Assignment and exercise risks</li>
+                                        <li><strong>Long options (CE/PE buy)</strong> — maximum loss is limited to the premium paid; this is the primary use case our signals support.</li>
+                                        <li><strong>Short / written options &amp; naked positions</strong> — loss can be substantially larger than premium received, in some cases multiples of the margin blocked.</li>
+                                        <li>Time decay (theta) erodes long-option value rapidly near expiry.</li>
+                                        <li>SEBI peak-margin &amp; intraday margin rules may force squaring off if margin shortfalls occur.</li>
+                                        <li>Lot-size based contracts; weekly/monthly expiry assignment risks apply.</li>
                                     </ul>
                                 </div>
                             </div>
@@ -110,14 +111,15 @@
                             </ul>
                         </div>
 
-                        <!-- Regulatory Risks -->
+                        <!-- Regulatory Risks (India-specific) -->
                         <div class="mb-5">
-                            <h3 class="fw-bold text-dark mb-3">Regulatory and Tax Risks</h3>
+                            <h3 class="fw-bold text-dark mb-3">Regulatory and Tax Risks (India)</h3>
                             <ul class="text-muted">
-                                <li>Changes in regulations may affect trading</li>
-                                <li>Tax implications of trading activities</li>
-                                <li>Pattern day trader rules and restrictions</li>
-                                <li>International regulatory differences</li>
+                                <li>SEBI circulars, exchange (NSE/BSE/MCX) bye-laws and margin frameworks can change, impacting product availability and execution.</li>
+                                <li>STT, exchange transaction charges, GST, SEBI turnover fees, stamp duty and brokerage are levied on every trade and reduce net returns.</li>
+                                <li>Short-Term Capital Gains (STCG), Long-Term Capital Gains (LTCG) and business-income classification of F&amp;O profits have direct tax implications — please consult a Chartered Accountant.</li>
+                                <li>SEBI peak-margin, upfront-margin and intraday leverage restrictions are enforced by your broker and may limit position sizing.</li>
+                                <li>RBI's LRS rules apply to any cross-border investments and remittances.</li>
                             </ul>
                         </div>
 
