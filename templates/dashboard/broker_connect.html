@@ -24,6 +24,29 @@
     <span>We use official broker OAuth APIs — <strong>your password is never stored.</strong> Read-only access unless you explicitly place a trade.</span>
   </div>
 
+  <!-- Trading vs Data-Sync model explainer -->
+  <div class="alert alert-success border-0 shadow-sm mb-3" style="background:#e8f7ee;">
+    <div class="d-flex gap-3 align-items-start">
+      <i class="fas fa-bolt fa-lg text-success mt-1"></i>
+      <div class="flex-grow-1">
+        <div class="fw-bold mb-1" style="color:#155724;">How your connected brokers are used</div>
+        <div class="small mb-2" style="color:#155724;">
+          You can connect <strong>up to {{ max_brokers }} broker{{ 's' if max_brokers != 1 }}</strong> on your <strong>{{ plan_name }}</strong>.
+          Only <strong>one</strong> of them — your <span class="badge bg-success">⚡ TRADING</span> broker — actually places live orders.
+          All others sync as <span class="badge bg-info text-white">DATA SYNC ONLY</span> for unified portfolio &amp; cross-broker Behavioural AI.
+        </div>
+        <div class="small" style="color:#155724;">
+          {% if max_brokers == 1 %}
+            <i class="fas fa-info-circle me-1"></i>Your single connected broker is automatically used for trading.
+          {% else %}
+            <i class="fas fa-info-circle me-1"></i>After connecting, pick which broker is for trading using the <strong>Set Primary</strong> button in the <em>Connected Accounts</em> table below
+            (or on the <a href="{{ url_for('broker_management') }}" class="alert-link">Broker Management</a> page).
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Plan broker slot usage banner -->
   {% if max_brokers == 0 %}
   <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
@@ -313,7 +336,7 @@
             <tr>
               <th class="ps-3">Broker</th>
               <th class="text-center">Status</th>
-              <th class="text-center">Primary</th>
+              <th class="text-center" title="The broker used to place live orders. All others are data-sync only.">Role</th>
               <th class="text-end pe-3">Actions</th>
             </tr>
           </thead>
@@ -336,13 +359,17 @@
               </td>
               <td class="text-center">
                 {% if b.account.is_primary %}
-                  <span class="badge bg-primary"><i class="fas fa-star me-1"></i>Primary</span>
+                  <span class="badge bg-success" title="Live orders go through this broker"><i class="fas fa-bolt me-1"></i>TRADING</span>
                 {% else %}
-                  <form method="POST" action="/api/broker/set-primary/{{ b.account.id }}" class="d-inline">
-                    <button type="submit" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.75rem;" title="Set as primary">
-                      <i class="fas fa-star me-1"></i>Set Primary
-                    </button>
-                  </form>
+                  <div class="d-flex flex-column align-items-center gap-1">
+                    <span class="badge bg-info text-white" title="Used only to sync holdings/positions">DATA SYNC ONLY</span>
+                    <form method="POST" action="/api/broker/set-primary/{{ b.account.id }}" class="d-inline"
+                          onsubmit="return confirm('Make {{ b.name }} your trading broker? Live orders will be placed through this account.');">
+                      <button type="submit" class="btn btn-outline-success btn-sm py-0 px-2" style="font-size:.7rem;" title="Use this broker for live order placement">
+                        <i class="fas fa-bolt me-1"></i>Set as Trading
+                      </button>
+                    </form>
+                  </div>
                 {% endif %}
               </td>
               <td class="text-end pe-3">
