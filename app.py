@@ -1037,6 +1037,43 @@ _TRIAL_EXEMPT_ENDPOINTS: frozenset = frozenset({
     'extend_trial',
 })
 
+# ── BETA INVITE-ONLY GATE ─────────────────────────────────────────────────────
+# Pre-launch posture: block all non-authenticated traffic to product routes.
+# Marketing pages, auth pages, legal pages and health checks remain public
+# (reuses the same allow-list as the trial guard).
+#   Flip with:  BETA_INVITE_ONLY=false  →  fully public site (post-launch)
+#   Register code:  BETA_INVITE_CODE=<secret>  (required at /register signup)
+def _beta_invite_only_enabled() -> bool:
+    return os.environ.get("BETA_INVITE_ONLY", "true").strip().lower() in ("1", "true", "yes", "on")
+
+
+@app.before_request
+def check_beta_invite_gate():
+    """Pre-launch: redirect unauthenticated visitors away from product routes
+    to the login page. Public endpoints (marketing, auth, legal, health) are
+    untouched so SEO and signup flows still work."""
+    from flask import request, redirect, url_for
+    from flask_login import current_user
+
+    if not _beta_invite_only_enabled():
+        return
+
+    endpoint = request.endpoint
+    # Public allow-list (same as trial guard) + reset/forgot password helpers
+    if not endpoint or endpoint in _TRIAL_EXEMPT_ENDPOINTS:
+        return
+    # Anything starting with these prefixes stays open
+    path = request.path or ""
+    if path.startswith("/static/") or path.startswith("/_ah/") or path.startswith("/api/health"):
+        return
+
+    if current_user.is_authenticated:
+        return
+
+    # Anonymous visitor hit a gated route → bounce to login
+    return redirect(url_for("login", next=request.full_path if request.query_string else request.path))
+
+
 @app.before_request
 def check_trial_expiry():
     """Redirect FREE users to pricing once their 14-day trial (+ optional 7-day extension) has expired."""
@@ -1142,6 +1179,14 @@ def inject_tenant_config():
         except Exception:
             pass
         return dict(tenant_config={})
+
+@app.context_processor
+def inject_beta_flags():
+    """Expose beta-mode flag to all templates so the site-wide banner can render."""
+    class _SiteCfg:
+        beta_invite_only = _beta_invite_only_enabled()
+    return {"site_config": _SiteCfg()}
+
 
 @app.context_processor
 def inject_site_config():

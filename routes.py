@@ -1390,7 +1390,19 @@ def register():
         if not all([username, email, password]):
             flash('Please fill in all required fields.', 'error')
             return render_template('auth/register.html')
-        
+
+        # ── BETA invite-code gate ──
+        # Active when BETA_INVITE_ONLY=true (default). At formal launch set to false
+        # and the check is skipped automatically.
+        import os as _os
+        _beta_on = _os.environ.get("BETA_INVITE_ONLY", "true").strip().lower() in ("1", "true", "yes", "on")
+        _expected_code = (_os.environ.get("BETA_INVITE_CODE") or "").strip()
+        if _beta_on and _expected_code:
+            submitted_code = (request.form.get('invite_code') or "").strip()
+            if submitted_code != _expected_code:
+                flash('Target Capital is currently invite-only. Please enter a valid invite code, or email hello@targetcapital.ai to request access.', 'error')
+                return render_template('auth/register.html')
+
         # Check if username or email already exists within current tenant
         if TenantQuery(User).filter_by(username=username).first():
             flash('Username already exists.', 'error')
