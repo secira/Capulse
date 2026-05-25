@@ -85,15 +85,15 @@ def _notify(account, kind: str, message: str) -> None:
     also create an in-app notification row.
     """
     try:
-        from services.messaging_service import send_telegram_message
-        # Direct-message style — Telegram bot is admin-only by default, but
-        # the user is identifiable in the payload so admins can act.
+        # Admin-only diagnostic — routed to the ops chat, NOT the public
+        # signals group. See services.messaging_service for the routing rule.
+        from services.messaging_service import send_telegram_admin_message
         text = (
             f"🔴 *Broker {kind}*\n"
             f"User #{account.user_id} — *{account.broker_name}*\n"
             f"{message}"
         )
-        send_telegram_message(text)
+        send_telegram_admin_message(text)
     except Exception as e:
         logger.warning(f"broker_health: telegram dispatch failed ({kind}): {e}")
 
@@ -340,15 +340,19 @@ def _try_angel_refresh(account) -> bool:
 
 
 def _notify_admin_pool(row, kind: str, message: str) -> None:
-    """Telegram alert for an admin-pool slot event (no user attached)."""
+    """Telegram alert for an admin-pool slot event (no user attached).
+
+    Routed to the admin/ops Telegram chat ONLY — never to the public
+    signals group. Requires ``TELEGRAM_ADMIN_CHAT_ID``; otherwise logged.
+    """
     try:
-        from services.messaging_service import send_telegram_message
+        from services.messaging_service import send_telegram_admin_message
         text = (
             f"🛡️ *Admin Pool {kind}*\n"
             f"Slot P{row.priority} — *{row.broker_name}* ({row.broker_type})\n"
             f"{message}"
         )
-        send_telegram_message(text)
+        send_telegram_admin_message(text)
     except Exception as e:
         logger.warning(f"broker_health: admin-pool telegram dispatch failed ({kind}): {e}")
 

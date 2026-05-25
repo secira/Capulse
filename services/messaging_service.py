@@ -41,6 +41,18 @@ def _get_telegram_config():
     chat_id = raw_chat.strip().strip('"').strip("'")
     return token, chat_id
 
+
+def _get_telegram_admin_chat_id() -> str:
+    """Resolve the admin/ops Telegram chat id.
+
+    Admin-only diagnostics (broker token expiry, admin-pool slot failures,
+    system health) must NEVER leak into the user-facing signals group. They
+    go here instead — and if this isn't configured, we drop them to the log
+    rather than send to the public group.
+    """
+    raw = os.environ.get('TELEGRAM_ADMIN_CHAT_ID', '') or ''
+    return raw.strip().strip('"').strip("'")
+
 # Backwards-compatible accessors — kept for any callers that imported these
 # names directly. Now they reflect the *current* env, not the import-time env.
 def __getattr__(name):
@@ -89,15 +101,20 @@ def send_whatsapp_message(message_text):
         logger.error(f"Error sending WhatsApp message: {e}")
         return False
 
-def send_telegram_message(message_text, parse_mode='Markdown'):
-    """Send a message to the configured Telegram chat.
+def send_telegram_message(message_text, parse_mode='Markdown', chat_id=None):
+    """Send a message to a Telegram chat.
 
     ``parse_mode`` may be 'Markdown', 'MarkdownV2', 'HTML', or None. Pass
     'HTML' when the message body already contains HTML tags (used by the
     daily-signal formatter so it matches the F&O alert style).
+
+    ``chat_id`` overrides the default ``TELEGRAM_CHAT_ID`` env var — used
+    by ``send_telegram_admin_message`` to route ops alerts to a different
+    chat so they never leak into the public signals group.
     """
     try:
-        token, chat_id = _get_telegram_config()
+        token, default_chat_id = _get_telegram_config()
+        chat_id = chat_id or default_chat_id
         if not token or not chat_id:
             logger.warning(
                 "Telegram credentials not configured "
@@ -132,6 +149,28 @@ def send_telegram_message(message_text, parse_mode='Markdown'):
     except Exception as e:
         logger.error(f"Error sending Telegram message: {e}")
         return False
+
+
+def send_telegram_admin_message(message_text, parse_mode='Markdown'):
+    """Route an ops/admin alert to the admin Telegram chat ONLY.
+
+    Used for broker token expiry, admin-pool slot failures, system health
+    warnings, and other diagnostics that must never appear in the public
+    user-facing signals group.
+
+    Behaviour:
+      • If ``TELEGRAM_ADMIN_CHAT_ID`` is set → send to that chat.
+      • If it's NOT set → log the message and return False. We deliberately
+        do NOT fall back to the public ``TELEGRAM_CHAT_ID``.
+    """
+    admin_chat_id = _get_telegram_admin_chat_id()
+    if not admin_chat_id:
+        logger.info(
+            "[admin-telegram suppressed — no TELEGRAM_ADMIN_CHAT_ID set] "
+            f"{message_text[:300]}"
+        )
+        return False
+    return send_telegram_message(message_text, parse_mode=parse_mode, chat_id=admin_chat_id)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
