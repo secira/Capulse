@@ -218,6 +218,9 @@
         {% endif %}
     {% endwith %}
 
+    {# Phase 1 broker hardening — site-wide expiry banner for authenticated users. #}
+    {% include 'partials/broker_expiry_banner.html' ignore missing %}
+
     <!-- Main Content -->
     <main style="min-height: calc(100vh - 400px);">
         {% block content %}{% endblock %}

@@ -1,10 +1,61 @@
 from app import db
-from datetime import datetime
+from datetime import datetime, timedelta, time as dt_time, date
 from flask_login import UserMixin
 from enum import Enum
 import json
 from cryptography.fernet import Fernet
 import os
+
+try:
+    from zoneinfo import ZoneInfo
+    _IST = ZoneInfo("Asia/Kolkata")
+except Exception:  # pragma: no cover
+    _IST = None
+
+
+def compute_token_expiry(broker_type: str, issued_at: datetime | None = None) -> datetime | None:
+    """Return the UTC datetime at which the broker's access token will be rejected.
+
+    Broker-specific rules:
+      - Zerodha:  Tokens are killed at 06:00 IST every day (00:30 UTC).
+      - Dhan:     Tokens are valid for ~24 hours from issue (until next trading-day EOD).
+                  We use a conservative 24h from issue.
+      - Angel:    JWT lasts ~28 hours; refresh_token lasts up to 7 days.
+      - Upstox:   Tokens expire daily at 03:30 UTC (09:00 IST).
+      - Others:   Conservative 24h fallback.
+
+    Returns None if we genuinely cannot estimate (e.g. unknown broker with no
+    documented TTL).
+    """
+    if issued_at is None:
+        issued_at = datetime.utcnow()
+    btype = (broker_type or '').lower().strip()
+
+    if btype == 'zerodha':
+        # 06:00 IST == 00:30 UTC. Next occurrence after issued_at.
+        target = issued_at.replace(hour=0, minute=30, second=0, microsecond=0)
+        if target <= issued_at:
+            target = target + timedelta(days=1)
+        return target
+
+    if btype == 'upstox':
+        # 03:30 UTC daily.
+        target = issued_at.replace(hour=3, minute=30, second=0, microsecond=0)
+        if target <= issued_at:
+            target = target + timedelta(days=1)
+        return target
+
+    if btype == 'dhan':
+        return issued_at + timedelta(hours=24)
+
+    if btype in ('angel_broking', 'angel'):
+        return issued_at + timedelta(hours=28)
+
+    if btype in ('fyers', 'shoonya', 'alice_blue', '5paisa', 'fivepaisa'):
+        # All Indian brokers force a daily login at next trading-day open.
+        return issued_at + timedelta(hours=24)
+
+    return None
 
 # Broker Types
 class BrokerType(Enum):
@@ -88,6 +139,20 @@ class BrokerAccount(db.Model):
     request_token = db.Column(db.Text, nullable=True)
     redirect_url = db.Column(db.Text, nullable=True)
     last_token_refresh = db.Column(db.DateTime, nullable=True)
+
+    # ── Token expiry tracking (Phase 1 broker hardening) ──────────────────
+    # Wall-clock UTC time at which we expect the broker to reject the saved
+    # access token. Populated by OAuth callbacks via compute_token_expiry().
+    token_expires_at = db.Column(db.DateTime, nullable=True, index=True)
+    # Last time the health monitor ran a live /profile ping against the broker.
+    last_health_check = db.Column(db.DateTime, nullable=True)
+    # Free-form reason from the last failed health check (e.g. "401 Invalid token").
+    health_check_message = db.Column(db.String(255), nullable=True)
+    # Debounce: when we last sent an EXPIRED alert (Telegram + in-app banner)
+    # for this account. Cleared on successful reconnect.
+    expiry_alerted_at = db.Column(db.DateTime, nullable=True)
+    # Debounce: when we last sent the T-60min WARNING alert.
+    expiry_warning_sent_at = db.Column(db.DateTime, nullable=True)
     
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
@@ -220,7 +285,60 @@ class BrokerAccount(db.Model):
     def is_token_expired_state(self) -> bool:
         """True when the broker has rejected the saved access token."""
         return (self.connection_status or '').lower() == 'expired'
-    
+
+    # ── Expiry helpers (Phase 1 broker hardening) ────────────────────────
+    def minutes_until_expiry(self) -> int | None:
+        """Return minutes remaining until token_expires_at, or None if unknown.
+
+        Negative values mean the token is already past its expected expiry.
+        """
+        if not self.token_expires_at:
+            return None
+        delta = self.token_expires_at - datetime.utcnow()
+        return int(delta.total_seconds() // 60)
+
+    def is_expiring_soon(self, threshold_min: int = 120) -> bool:
+        """True when the broker token will expire within `threshold_min` minutes."""
+        mins = self.minutes_until_expiry()
+        if mins is None:
+            return False
+        return 0 <= mins <= threshold_min
+
+    def needs_reconnect(self) -> bool:
+        """True when the user must re-authenticate before this broker can trade."""
+        if self.is_token_expired_state():
+            return True
+        mins = self.minutes_until_expiry()
+        # If the predicted expiry has passed, treat as needing reconnect even if
+        # the broker hasn't formally rejected the token yet.
+        return mins is not None and mins < 0
+
+    def stamp_token_issued(self):
+        """Call after a successful OAuth/token-issue event.
+
+        Sets token_expires_at via compute_token_expiry() and clears any
+        outstanding expiry alert/warning flags so the next cycle can re-arm.
+        """
+        self.token_expires_at = compute_token_expiry(self.broker_type)
+        self.last_token_refresh = datetime.utcnow()
+        self.expiry_alerted_at = None
+        self.expiry_warning_sent_at = None
+        self.health_check_message = None
+
+    def expiry_human(self) -> str:
+        """Human-readable countdown like '1h 20m' or 'expired 3h ago'."""
+        mins = self.minutes_until_expiry()
+        if mins is None:
+            return ''
+        if mins < 0:
+            mins = abs(mins)
+            if mins < 60:
+                return f"expired {mins}m ago"
+            return f"expired {mins // 60}h {mins % 60}m ago"
+        if mins < 60:
+            return f"{mins}m"
+        return f"{mins // 60}h {mins % 60:02d}m"
+
     def set_as_primary(self):
         """Set this account as primary broker"""
         # Remove primary flag from other accounts for this user

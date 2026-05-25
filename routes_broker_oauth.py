@@ -20,7 +20,7 @@ from flask_login import current_user, login_required
 
 from app import db
 from decorators import paid_plan_required
-from models_broker import BrokerAccount, BrokerType, ConnectionStatus
+from models_broker import BrokerAccount, BrokerType, ConnectionStatus, compute_token_expiry
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +271,7 @@ def auth_zerodha():
             account.broker_name = f"Zerodha ({kite_user_id})"
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
+        account.stamp_token_issued()
         db.session.commit()
 
         who = f" as {kite_user_name} ({kite_user_id})" if kite_user_id else ""
@@ -353,6 +354,7 @@ def callback_zerodha():
             account.broker_name = f"Zerodha ({kite_user_id})"
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
+        account.stamp_token_issued()
         db.session.commit()
 
         who = f" as {kite_user_name} ({kite_user_id})" if kite_user_id else ""
@@ -604,6 +606,7 @@ def auth_angel():
         )
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
+        account.stamp_token_issued()
         db.session.commit()
 
         flash('Angel One connected successfully!', 'success')
@@ -656,6 +659,7 @@ def reconnect_angel():
         )
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
+        account.stamp_token_issued()
         db.session.commit()
         flash('Angel One session refreshed successfully!', 'success')
         logger.info(f"Angel One token refreshed for user {current_user.id}")
@@ -1302,6 +1306,7 @@ def auth_dhan():
         account.set_credentials(client_id=client_id, access_token=access_token, api_secret='')
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
+        account.stamp_token_issued()
         db.session.commit()
         flash('Dhan connected successfully!', 'success')
         logger.info(f"Dhan connected for user {current_user.id}")
@@ -1309,6 +1314,65 @@ def auth_dhan():
         logger.error(f"Dhan connect failed: {e}")
         flash(f'Dhan connection failed: {str(e)}', 'error')
 
+    return redirect(url_for('broker_oauth.broker_connect'))
+
+
+# ---------------------------------------------------------------------------
+# Generic Reconnect — entry point used by the site-wide expiry banner and
+# the "Reconnect" button on each broker card.  Routes to the right broker
+# auth flow based on broker_type, reusing stored credentials wherever possible.
+# ---------------------------------------------------------------------------
+
+@broker_oauth.route('/broker/reconnect/<int:account_id>', methods=['POST'])
+@login_required
+def reconnect_broker(account_id: int):
+    """Single entry point for "Reconnect <broker>" buttons.
+
+    Dispatches to the broker-specific reconnect / auth-start flow based on
+    broker_type. For brokers that already have a dedicated reconnect endpoint
+    (Angel, Upstox) we call it directly; for Zerodha we kick off Kite OAuth
+    using the stored api_key + api_secret; for Dhan (manual access-token flow)
+    we send the user back to the broker page where they can paste a fresh
+    token.
+    """
+    account = BrokerAccount.query.filter_by(
+        id=account_id, user_id=current_user.id, is_active=True,
+    ).first()
+    if not account:
+        flash('Broker account not found.', 'error')
+        return redirect(url_for('broker_oauth.broker_connect'))
+
+    btype = (account.broker_type or '').lower()
+
+    # Angel One — uses stored TOTP secret + PIN, fully automatic.
+    if btype in ('angel_broking', 'angel'):
+        return redirect(url_for('broker_oauth.reconnect_angel'), code=307)
+
+    # Upstox — has dedicated reconnect endpoint.
+    if btype == 'upstox':
+        return redirect(url_for('broker_oauth.reconnect_upstox'), code=307)
+
+    # Zerodha — kick off the Kite OAuth redirect using stored api_key.
+    if btype == 'zerodha':
+        creds = account.get_credentials()
+        api_key = creds.get('client_id') or ''
+        if not api_key:
+            flash('Stored Zerodha credentials missing — please re-enter API key.', 'error')
+            return redirect(url_for('broker_oauth.broker_connect'))
+        # Match the session-key contract used by callback_zerodha so the
+        # callback can find this exact account when Kite redirects back.
+        session['zerodha_account_id'] = account.id
+        return redirect(f"https://kite.zerodha.com/connect/login?v=3&api_key={api_key}")
+
+    # Dhan — no OAuth, user must paste a fresh access token. Send them to the
+    # broker page with a hint flash.
+    if btype == 'dhan':
+        flash('Generate a fresh Dhan access token from web.dhan.co → API Access, '
+              'then paste it into the Access Token field below.', 'info')
+        return redirect(url_for('broker_oauth.broker_connect') + '#dhan')
+
+    # Fallback — send to broker page so user can manually reconnect.
+    flash(f'Please re-enter credentials for {account.broker_name} to reconnect.', 'info')
     return redirect(url_for('broker_oauth.broker_connect'))
 
 

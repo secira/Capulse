@@ -130,9 +130,17 @@
                         {% if broker.is_primary %}<span class="badge bg-dark" style="font-size:10px;">PRIMARY</span>{% endif %}
                     </div>
                 </div>
-                <span class="badge rounded-pill px-3 py-2" style="font-size:12px; font-weight:600; {% if broker.connection_status == 'connected' %}background:#dcfce7; color:#15803d;{% else %}background:#fee2e2; color:#dc2626;{% endif %}">
-                    <i class="fas fa-{% if broker.connection_status == 'connected' %}check-circle{% else %}times-circle{% endif %} me-1"></i>
-                    {% if broker.connection_status == 'connected' %}Connected{% else %}Disconnected{% endif %}
+                {% set _needs_reconnect = broker.needs_reconnect() %}
+                {% set _expiring_soon = (not _needs_reconnect) and broker.is_expiring_soon() %}
+                <span class="badge rounded-pill px-3 py-2" style="font-size:12px; font-weight:600;
+                    {% if broker.connection_status == 'connected' and not _expiring_soon %}background:#dcfce7; color:#15803d;
+                    {% elif _expiring_soon %}background:#fef3c7; color:#92400e;
+                    {% else %}background:#fee2e2; color:#dc2626;{% endif %}">
+                    <i class="fas fa-{% if broker.connection_status == 'connected' and not _expiring_soon %}check-circle{% elif _expiring_soon %}clock{% else %}times-circle{% endif %} me-1"></i>
+                    {% if _needs_reconnect %}Expired
+                    {% elif _expiring_soon %}Expires in {{ broker.expiry_human() }}
+                    {% elif broker.connection_status == 'connected' %}Connected
+                    {% else %}Disconnected{% endif %}
                 </span>
             </div>
 
@@ -198,6 +206,17 @@
 
             <!-- Card Footer -->
             <div class="card-footer bg-transparent px-4 py-3" style="border-top:1px solid #f1f5f9;">
+                {% if _needs_reconnect or _expiring_soon %}
+                <form method="POST" action="{{ url_for('broker_oauth.reconnect_broker', account_id=broker.id) }}" class="mb-2">
+                    <button type="submit" class="btn btn-sm w-100"
+                            style="background:{% if _needs_reconnect %}#dc2626{% else %}#d97706{% endif %};
+                                   color:#fff; border:none; border-radius:8px;
+                                   font-size:13px; font-weight:600; padding:10px 12px;">
+                        <i class="fas fa-sync-alt me-1"></i>
+                        {% if _needs_reconnect %}Reconnect {{ broker.broker_name.split(' ')[0] }} now{% else %}Reconnect — expires in {{ broker.expiry_human() }}{% endif %}
+                    </button>
+                </form>
+                {% endif %}
                 {% if broker.connection_status == 'connected' %}
                 <div class="d-flex gap-2 flex-wrap">
                     <button class="btn btn-sm flex-fill" id="syncBtn-{{ broker.id }}" onclick="syncBroker({{ broker.id }})"

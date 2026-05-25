@@ -1,0 +1,48 @@
+{# ─────────────────────────────────────────────────────────────────────────
+   Site-wide broker-expiry banner.
+   Rendered by templates/base.html on every authenticated page. Driven by
+   the `broker_expiry_alerts` list injected via the
+   `inject_broker_expiry_alerts` context_processor in app.py.
+
+   Shows nothing on public pages or when all brokers are healthy.
+   ───────────────────────────────────────────────────────────────────────── #}
+{% if broker_expiry_alerts %}
+<div class="container-fluid px-0">
+  {% for b in broker_expiry_alerts %}
+    {% set is_expired = b.needs_reconnect() %}
+    <div class="d-flex align-items-center justify-content-between px-3 py-2 mb-0"
+         style="background:{% if is_expired %}#fef2f2{% else %}#fffbeb{% endif %};
+                border-bottom:1px solid {% if is_expired %}#fecaca{% else %}#fde68a{% endif %};
+                font-size:14px;">
+      <div class="d-flex align-items-center" style="gap:10px;">
+        <span style="font-size:18px;">{% if is_expired %}🔴{% else %}🟡{% endif %}</span>
+        <div>
+          {% if is_expired %}
+            <strong style="color:#b91c1c;">{{ b.broker_name }}</strong>
+            <span style="color:#7f1d1d;">
+              connection expired{% if b.token_expires_at %} ({{ b.expiry_human() }}){% endif %}.
+              Trades on this broker will fail until you reconnect.
+            </span>
+          {% else %}
+            <strong style="color:#92400e;">{{ b.broker_name }}</strong>
+            <span style="color:#78350f;">
+              token expires in <strong>{{ b.expiry_human() }}</strong>.
+              Reconnect now to avoid interruption.
+            </span>
+          {% endif %}
+        </div>
+      </div>
+      <form method="POST"
+            action="{{ url_for('broker_oauth.reconnect_broker', account_id=b.id) }}"
+            style="margin:0;">
+        <button type="submit" class="btn btn-sm"
+                style="background:{% if is_expired %}#dc2626{% else %}#d97706{% endif %};
+                       color:#fff; border:none; border-radius:6px;
+                       font-weight:600; padding:6px 14px; font-size:13px;">
+          <i class="fas fa-sync-alt me-1"></i>Reconnect {{ b.broker_name.split(' ')[0] }}
+        </button>
+      </form>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}

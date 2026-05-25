@@ -541,6 +541,13 @@ with app.app_context():
             created_at TIMESTAMP DEFAULT NOW()
         )''',
         'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS is_data_broker BOOLEAN DEFAULT FALSE',
+        # Phase 1 broker hardening — token expiry tracking
+        'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP',
+        'CREATE INDEX IF NOT EXISTS ix_user_brokers_token_expires_at ON user_brokers (token_expires_at)',
+        'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS last_health_check TIMESTAMP',
+        'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS health_check_message VARCHAR(255)',
+        'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS expiry_alerted_at TIMESTAMP',
+        'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS expiry_warning_sent_at TIMESTAMP',
         '''CREATE TABLE IF NOT EXISTS data_api_broker (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES "user"(id),
@@ -795,6 +802,15 @@ if not os.environ.get("SKIP_SCHEDULER"):
         start_iscore_nightly(app)
     except Exception as e:
         logging.warning(f"I-Score nightly scheduler not started: {e}")
+
+    # Phase 1 broker hardening — proactive token-expiry monitor.
+    # Pings every connected broker on a schedule, flips status to EXPIRED on
+    # 401/403, and dispatches Telegram + in-app alerts.
+    try:
+        from services.broker_health_monitor import start_scheduler as start_broker_health
+        start_broker_health(app)
+    except Exception as e:
+        logging.warning(f"Broker health monitor not started: {e}")
 
 
 # WebSocket Server Management
@@ -1058,6 +1074,39 @@ def _rollback_on_exception(exc):
             db.session.rollback()
         except Exception as _e:
             logging.warning(f"teardown rollback failed: {_e}")
+
+
+@app.context_processor
+def inject_broker_expiry_alerts():
+    """Make a list of expiring/expired broker accounts available to every
+    template — used by templates/partials/broker_expiry_banner.html to render
+    a site-wide red banner whenever any broker needs reconnect.
+
+    Returns:
+        {'broker_expiry_alerts': [BrokerAccount, ...]}  (only for authenticated
+        users; empty list otherwise so the partial silently no-ops on public
+        pages).
+    """
+    try:
+        from flask_login import current_user
+        if not getattr(current_user, 'is_authenticated', False):
+            return {'broker_expiry_alerts': []}
+        from models_broker import BrokerAccount
+        rows = BrokerAccount.query.filter_by(
+            user_id=current_user.id, is_active=True
+        ).all()
+        alerts = [b for b in rows if b.needs_reconnect() or b.is_expiring_soon()]
+        # Stable ordering: most urgent first (already-expired before expiring-soon).
+        alerts.sort(key=lambda b: (not b.needs_reconnect(),
+                                   b.minutes_until_expiry() or 9999))
+        return {'broker_expiry_alerts': alerts}
+    except Exception as e:
+        logging.warning(f"broker_expiry_alerts unavailable: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return {'broker_expiry_alerts': []}
 
 
 @app.context_processor
