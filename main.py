@@ -21,5 +21,9 @@ app.register_blueprint(partner_api)
 
 if __name__ == '__main__':
     import os
+    # In production (Railway) gunicorn imports `main:app` directly and this
+    # block is never executed. Kept only as a dev-local fallback runner.
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    debug = os.environ.get('FLASK_DEBUG', '0') == '1' \
+            and os.environ.get('ENVIRONMENT', 'development') != 'production'
+    app.run(host='0.0.0.0', port=port, debug=debug)
