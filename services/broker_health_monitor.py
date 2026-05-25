@@ -394,14 +394,17 @@ def run_health_check(app):
             # NOTE: this is a background thread with no request context, so the
             # tenant middleware would otherwise restrict us to the DEFAULT
             # tenant ('live') and silently skip accounts from other tenants.
-            # We must monitor ALL tenants' brokers — call .unscoped().
-            accounts = (
-                BrokerAccount.query
-                .unscoped()
-                .filter(BrokerAccount.is_active.is_(True))
-                .filter(BrokerAccount.connection_status == 'connected')
-                .all()
+            # We must monitor ALL tenants' brokers — bypass tenant filter by
+            # setting `_tenant_bypass = True` on the select statement (read
+            # by the do_orm_execute listener in middleware.tenant_sqlalchemy).
+            from sqlalchemy import select
+            stmt = (
+                select(BrokerAccount)
+                .where(BrokerAccount.is_active.is_(True))
+                .where(BrokerAccount.connection_status == 'connected')
             )
+            stmt._tenant_bypass = True  # type: ignore[attr-defined]
+            accounts = db.session.execute(stmt).scalars().all()
 
             checked = 0
             flipped = 0
