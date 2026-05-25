@@ -1,0 +1,41 @@
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'speaker-selection'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'unoptimized-images'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'unsized-media'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'pointer-lock'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Allow attribute will take precedence over 'allowfullscreen'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Allow attribute will take precedence over 'allowpaymentrequest'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+02y3qp9r67awm.js:2 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://37403e1a-2e82-46a3-85b8-043df3d84a1e-00-1084bxa2fkbw6.worf.replit.dev') does not match the recipient window's origin ('https://replit.com').
+b @ 02y3qp9r67awm.js:2Understand this warning
+02y3qp9r67awm.js:2 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://37403e1a-2e82-46a3-85b8-043df3d84a1e-00-1084bxa2fkbw6.worf.replit.dev') does not match the recipient window's origin ('https://replit.com').
+b @ 02y3qp9r67awm.js:2Understand this warning
+stallwart.build.js:1 stallwart: failed ping 1
+02y3qp9r67awm.js:2 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://37403e1a-2e82-46a3-85b8-043df3d84a1e-00-1084bxa2fkbw6.worf.replit.dev') does not match the recipient window's origin ('https://replit.com').
+b @ 02y3qp9r67awm.js:2Understand this warning
+02y3qp9r67awm.js:2 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://37403e1a-2e82-46a3-85b8-043df3d84a1e-00-1084bxa2fkbw6.worf.replit.dev') does not match the recipient window's origin ('https://replit.com').
+b @ 02y3qp9r67awm.js:2Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'ambient-light-sensor'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'battery'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'execution-while-not-rendered'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'execution-while-out-of-viewport'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'layout-animations'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'legacy-image-formats'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'navigation-override'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'oversized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'publickey-credentials'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'speaker-selection'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'unoptimized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'unsized-media'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Allow attribute will take precedence over 'allowfullscreen'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Allow attribute will take precedence over 'allowpaymentrequest'.Understand this warning
+2stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+stallwart.build.js:1 stallwart: failed ping 3
+stallwart.build.js:1 stallwart: failed ping 4
+stallwart.build.js:1 stallwart: failed ping 5
+finish:1  Failed to load resource: the server responded with a status of 400 ()

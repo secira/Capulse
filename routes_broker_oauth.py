@@ -343,7 +343,33 @@ def auth_zerodha():
 def callback_zerodha():
     request_token = request.args.get('request_token')
     if not request_token:
-        flash('Zerodha login was cancelled or failed.', 'error')
+        # Kite redirects here WITHOUT a request_token when its own /finish step
+        # rejected the login. Surface the actual Kite error params so the user
+        # can see the real reason instead of a vague "cancelled" message.
+        kite_status = request.args.get('status', '')
+        kite_type   = request.args.get('type', '')
+        kite_msg    = request.args.get('message', '') or request.args.get('error_type', '')
+        logger.warning(
+            f"Zerodha callback hit without request_token — "
+            f"status={kite_status!r} type={kite_type!r} msg={kite_msg!r} "
+            f"args={dict(request.args)}"
+        )
+        if kite_msg or kite_type:
+            flash(
+                f'Zerodha login failed: {kite_msg or kite_type}. '
+                f'This is almost always caused by the Redirect URL in your Kite Connect app '
+                f'(developers.kite.trade) not matching '
+                f'{request.url_root.rstrip("/")}/broker/callback/zerodha exactly. '
+                f'Also verify your Kite app Type is "Connect" and the ₹2,000/mo subscription is active.',
+                'error'
+            )
+        else:
+            flash(
+                'Zerodha login was cancelled or rejected by Kite before reaching our server. '
+                f'Check that the Redirect URL on your Kite Connect app exactly equals '
+                f'{request.url_root.rstrip("/")}/broker/callback/zerodha (no trailing slash).',
+                'error'
+            )
         return redirect(url_for('broker_oauth.broker_connect'))
 
     account_id = session.pop('zerodha_account_id', None)
