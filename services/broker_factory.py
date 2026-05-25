@@ -85,11 +85,25 @@ def get_data_broker_for_user(user_id: int) -> Optional[BrokerBase]:
 
 def get_admin_data_brokers() -> list:
     """
-    Return admin-managed data-source brokers ordered by priority (1=primary, 2=secondary).
-    Invisible to end users — used as a system-wide fallback after the user's own broker.
+    Return admin-managed data-source brokers ordered by REMAINING RUNWAY
+    (most runway first), so a slot that's about to expire never gets picked
+    over a fresher one. Skips already-expired rows.
+
+    Falls back to static priority ordering if the runway-aware pool helper
+    fails to load (e.g. early in app boot).
+
     Returns a list of (priority, broker_type, broker_name, BrokerBase) tuples.
     Failures to instantiate are skipped so the chain still falls through.
     """
+    # Preferred path — runway-aware pool selection.
+    try:
+        from services.admin_data_broker_pool import get_admin_brokers_by_runway
+        ranked = get_admin_brokers_by_runway()
+        # Drop the trailing row object so the public tuple shape stays stable.
+        return [(prio, btype, bname, broker) for prio, btype, bname, broker, _row in ranked]
+    except Exception as e:
+        logger.debug(f"runway-aware admin pool unavailable, falling back to priority order: {e}")
+
     out = []
     try:
         from models_broker import AdminDataBroker

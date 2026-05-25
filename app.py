@@ -548,6 +548,15 @@ with app.app_context():
         'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS health_check_message VARCHAR(255)',
         'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS expiry_alerted_at TIMESTAMP',
         'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS expiry_warning_sent_at TIMESTAMP',
+        # T005 — admin data-broker pool expiry/health tracking
+        'ALTER TABLE admin_data_broker ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP',
+        'CREATE INDEX IF NOT EXISTS ix_admin_data_broker_token_expires_at ON admin_data_broker (token_expires_at)',
+        'ALTER TABLE admin_data_broker ADD COLUMN IF NOT EXISTS last_health_check TIMESTAMP',
+        'ALTER TABLE admin_data_broker ADD COLUMN IF NOT EXISTS health_check_message VARCHAR(255)',
+        'ALTER TABLE admin_data_broker ADD COLUMN IF NOT EXISTS expiry_alerted_at TIMESTAMP',
+        'ALTER TABLE admin_data_broker ADD COLUMN IF NOT EXISTS expiry_warning_sent_at TIMESTAMP',
+        # T007 — Angel JWT refresh-token persistence
+        'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS refresh_token TEXT',
         '''CREATE TABLE IF NOT EXISTS data_api_broker (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES "user"(id),

@@ -121,6 +121,8 @@ class BrokerAccount(db.Model):
     api_key = db.Column(db.Text, nullable=True)  # Encrypted client_id
     access_token = db.Column(db.Text, nullable=True)  # Encrypted access token (can be very long when encrypted)
     api_secret = db.Column(db.Text, nullable=True)  # Encrypted API secret
+    # T007 — encrypted Angel refresh token (used for invisible JWT auto-refresh).
+    refresh_token = db.Column(db.Text, nullable=True)
     
     # Connection details (match existing table structure)
     connection_status = db.Column(db.String(20), default='disconnected', index=True)
@@ -261,6 +263,20 @@ class BrokerAccount(db.Model):
             self.connection_error = None
         elif status == ConnectionStatus.ERROR:
             self.connection_error = error_message
+
+    # ─── T007 — Angel refresh-token helpers ────────────────────────────────
+    def set_refresh_token(self, token: str | None) -> None:
+        """Store the Angel refreshToken at rest (encrypted)."""
+        self.refresh_token = self.encrypt_data(token) if token else None
+
+    def get_refresh_token(self) -> str | None:
+        """Return the decrypted Angel refreshToken, or None if unset/corrupt."""
+        if not self.refresh_token:
+            return None
+        try:
+            return self.decrypt_data(self.refresh_token)
+        except Exception:
+            return None
 
     # ─── UI helpers (so templates can show "Saved value" hints) ────────────
     def has_stored_credentials(self) -> bool:
@@ -610,6 +626,48 @@ class AdminDataBroker(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.String(100), nullable=True)
+
+    # T005 — pool expiry/health tracking (mirrors BrokerAccount Phase 1 fields).
+    token_expires_at = db.Column(db.DateTime, nullable=True, index=True)
+    last_health_check = db.Column(db.DateTime, nullable=True)
+    health_check_message = db.Column(db.String(255), nullable=True)
+    expiry_alerted_at = db.Column(db.DateTime, nullable=True)
+    expiry_warning_sent_at = db.Column(db.DateTime, nullable=True)
+
+    # ── Expiry helpers ────────────────────────────────────────────────
+    def minutes_until_expiry(self):
+        if not self.token_expires_at:
+            return None
+        delta = self.token_expires_at - datetime.utcnow()
+        return int(delta.total_seconds() / 60)
+
+    def is_expiring_soon(self, threshold_min: int = 60) -> bool:
+        m = self.minutes_until_expiry()
+        return m is not None and 0 < m <= threshold_min
+
+    def needs_reconnect(self) -> bool:
+        m = self.minutes_until_expiry()
+        return self.connection_status == 'expired' or (m is not None and m <= 0)
+
+    def stamp_token_issued(self):
+        """Call right after a fresh login. Computes predicted expiry and clears alerts."""
+        from models_broker import compute_token_expiry  # local to avoid cycles
+        self.token_expires_at = compute_token_expiry(self.broker_type)
+        self.expiry_alerted_at = None
+        self.expiry_warning_sent_at = None
+        self.connection_status = 'connected'
+        self.last_connected = datetime.utcnow()
+
+    def expiry_human(self) -> str:
+        m = self.minutes_until_expiry()
+        if m is None:
+            return "unknown"
+        if m <= 0:
+            return "expired"
+        if m < 60:
+            return f"{m}m"
+        h, mm = divmod(m, 60)
+        return f"{h}h {mm}m"
 
     def _get_encryption_key(self):
         try:

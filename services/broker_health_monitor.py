@@ -200,6 +200,159 @@ def _ping_broker(account) -> tuple[bool, str]:
         return False, msg[:200]
 
 
+def _ping_admin_pool_row(row) -> tuple[bool, str]:
+    """Cheap liveness check for an AdminDataBroker pool slot.
+
+    Mirrors `_ping_broker(account)` but takes an AdminDataBroker row and
+    decrypts credentials via row.get_credentials(). Returns (ok, message).
+    """
+    btype = (row.broker_type or '').lower()
+    try:
+        creds = row.get_credentials()
+    except Exception as e:
+        return False, f"creds decrypt failed: {e}"
+
+    try:
+        if btype == 'zerodha':
+            from kiteconnect import KiteConnect
+            kite = KiteConnect(api_key=creds.get('client_id') or '')
+            kite.set_access_token(creds.get('access_token') or '')
+            kite.profile()
+            return True, 'ok'
+
+        if btype == 'dhan':
+            import requests
+            access_token = creds.get('access_token') or ''
+            client_id = creds.get('client_id') or ''
+            if not access_token:
+                return False, 'no access token'
+            r = requests.get(
+                "https://api.dhan.co/v2/profile",
+                headers={
+                    'access-token': access_token,
+                    'client-id': client_id,
+                    'Accept': 'application/json',
+                },
+                timeout=8,
+            )
+            if r.status_code in (401, 403):
+                return False, f"HTTP {r.status_code} {r.text[:80]}"
+            if r.status_code >= 500:
+                return False, f"broker 5xx (transient): {r.status_code}"
+            r.raise_for_status()
+            return True, 'ok'
+
+        if btype in ('angel_broking', 'angel'):
+            import requests
+            parts = (creds.get('api_secret') or '').split(':')
+            api_key = parts[0] if parts else ''
+            jwt = creds.get('access_token') or ''
+            if not jwt or not api_key:
+                return False, 'missing jwt or api_key'
+            r = requests.get(
+                "https://apiconnect.angelone.in/rest/secure/angelbroking/user/v1/getProfile",
+                headers={
+                    'Authorization': f'Bearer {jwt}',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-UserType': 'USER', 'X-SourceID': 'WEB',
+                    'X-ClientLocalIP': '127.0.0.1', 'X-ClientPublicIP': '127.0.0.1',
+                    'X-MACAddress': '00:00:00:00:00:00',
+                    'X-PrivateKey': api_key,
+                },
+                timeout=8,
+            )
+            if r.status_code in (401, 403):
+                return False, f"HTTP {r.status_code} {r.text[:80]}"
+            if r.status_code >= 500:
+                return False, f"broker 5xx (transient): {r.status_code}"
+            try:
+                body = r.json()
+            except Exception:
+                return False, f"unparseable response: {r.text[:80]}"
+            if body.get('status') is False:
+                msg = body.get('message', 'unknown')
+                code = (body.get('errorcode') or body.get('errorCode') or '').upper()
+                if code in ('AB1010', 'AG8001', 'AG8002') or '401' in str(code):
+                    return False, f"angel rejected ({code}): {msg}"
+                return False, f"broker 5xx (transient): {msg}"
+            return True, 'ok'
+
+        return True, 'skipped (phase-2 broker)'
+    except Exception as e:
+        return False, str(e)[:200]
+
+
+def _try_angel_refresh(account) -> bool:
+    """T007 — Attempt invisible Angel JWT refresh.
+
+    Reads the persisted Angel refreshToken, calls AngelBroker.refresh_jwt(),
+    and on success writes the new JWT + refresh token back to the account
+    (encrypted) and stamps the expiry so the account stays 'connected'.
+
+    Returns True only if the refresh succeeded AND the new token was saved.
+    """
+    try:
+        stored_rt = account.get_refresh_token() if hasattr(account, 'get_refresh_token') else None
+        if not stored_rt:
+            return False
+        from brokers.angel import AngelBroker
+        creds = account.get_credentials()
+        broker = AngelBroker(creds)
+        result = broker.refresh_jwt(stored_rt)
+        if not result or not result.get('jwt'):
+            return False
+        # Persist new tokens. Keep api_secret format intact so other code paths
+        # that parse "{api_key}:{totp_secret}:{password}" still work.
+        new_jwt = result['jwt']
+        new_rt = result.get('refresh_token') or stored_rt
+        parts = (creds.get('api_secret') or '').split(':')
+        api_key = parts[0] if parts else ''
+        totp_secret = parts[1] if len(parts) > 1 else ''
+        password = parts[2] if len(parts) > 2 else ''
+        account.set_credentials(
+            client_id=creds.get('client_id') or '',
+            access_token=new_jwt,
+            api_secret=f"{api_key}:{totp_secret}:{password}",
+        )
+        account.set_refresh_token(new_rt)
+        account.stamp_token_issued()
+        # Explicitly mark for persistence — we're in a background worker thread
+        # and want the next db.session.commit() to flush these changes even if
+        # SQLAlchemy's autoflush has been bypassed elsewhere in this tick.
+        from app import db as _db
+        _db.session.add(account)
+        try:
+            _db.session.commit()
+        except Exception as commit_err:
+            _db.session.rollback()
+            logger.warning(f"_try_angel_refresh: commit failed, rolling back: {commit_err}")
+            return False
+        return True
+    except Exception as e:
+        logger.warning(f"_try_angel_refresh failed: {e}")
+        try:
+            from app import db as _db
+            _db.session.rollback()
+        except Exception:
+            pass
+        return False
+
+
+def _notify_admin_pool(row, kind: str, message: str) -> None:
+    """Telegram alert for an admin-pool slot event (no user attached)."""
+    try:
+        from services.messaging_service import send_telegram_message
+        text = (
+            f"🛡️ *Admin Pool {kind}*\n"
+            f"Slot P{row.priority} — *{row.broker_name}* ({row.broker_type})\n"
+            f"{message}"
+        )
+        send_telegram_message(text)
+    except Exception as e:
+        logger.warning(f"broker_health: admin-pool telegram dispatch failed ({kind}): {e}")
+
+
 _AUTH_ERR_NEEDLES = (
     '401', '403', 'token', 'invalid api', 'session expired', 'unauthor',
     'TokenException', 'tokenexception',
@@ -269,21 +422,33 @@ def run_health_check(app):
                         checked += 1
 
                         if not ok and _is_auth_error(msg):
-                            # EXPIRED → flip status + alert (debounced).
-                            already_alerted = (
-                                acc.expiry_alerted_at
-                                and acc.expiry_alerted_at > datetime.utcnow() - timedelta(minutes=_EXPIRED_ALERT_COOLDOWN_MIN)
-                            )
-                            acc.connection_status = ConnectionStatus.EXPIRED.value
-                            if not already_alerted:
-                                _notify(
-                                    acc,
-                                    'EXPIRED',
-                                    f"Token rejected by broker. Reason: {msg[:120]}\n"
-                                    f"User must reconnect from dashboard.",
+                            # T007 — for Angel, try invisible JWT refresh BEFORE
+                            # flipping to EXPIRED. Many "expired" events are just
+                            # the JWT rotating out — if we have a refresh token
+                            # on file, the user never has to do anything.
+                            recovered = False
+                            if (acc.broker_type or '').lower() in ('angel_broking', 'angel'):
+                                recovered = _try_angel_refresh(acc)
+
+                            if recovered:
+                                acc.health_check_message = 'auto-refreshed JWT'
+                                logger.info(f"broker_health: Angel JWT auto-refreshed for user {acc.user_id}")
+                            else:
+                                # EXPIRED → flip status + alert (debounced).
+                                already_alerted = (
+                                    acc.expiry_alerted_at
+                                    and acc.expiry_alerted_at > datetime.utcnow() - timedelta(minutes=_EXPIRED_ALERT_COOLDOWN_MIN)
                                 )
-                                acc.expiry_alerted_at = datetime.utcnow()
-                                flipped += 1
+                                acc.connection_status = ConnectionStatus.EXPIRED.value
+                                if not already_alerted:
+                                    _notify(
+                                        acc,
+                                        'EXPIRED',
+                                        f"Token rejected by broker. Reason: {msg[:120]}\n"
+                                        f"User must reconnect from dashboard.",
+                                    )
+                                    acc.expiry_alerted_at = datetime.utcnow()
+                                    flipped += 1
 
                 # T-60 WARNING tier — fires once per token cycle.
                 if (
@@ -299,6 +464,62 @@ def run_health_check(app):
                     )
                     acc.expiry_warning_sent_at = datetime.utcnow()
                     warned += 1
+
+            # ── Admin data-broker pool ─────────────────────────────────
+            # Mirror the same logic for the admin slots so the pool stays
+            # healthy without an admin manually clicking "Test".
+            try:
+                from models_broker import AdminDataBroker
+                admin_rows = (
+                    AdminDataBroker.query
+                    .filter_by(is_active=True)
+                    .filter(AdminDataBroker.connection_status != 'expired')
+                    .all()
+                )
+                for arow in admin_rows:
+                    btype = (arow.broker_type or '').lower()
+                    if btype not in ('zerodha', 'dhan', 'angel_broking', 'angel'):
+                        continue  # only Phase 1 brokers get live-ping
+                    if arow.last_health_check and arow.last_health_check > stale_before:
+                        # Still process WARNING tier below.
+                        pass
+                    else:
+                        ok, msg = _ping_admin_pool_row(arow)
+                        arow.last_health_check = datetime.utcnow()
+                        arow.health_check_message = msg[:255]
+                        checked += 1
+                        if not ok and _is_auth_error(msg):
+                            already_alerted = (
+                                arow.expiry_alerted_at
+                                and arow.expiry_alerted_at > datetime.utcnow() - timedelta(minutes=_EXPIRED_ALERT_COOLDOWN_MIN)
+                            )
+                            arow.connection_status = 'expired'
+                            if not already_alerted:
+                                _notify_admin_pool(
+                                    arow,
+                                    'EXPIRED',
+                                    f"Admin pool slot P{arow.priority} ({arow.broker_name}) token rejected: {msg[:120]}",
+                                )
+                                arow.expiry_alerted_at = datetime.utcnow()
+                                flipped += 1
+
+                    # T-60 WARNING tier for admin pool (same pattern as users).
+                    if (
+                        arow.connection_status not in ('expired',)
+                        and hasattr(arow, 'is_expiring_soon')
+                        and arow.is_expiring_soon(threshold_min=_WARNING_LEAD_MIN)
+                        and not arow.expiry_warning_sent_at
+                    ):
+                        _notify_admin_pool(
+                            arow,
+                            'WARNING',
+                            f"Admin pool slot P{arow.priority} ({arow.broker_name}) "
+                            f"expires in ~{arow.expiry_human()}. Other slot will take over.",
+                        )
+                        arow.expiry_warning_sent_at = datetime.utcnow()
+                        warned += 1
+            except Exception as e:
+                logger.error(f"broker_health: admin pool tick failed: {e}", exc_info=True)
 
             db.session.commit()
 

@@ -67,6 +67,33 @@
                 {% if ab.updated_at %}
                 <div class="mt-1"><small>Updated {{ ab.updated_at.strftime('%d %b %Y, %I:%M %p') }} by {{ ab.updated_by or 'admin' }}</small></div>
                 {% endif %}
+                <div class="mt-2">
+                  {% if ab.needs_reconnect %}
+                    <span class="badge bg-danger" title="Token expired — pool will skip this slot until reconnected">
+                      <i class="fas fa-circle-exclamation me-1"></i>Expired
+                    </span>
+                  {% elif ab.is_expiring_soon %}
+                    <span class="badge bg-warning text-dark" title="Token expires soon — pool will prefer the other slot">
+                      <i class="fas fa-hourglass-half me-1"></i>Expires in {{ ab.expiry_human }}
+                    </span>
+                  {% elif ab.minutes_left %}
+                    <span class="badge bg-success" title="Token healthy">
+                      <i class="fas fa-clock me-1"></i>{{ ab.expiry_human }} runway
+                    </span>
+                  {% elif ab.connection_status == 'connected' %}
+                    <span class="badge bg-success">Connected</span>
+                  {% else %}
+                    <span class="badge bg-secondary text-uppercase">{{ ab.connection_status or 'unknown' }}</span>
+                  {% endif %}
+                  {% if ab.last_health_check %}
+                    <small class="text-muted ms-1" title="Last automatic health check">
+                      · checked {{ ab.last_health_check.strftime('%H:%M UTC') }}
+                    </small>
+                  {% endif %}
+                </div>
+                {% if ab.health_check_message and ab.needs_reconnect %}
+                <div class="mt-1"><small class="text-danger">{{ ab.health_check_message[:120] }}</small></div>
+                {% endif %}
               </div>
               {% else %}
               <p class="text-muted small mb-2">No {{ 'primary' if prio == 1 else 'secondary' }} broker configured. Add one for platform-wide live data.</p>

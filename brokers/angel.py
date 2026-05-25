@@ -41,6 +41,58 @@ class AngelBroker(BrokerBase):
         self.session = requests.Session()
         self.session.headers.update(self.headers)
 
+    def refresh_jwt(self, stored_refresh_token: str) -> Optional[Dict[str, str]]:
+        """T007 — Invisible JWT refresh using Angel's refreshToken.
+
+        Calls POST /rest/auth/angelbroking/jwt/v1/generateTokens with the
+        previously-issued refresh token. On 200, returns dict with the new
+        jwtToken/refreshToken/feedToken so the caller can persist them and
+        keep the account 'connected' without forcing a TOTP re-login.
+
+        Returns None on any failure (auth, network, 5xx). Caller should then
+        fall back to the existing _refresh_token() (full TOTP) or flip the
+        account status to EXPIRED.
+        """
+        if not stored_refresh_token or not self.api_key:
+            return None
+        try:
+            r = requests.post(
+                f"{self.base_url}/rest/auth/angelbroking/jwt/v1/generateTokens",
+                json={"refreshToken": stored_refresh_token},
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "X-UserType": "USER", "X-SourceID": "WEB",
+                    "X-ClientLocalIP": "127.0.0.1", "X-ClientPublicIP": "127.0.0.1",
+                    "X-MACAddress": "00:00:00:00:00:00",
+                    "X-PrivateKey": self.api_key,
+                },
+                timeout=10,
+            )
+            if r.status_code != 200:
+                logger.warning(f"Angel refresh_jwt HTTP {r.status_code}: {r.text[:160]}")
+                return None
+            body = r.json()
+            if not body.get("status") or "data" not in body:
+                logger.warning(f"Angel refresh_jwt rejected: {body.get('message','?')}")
+                return None
+            data = body["data"]
+            new_jwt = data.get("jwtToken")
+            if not new_jwt:
+                return None
+            # Update in-memory state so subsequent calls in this process use it.
+            self.access_token = new_jwt
+            self.refresh_token = data.get("refreshToken") or stored_refresh_token
+            self._build_session()
+            return {
+                "jwt": new_jwt,
+                "refresh_token": self.refresh_token,
+                "feed_token": data.get("feedToken") or "",
+            }
+        except Exception as e:
+            logger.error(f"Angel refresh_jwt error: {e}")
+            return None
+
     def _refresh_token(self) -> bool:
         """Auto-refresh session using stored TOTP secret if available."""
         if not self.totp_secret or not self.client_code or not self.api_key:
@@ -169,8 +221,58 @@ class AngelBroker(BrokerBase):
             logger.error(f"Angel get_option_chain error: {e}")
             return []
 
+    # Module-level cache for ScripMaster (shared across instances). ~25 MB
+    # JSON, but only the rows for the requested exchange are returned.
+    _SCRIP_MASTER_URL = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPI_File.json"
+    _scrip_master_cache: Optional[List[Dict]] = None
+    _scrip_master_loaded_at: Optional[datetime] = None
+    _SCRIP_MASTER_TTL = timedelta(hours=12)
+
+    @classmethod
+    def _load_scrip_master(cls) -> List[Dict]:
+        """Fetch + cache Angel's master contract file. Refreshed every 12h."""
+        now = datetime.utcnow()
+        if (
+            cls._scrip_master_cache is not None
+            and cls._scrip_master_loaded_at is not None
+            and now - cls._scrip_master_loaded_at < cls._SCRIP_MASTER_TTL
+        ):
+            return cls._scrip_master_cache
+        try:
+            resp = requests.get(cls._SCRIP_MASTER_URL, timeout=60)
+            resp.raise_for_status()
+            data = resp.json()
+            cls._scrip_master_cache = data if isinstance(data, list) else []
+            cls._scrip_master_loaded_at = now
+            logger.info(f"Angel ScripMaster loaded: {len(cls._scrip_master_cache)} instruments")
+            return cls._scrip_master_cache
+        except Exception as e:
+            logger.error(f"Angel ScripMaster fetch failed: {e}")
+            return cls._scrip_master_cache or []
+
     def get_instruments(self, exchange: str = "NFO") -> List[Dict]:
-        return []
+        """Return Angel master contracts filtered by exchange.
+
+        Angel's ScripMaster row schema (normalised here):
+          token, symbol, name, expiry, strike, lotsize, instrumenttype, exch_seg
+        """
+        rows = self._load_scrip_master()
+        exch = (exchange or "NFO").upper()
+        out = []
+        for r in rows:
+            if (r.get("exch_seg") or "").upper() != exch:
+                continue
+            out.append({
+                "token": r.get("token", ""),
+                "tradingsymbol": r.get("symbol", ""),
+                "name": r.get("name", ""),
+                "expiry": r.get("expiry", ""),
+                "strike": float(r.get("strike", 0) or 0) / 100.0,  # paise → rupees
+                "lot_size": int(r.get("lotsize", 0) or 0),
+                "instrument_type": r.get("instrumenttype", ""),
+                "exchange": r.get("exch_seg", exch),
+            })
+        return out
 
     def place_order(self, symbol: str, qty: int, side: str,
                     order_type: str = "MARKET", product: str = "INTRADAY",

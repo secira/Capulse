@@ -30,6 +30,20 @@ broker_oauth = Blueprint('broker_oauth', __name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _popup_success_response(account):
+    """T006 — Render the popup-success template when reconnect was triggered
+    from the Trade Now popup (?popup=1). The template posts a message back
+    to window.opener and self-closes."""
+    return render_template(
+        'broker/popup_success.html',
+        account_id=account.id,
+        broker_name=account.broker_name or account.broker_type,
+    )
+
+
+def _is_popup_request() -> bool:
+    return (request.args.get('popup') or request.form.get('popup') or '').strip() == '1'
+
 def _get_callback_url(broker_slug: str) -> str:
     from flask import request as req
     base = req.host_url.rstrip('/')
@@ -358,6 +372,10 @@ def callback_zerodha():
         db.session.commit()
 
         who = f" as {kite_user_name} ({kite_user_id})" if kite_user_id else ""
+        # T006 — if reconnect was launched from a Trade Now popup, render the
+        # auto-closing success page so the opener can resume the order flow.
+        if session.pop('broker_reauth_popup', False):
+            return _popup_success_response(account)
         flash(f'Zerodha connected successfully{who}!', 'success')
         logger.info(
             f"Zerodha connected for user {current_user.id} — kite_user_id={kite_user_id}"
@@ -595,6 +613,7 @@ def auth_angel():
             raise ValueError(data.get('message', 'Angel One login failed'))
 
         access_token = data['data']['jwtToken']
+        refresh_token_value = data['data'].get('refreshToken') or ''
 
         account = _save_pending_account(
             'angel_broking', api_key, totp_secret, extra=access_token
@@ -604,6 +623,10 @@ def auth_angel():
             access_token=access_token,
             api_secret=f"{api_key}:{totp_secret}:{password}",
         )
+        # T007 — persist Angel refreshToken so the monitor can auto-refresh
+        # the JWT in the background before it has to flip status to EXPIRED.
+        if refresh_token_value:
+            account.set_refresh_token(refresh_token_value)
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
         account.stamp_token_issued()
@@ -652,15 +675,21 @@ def reconnect_angel():
             raise ValueError(data.get('message', 'Angel One refresh failed'))
 
         new_token = data['data']['jwtToken']
+        new_refresh = data['data'].get('refreshToken') or ''
         account.set_credentials(
             client_id=client_id,
             access_token=new_token,
             api_secret=f"{api_key}:{totp_secret}:{stored_pin}",
         )
+        if new_refresh:
+            account.set_refresh_token(new_refresh)
         account.connection_status = ConnectionStatus.CONNECTED.value
         account.last_connected = datetime.utcnow()
         account.stamp_token_issued()
         db.session.commit()
+        # T006 — popup-aware return so Trade Now closes the popup and proceeds.
+        if _is_popup_request():
+            return _popup_success_response(account)
         flash('Angel One session refreshed successfully!', 'success')
         logger.info(f"Angel One token refreshed for user {current_user.id}")
     except Exception as e:
@@ -770,6 +799,10 @@ def reconnect_zerodha():
         return redirect(url_for('broker_oauth.broker_connect'))
 
     session['zerodha_account_id'] = account.id
+    # T006 — remember that this OAuth round-trip started from a Trade Now popup,
+    # so the success callback renders popup_success.html instead of redirecting
+    # back to the broker_connect page in the popup window.
+    session['broker_reauth_popup'] = _is_popup_request()
     account.connection_status = ConnectionStatus.DISCONNECTED.value
     db.session.commit()
 
@@ -1379,6 +1412,54 @@ def reconnect_broker(account_id: int):
 # ---------------------------------------------------------------------------
 # Disconnect
 # ---------------------------------------------------------------------------
+
+@broker_oauth.route('/api/broker/<int:account_id>/health', methods=['GET'])
+@login_required
+def api_broker_health(account_id: int):
+    """T006 — Pre-trade health probe for a single broker account.
+
+    Returns JSON the Trade Now form can use to decide whether to open the
+    popup re-auth modal BEFORE submitting an order. Cheap: no live broker
+    ping, just reads `connection_status` + `token_expires_at`.
+    """
+    from flask import jsonify
+    acc = BrokerAccount.query.filter_by(
+        id=account_id, user_id=current_user.id, is_active=True,
+    ).first()
+    if not acc:
+        return jsonify({'ok': False, 'error': 'broker account not found'}), 404
+
+    btype = (acc.broker_type or '').lower()
+    # Map broker_type → existing reconnect route (popup mode flag passed via ?popup=1).
+    _reauth_map = {
+        'zerodha': 'broker_oauth.reconnect_zerodha',
+        'dhan':    'broker_oauth.reconnect_dhan',
+        'angel_broking': 'broker_oauth.reconnect_angel',
+        'angel':         'broker_oauth.reconnect_angel',
+        'upstox':  'broker_oauth.reconnect_upstox',
+    }
+    endpoint = _reauth_map.get(btype)
+    try:
+        reauth_url = url_for(endpoint) + '?popup=1' if endpoint else url_for('broker_oauth.broker_connect')
+    except Exception:
+        reauth_url = url_for('broker_oauth.broker_connect')
+
+    minutes_left = acc.minutes_until_expiry() if hasattr(acc, 'minutes_until_expiry') else None
+    expired = bool(acc.needs_reconnect()) if hasattr(acc, 'needs_reconnect') else (acc.connection_status == 'expired')
+    expiring_soon = bool(acc.is_expiring_soon(threshold_min=15)) if hasattr(acc, 'is_expiring_soon') else False
+
+    return jsonify({
+        'ok': not expired,
+        'expired': expired,
+        'expiring_soon': expiring_soon,
+        'minutes_left': minutes_left,
+        'connection_status': acc.connection_status,
+        'broker_type': btype,
+        'broker_name': acc.broker_name,
+        'reauth_url': reauth_url,
+        'account_id': acc.id,
+    })
+
 
 @broker_oauth.route('/broker/disconnect/<broker_slug>', methods=['POST'])
 @login_required

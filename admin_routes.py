@@ -2064,6 +2064,14 @@ def data_api_plan():
                 'has_api_secret': bool(row.api_secret),
                 'updated_at': row.updated_at,
                 'updated_by': row.updated_by,
+                # T005 — countdown + last health
+                'token_expires_at': getattr(row, 'token_expires_at', None),
+                'minutes_left': row.minutes_until_expiry() if hasattr(row, 'minutes_until_expiry') else None,
+                'expiry_human': row.expiry_human() if hasattr(row, 'expiry_human') else '—',
+                'is_expiring_soon': row.is_expiring_soon() if hasattr(row, 'is_expiring_soon') else False,
+                'needs_reconnect': row.needs_reconnect() if hasattr(row, 'needs_reconnect') else False,
+                'last_health_check': getattr(row, 'last_health_check', None),
+                'health_check_message': getattr(row, 'health_check_message', None),
             }
     except Exception as e:
         flash(f'AdminDataBroker load error: {e}', 'error')
@@ -2205,8 +2213,14 @@ def test_admin_data_broker():
             price_err = str(ex)
 
         if spot and spot > 0:
-            row.connection_status = 'connected'
-            row.last_connected = _dt.utcnow()
+            # T005 — stamp predicted expiry + clear alerts; pool selection uses this.
+            try:
+                row.stamp_token_issued()
+            except Exception:
+                row.connection_status = 'connected'
+                row.last_connected = _dt.utcnow()
+            row.last_health_check = _dt.utcnow()
+            row.health_check_message = 'ok (manual test)'
             db.session.commit()
             flash(f'✅ {label}: connected. NIFTY spot = {spot:.2f}.', 'success')
         else:

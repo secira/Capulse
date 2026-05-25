@@ -1295,10 +1295,75 @@ function showTradeConfirmation() {
 }
 
 // ─── Execute Trade ────────────────────────────────────────────────────────────
+// T006 — Pre-trade broker health check with popup re-auth.
+// Wraps the order submit so we never POST against a broker whose token has
+// expired. If health says expired/expiring_soon, we open the broker's
+// reconnect URL in a popup window, show a small "Reconnecting…" status on
+// the main CTA, and resume the trade flow when the popup posts back
+// `{ type: 'broker-reauth-success', account_id }`.
+function _preflightBrokerSession(callback) {
+    var sel = document.getElementById('brokerSelect');
+    var accountId = sel ? sel.value : null;
+    if (!accountId) { callback(); return; }
+    fetch('/api/broker/' + encodeURIComponent(accountId) + '/health', {
+        credentials: 'same-origin'
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(h){
+        if (!h || (!h.expired && !h.expiring_soon)) { callback(); return; }
+        var mainCta = document.getElementById('instantTradeBtn');
+        var originalHtml = mainCta ? mainCta.innerHTML : null;
+        if (mainCta) {
+            mainCta.disabled = true;
+            mainCta.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Reconnecting ' + (h.broker_name || 'broker') + '…';
+        }
+        var popup = window.open(h.reauth_url, 'broker_reauth',
+            'width=600,height=800,scrollbars=yes,resizable=yes');
+        if (!popup) {
+            if (mainCta) { mainCta.disabled = false; mainCta.innerHTML = originalHtml; }
+            alert('Your broker session has expired. Allow popups and try again, or reconnect from the Brokers page.');
+            return;
+        }
+        var done = false;
+        var onMsg = function(e){
+            var d = e && e.data;
+            if (!d || d.type !== 'broker-reauth-success') return;
+            if (String(d.account_id) !== String(accountId)) return;
+            done = true;
+            window.removeEventListener('message', onMsg);
+            try { popup.close(); } catch(_){}
+            if (mainCta) { mainCta.disabled = false; mainCta.innerHTML = originalHtml; }
+            callback();
+        };
+        window.addEventListener('message', onMsg);
+        // Fallback: if the popup is closed without postMessage (e.g. user
+        // cancels OAuth), restore the CTA without firing the order.
+        var poll = setInterval(function(){
+            if (popup.closed) {
+                clearInterval(poll);
+                if (!done) {
+                    window.removeEventListener('message', onMsg);
+                    if (mainCta) { mainCta.disabled = false; mainCta.innerHTML = originalHtml; }
+                }
+            }
+        }, 500);
+    })
+    .catch(function(){ callback(); });  // health failure → don't block the trade
+}
+
 function executeTrade() {
     // Re-entrancy guard: even if the user manages to double-click the modal
     // Execute button before it disables, only one in-flight request goes out.
     if (window.__tradeExecInFlight) return;
+    if (!window.__tradeExecPreflightDone) {
+        window.__tradeExecPreflightDone = true;
+        _preflightBrokerSession(function(){
+            window.__tradeExecPreflightDone = false;
+            executeTrade();
+        });
+        return;
+    }
+    window.__tradeExecPreflightDone = false;
     window.__tradeExecInFlight = true;
 
     var urlParams   = new URLSearchParams(window.location.search);
