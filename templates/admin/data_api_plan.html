@@ -162,10 +162,10 @@
                   <div class="mb-2">
                     <label class="form-label small fw-semibold">
                       App API Key
-                      <span class="text-muted fw-normal">(Dhan: Client ID · Zerodha: Kite API Key · Fyers: App ID)</span>
+                      <span class="text-muted fw-normal">(Dhan: Client ID · Zerodha: <strong>Kite App API Key</strong> from developers.kite.trade — NOT your login ID · Fyers: App ID)</span>
                     </label>
                     <input type="password" name="api_key" class="form-control form-control-sm"
-                           placeholder="{% if ab and ab.has_api_key %}•••••• (leave blank to keep){% else %}Enter API key / Client ID{% endif %}"
+                           placeholder="{% if ab and ab.has_api_key %}•••••• (leave blank to keep){% else %}e.g. mkyhxn2tbqruhp67 (16-char Kite App API Key){% endif %}"
                            {% if not ab or not ab.has_api_key %}required{% endif %}>
                   </div>
                   <div class="mb-2">
