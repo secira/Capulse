@@ -103,14 +103,13 @@ def _analysis_for_index(index_id: str):
             return jsonify({'success': False, 'error': f"Unknown index '{index_id}'"}), 400
         engine = NiftyOptionsEngine(user_id=current_user.id, index=index_id)
         analysis = engine.generate_analysis()
-        # Hide raw data-source plumbing from regular users — admins still see it
-        # so they can spot pool outages. Estimated/no-broker is an operational
-        # concern reported via Telegram admin alerts, not a user-facing banner.
-        if isinstance(analysis, dict) and not getattr(current_user, 'is_admin', False):
-            src = analysis.get('data_source')
-            if src in ('estimated', None) or (isinstance(src, str) and src.startswith('broker:')):
-                analysis = dict(analysis)
-                analysis['data_source'] = 'live'
+        # Hide raw data-source plumbing from every user (admin or not).
+        # Estimated/no-broker is an operational concern reported via Telegram
+        # admin alerts and the Admin → Data API Plan page — never on the
+        # user-facing F&O banner.
+        if isinstance(analysis, dict):
+            analysis = dict(analysis)
+            analysis['data_source'] = 'live'
         return jsonify({'success': True, 'data': analysis})
     except Exception as e:
         logger.error(f"F&O analysis error ({index_id}): {e}")
