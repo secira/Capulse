@@ -76,6 +76,63 @@ def login():
     
     return render_template('admin/login.html')
 
+@admin_bp.route('/fno-settings', methods=['GET', 'POST'])
+@admin_required
+def fno_settings():
+    """Admin page — configure F&O SL/Target mode and Telegram alert fields."""
+    from services.fno_config import (
+        get_fno_config, update_fno_config, TELEGRAM_FIELDS, DEFAULT_TELEGRAM_FIELDS,
+    )
+
+    if request.method == 'POST':
+        try:
+            sl_mode      = (request.form.get('sl_mode') or 'percent').strip().lower()
+            target_mode  = (request.form.get('target_mode') or 'percent').strip().lower()
+            sl_value     = float(request.form.get('sl_value') or 10.0)
+            target_value = float(request.form.get('target_value') or 15.0)
+            sl_floor     = float(request.form.get('sl_floor') or 20.0)
+            target_floor = float(request.form.get('target_floor') or 30.0)
+
+            # Sanity bounds
+            if sl_mode == 'percent' and not (0.1 <= sl_value <= 90):
+                flash('SL % must be between 0.1 and 90.', 'error')
+                return redirect(url_for('admin.fno_settings'))
+            if target_mode == 'percent' and not (0.1 <= target_value <= 500):
+                flash('Target % must be between 0.1 and 500.', 'error')
+                return redirect(url_for('admin.fno_settings'))
+            if sl_value <= 0 or target_value <= 0:
+                flash('Values must be greater than zero.', 'error')
+                return redirect(url_for('admin.fno_settings'))
+
+            # Respect explicit empty selection — admin may want a minimal alert.
+            # A hidden marker field disambiguates "form posted with nothing ticked"
+            # from "form did not include the checkbox group at all".
+            if request.form.get('telegram_fields_submitted') == '1':
+                telegram_fields = request.form.getlist('telegram_fields')
+            else:
+                telegram_fields = request.form.getlist('telegram_fields') or list(DEFAULT_TELEGRAM_FIELDS)
+
+            update_fno_config(
+                sl_mode=sl_mode, sl_value=sl_value, sl_floor=sl_floor,
+                target_mode=target_mode, target_value=target_value, target_floor=target_floor,
+                telegram_fields=telegram_fields,
+                updated_by=getattr(current_user, 'username', 'admin'),
+            )
+            flash('F&O settings updated successfully.', 'success')
+        except ValueError:
+            flash('Invalid numeric value — please enter numbers only.', 'error')
+        except Exception as e:
+            flash(f'Could not save settings: {e}', 'error')
+        return redirect(url_for('admin.fno_settings'))
+
+    cfg = get_fno_config()
+    return render_template(
+        'admin/fno_settings.html',
+        cfg=cfg,
+        telegram_field_catalogue=TELEGRAM_FIELDS,
+    )
+
+
 @admin_bp.route('/logout')
 @admin_required
 def logout():

@@ -338,52 +338,72 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         else:
             type_emoji = '📡'
 
+        # Admin-configurable field selector — Admin → F&O Settings → Telegram Fields
+        try:
+            from services.fno_config import get_fno_config, DEFAULT_TELEGRAM_FIELDS
+            enabled = set(get_fno_config().get('telegram_fields') or DEFAULT_TELEGRAM_FIELDS)
+        except Exception:
+            enabled = {'header', 'direction', 'confidence', 'entry_mode', 'spot_atm',
+                       'trades_list', 'active_trade', 'exit_reason', 'timestamp', 'dashboard_link'}
+
         trade_code = signal_data.get('trade_code', '')
         code_tag   = f" <code>{trade_code}</code>" if trade_code else ''
-        msg  = f"{type_emoji} <b>{display} F&amp;O — {signal_type.replace('_', ' ')}</b>{code_tag}\n\n"
-        msg += f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
-        msg += f"📊 <b>Confidence:</b> {confidence}/100 ({signal_data.get('confidence_grade', '')})\n"
-        msg += f"🎯 <b>Entry Mode:</b> {entry_mode}\n"
-        msg += f"💰 <b>Spot:</b> ₹{spot:,.2f} | ATM: {atm}\n\n"
+
+        msg = ''
+        if 'header' in enabled:
+            msg += f"{type_emoji} <b>{display} F&amp;O — {signal_type.replace('_', ' ')}</b>{code_tag}\n\n"
+        if 'direction' in enabled:
+            msg += f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
+        if 'confidence' in enabled:
+            msg += f"📊 <b>Confidence:</b> {confidence}/100 ({signal_data.get('confidence_grade', '')})\n"
+        if 'entry_mode' in enabled:
+            msg += f"🎯 <b>Entry Mode:</b> {entry_mode}\n"
+        if 'spot_atm' in enabled:
+            msg += f"💰 <b>Spot:</b> ₹{spot:,.2f} | ATM: {atm}\n"
+        msg += "\n"
 
         # For TRADE_ACTIVE updates, show live trade details with elapsed time
         if signal_type == 'TRADE_ACTIVE':
-            active = signal_data.get('active_trade', {})
-            if active:
-                elapsed = active.get('elapsed_min', 0)
-                remaining = active.get('remaining_min', TRADE_MAX_DURATION_MIN)
-                entry_px  = active.get('entry_price', 0)
-                sl_px     = active.get('sl', 0)
-                tgt_px    = active.get('target', 0)
-                ltp       = active.get('ltp', 0)
-                pnl_pts   = round(ltp - entry_px, 2) if ltp and entry_px else 0
-                pnl_emoji = '📈' if pnl_pts >= 0 else '📉'
-                opt_type  = active.get('type', '')
-                msg += f"<b>Active Trade ({opt_type}):</b>\n"
-                msg += f"  ⏱ Running: {elapsed} min | {remaining} min left\n"
-                msg += f"  🏷 Entry: ₹{entry_px:,.0f}\n"
-                if ltp:
-                    msg += f"  {pnl_emoji} LTP: ₹{ltp:,.0f} ({'+' if pnl_pts >= 0 else ''}{pnl_pts:.0f} pts)\n"
-                msg += f"  🛑 SL: ₹{sl_px:,.0f}  |  🎯 Target: ₹{tgt_px:,.0f}\n"
+            if 'active_trade' in enabled:
+                active = signal_data.get('active_trade', {})
+                if active:
+                    elapsed = active.get('elapsed_min', 0)
+                    remaining = active.get('remaining_min', TRADE_MAX_DURATION_MIN)
+                    entry_px  = active.get('entry_price', 0)
+                    sl_px     = active.get('sl', 0)
+                    tgt_px    = active.get('target', 0)
+                    ltp       = active.get('ltp', 0)
+                    pnl_pts   = round(ltp - entry_px, 2) if ltp and entry_px else 0
+                    pnl_emoji = '📈' if pnl_pts >= 0 else '📉'
+                    opt_type  = active.get('type', '')
+                    msg += f"<b>Active Trade ({opt_type}):</b>\n"
+                    msg += f"  ⏱ Running: {elapsed} min | {remaining} min left\n"
+                    msg += f"  🏷 Entry: ₹{entry_px:,.0f}\n"
+                    if ltp:
+                        msg += f"  {pnl_emoji} LTP: ₹{ltp:,.0f} ({'+' if pnl_pts >= 0 else ''}{pnl_pts:.0f} pts)\n"
+                    msg += f"  🛑 SL: ₹{sl_px:,.0f}  |  🎯 Target: ₹{tgt_px:,.0f}\n"
         else:
-            trades = signal_data.get('trades', [])
-            if trades:
-                msg += f"<b>Trades ({len(trades)}):</b>\n"
-                for t in trades[:3]:
-                    t_emoji = '📗' if t.get('type') == 'CE' else '📕'
-                    msg += (
-                        f"{t_emoji} {t.get('symbol', '')} — "
-                        f"Entry ₹{t.get('entry_price', 0):,.0f}, "
-                        f"Target ₹{t.get('target', 0):,.0f}, "
-                        f"SL ₹{t.get('sl', 0):,.0f}\n"
-                    )
+            if 'trades_list' in enabled:
+                trades = signal_data.get('trades', [])
+                if trades:
+                    msg += f"<b>Trades ({len(trades)}):</b>\n"
+                    for t in trades[:3]:
+                        t_emoji = '📗' if t.get('type') == 'CE' else '📕'
+                        msg += (
+                            f"{t_emoji} {t.get('symbol', '')} — "
+                            f"Entry ₹{t.get('entry_price', 0):,.0f}, "
+                            f"Target ₹{t.get('target', 0):,.0f}, "
+                            f"SL ₹{t.get('sl', 0):,.0f}\n"
+                        )
 
-        if signal_type == 'TRADE_EXIT':
+        if signal_type == 'TRADE_EXIT' and 'exit_reason' in enabled:
             msg += f"\n🚪 <b>Exit Reason:</b> {signal_data.get('exit_reason', 'Unknown')}\n"
 
-        page_path = _INDEX_PAGE_PATH.get(index_id, 'nifty')
-        msg += f"\n⏰ <i>{_now_ist().strftime('%d/%m/%Y %I:%M %p')} IST</i>"
-        msg += f"\n\n<a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital</a>"
+        if 'timestamp' in enabled:
+            msg += f"\n⏰ <i>{_now_ist().strftime('%d/%m/%Y %I:%M %p')} IST</i>"
+        if 'dashboard_link' in enabled:
+            page_path = _INDEX_PAGE_PATH.get(index_id, 'nifty')
+            msg += f"\n\n<a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital</a>"
 
         # Delegate the actual HTTP call to messaging_service.send_telegram_message
         # — the SAME code path Market Intelligence and I-Score alerts use. On

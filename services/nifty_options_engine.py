@@ -1809,6 +1809,16 @@ class NiftyOptionsEngine:
         MIN_OPTION_VOLUME = 1000
         MAX_SPREAD_PCT = 3.0
         OVERHEATED_PCT_CHANGE = 25.0  # block if option premium already moved >25% on last tick
+
+        # Resolve admin-configured SL/Target rule ONCE per enrichment cycle
+        # (avoids N DB hits inside the loop).
+        try:
+            from services.fno_config import compute_sl_target_points as _compute_sl_tgt
+        except Exception as _cfg_err:
+            logger.warning(f"fno_config import failed, using legacy defaults: {_cfg_err}")
+            def _compute_sl_tgt(ltp_):
+                return max(20, round(ltp_ * 0.10)), max(30, round(ltp_ * 0.15))
+
         for t in trades:
             strike = int(t['strike']) if isinstance(t['strike'], float) and t['strike'] == int(t['strike']) else t['strike']
             key = f"{strike}{t['type']}"
@@ -1846,12 +1856,14 @@ class NiftyOptionsEngine:
                 logger.info(f"Skipping {key}: premium overheated ({pct_chg:.1f}%)")
                 continue
 
-            # Dynamic Target = max(30, 15% of option premium LTP)
-            # Dynamic SL     = max(20, 10% of option premium LTP)
-            # This scales with the actual premium so high-premium options get
-            # proportionally wider targets/stops while cheap options stay floored.
-            sl_points     = max(20, round(ltp * 0.10))
-            target_points = max(30, round(ltp * 0.15))
+            # SL/Target are admin-configurable (percent-of-premium OR absolute points)
+            # via Admin → F&O Settings. _compute_sl_tgt resolved once above this loop.
+            try:
+                sl_points, target_points = _compute_sl_tgt(ltp)
+            except Exception as _cfg_err:
+                logger.warning(f"compute_sl_target_points failed, using legacy defaults: {_cfg_err}")
+                sl_points     = max(20, round(ltp * 0.10))
+                target_points = max(30, round(ltp * 0.15))
 
             entry_price = ltp
             # Floor SL so it never crosses zero (cap at 0.05 minimum tick).

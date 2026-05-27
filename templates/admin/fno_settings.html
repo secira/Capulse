@@ -1,0 +1,174 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}F&O Settings — Admin{% endblock %}
+
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1"><i class="fas fa-sliders-h me-2 text-primary"></i>F&amp;O Settings</h2>
+        <p class="text-muted mb-0 small">
+            Configure how Stop&nbsp;Loss / Target are calculated for the NIFTY Options engine
+            and which fields are included in F&amp;O Telegram alerts.
+        </p>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+{% endwith %}
+
+<form method="POST" action="{{ url_for('admin.fno_settings') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="telegram_fields_submitted" value="1"/>
+
+    <!-- ── SL / Target mode ────────────────────────────────────────────── -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fas fa-shield-alt me-2 text-danger"></i>Stop&nbsp;Loss &amp; Target Calculation</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-4">
+                Choose whether SL &amp; Target are a <strong>percent of the option premium (LTP)</strong>
+                or a fixed <strong>absolute number of points</strong>. The engine applies the chosen formula
+                to every signal it generates.
+            </p>
+
+            <div class="row g-4">
+                <!-- Stop Loss -->
+                <div class="col-md-6">
+                    <div class="border rounded p-3 h-100" style="background:#fef2f2;">
+                        <h6 class="fw-bold text-danger mb-3"><i class="fas fa-hand-paper me-1"></i>Stop&nbsp;Loss</h6>
+
+                        <label class="form-label small fw-semibold mb-1">Mode</label>
+                        <div class="btn-group w-100 mb-3" role="group">
+                            <input type="radio" class="btn-check" name="sl_mode" id="sl_pct" value="percent"
+                                   {% if cfg.sl_mode == 'percent' %}checked{% endif %}>
+                            <label class="btn btn-outline-danger" for="sl_pct">% of Premium</label>
+
+                            <input type="radio" class="btn-check" name="sl_mode" id="sl_abs" value="absolute"
+                                   {% if cfg.sl_mode == 'absolute' %}checked{% endif %}>
+                            <label class="btn btn-outline-danger" for="sl_abs">Absolute (points)</label>
+                        </div>
+
+                        <label for="sl_value" class="form-label small fw-semibold mb-1">
+                            Value <span class="text-muted">(% or points)</span>
+                        </label>
+                        <input type="number" step="0.1" min="0.1" class="form-control" id="sl_value"
+                               name="sl_value" value="{{ cfg.sl_value }}" required>
+
+                        <label for="sl_floor" class="form-label small fw-semibold mb-1 mt-3">
+                            Minimum Floor (points) <span class="text-muted">— only applied in % mode</span>
+                        </label>
+                        <input type="number" step="1" min="0" class="form-control" id="sl_floor"
+                               name="sl_floor" value="{{ cfg.sl_floor }}">
+
+                        <p class="text-muted small mb-0 mt-3">
+                            Example: with <strong>{{ cfg.sl_value }}{% if cfg.sl_mode == 'percent' %}%{% else %} pts{% endif %}</strong>
+                            and LTP ₹120, SL =
+                            {% if cfg.sl_mode == 'percent' %}max({{ cfg.sl_floor|int }}, {{ cfg.sl_value }}% × 120) pts{% else %}{{ cfg.sl_value|int }} pts{% endif %}.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Target -->
+                <div class="col-md-6">
+                    <div class="border rounded p-3 h-100" style="background:#f0fdf4;">
+                        <h6 class="fw-bold text-success mb-3"><i class="fas fa-bullseye me-1"></i>Target</h6>
+
+                        <label class="form-label small fw-semibold mb-1">Mode</label>
+                        <div class="btn-group w-100 mb-3" role="group">
+                            <input type="radio" class="btn-check" name="target_mode" id="tg_pct" value="percent"
+                                   {% if cfg.target_mode == 'percent' %}checked{% endif %}>
+                            <label class="btn btn-outline-success" for="tg_pct">% of Premium</label>
+
+                            <input type="radio" class="btn-check" name="target_mode" id="tg_abs" value="absolute"
+                                   {% if cfg.target_mode == 'absolute' %}checked{% endif %}>
+                            <label class="btn btn-outline-success" for="tg_abs">Absolute (points)</label>
+                        </div>
+
+                        <label for="target_value" class="form-label small fw-semibold mb-1">
+                            Value <span class="text-muted">(% or points)</span>
+                        </label>
+                        <input type="number" step="0.1" min="0.1" class="form-control" id="target_value"
+                               name="target_value" value="{{ cfg.target_value }}" required>
+
+                        <label for="target_floor" class="form-label small fw-semibold mb-1 mt-3">
+                            Minimum Floor (points) <span class="text-muted">— only applied in % mode</span>
+                        </label>
+                        <input type="number" step="1" min="0" class="form-control" id="target_floor"
+                               name="target_floor" value="{{ cfg.target_floor }}">
+
+                        <p class="text-muted small mb-0 mt-3">
+                            Example: with <strong>{{ cfg.target_value }}{% if cfg.target_mode == 'percent' %}%{% else %} pts{% endif %}</strong>
+                            and LTP ₹120, Target =
+                            {% if cfg.target_mode == 'percent' %}max({{ cfg.target_floor|int }}, {{ cfg.target_value }}% × 120) pts{% else %}{{ cfg.target_value|int }} pts{% endif %}.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Telegram field selector ─────────────────────────────────────── -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fab fa-telegram me-2 text-info"></i>Telegram Alert — Field Selector</h5>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAll">Select all</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="selectNone">Clear</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Tick the fields you want included in F&amp;O Telegram alerts. Currently the message can include
+                every field below — unticking a field will remove that line from all future alerts.
+                Default selection mirrors the legacy “full message”.
+            </p>
+
+            <div class="row g-2">
+                {% for key, label, _default, example in telegram_field_catalogue %}
+                <div class="col-md-6">
+                    <div class="form-check border rounded p-3 h-100"
+                         style="background:{% if key in cfg.telegram_fields %}#eff6ff{% else %}#fafafa{% endif %};">
+                        <input class="form-check-input tf-check" type="checkbox"
+                               id="tf_{{ key }}" name="telegram_fields" value="{{ key }}"
+                               {% if key in cfg.telegram_fields %}checked{% endif %}>
+                        <label class="form-check-label w-100" for="tf_{{ key }}">
+                            <div class="fw-semibold">{{ label }}</div>
+                            <div class="text-muted small font-monospace mt-1" style="font-size:11.5px;">{{ example }}</div>
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="alert alert-warning small mt-4 mb-0">
+                <i class="fas fa-info-circle me-1"></i>
+                <strong>Tip:</strong> unchecking <em>Header</em>, <em>Direction</em> or <em>Trades list</em>
+                produces a much shorter alert — useful if your group prefers concise pings.
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-light">Cancel</a>
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i>Save F&amp;O Settings
+        </button>
+    </div>
+</form>
+
+<script>
+document.getElementById('selectAll').addEventListener('click', () => {
+    document.querySelectorAll('.tf-check').forEach(c => c.checked = true);
+});
+document.getElementById('selectNone').addEventListener('click', () => {
+    document.querySelectorAll('.tf-check').forEach(c => c.checked = false);
+});
+</script>
+{% endblock %}
