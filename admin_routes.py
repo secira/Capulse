@@ -2452,8 +2452,11 @@ def admin_data_broker_zerodha_callback():
         if not access_token:
             raise ValueError('Empty access_token returned by Zerodha')
 
+        # Preserve broker_client_id (saved separately in the form); set_credentials
+        # would otherwise leave it alone since None values are skipped, but we
+        # pass nothing for it explicitly to make the intent clear.
         row.set_credentials(
-            client_id=api_key,
+            api_key=api_key,
             access_token=access_token,
             api_secret=api_secret,
         )
