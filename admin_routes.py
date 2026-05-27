@@ -2382,20 +2382,26 @@ def admin_data_broker_zerodha_login(priority):
     # Replit's workspace_iframe.html before Kite sets its session cookies.
     from urllib.parse import quote as _urlquote
     from markupsafe import escape as _esc
+    import json as _json
 
     kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={_urlquote(api_key, safe='')}"
     _logger.info(f"Admin Zerodha OAuth: P{priority} → Kite | url={kite_url}")
-    safe_url = str(_esc(kite_url))
+    # For HTML attributes: escape <, >, " — but keep raw '&' (browsers
+    # tolerate raw '&' in href/meta-refresh, and some refuse to decode
+    # '&amp;' inside meta-refresh content, causing &amp;api_key= bugs).
+    html_safe = kite_url.replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+    # For the JS string literal: use json.dumps so the URL keeps its raw '&'.
+    js_safe = _json.dumps(kite_url)
     html = (
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<title>Redirecting to Zerodha Kite…</title>"
-        f"<meta http-equiv='refresh' content='0;url={safe_url}'>"
+        f'<meta http-equiv="refresh" content="0;url={html_safe}">'
         "</head><body style='font-family:sans-serif;padding:2rem;text-align:center'>"
         "<p>Redirecting you to Zerodha Kite login…</p>"
         "<p>If you are not redirected, "
-        f"<a href='{safe_url}' target='_top' rel='noopener'>click here</a>.</p>"
+        f'<a href="{html_safe}" target="_top" rel="noopener">click here</a>.</p>'
         "<script>"
-        f"var u={safe_url!r};"
+        f"var u={js_safe};"
         "try{if(window.top&&window.top!==window.self){window.top.location.href=u;}"
         "else{window.location.href=u;}}catch(e){window.location.href=u;}"
         "</script></body></html>"
