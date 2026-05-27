@@ -2348,13 +2348,58 @@ def admin_data_broker_zerodha_login(priority):
         flash(f'P{priority} Zerodha: API Key + API Secret must be saved before OAuth login.', 'error')
         return redirect(url_for('admin.data_api_plan'))
 
+    # Shape check — Kite Connect API keys are alphanumeric, 4–64 chars.
+    # Same guard as routes_broker_oauth.auth_zerodha so we fail fast on
+    # malformed input rather than getting a cryptic Kite-side rejection.
+    import re as _re
+    if not _re.fullmatch(r'[A-Za-z0-9]{4,64}', api_key):
+        flash(
+            f'P{priority} Zerodha: that API Key looks malformed (must be alphanumeric, no spaces). '
+            f'Re-save from developers.kite.trade.',
+            'error',
+        )
+        return redirect(url_for('admin.data_api_plan'))
+
     session['admin_zerodha_priority'] = priority
     row.connection_status = 'pending_oauth'
     db.session.commit()
 
-    # Mirror the user-side reconnect_zerodha flow exactly — plain 302 redirect.
-    kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={api_key}"
-    return redirect(kite_url)
+    # ── Match the working user-side flow (routes_broker_oauth.auth_zerodha) ──
+    # URL-encode api_key + use the iframe-busting HTML shim so we escape
+    # Replit's workspace_iframe.html before Kite sets its session cookies.
+    # Without this Kite returns "Missing or empty field `authorize`" /
+    # "Missing or empty field `api_key`" at /finish, because cross-origin
+    # iframes block its session cookies on modern browsers.
+    import logging as _logging
+    from urllib.parse import quote as _urlquote
+    from markupsafe import escape as _esc
+    _logger = _logging.getLogger(__name__)
+
+    kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={_urlquote(api_key, safe='')}"
+    _logger.info(
+        f"Admin Zerodha OAuth: P{priority} → Kite | "
+        f"api_key={api_key!r} (len={len(api_key)}, "
+        f"bytes={api_key.encode('utf-8')!r}) | url={kite_url}"
+    )
+    safe_url = str(_esc(kite_url))
+    html = (
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<title>Redirecting to Zerodha Kite…</title>"
+        f"<meta http-equiv='refresh' content='0;url={safe_url}'>"
+        "</head><body style='font-family:sans-serif;padding:2rem;text-align:center'>"
+        "<p>Redirecting you to Zerodha Kite login…</p>"
+        "<p>If you are not redirected, "
+        f"<a href='{safe_url}' target='_top' rel='noopener'>click here</a>.</p>"
+        "<script>"
+        f"var u={safe_url!r};"
+        "try{if(window.top&&window.top!==window.self){window.top.location.href=u;}"
+        "else{window.location.href=u;}}catch(e){window.location.href=u;}"
+        "</script></body></html>"
+    )
+    from flask import make_response
+    resp = make_response(html)
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return resp
 
 
 @admin_bp.route('/admin-data-broker/zerodha/callback')
