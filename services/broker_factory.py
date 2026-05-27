@@ -155,16 +155,33 @@ def _underlying_from_symbol(symbol: str) -> Optional[str]:
 
 def get_index_price_with_fallback(symbol: str, user_id: Optional[int] = None) -> tuple:
     """
-    Resolve a live index price via the data-broker fallback chain:
-      1. User's own data broker (BrokerAccount / DataApiBroker)
-      2. Admin primary data broker
-      3. Admin secondary data broker
+    Resolve a live index price via the data-broker fallback chain.
+
+    Priority (admin-first — Dhan/Zerodha connected by the admin always win):
+      1. Admin primary data broker  (e.g. admin Dhan)
+      2. Admin secondary data broker (e.g. admin Zerodha)
+      3. User's own data broker (BrokerAccount / DataApiBroker) — only if the
+         admin pool is empty / all admin brokers failed.
 
     Returns (price, source_label). price = 0.0 when no broker could supply one.
-    source_label is e.g. 'user:Dhan', 'admin:Fyers (P1)', or 'unavailable'.
+    source_label is e.g. 'admin:Dhan (P1)', 'user:Dhan', or 'unavailable'.
     """
     underlying = _underlying_from_symbol(symbol) or symbol.upper()
 
+    # ── 1. Admin pool first — operator-controlled Dhan/Zerodha is the
+    #      authoritative data source for every user. ─────────────────────
+    for prio, btype, bname, broker in get_admin_data_brokers():
+        try:
+            if not broker.connect():
+                continue
+            px = float(broker.get_price(underlying) or 0)
+            if px > 0:
+                return px, f"admin:{bname} (P{prio})"
+        except Exception as e:
+            logger.debug(f"admin broker P{prio} {btype} get_price({underlying}) failed: {e}")
+            continue
+
+    # ── 2. Fall back to the user's personal data broker ──────────────────
     if user_id:
         try:
             ub = get_data_broker_for_user(user_id)
@@ -178,17 +195,6 @@ def get_index_price_with_fallback(symbol: str, user_id: Optional[int] = None) ->
                     logger.debug(f"user data broker get_price({underlying}) failed: {e}")
         except Exception as e:
             logger.debug(f"user data broker lookup failed: {e}")
-
-    for prio, btype, bname, broker in get_admin_data_brokers():
-        try:
-            if not broker.connect():
-                continue
-            px = float(broker.get_price(underlying) or 0)
-            if px > 0:
-                return px, f"admin:{bname} (P{prio})"
-        except Exception as e:
-            logger.debug(f"admin broker P{prio} {btype} get_price({underlying}) failed: {e}")
-            continue
 
     return 0.0, "unavailable"
 

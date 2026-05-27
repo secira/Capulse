@@ -1957,18 +1957,10 @@ class NiftyOptionsEngine:
 
         admin_plan = self._get_admin_data_plan()
 
-        # ── Step 1: User's own Data API broker (if any) ──────────────────────
-        if not current_chain and self.user_id:
-            broker_spot, broker_chain, broker_name, broker_expiry_list = self._get_broker_data()
-            if broker_spot and broker_chain:
-                data_source = f'broker:{broker_name}'
-                spot = broker_spot
-                current_chain = broker_chain
-                next_chain = {}
-                if broker_expiry_list:
-                    expiry_picks = self._pick_expiries(broker_expiry_list)
-
-        # ── Step 2: Admin-managed broker data sources (primary → secondary) ──
+        # ── Step 1: Admin-managed broker data sources (primary → secondary) ──
+        # Admin-connected Dhan/Zerodha is the authoritative data source for
+        # every user. Personal broker data is only consulted if the admin
+        # pool is empty or all admin brokers failed to deliver an option chain.
         if not current_chain:
             adm_spot, adm_chain, adm_name, adm_expiry_list = self._get_admin_broker_data()
             if adm_spot and adm_chain:
@@ -1979,6 +1971,17 @@ class NiftyOptionsEngine:
                 if adm_expiry_list:
                     expiry_picks = self._pick_expiries(adm_expiry_list)
                     broker_expiry_list = adm_expiry_list
+
+        # ── Step 2: User's own Data API broker (fallback only) ───────────────
+        if not current_chain and self.user_id:
+            broker_spot, broker_chain, broker_name, broker_expiry_list = self._get_broker_data()
+            if broker_spot and broker_chain:
+                data_source = f'broker:{broker_name}'
+                spot = broker_spot
+                current_chain = broker_chain
+                next_chain = {}
+                if broker_expiry_list:
+                    expiry_picks = self._pick_expiries(broker_expiry_list)
 
         # ── Step 3: TrueData (when admin plan selects it) ────────────────────
         # TrueData is part of the always-on admin data tier — try it whenever an
