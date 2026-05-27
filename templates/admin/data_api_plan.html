@@ -105,6 +105,15 @@
                   <i class="fas fa-edit me-1"></i>{{ 'Update' if ab else 'Configure' }}
                 </button>
                 {% if ab %}
+                {% if ab.broker_type == 'zerodha' and ab.has_api_key and ab.has_api_secret %}
+                <form method="POST" action="{{ url_for('admin.admin_data_broker_zerodha_login', priority=prio) }}" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-warning"
+                          title="Open Zerodha Kite login → exchange request_token → save today's access token (expires daily ~06:00 IST)">
+                    <i class="fas fa-sign-in-alt me-1"></i>Login with Zerodha
+                  </button>
+                </form>
+                {% endif %}
                 <form method="POST" action="{{ url_for('admin.test_admin_data_broker') }}" class="d-inline">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="priority" value="{{ prio }}">
@@ -144,8 +153,9 @@
                     <strong>What goes in each field:</strong>
                     <ul class="mb-0 ps-3 mt-1">
                       <li><strong>Dhan:</strong> Client&nbsp;ID (e.g. <code>1101234567</code>) + Access&nbsp;Token. API Secret not used.</li>
-                      <li><strong>Zerodha:</strong> Kite&nbsp;<em>App</em>&nbsp;API&nbsp;Key (e.g. <code>mkyhxn2tbqruhp67</code> from developers.kite.trade) + API&nbsp;Secret + daily Access&nbsp;Token.<br>
-                          <span class="text-muted">⚠️ This is NOT your login Client&nbsp;ID like <code>ZB9220</code>.</span></li>
+                      <li><strong>Zerodha:</strong> Kite&nbsp;<em>App</em>&nbsp;API&nbsp;Key (e.g. <code>mkyhxn2tbqruhp67</code> from developers.kite.trade) + API&nbsp;Secret. Access Token can be auto-generated with the <strong>Login with Zerodha</strong> button after saving.<br>
+                          <span class="text-muted">⚠️ This is NOT your login Client&nbsp;ID like <code>ZB9220</code>.</span><br>
+                          <span class="text-muted">Kite Redirect URL must be set to: <code>{{ request.url_root.rstrip('/') }}/admin/admin-data-broker/zerodha/callback</code></span></li>
                       <li><strong>Fyers:</strong> App&nbsp;ID + Access&nbsp;Token.</li>
                     </ul>
                   </div>

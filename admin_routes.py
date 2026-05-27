@@ -2322,6 +2322,119 @@ def delete_admin_data_broker():
     return redirect(url_for('admin.data_api_plan'))
 
 
+# ─── Admin Zerodha OAuth — daily Access Token refresh ────────────────────
+# Mirrors the user-facing flow at routes_broker_oauth.py:reconnect_zerodha,
+# but operates on the AdminDataBroker row (P1/P2) instead of a user account.
+# Kite Connect Redirect URL must be set to:
+#     <https-host>/admin/admin-data-broker/zerodha/callback
+
+@admin_bp.route('/admin-data-broker/zerodha/login/<int:priority>', methods=['POST'])
+@admin_required
+def admin_data_broker_zerodha_login(priority):
+    """Kick off Zerodha OAuth for the P1/P2 admin data broker."""
+    if priority not in (1, 2):
+        flash('Invalid priority.', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+
+    row = AdminDataBroker.query.filter_by(priority=priority).first()
+    if not row or row.broker_type != 'zerodha':
+        flash(f'P{priority} is not a Zerodha broker — save Zerodha credentials first.', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+
+    creds = row.get_credentials()
+    api_key = (creds.get('client_id') or '').strip()
+    api_secret = (creds.get('api_secret') or '').strip()
+    if not api_key or not api_secret:
+        flash(f'P{priority} Zerodha: API Key + API Secret must be saved before OAuth login.', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+
+    session['admin_zerodha_priority'] = priority
+    row.connection_status = 'pending_oauth'
+    db.session.commit()
+
+    from urllib.parse import quote as _urlquote
+    kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={_urlquote(api_key, safe='')}"
+    # Iframe-busting shim — same trick as user flow, since the Replit workspace
+    # often embeds the page in a cross-origin iframe which breaks Kite's
+    # session cookies.
+    from markupsafe import escape as _esc
+    safe_url = str(_esc(kite_url))
+    html = (
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        "<title>Redirecting to Zerodha Kite…</title>"
+        f"<meta http-equiv='refresh' content='0;url={safe_url}'>"
+        "</head><body style='font-family:sans-serif;padding:2rem;text-align:center'>"
+        "<p>Redirecting you to Zerodha Kite login…</p>"
+        f"<p>If you are not redirected, <a href='{safe_url}' target='_top' rel='noopener'>click here</a>.</p>"
+        "<script>"
+        f"var u={safe_url!r};"
+        "try{if(window.top&&window.top!==window.self){window.top.location.href=u;}"
+        "else{window.location.href=u;}}catch(e){window.location.href=u;}"
+        "</script></body></html>"
+    )
+    from flask import make_response
+    resp = make_response(html)
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return resp
+
+
+@admin_bp.route('/admin-data-broker/zerodha/callback')
+@admin_required
+def admin_data_broker_zerodha_callback():
+    """Kite OAuth callback for admin data brokers — exchanges request_token
+    for an access_token and writes it back to the AdminDataBroker row.
+    """
+    request_token = request.args.get('request_token')
+    priority = session.pop('admin_zerodha_priority', None)
+    if not priority:
+        flash('Admin Zerodha OAuth state lost — please retry "Login with Zerodha".', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+
+    row = AdminDataBroker.query.filter_by(priority=int(priority)).first()
+    if not row:
+        flash(f'P{priority} Zerodha row not found.', 'error')
+        return redirect(url_for('admin.data_api_plan'))
+
+    if not request_token:
+        kite_msg = request.args.get('message') or request.args.get('error_type') or request.args.get('status') or ''
+        flash(
+            f'P{priority} Zerodha login failed: {kite_msg or "no request_token returned"}. '
+            f'Verify the Redirect URL on developers.kite.trade is exactly '
+            f'{request.url_root.rstrip("/")}/admin/admin-data-broker/zerodha/callback',
+            'error',
+        )
+        return redirect(url_for('admin.data_api_plan'))
+
+    try:
+        from kiteconnect import KiteConnect
+        creds = row.get_credentials()
+        api_key = creds.get('client_id')
+        api_secret = creds.get('api_secret')
+
+        kite = KiteConnect(api_key=api_key)
+        data = kite.generate_session(request_token, api_secret=api_secret)
+        access_token = data.get('access_token')
+        kite_user_id = data.get('user_id') or ''
+        if not access_token:
+            raise ValueError('Empty access_token returned by Zerodha')
+
+        row.set_credentials(
+            client_id=api_key,
+            access_token=access_token,
+            api_secret=api_secret,
+        )
+        row.stamp_token_issued()
+        if kite_user_id:
+            row.broker_name = f"Zerodha ({kite_user_id})"
+        db.session.commit()
+        flash(f'✅ P{priority} Zerodha access token refreshed (user {kite_user_id}). Valid until ~06:00 IST tomorrow.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'P{priority} Zerodha token exchange failed: {e}', 'error')
+
+    return redirect(url_for('admin.data_api_plan'))
+
+
 @admin_bp.route('/data-api-plan/set', methods=['POST'])
 @admin_required
 def set_data_api_plan():
