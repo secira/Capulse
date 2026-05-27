@@ -221,8 +221,7 @@
     {# Pre-launch — site-wide "Beta — Invite Only" banner. Auto-hides when BETA_INVITE_ONLY=false. #}
     {% include 'partials/beta_banner.html' ignore missing %}
 
-    {# Phase 1 broker hardening — site-wide expiry banner for authenticated users. #}
-    {% include 'partials/broker_expiry_banner.html' ignore missing %}
+    {# Broker expiry banner intentionally hidden from end-users — surfaced via Admin notifications only. #}
 
     <!-- Main Content -->
     <main style="min-height: calc(100vh - 400px);">
