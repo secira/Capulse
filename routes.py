@@ -5605,6 +5605,7 @@ def api_live_data_status():
 
     data_broker_name = None
     has_data_broker  = False
+    data_source_kind = None  # 'user' | 'admin_pool' | 'truedata'
 
     try:
         acct = BrokerAccount.query.filter_by(
@@ -5613,6 +5614,7 @@ def api_live_data_status():
         if acct:
             has_data_broker = True
             data_broker_name = acct.broker_name
+            data_source_kind = 'user'
         else:
             legacy = DataApiBroker.query.filter_by(
                 user_id=current_user.id, is_active=True, connection_status='connected'
@@ -5620,8 +5622,42 @@ def api_live_data_status():
             if legacy:
                 has_data_broker = True
                 data_broker_name = legacy.broker_name
+                data_source_kind = 'user'
     except Exception:
         pass
+
+    # If user hasn't connected their own broker, fall back to the admin pool
+    # (P1/P2 AdminDataBroker rows) and the admin TrueData plan. The data
+    # fallback chain in services/nifty_options_engine.py already uses these,
+    # so the banner should reflect actual data availability — not just user setup.
+    if not has_data_broker:
+        try:
+            from models_broker import AdminDataBroker
+            admin_row = (
+                AdminDataBroker.query
+                .filter_by(is_active=True, connection_status='connected')
+                .order_by(AdminDataBroker.priority.asc())
+                .first()
+            )
+            if admin_row:
+                has_data_broker = True
+                data_broker_name = f"{admin_row.broker_name} (Admin pool)"
+                data_source_kind = 'admin_pool'
+        except Exception:
+            pass
+
+    if not has_data_broker:
+        try:
+            row = db.session.execute(db.text(
+                "SELECT plan_type, truedata_api_key FROM data_api_plan "
+                "WHERE is_active = true ORDER BY id DESC LIMIT 1"
+            )).fetchone()
+            if row and row[0] == 'nse_truedata' and row[1]:
+                has_data_broker = True
+                data_broker_name = 'TrueData (Admin)'
+                data_source_kind = 'truedata'
+        except Exception:
+            pass
 
     if not has_data_broker:
         status = 'no_broker'
