@@ -619,6 +619,7 @@ class AdminDataBroker(db.Model):
     api_key = db.Column(db.Text, nullable=True)
     access_token = db.Column(db.Text, nullable=True)
     api_secret = db.Column(db.Text, nullable=True)
+    client_id = db.Column(db.Text, nullable=True)  # Encrypted broker login user ID (e.g. Zerodha 'ZB9220'). Informational only.
 
     is_active = db.Column(db.Boolean, default=True)
     connection_status = db.Column(db.String(20), default='disconnected')
@@ -700,25 +701,36 @@ class AdminDataBroker(db.Model):
         except Exception:
             return None
 
-    def set_credentials(self, client_id, access_token=None, api_secret=None):
-        if client_id:
-            self.api_key = self.encrypt_data(client_id)
+    def set_credentials(self, client_id=None, access_token=None, api_secret=None, api_key=None, broker_client_id=None):
+        # Back-compat: historically `client_id` was misnamed and stored the App API Key.
+        # New code should pass `api_key` for the App API Key, and `broker_client_id`
+        # for the broker login user ID (e.g. Zerodha 'ZB9220'). If only `client_id` is
+        # passed, treat it as the App API Key.
+        key_val = api_key if api_key is not None else client_id
+        if key_val:
+            self.api_key = self.encrypt_data(key_val)
         if access_token:
             self.access_token = self.encrypt_data(access_token)
         if api_secret:
             self.api_secret = self.encrypt_data(api_secret)
+        if broker_client_id:
+            self.client_id = self.encrypt_data(broker_client_id)
 
     def get_credentials(self):
         try:
             return {
-                'client_id': self.decrypt_data(self.api_key),
+                'api_key': self.decrypt_data(self.api_key),
+                'client_id': self.decrypt_data(self.api_key),  # legacy alias
+                'broker_client_id': self.decrypt_data(self.client_id),
                 'access_token': self.decrypt_data(self.access_token),
                 'api_secret': self.decrypt_data(self.api_secret),
                 'credentials_valid': True,
             }
         except Exception:
             return {
+                'api_key': None,
                 'client_id': None,
+                'broker_client_id': None,
                 'access_token': None,
                 'api_secret': None,
                 'credentials_valid': False,

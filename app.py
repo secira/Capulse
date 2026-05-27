@@ -575,6 +575,7 @@ with app.app_context():
         'ALTER TABLE admin_data_broker ADD COLUMN IF NOT EXISTS health_check_message VARCHAR(255)',
         'ALTER TABLE admin_data_broker ADD COLUMN IF NOT EXISTS expiry_alerted_at TIMESTAMP',
         'ALTER TABLE admin_data_broker ADD COLUMN IF NOT EXISTS expiry_warning_sent_at TIMESTAMP',
+        'ALTER TABLE admin_data_broker ADD COLUMN IF NOT EXISTS client_id TEXT',
         # T007 — Angel JWT refresh-token persistence
         'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS refresh_token TEXT',
         '''CREATE TABLE IF NOT EXISTS data_api_broker (

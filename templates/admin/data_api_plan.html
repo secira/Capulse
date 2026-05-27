@@ -170,6 +170,15 @@
                   </div>
                   <div class="mb-2">
                     <label class="form-label small fw-semibold">
+                      Broker Login Client&nbsp;ID
+                      <span class="text-muted fw-normal">(optional · your broker login user ID, e.g. Zerodha <code>ZB9220</code>. Informational — not used in OAuth.)</span>
+                    </label>
+                    <input type="text" name="broker_client_id" class="form-control form-control-sm"
+                           value="{% if ab and ab.broker_client_id_display %}{{ ab.broker_client_id_display }}{% endif %}"
+                           placeholder="e.g. ZB9220">
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold">
                       Access Token
                       <span class="text-muted fw-normal">(daily token from broker login)</span>
                     </label>

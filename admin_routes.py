@@ -2119,6 +2119,8 @@ def data_api_plan():
                 'has_api_key': bool(row.api_key),
                 'has_access_token': bool(row.access_token),
                 'has_api_secret': bool(row.api_secret),
+                'has_broker_client_id': bool(getattr(row, 'client_id', None)),
+                'broker_client_id_display': (row.decrypt_data(row.client_id) if getattr(row, 'client_id', None) else None),
                 'updated_at': row.updated_at,
                 'updated_by': row.updated_by,
                 # T005 — countdown + last health
@@ -2178,6 +2180,7 @@ def save_admin_data_broker():
     api_key = (request.form.get('api_key') or '').strip()
     access_token = (request.form.get('access_token') or '').strip()
     api_secret = (request.form.get('api_secret') or '').strip()
+    broker_client_id = (request.form.get('broker_client_id') or '').strip()
     is_active = request.form.get('is_active', 'true').lower() in ('true', '1', 'on', 'yes')
 
     admin_name = 'admin'
@@ -2200,11 +2203,12 @@ def save_admin_data_broker():
         row.updated_by = admin_name
         # Encrypted setters; leave existing creds in place if blanks are submitted (edit mode)
         row.set_credentials(
-            client_id=api_key or None,
+            api_key=api_key or None,
             access_token=access_token or None,
             api_secret=api_secret or None,
+            broker_client_id=broker_client_id or None,
         )
-        if api_key or access_token or api_secret:
+        if api_key or access_token or api_secret or broker_client_id:
             row.connection_status = 'configured'
 
         db.session.commit()
