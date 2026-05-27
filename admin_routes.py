@@ -2352,22 +2352,26 @@ def admin_data_broker_zerodha_login(priority):
     row.connection_status = 'pending_oauth'
     db.session.commit()
 
+    import json as _json
     from urllib.parse import quote as _urlquote
-    kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={_urlquote(api_key, safe='')}"
-    # Iframe-busting shim — same trick as user flow, since the Replit workspace
-    # often embeds the page in a cross-origin iframe which breaks Kite's
-    # session cookies.
     from markupsafe import escape as _esc
-    safe_url = str(_esc(kite_url))
+    kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={_urlquote(api_key, safe='')}"
+    # HTML-context escaping (& → &amp;) is fine inside attribute values —
+    # the browser decodes it back before navigating. But the JS string MUST
+    # be the raw URL (json-encoded for safe quoting), otherwise the literal
+    # "&amp;" ends up in the navigation URL and Kite rejects it with
+    # "Missing or empty field api_key".
+    html_safe_url = str(_esc(kite_url))
+    js_safe_url = _json.dumps(kite_url)
     html = (
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<title>Redirecting to Zerodha Kite…</title>"
-        f"<meta http-equiv='refresh' content='0;url={safe_url}'>"
+        f"<meta http-equiv='refresh' content='0;url={html_safe_url}'>"
         "</head><body style='font-family:sans-serif;padding:2rem;text-align:center'>"
         "<p>Redirecting you to Zerodha Kite login…</p>"
-        f"<p>If you are not redirected, <a href='{safe_url}' target='_top' rel='noopener'>click here</a>.</p>"
+        f"<p>If you are not redirected, <a href='{html_safe_url}' target='_top' rel='noopener'>click here</a>.</p>"
         "<script>"
-        f"var u={safe_url!r};"
+        f"var u={js_safe_url};"
         "try{if(window.top&&window.top!==window.self){window.top.location.href=u;}"
         "else{window.location.href=u;}}catch(e){window.location.href=u;}"
         "</script></body></html>"
