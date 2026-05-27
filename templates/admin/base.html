@@ -167,6 +167,9 @@
                         <a href="{{ url_for('admin.data_api_plan') }}" class="nav-link admin-nav-link {{ 'active' if 'data_api_plan' in request.endpoint or 'data_sources' in request.endpoint else '' }}">
                             <i class="fas fa-satellite-dish me-2"></i>Data Sources &amp; API Plan
                         </a>
+                        <a href="{{ url_for('admin.fno_settings') }}" class="nav-link admin-nav-link {{ 'active' if 'fno_settings' in request.endpoint else '' }}">
+                            <i class="fas fa-sliders-h me-2"></i>F&amp;O Settings
+                        </a>
                         <a href="{{ url_for('admin.partner_api') }}" class="nav-link admin-nav-link {{ 'active' if 'partner_api' in request.endpoint else '' }}">
                             <i class="fas fa-code me-2"></i>Partner API
                         </a>
