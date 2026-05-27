@@ -139,21 +139,40 @@
                     <input type="text" name="broker_name" class="form-control form-control-sm"
                            value="{{ ab.broker_name if ab else '' }}" placeholder="e.g. Admin Dhan #1">
                   </div>
+                  <div class="alert alert-info py-2 px-2 mb-2 small" style="font-size:.72rem;line-height:1.4;">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <strong>What goes in each field:</strong>
+                    <ul class="mb-0 ps-3 mt-1">
+                      <li><strong>Dhan:</strong> Client&nbsp;ID (e.g. <code>1101234567</code>) + Access&nbsp;Token. API Secret not used.</li>
+                      <li><strong>Zerodha:</strong> Kite&nbsp;<em>App</em>&nbsp;API&nbsp;Key (e.g. <code>mkyhxn2tbqruhp67</code> from developers.kite.trade) + API&nbsp;Secret + daily Access&nbsp;Token.<br>
+                          <span class="text-muted">⚠️ This is NOT your login Client&nbsp;ID like <code>ZB9220</code>.</span></li>
+                      <li><strong>Fyers:</strong> App&nbsp;ID + Access&nbsp;Token.</li>
+                    </ul>
+                  </div>
                   <div class="mb-2">
-                    <label class="form-label small fw-semibold">API Key / Client ID</label>
+                    <label class="form-label small fw-semibold">
+                      App API Key
+                      <span class="text-muted fw-normal">(Dhan: Client ID · Zerodha: Kite API Key · Fyers: App ID)</span>
+                    </label>
                     <input type="password" name="api_key" class="form-control form-control-sm"
-                           placeholder="{% if ab and ab.has_api_key %}•••••• (leave blank to keep){% else %}Enter API key{% endif %}"
+                           placeholder="{% if ab and ab.has_api_key %}•••••• (leave blank to keep){% else %}Enter API key / Client ID{% endif %}"
                            {% if not ab or not ab.has_api_key %}required{% endif %}>
                   </div>
                   <div class="mb-2">
-                    <label class="form-label small fw-semibold">Access Token</label>
+                    <label class="form-label small fw-semibold">
+                      Access Token
+                      <span class="text-muted fw-normal">(daily token from broker login)</span>
+                    </label>
                     <input type="password" name="access_token" class="form-control form-control-sm"
                            placeholder="{% if ab and ab.has_access_token %}•••••• (leave blank to keep){% else %}Enter access token{% endif %}">
                   </div>
                   <div class="mb-2">
-                    <label class="form-label small fw-semibold">API Secret</label>
+                    <label class="form-label small fw-semibold">
+                      API Secret
+                      <span class="text-muted fw-normal">(Zerodha only · paired with Kite API Key)</span>
+                    </label>
                     <input type="password" name="api_secret" class="form-control form-control-sm"
-                           placeholder="{% if ab and ab.has_api_secret %}•••••• (leave blank to keep){% else %}Enter API secret{% endif %}">
+                           placeholder="{% if ab and ab.has_api_secret %}•••••• (leave blank to keep){% else %}Enter API secret (Zerodha only){% endif %}">
                   </div>
                   <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" name="is_active" value="true"

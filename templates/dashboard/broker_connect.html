@@ -134,7 +134,7 @@
               </div>
               <p class="text-muted mb-0 small">India's largest broker · KiteConnect OAuth · Secure redirect login</p>
               {% if zerodha and zerodha.account and zerodha.account.api_key %}
-              <p class="text-muted mb-0 mt-1" style="font-size:.75rem;"><i class="fas fa-key me-1"></i>Saved API Key: <code>{{ zerodha.account.cred_preview('client_id') }}</code></p>
+              <p class="text-muted mb-0 mt-1" style="font-size:.75rem;"><i class="fas fa-key me-1"></i>Saved Kite API Key: <code>{{ zerodha.account.cred_preview('client_id') }}</code> <span class="text-muted">(from developers.kite.trade — not your ZB-login)</span></p>
               {% endif %}
             </div>
           </div>
