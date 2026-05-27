@@ -5659,21 +5659,42 @@ def api_live_data_status():
         except Exception:
             pass
 
+    is_admin_user = bool(getattr(current_user, 'is_admin', False))
+
     if not has_data_broker:
-        status = 'no_broker'
-        message = 'No Data API broker connected. F&O signals are using estimated/simulated data — DO NOT trade on these.'
-        severity = 'critical'
-    elif not market_open:
-        if weekday >= 5:
-            reason = 'Market is closed (weekend).'
+        # Real status is critical, but ONLY admins should ever see this banner.
+        # For regular users, silently report 'live' so the dashboard stays clean —
+        # data sourcing is an operational concern handled by the admin team.
+        _alert_admin_data_outage_once()
+        if is_admin_user:
+            status = 'no_broker'
+            message = 'No Data API broker connected (admin pool empty). F&O signals are estimated. Fix in Admin → Data API Plan.'
+            severity = 'critical'
         else:
-            reason = f"Market hours are 9:15 AM – 3:30 PM IST. Current IST: {now_ist.strftime('%I:%M %p')}."
-        status = 'market_closed'
-        message = f'{data_broker_name} is connected. {reason} Signals shown are from last session.'
-        severity = 'info'
+            status = 'live'
+            message = 'Live data available.'
+            severity = 'ok'
+            data_broker_name = data_broker_name or 'Market Data'
+    elif not market_open:
+        if is_admin_user:
+            if weekday >= 5:
+                reason = 'Market is closed (weekend).'
+            else:
+                reason = f"Market hours are 9:15 AM – 3:30 PM IST. Current IST: {now_ist.strftime('%I:%M %p')}."
+            status = 'market_closed'
+            message = f'{data_broker_name} is connected. {reason} Signals shown are from last session.'
+            severity = 'info'
+        else:
+            # Regular users: no broker chatter, no off-hours banner either.
+            status = 'live'
+            message = 'Live data available.'
+            severity = 'ok'
     else:
         status = 'live'
-        message = f'Live data from {data_broker_name}. Market open.'
+        if is_admin_user:
+            message = f'Live data from {data_broker_name}. Market open.'
+        else:
+            message = 'Live data available.'
         severity = 'ok'
 
     return jsonify({
@@ -5682,10 +5703,35 @@ def api_live_data_status():
         'severity': severity,
         'message': message,
         'has_data_broker': has_data_broker,
-        'data_broker_name': data_broker_name,
+        'data_broker_name': data_broker_name if is_admin_user else None,
+        'data_source_kind': data_source_kind if is_admin_user else None,
         'market_open': market_open,
         'ist_time': now_ist.strftime('%I:%M %p IST'),
     })
+
+
+# Module-level rate limiter for admin outage alerts (avoid telegram spam).
+_LAST_DATA_OUTAGE_ALERT_AT = {'ts': 0.0}
+_DATA_OUTAGE_ALERT_COOLDOWN_SEC = 15 * 60  # 15 minutes
+
+
+def _alert_admin_data_outage_once():
+    """Send a Telegram alert to admins when the data pool is empty, rate-limited."""
+    import time
+    now = time.time()
+    if now - _LAST_DATA_OUTAGE_ALERT_AT['ts'] < _DATA_OUTAGE_ALERT_COOLDOWN_SEC:
+        return
+    _LAST_DATA_OUTAGE_ALERT_AT['ts'] = now
+    try:
+        from services.messaging_service import send_telegram_admin_message
+        send_telegram_admin_message(
+            "⚠️ <b>Data Pool Outage</b>\n"
+            "No Data API broker is connected (user broker absent and admin pool empty/expired).\n"
+            "F&amp;O signals are falling back to estimated data for end-users.\n"
+            "Fix in Admin → Data API Plan."
+        )
+    except Exception as e:
+        app.logger.warning(f"live_data_status: admin alert dispatch failed: {e}")
 
 
 @app.route('/api/data-quality', methods=['GET'])
