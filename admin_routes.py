@@ -2341,46 +2341,46 @@ def admin_data_broker_zerodha_login(priority):
         flash(f'P{priority} is not a Zerodha broker — save Zerodha credentials first.', 'error')
         return redirect(url_for('admin.data_api_plan'))
 
-    creds = row.get_credentials()
-    api_key = (creds.get('client_id') or '').strip()
-    api_secret = (creds.get('api_secret') or '').strip()
-    if not api_key or not api_secret:
-        flash(f'P{priority} Zerodha: API Key + API Secret must be saved before OAuth login.', 'error')
-        return redirect(url_for('admin.data_api_plan'))
+    import logging as _logging
+    _logger = _logging.getLogger(__name__)
 
-    # Shape check — Kite Connect API keys are alphanumeric, 4–64 chars.
-    # Same guard as routes_broker_oauth.auth_zerodha so we fail fast on
-    # malformed input rather than getting a cryptic Kite-side rejection.
-    import re as _re
-    if not _re.fullmatch(r'[A-Za-z0-9]{4,64}', api_key):
-        flash(
-            f'P{priority} Zerodha: that API Key looks malformed (must be alphanumeric, no spaces). '
-            f'Re-save from developers.kite.trade.',
-            'error',
-        )
+    creds = row.get_credentials()
+    raw_api_key = creds.get('client_id')
+    raw_api_secret = creds.get('api_secret')
+    api_key = (raw_api_key or '').strip()
+    api_secret = (raw_api_secret or '').strip()
+
+    # Diagnostic — log the EXACT bytes we have so we can spot encryption
+    # round-trip mangling, hidden whitespace, or wrong field mapping.
+    # api_key is a PUBLIC client identifier (not a secret), safe to log.
+    # api_secret length only — never the value.
+    _logger.info(
+        f"Admin Zerodha OAuth: P{priority} creds dump | "
+        f"raw_api_key={raw_api_key!r} stripped={api_key!r} (len={len(api_key)}, "
+        f"bytes={api_key.encode('utf-8')!r}) | "
+        f"api_secret_present={bool(api_secret)} (len={len(api_secret)})"
+    )
+
+    if not api_key or not api_secret:
+        flash(f'P{priority} Zerodha: API Key + API Secret must both be saved before OAuth login.', 'error')
         return redirect(url_for('admin.data_api_plan'))
 
     session['admin_zerodha_priority'] = priority
-    row.connection_status = 'pending_oauth'
-    db.session.commit()
+    try:
+        row.connection_status = 'pending_oauth'
+        db.session.commit()
+    except Exception as _e:
+        db.session.rollback()
+        _logger.warning(f"Admin Zerodha OAuth: status update failed (non-fatal): {_e}")
 
     # ── Match the working user-side flow (routes_broker_oauth.auth_zerodha) ──
     # URL-encode api_key + use the iframe-busting HTML shim so we escape
     # Replit's workspace_iframe.html before Kite sets its session cookies.
-    # Without this Kite returns "Missing or empty field `authorize`" /
-    # "Missing or empty field `api_key`" at /finish, because cross-origin
-    # iframes block its session cookies on modern browsers.
-    import logging as _logging
     from urllib.parse import quote as _urlquote
     from markupsafe import escape as _esc
-    _logger = _logging.getLogger(__name__)
 
     kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={_urlquote(api_key, safe='')}"
-    _logger.info(
-        f"Admin Zerodha OAuth: P{priority} → Kite | "
-        f"api_key={api_key!r} (len={len(api_key)}, "
-        f"bytes={api_key.encode('utf-8')!r}) | url={kite_url}"
-    )
+    _logger.info(f"Admin Zerodha OAuth: P{priority} → Kite | url={kite_url}")
     safe_url = str(_esc(kite_url))
     html = (
         "<!doctype html><html><head><meta charset='utf-8'>"
