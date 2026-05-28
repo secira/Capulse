@@ -1154,9 +1154,10 @@ function cleanForTTS(text) {
 /* ── AI Commentary ── */
 async function loadAI() {
     const el=document.getElementById('aiText');
+    if (!el) return;  /* Page rendered without AI block (e.g. holiday/no-data) */
     const btn=document.getElementById('speakBriefBtn');
     const badge=document.getElementById('briefLangBadge');
-    btn.style.display='none';
+    if (btn) btn.style.display='none';
     if (badge) badge.style.display='none';
     stopSpeech();
     el.innerHTML='<span style="color:#999999;"><i class="fas fa-circle-notch fa-spin me-2"></i>Analysing…</span>';
@@ -1165,7 +1166,7 @@ async function loadAI() {
         const d=await r.json();
         if (d.success && d.commentary) {
             el.innerHTML = fmtDisplay(d.commentary);
-            btn.style.display='';
+            if (btn) btn.style.display='';
             /* Show language badge when non-English */
             if (badge) {
                 const lc = d.lang || 'en';
