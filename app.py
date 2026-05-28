@@ -772,6 +772,26 @@ with app.app_context():
             ('2026-11-24', 'Prakash Gurpurb Sri Guru Nanak Dev',            'Tuesday',  'NSE', 2026),
             ('2026-12-25', 'Christmas',                                     'Friday',   'NSE', 2026)
            ON CONFLICT (holiday_date) DO NOTHING''',
+        '''INSERT INTO market_holiday (holiday_date, holiday_name, day_of_week, exchange, year) VALUES
+            ('2027-01-26', 'Republic Day',                                  'Tuesday',   'NSE', 2027),
+            ('2027-03-06', 'Maha Shivaratri',                               'Saturday',  'NSE', 2027),
+            ('2027-03-10', 'Id-ul-Fitr (Ramzan ID)',                        'Wednesday', 'NSE', 2027),
+            ('2027-03-22', 'Holi',                                          'Monday',    'NSE', 2027),
+            ('2027-03-26', 'Good Friday',                                   'Friday',    'NSE', 2027),
+            ('2027-04-14', 'Dr. Baba Saheb Ambedkar Jayanti',               'Wednesday', 'NSE', 2027),
+            ('2027-04-15', 'Ram Navami',                                    'Thursday',  'NSE', 2027),
+            ('2027-04-19', 'Mahavir Jayanti',                               'Monday',    'NSE', 2027),
+            ('2027-05-01', 'Maharashtra Day',                               'Saturday',  'NSE', 2027),
+            ('2027-05-17', 'Bakri Id / Eid ul-Adha',                        'Monday',    'NSE', 2027),
+            ('2027-06-15', 'Muharram',                                      'Tuesday',   'NSE', 2027),
+            ('2027-08-15', 'Independence Day',                              'Sunday',    'NSE', 2027),
+            ('2027-09-04', 'Ganesh Chaturthi',                              'Saturday',  'NSE', 2027),
+            ('2027-10-02', 'Mahatma Gandhi Jayanti',                        'Saturday',  'NSE', 2027),
+            ('2027-10-10', 'Dasara',                                        'Sunday',    'NSE', 2027),
+            ('2027-10-29', 'Diwali Laxmi Pujan / Balipratipada',            'Friday',    'NSE', 2027),
+            ('2027-11-14', 'Guru Nanak Jayanti',                            'Sunday',    'NSE', 2027),
+            ('2027-12-25', 'Christmas',                                     'Saturday',  'NSE', 2027)
+           ON CONFLICT (holiday_date) DO NOTHING''',
     ]
     # Run column migrations on EVERY boot (dev and prod).  All statements use
     # IF NOT EXISTS / ON CONFLICT and are idempotent, so on a healthy DB this
