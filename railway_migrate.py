@@ -129,6 +129,60 @@ def ensure_raw_tables(session):
             created_at TIMESTAMP DEFAULT NOW(),
             acknowledged_at TIMESTAMP
         )""", "behavioural_alerts"),
+
+        # ── Trader Intelligence Profiling (Trader DNA, L1–L6) ────────────
+        # Backs the /dashboard/trader-intelligence wizard, the result page
+        # and the dashboard/profile level badge.
+        #
+        # NOTE: DDL MUST stay structurally identical to the `_always_create`
+        # block in app.py (same FKs and ON DELETE CASCADE). CREATE TABLE
+        # IF NOT EXISTS will NOT add missing constraints on a subsequent
+        # boot, so any drift between the two paths becomes permanent.
+        ("""CREATE TABLE IF NOT EXISTS trader_profile (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE CASCADE,
+            tenant_id VARCHAR(255) DEFAULT 'live',
+            trader_level VARCHAR(4) NOT NULL DEFAULT 'L1',
+            overall_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+            discipline_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+            risk_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+            emotional_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+            strategy_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+            experience_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+            market_understanding_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+            behavioural_risk VARCHAR(10) NOT NULL DEFAULT 'MEDIUM',
+            xp_points INTEGER NOT NULL DEFAULT 0,
+            completed_at TIMESTAMP DEFAULT NOW(),
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )""", "trader_profile"),
+        ("CREATE INDEX IF NOT EXISTS ix_trader_profile_tenant ON trader_profile (tenant_id)",
+         "ix_trader_profile_tenant"),
+
+        ("""CREATE TABLE IF NOT EXISTS trader_answer (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+            profile_id INTEGER REFERENCES trader_profile(id) ON DELETE CASCADE,
+            question_id VARCHAR(8) NOT NULL,
+            answer TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )""", "trader_answer"),
+        ("CREATE INDEX IF NOT EXISTS ix_trader_answer_user ON trader_answer (user_id)",
+         "ix_trader_answer_user"),
+        ("CREATE INDEX IF NOT EXISTS ix_trader_answer_profile ON trader_answer (profile_id)",
+         "ix_trader_answer_profile"),
+
+        ("""CREATE TABLE IF NOT EXISTS trader_progression (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+            from_level VARCHAR(4),
+            to_level VARCHAR(4) NOT NULL,
+            overall_score DOUBLE PRECISION,
+            xp_earned INTEGER NOT NULL DEFAULT 0,
+            date_achieved TIMESTAMP DEFAULT NOW()
+        )""", "trader_progression"),
+        ("CREATE INDEX IF NOT EXISTS ix_trader_progression_user ON trader_progression (user_id)",
+         "ix_trader_progression_user"),
     ]
 
     for ddl, label in raw_tables:

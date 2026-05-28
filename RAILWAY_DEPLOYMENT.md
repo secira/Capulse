@@ -145,6 +145,8 @@ After the first deploy you only push code. The boot path is:
 
 When you ship code that adds a new column or index to `_pending_migrations`, set `RUN_MIGRATIONS=1` for that one deploy.
 
+**New tables that must exist on every boot** (e.g. `trader_profile`, `trader_answer`, `trader_progression` for the Trader Intelligence wizard) are placed in `app.py`'s `_always_create` list and in `railway_migrate.py::ensure_raw_tables`, not in `_pending_migrations`. They are created with `CREATE TABLE IF NOT EXISTS` on every startup, so a fresh Railway deploy does **not** need `RUN_MIGRATIONS=1` to avoid `relation "trader_profile" does not exist` errors.
+
 ---
 
 ## Health checks
