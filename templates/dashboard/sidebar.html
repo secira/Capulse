@@ -177,45 +177,24 @@
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_trading' else '' }}"
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['behavioural_trading', 'behavioural_portfolio'] else '' }}"
                                href="{{ url_for('behavioural_trading') }}">
                                 <i class="nav-icon fas fa-exchange-alt"></i>
-                                <span class="nav-text">Trading Behavior</span>
+                                <span class="nav-text">Trading &amp; Portfolio</span>
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_risk' else '' }}"
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['behavioural_risk', 'behavioural_performance'] else '' }}"
                                href="{{ url_for('behavioural_risk') }}">
                                 <i class="nav-icon fas fa-shield-alt"></i>
-                                <span class="nav-text">Risk Analysis</span>
+                                <span class="nav-text">Risk &amp; Performance</span>
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_portfolio' else '' }}"
-                               href="{{ url_for('behavioural_portfolio') }}">
-                                <i class="nav-icon fas fa-th-large"></i>
-                                <span class="nav-text">Portfolio Behavior</span>
-                            </a>
-                        </li>
-                        <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_performance' else '' }}"
-                               href="{{ url_for('behavioural_performance') }}">
-                                <i class="nav-icon fas fa-chart-line"></i>
-                                <span class="nav-text">Performance</span>
-                            </a>
-                        </li>
-                        <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_psychology' else '' }}"
-                               href="{{ url_for('behavioural_psychology') }}">
-                                <i class="nav-icon fas fa-brain"></i>
-                                <span class="nav-text">Psychology</span>
-                            </a>
-                        </li>
-                        <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['trader_intelligence', 'trader_intelligence_result'] else '' }}"
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['trader_intelligence', 'trader_intelligence_result', 'behavioural_psychology'] else '' }}"
                                href="{{ url_for('trader_intelligence_result') if trader_profile_badge else url_for('trader_intelligence') }}">
                                 <i class="nav-icon fas fa-dna"></i>
-                                <span class="nav-text">Trader DNA Profile</span>
+                                <span class="nav-text">Trader DNA &amp; Psychology</span>
                                 {% if trader_profile_badge %}
                                 <span class="nav-badge-new" style="background:{{ trader_profile_badge.level_color }};">{{ trader_profile_badge.level }}</span>
                                 {% else %}
