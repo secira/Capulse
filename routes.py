@@ -7564,8 +7564,31 @@ def api_ai_refresh_stats():
 def api_ai_market_intelligence():
     """Get comprehensive market intelligence data"""
     try:
+        # On NSE/BSE trading holidays, return a holiday card instead of market data.
+        try:
+            from services.market_calendar import get_holiday
+            h = get_holiday()
+            if h:
+                return jsonify({
+                    'success': True,
+                    'is_holiday': True,
+                    'holiday': {
+                        'name': h['name'],
+                        'date': h['date'].isoformat() if h.get('date') else None,
+                        'day_of_week': h.get('day_of_week'),
+                    },
+                    'message': (
+                        f"🌸 Markets are closed today for {h['name']}. "
+                        "Wishing you a wonderful day from Target Capital!"
+                    ),
+                    'data': None,
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                })
+        except Exception:
+            pass
+
         from services.market_intelligence_service import MarketIntelligenceService
-        
+
         market_service = MarketIntelligenceService()
         
         # Get comprehensive market data

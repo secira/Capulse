@@ -365,6 +365,26 @@ def dashboard_daily_signals():
         flash("This feature requires a Target Plus or higher subscription.", "warning")
         return redirect(url_for('pricing'))
 
+    # Holiday short-circuit — render only the holiday wish card, skip the
+    # expensive index / treemap / NSE fetches entirely. Template hides every
+    # market-data section when is_holiday is truthy.
+    try:
+        from services.market_calendar import get_holiday
+        _h = get_holiday()
+        if _h:
+            return render_template(
+                'dashboard/live_market_pulse.html',
+                is_holiday=True,
+                holiday=_h,
+                signals=[], selected_date=_today_ist(), date_range=[],
+                asset_type_filter='all', duration_filter='all', status_filter='all',
+                summary_stats={}, market_indices={}, top_gainers=[], top_losers=[],
+                most_active=[], nifty50_data=[], nifty50_source='holiday',
+                sector_data=[],
+            )
+    except Exception:
+        pass
+
     selected_date_str = request.args.get('date')
     asset_type_filter = request.args.get('asset_type', 'all')
     duration_filter   = request.args.get('duration', 'all')
@@ -614,6 +634,24 @@ def dashboard_daily_signals():
 def market_pulse_commentary():
     """Generate an AI-powered market commentary using Perplexity (uses in-memory cache for speed)."""
     try:
+        # Holiday gate — no market commentary on trading holidays.
+        try:
+            from services.market_calendar import get_holiday
+            h = get_holiday()
+            if h:
+                return jsonify({
+                    'success': True,
+                    'is_holiday': True,
+                    'commentary': (
+                        f"🌸 Happy {h['name']}! Markets are closed today. "
+                        "Wishing you and your family a wonderful day from Target Capital. "
+                        "We'll be back with live market commentary on the next trading day."
+                    ),
+                    'lang': 'en',
+                })
+        except Exception:
+            pass
+
         from services.perplexity_api import PerplexityAPI
 
         # Reuse cached data to avoid hitting slow external APIs a second time
@@ -686,6 +724,24 @@ def _fetch_one_direction(index: str, user_id: int) -> dict:
 @app.route('/api/market-pulse/market-direction')
 @login_required
 def api_market_pulse_direction():
+    # Holiday gate — no market direction data on trading holidays.
+    try:
+        from services.market_calendar import get_holiday
+        h = get_holiday()
+        if h:
+            return jsonify({
+                'success': True,
+                'is_holiday': True,
+                'holiday': {'name': h['name']},
+                'data': {},
+                'timestamp': datetime.now(_IST).strftime('%H:%M:%S IST'),
+            })
+    except Exception:
+        pass
+    return _api_market_pulse_direction_impl()
+
+
+def _api_market_pulse_direction_impl():
     """Return BULLISH / BEARISH / SIDEWAYS for NIFTY, BANKNIFTY, FINNIFTY, SENSEX.
 
     Uses the same EMA 9/21 + Supertrend + VWAP + RSI logic as the F&O engine.

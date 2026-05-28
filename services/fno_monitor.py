@@ -93,6 +93,14 @@ def _is_market_hours():
     now = _now_ist()
     if now.weekday() >= 5:
         return False
+    # Skip on NSE/BSE trading holidays — broadcast holiday wish instead.
+    try:
+        from services.market_calendar import is_market_holiday, send_holiday_wish_once
+        if is_market_holiday(now.date()):
+            send_holiday_wish_once()
+            return False
+    except Exception:
+        pass
     open_  = now.replace(hour=9,  minute=25, second=0, microsecond=0)
     close_ = now.replace(hour=14, minute=59, second=0, microsecond=0)
     return open_ <= now <= close_

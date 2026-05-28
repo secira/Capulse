@@ -346,6 +346,20 @@ def send_premarket_report() -> bool:
     """Build and broadcast the pre-market report to Telegram."""
     from services.messaging_service import send_telegram_message
     try:
+        # Skip on weekends & trading holidays — send holiday wish instead.
+        try:
+            from services.market_calendar import is_market_holiday, send_holiday_wish_once
+            today_ist = datetime.now(IST).date()
+            if datetime.now(IST).weekday() >= 5:
+                logger.info("send_premarket_report: weekend — skipping")
+                return False
+            if is_market_holiday(today_ist):
+                send_holiday_wish_once()
+                logger.info("send_premarket_report: holiday — wish sent, skipping report")
+                return False
+        except Exception as _hc:
+            logger.warning(f"send_premarket_report: holiday check skipped: {_hc}")
+
         report = build_premarket_report()
         body = format_premarket_report_telegram(report)
         ok = send_telegram_message(body, parse_mode='Markdown')

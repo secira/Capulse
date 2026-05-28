@@ -734,6 +734,44 @@ with app.app_context():
         '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)
            VALUES ('snapshot_close', 'Market Intelligence — Market Close', 'Market-close snapshot at 3:20 PM IST with final PCR, support/resistance and end-of-day direction across NIFTY 50, BANK NIFTY, FIN NIFTY and SENSEX.', 15, 20, 50)
            ON CONFLICT (schedule_key) DO NOTHING''',
+        # ── NSE/BSE Trading Holiday Calendar ──────────────────────────────
+        '''CREATE TABLE IF NOT EXISTS market_holiday (
+            id SERIAL PRIMARY KEY,
+            holiday_date DATE NOT NULL UNIQUE,
+            holiday_name VARCHAR(200) NOT NULL,
+            day_of_week VARCHAR(20),
+            exchange VARCHAR(20) NOT NULL DEFAULT 'NSE',
+            year INTEGER,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_market_holiday_year ON market_holiday (year)',
+        # Seed 2026 holidays (NSE) — INSERT … ON CONFLICT DO NOTHING is idempotent
+        # Backfill exchange default for any pre-existing table without it
+        "ALTER TABLE market_holiday ALTER COLUMN exchange SET DEFAULT 'NSE'",
+        "UPDATE market_holiday SET exchange = 'NSE' WHERE exchange IS NULL",
+        '''INSERT INTO market_holiday (holiday_date, holiday_name, day_of_week, exchange, year) VALUES
+            ('2026-01-15', 'Municipal Corporation Election - Maharashtra', 'Thursday', 'NSE', 2026),
+            ('2026-01-26', 'Republic Day',                                  'Monday',   'NSE', 2026),
+            ('2026-02-15', 'Mahashivratri',                                 'Sunday',   'NSE', 2026),
+            ('2026-03-03', 'Holi',                                          'Tuesday',  'NSE', 2026),
+            ('2026-03-21', 'Id-Ul-Fitr (Ramadan Eid)',                      'Saturday', 'NSE', 2026),
+            ('2026-03-26', 'Shri Ram Navami',                               'Thursday', 'NSE', 2026),
+            ('2026-03-31', 'Shri Mahavir Jayanti',                          'Tuesday',  'NSE', 2026),
+            ('2026-04-03', 'Good Friday',                                   'Friday',   'NSE', 2026),
+            ('2026-04-14', 'Dr. Baba Saheb Ambedkar Jayanti',               'Tuesday',  'NSE', 2026),
+            ('2026-05-01', 'Maharashtra Day',                               'Friday',   'NSE', 2026),
+            ('2026-05-28', 'Bakri Id',                                      'Thursday', 'NSE', 2026),
+            ('2026-06-26', 'Muharram',                                      'Friday',   'NSE', 2026),
+            ('2026-08-15', 'Independence Day',                              'Saturday', 'NSE', 2026),
+            ('2026-09-14', 'Ganesh Chaturthi',                              'Monday',   'NSE', 2026),
+            ('2026-10-02', 'Mahatma Gandhi Jayanti',                        'Friday',   'NSE', 2026),
+            ('2026-10-20', 'Dussehra',                                      'Tuesday',  'NSE', 2026),
+            ('2026-11-08', 'Diwali Laxmi Pujan',                            'Sunday',   'NSE', 2026),
+            ('2026-11-10', 'Diwali-Balipratipada',                          'Tuesday',  'NSE', 2026),
+            ('2026-11-24', 'Prakash Gurpurb Sri Guru Nanak Dev',            'Tuesday',  'NSE', 2026),
+            ('2026-12-25', 'Christmas',                                     'Friday',   'NSE', 2026)
+           ON CONFLICT (holiday_date) DO NOTHING''',
     ]
     # Run column migrations on EVERY boot (dev and prod).  All statements use
     # IF NOT EXISTS / ON CONFLICT and are idempotent, so on a healthy DB this

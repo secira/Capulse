@@ -3409,6 +3409,29 @@ class PortfolioEvent(db.Model):
         }
 
 
+class MarketHoliday(db.Model):
+    """NSE/BSE trading holidays. Seeded from app.py migrations."""
+    __tablename__ = 'market_holiday'
+
+    id            = db.Column(db.Integer, primary_key=True)
+    holiday_date  = db.Column(db.Date, nullable=False, unique=True, index=True)
+    holiday_name  = db.Column(db.String(200), nullable=False)
+    day_of_week   = db.Column(db.String(20), nullable=True)
+    exchange      = db.Column(db.String(20), nullable=False, default='NSE')
+    year          = db.Column(db.Integer, nullable=True, index=True)
+    notes         = db.Column(db.Text, nullable=True)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'date':        self.holiday_date.isoformat() if self.holiday_date else None,
+            'name':        self.holiday_name,
+            'day_of_week': self.day_of_week,
+            'exchange':    self.exchange,
+            'year':        self.year,
+        }
+
+
 class BehaviouralAlert(db.Model):
     """Stores detected behavioural pattern alerts per user."""
     __tablename__ = 'behavioural_alerts'

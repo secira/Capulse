@@ -164,6 +164,21 @@ def send_market_snapshot(slot: str = 'manual') -> bool:
     """
     from services.messaging_service import send_telegram_message
 
+    # Skip market data on weekends & trading holidays. Send a single holiday
+    # wish instead (idempotent — first slot of the day fires it, rest no-op).
+    try:
+        from services.market_calendar import is_market_holiday, send_holiday_wish_once
+        ist_today = datetime.now().date()
+        if datetime.now().weekday() >= 5:
+            logger.info(f"send_market_snapshot: weekend — skipping slot={slot}")
+            return False
+        if is_market_holiday(ist_today):
+            send_holiday_wish_once()
+            logger.info(f"send_market_snapshot: holiday — wish sent, skipping slot={slot}")
+            return False
+    except Exception as e:
+        logger.warning(f"send_market_snapshot: holiday check skipped: {e}")
+
     ist_now = datetime.now()  # cron is IST-pinned; assume server already set
     slot_titles = {
         'opening':    "Opening Read · 09:20 IST",

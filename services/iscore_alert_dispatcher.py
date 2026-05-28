@@ -158,6 +158,19 @@ def send_top_buys_digest(force: bool = False) -> bool:
     from models import ResearchList
     from services.messaging_service import send_telegram_message
 
+    # Skip on weekends & trading holidays — send holiday wish instead.
+    try:
+        from services.market_calendar import is_market_holiday, send_holiday_wish_once
+        if datetime.now().weekday() >= 5:
+            logger.info("send_top_buys_digest: weekend — skipping")
+            return False
+        if is_market_holiday():
+            send_holiday_wish_once()
+            logger.info("send_top_buys_digest: holiday — wish sent, skipping digest")
+            return False
+    except Exception as e:
+        logger.warning(f"send_top_buys_digest: holiday check skipped: {e}")
+
     rows = (ResearchList.query
             .filter(ResearchList.is_active.is_(True))
             .filter(ResearchList.recommendation.in_(_BUY_TIERS))

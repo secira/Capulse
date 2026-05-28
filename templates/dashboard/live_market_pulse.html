@@ -14,6 +14,33 @@
 {% endblock %}
 
 {% block dashboard_content %}
+{% if is_holiday %}
+<div style="max-width:760px;margin:60px auto;padding:0 20px;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;">
+  <div style="background:linear-gradient(135deg,#fff7ed 0%,#fef3c7 100%);
+              border:1px solid #fcd34d;border-radius:18px;padding:48px 36px;text-align:center;
+              box-shadow:0 12px 40px rgba(251,191,36,0.18);">
+    <div style="font-size:64px;line-height:1;margin-bottom:16px;">🌸</div>
+    <h1 style="font-size:28px;font-weight:700;color:#92400e;margin:0 0 8px;">
+      Happy {{ holiday.name }}!
+    </h1>
+    <div style="font-size:14px;color:#a16207;margin-bottom:24px;">
+      {{ holiday.day_of_week or '' }}{% if holiday.date %} · {{ holiday.date.strftime('%d %b %Y') }}{% endif %}
+    </div>
+    <p style="font-size:17px;line-height:1.6;color:#78350f;margin:0 0 20px;">
+      Indian markets (NSE &amp; BSE) are <strong>closed today</strong> in observance of
+      <strong>{{ holiday.name }}</strong>.
+    </p>
+    <p style="font-size:15px;color:#78350f;margin:0 0 28px;">
+      Wishing you and your family a wonderful day from all of us at Target Capital. 💙<br>
+      We'll be back with live market intelligence on the next trading day.
+    </p>
+    <a href="/dashboard" style="display:inline-block;background:#92400e;color:#fff;
+       font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;">
+      ← Back to Dashboard
+    </a>
+  </div>
+</div>
+{% else %}
 <style>
 /* ── Base: mirrors Research Co-Pilot aesthetic ── */
 .lmp-page {
@@ -948,6 +975,7 @@
 </div>
 
 </div>{# end lmp-page #}
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
