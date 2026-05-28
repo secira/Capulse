@@ -38,8 +38,43 @@ def _market_cache_get(key, ttl=None):
     return None
 
 
+def _market_cache_get_stale(key, fresh_ttl=None):
+    """Return (data, is_stale) regardless of age. data is None only if never cached.
+    Enables stale-while-revalidate: serve cached page instantly, refresh in bg."""
+    entry = _MARKET_CACHE.get(key)
+    if not entry:
+        return None, True
+    age = time.time() - entry['ts']
+    return entry['data'], age >= (fresh_ttl or _CACHE_TTL)
+
+
 def _market_cache_set(key, data):
     _MARKET_CACHE[key] = {'data': data, 'ts': time.time()}
+
+
+# Track in-flight background refreshes so we don't spawn duplicates
+_REFRESH_LOCKS: dict = {}
+_REFRESH_LOCKS_GUARD = __import__('threading').Lock()
+
+def _refresh_in_background(key: str, fn):
+    """Run fn() in a daemon thread, but only one per key at a time."""
+    import threading
+    with _REFRESH_LOCKS_GUARD:
+        if _REFRESH_LOCKS.get(key):
+            return  # already refreshing
+        _REFRESH_LOCKS[key] = True
+
+    def _runner():
+        try:
+            fn()
+        except Exception as _e:
+            logger.warning(f"Background refresh '{key}' failed: {_e}")
+        finally:
+            with _REFRESH_LOCKS_GUARD:
+                _REFRESH_LOCKS.pop(key, None)
+
+    t = threading.Thread(target=_runner, name=f"mkt-refresh-{key}", daemon=True)
+    t.start()
 
 
 NIFTY50_STOCKS = [
@@ -539,67 +574,93 @@ def dashboard_daily_signals():
     except Exception:
         _captured_uid = None
 
+    # ── Stale-while-revalidate ───────────────────────────────────────────────
+    # Page must render fast. Strategy:
+    #   1. If we have ANY cached indices + stocks (even expired), use them now.
+    #   2. If cache is stale, kick a background thread to refresh — non-blocking.
+    #   3. Only on a totally cold cache do we block, and cap that at 3s.
+    # Net effect: warm cache → page renders in ~50ms, cold cache → ≤3s ceiling.
     import concurrent.futures as _cf
     nifty50_source = 'unavailable'
-    try:
-        # Fetch index prices (Dhan→NSE→yfinance) and Nifty50 stock data (NSE) in parallel
-        pool = _cf.ThreadPoolExecutor(max_workers=2)
-        f_dhan = pool.submit(_fetch_dhan_indices)
-        f_nse  = pool.submit(_fetch_nse_nifty50_stocks)
 
-        done, _ = _cf.wait([f_dhan, f_nse], timeout=14)
-        pool.shutdown(wait=False)
+    cached_indices, indices_stale = _market_cache_get_stale('indices', fresh_ttl=_CACHE_TTL_INDICES)
+    cached_nse,     nse_stale     = _market_cache_get_stale('nse_nifty50_stocks', fresh_ttl=120)
 
-        dhan_result = {}
-        nse_stocks  = {}
+    dhan_result = cached_indices or {}
+    nse_stocks  = cached_nse or {}
+
+    # Cold cache → block briefly so first-ever load isn't empty
+    if cached_indices is None or cached_nse is None:
         try:
-            if f_dhan in done:
-                dhan_result = f_dhan.result() or {}
+            pool = _cf.ThreadPoolExecutor(max_workers=2)
+            futs = []
+            if cached_indices is None:
+                futs.append(('dhan', pool.submit(_fetch_dhan_indices)))
+            if cached_nse is None:
+                futs.append(('nse',  pool.submit(_fetch_nse_nifty50_stocks)))
+
+            done, _pending = _cf.wait([f for _, f in futs], timeout=3)
+            pool.shutdown(wait=False)
+
+            for tag, f in futs:
+                if f in done:
+                    try:
+                        res = f.result() or {}
+                        if tag == 'dhan' and res:
+                            dhan_result = res
+                        elif tag == 'nse' and res:
+                            nse_stocks = res
+                    except Exception as e:
+                        logger.warning(f"Cold-fetch {tag} error: {e}")
         except Exception as e:
-            logger.warning(f"Dhan future error: {e}")
-        try:
-            if f_nse in done:
-                nse_stocks = f_nse.result() or {}
-        except Exception as e:
-            logger.warning(f"NSE future error: {e}")
+            logger.warning(f"Cold market fetch error: {e}")
+    elif indices_stale or nse_stale:
+        # Warm but stale → refresh in background, return stale immediately
+        if indices_stale:
+            _refresh_in_background('indices', _fetch_dhan_indices)
+        if nse_stale:
+            _refresh_in_background('nse_nifty50_stocks', _fetch_nse_nifty50_stocks)
 
-        # Merge Dhan index data
-        for key in ('nifty_50', 'nifty_bank', 'sensex', 'nifty_it', 'india_vix'):
-            d = dhan_result.get(key, {})
-            v = d.get('value', 0)
-            c = d.get('change_percent', None)
-            if v and float(v) > 0:
-                market_indices[key]['value'] = float(v)
-                if c is not None:
-                    market_indices[key]['change_percent'] = float(c)
-                market_indices[key]['live'] = True
+    # Merge Dhan index data
+    for key in ('nifty_50', 'nifty_bank', 'sensex', 'nifty_it', 'india_vix'):
+        d = dhan_result.get(key, {})
+        v = d.get('value', 0)
+        c = d.get('change_percent', None)
+        if v and float(v) > 0:
+            market_indices[key]['value'] = float(v)
+            if c is not None:
+                market_indices[key]['change_percent'] = float(c)
+            market_indices[key]['live'] = True
 
-        # Build Nifty50 treemap from real NSE data
-        nifty50_data, nifty50_source = _get_live_nifty50_data(nse_stocks)
+    # Build Nifty50 treemap from real NSE data (uses its own 'nifty50_v2' cache)
+    nifty50_data, nifty50_source = _get_live_nifty50_data(nse_stocks)
 
-        # Derive top gainers / losers / most active from NSE live data (accurate, no AI)
-        if nse_stocks:
-            sym_map = {s['symbol']: s for s in NIFTY50_STOCKS}
-            all_nse = []
-            for sym, d in nse_stocks.items():
-                meta = sym_map.get(sym, {})
-                all_nse.append({
-                    'symbol':         sym,
-                    'company_name':   meta.get('name', sym),
-                    'change_percent': d.get('change_percent', 0.0),
-                    'current_price':  d.get('price', 0.0),
-                    'volume':         str(d.get('volume', '')),
-                })
-            sorted_by_chg = sorted(all_nse, key=lambda x: x['change_percent'], reverse=True)
-            top_gainers = [r for r in sorted_by_chg if r['change_percent'] > 0][:8]
-            top_losers  = list(reversed([r for r in sorted_by_chg if r['change_percent'] < 0]))[:8]
-            most_active = sorted(all_nse, key=lambda x: float(x['volume'] or 0), reverse=True)[:8]
+    # Derive top gainers / losers / most active from NSE live data (accurate, no AI)
+    if nse_stocks:
+        sym_map = {s['symbol']: s for s in NIFTY50_STOCKS}
+        all_nse = []
+        for sym, d in nse_stocks.items():
+            meta = sym_map.get(sym, {})
+            all_nse.append({
+                'symbol':         sym,
+                'company_name':   meta.get('name', sym),
+                'change_percent': d.get('change_percent', 0.0),
+                'current_price':  d.get('price', 0.0),
+                'volume':         str(d.get('volume', '')),
+            })
+        sorted_by_chg = sorted(all_nse, key=lambda x: x['change_percent'], reverse=True)
+        top_gainers = [r for r in sorted_by_chg if r['change_percent'] > 0][:8]
+        top_losers  = list(reversed([r for r in sorted_by_chg if r['change_percent'] < 0]))[:8]
+        most_active = sorted(all_nse, key=lambda x: float(x['volume'] or 0), reverse=True)[:8]
 
-    except Exception as e:
-        logger.warning(f"Market data parallel fetch error: {e}")
-        nifty50_data, nifty50_source = _get_live_nifty50_data()
-
-    sector_data = _get_sector_summary(nifty50_data)
+    # Cache derived sector_data alongside nifty50 — same TTL, avoids per-request work
+    sector_cached = _market_cache_get('sector_data', ttl=120)
+    if sector_cached is not None:
+        sector_data = sector_cached
+    else:
+        sector_data = _get_sector_summary(nifty50_data)
+        if sector_data:
+            _market_cache_set('sector_data', sector_data)
 
     return render_template(
         'dashboard/live_market_pulse.html',
