@@ -211,6 +211,18 @@
                                 <span class="nav-text">Psychology</span>
                             </a>
                         </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['trader_intelligence', 'trader_intelligence_result'] else '' }}"
+                               href="{{ url_for('trader_intelligence_result') if trader_profile_badge else url_for('trader_intelligence') }}">
+                                <i class="nav-icon fas fa-dna"></i>
+                                <span class="nav-text">Trader DNA Profile</span>
+                                {% if trader_profile_badge %}
+                                <span class="nav-badge-new" style="background:{{ trader_profile_badge.level_color }};">{{ trader_profile_badge.level }}</span>
+                                {% else %}
+                                <span class="nav-badge-new">NEW</span>
+                                {% endif %}
+                            </a>
+                        </li>
                     </ul>
                 </li>
 

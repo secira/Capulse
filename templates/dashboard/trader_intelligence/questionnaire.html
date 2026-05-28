@@ -1,0 +1,239 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block title %}Trader DNA Assessment - Target Capital{% endblock %}
+{% block dashboard_title %}Trader DNA Assessment{% endblock %}
+{% block dashboard_subtitle %}Discover your trader level in under 5 minutes — 20 intelligent questions.{% endblock %}
+
+{% block dashboard_content %}
+<style>
+.tdna-wrap { max-width: 760px; margin: 0 auto; font-family: 'Poppins','Inter',sans-serif; }
+.tdna-progress-shell { background: #f1f5f9; height: 8px; border-radius: 999px; overflow: hidden; margin-bottom: 8px; }
+.tdna-progress-bar  { height: 100%; background: linear-gradient(90deg,#3b82f6,#8b5cf6); transition: width .35s ease; }
+.tdna-progress-meta { display:flex; justify-content:space-between; font-size:.8rem; color:#64748b; margin-bottom:24px; }
+.tdna-section-tag   { display:inline-block; background:#eff6ff; color:#1e40af; font-size:.72rem; font-weight:600;
+                      letter-spacing:.05em; text-transform:uppercase; padding:4px 10px; border-radius:999px; margin-bottom:12px; }
+.tdna-question      { font-size:1.45rem; font-weight:600; color:#0f172a; line-height:1.35; margin-bottom:24px; }
+.tdna-option        { display:flex; align-items:center; gap:14px; padding:16px 18px; border:1.5px solid #e2e8f0;
+                      border-radius:12px; margin-bottom:10px; cursor:pointer; transition:all .15s ease; background:#fff; }
+.tdna-option:hover  { border-color:#3b82f6; background:#f8fafc; }
+.tdna-option.selected { border-color:#3b82f6; background:#eff6ff; box-shadow:0 0 0 3px rgba(59,130,246,.12); }
+.tdna-option-dot    { width:20px; height:20px; border:2px solid #cbd5e1; border-radius:50%; flex-shrink:0;
+                      display:flex; align-items:center; justify-content:center; }
+.tdna-option.selected .tdna-option-dot { border-color:#3b82f6; }
+.tdna-option.selected .tdna-option-dot::after { content:''; width:10px; height:10px; background:#3b82f6; border-radius:50%; }
+.tdna-option-square { border-radius:5px; }
+.tdna-option.selected .tdna-option-square::after { border-radius:2px; }
+.tdna-option-label  { font-size:1rem; color:#1e293b; font-weight:500; }
+.tdna-scale         { display:flex; gap:8px; justify-content:space-between; margin:24px 0 8px; }
+.tdna-scale-btn     { flex:1; padding:14px 0; border:1.5px solid #e2e8f0; background:#fff; border-radius:10px;
+                      font-weight:600; font-size:1rem; cursor:pointer; transition:all .15s ease; }
+.tdna-scale-btn:hover { border-color:#3b82f6; }
+.tdna-scale-btn.selected { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+.tdna-scale-meta    { display:flex; justify-content:space-between; font-size:.78rem; color:#94a3b8; }
+.tdna-nav           { display:flex; justify-content:space-between; margin-top:32px; padding-top:24px; border-top:1px solid #e2e8f0; }
+.tdna-btn           { padding:12px 28px; border-radius:10px; border:none; font-weight:600; cursor:pointer; transition:all .15s ease; font-size:.95rem; }
+.tdna-btn-primary   { background:#3b82f6; color:#fff; }
+.tdna-btn-primary:hover { background:#2563eb; }
+.tdna-btn-primary:disabled { background:#cbd5e1; cursor:not-allowed; }
+.tdna-btn-ghost     { background:transparent; color:#64748b; }
+.tdna-btn-ghost:hover { color:#1e293b; }
+.tdna-card          { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:32px;
+                      box-shadow:0 4px 16px rgba(15,23,42,.04); }
+.tdna-intro         { text-align:center; padding:48px 32px; }
+.tdna-intro .emoji  { font-size:64px; margin-bottom:12px; }
+.tdna-intro h2      { font-size:2rem; font-weight:700; color:#0f172a; margin-bottom:12px; }
+.tdna-intro p       { color:#475569; font-size:1.05rem; max-width:520px; margin:0 auto 24px; line-height:1.6; }
+.tdna-feature       { display:flex; align-items:flex-start; gap:12px; text-align:left; padding:14px;
+                      background:#f8fafc; border-radius:10px; margin-bottom:10px; }
+.tdna-feature i     { color:#3b82f6; font-size:1.1rem; margin-top:3px; }
+.tdna-feature strong{ display:block; color:#0f172a; font-size:.92rem; margin-bottom:2px; }
+.tdna-feature small { color:#64748b; font-size:.82rem; }
+.tdna-existing      { background:#fef3c7; border:1px solid #fcd34d; color:#78350f; border-radius:10px;
+                      padding:12px 16px; font-size:.88rem; margin-bottom:20px; }
+.tdna-loading       { text-align:center; padding:60px 20px; }
+.tdna-spinner       { display:inline-block; width:40px; height:40px; border:4px solid #e2e8f0; border-top-color:#3b82f6;
+                      border-radius:50%; animation:tdna-spin 1s linear infinite; }
+@keyframes tdna-spin { to { transform:rotate(360deg); } }
+</style>
+
+<div class="tdna-wrap">
+
+  {% if existing_profile %}
+  <div class="tdna-existing">
+    <i class="fas fa-info-circle me-2"></i>
+    You already have a profile (<strong>{{ existing_profile.level }} — {{ existing_profile.level_name }}</strong>).
+    Retaking the assessment will <strong>update your scores</strong>.
+    <a href="{{ url_for('trader_intelligence_result') }}" class="ms-2 text-decoration-none">View current result →</a>
+  </div>
+  {% endif %}
+
+  <!-- Intro screen -->
+  <div id="tdnaIntro" class="tdna-card tdna-intro">
+    <div class="emoji">🧬</div>
+    <h2>Discover Your Trader DNA</h2>
+    <p>20 quick questions. 5 minutes. Get your trader level, behavioural risk and a personalised level-up roadmap.</p>
+    <div style="max-width:420px; margin:24px auto;">
+      <div class="tdna-feature"><i class="fas fa-chart-line"></i><div>
+        <strong>6-level classification</strong><small>From Beginner (L1) to Professional (L6)</small></div></div>
+      <div class="tdna-feature"><i class="fas fa-brain"></i><div>
+        <strong>Behavioural risk score</strong><small>Spot the patterns hurting your P&amp;L</small></div></div>
+      <div class="tdna-feature"><i class="fas fa-trophy"></i><div>
+        <strong>Level-up roadmap</strong><small>Know exactly what to improve next</small></div></div>
+    </div>
+    <button class="tdna-btn tdna-btn-primary" onclick="tdnaStart()">Start Assessment →</button>
+  </div>
+
+  <!-- Question screen -->
+  <div id="tdnaQuestion" class="tdna-card" style="display:none;">
+    <div class="tdna-progress-shell"><div id="tdnaBar" class="tdna-progress-bar" style="width:0"></div></div>
+    <div class="tdna-progress-meta">
+      <span id="tdnaStep">Question 1 of 20</span>
+      <span id="tdnaPct">5%</span>
+    </div>
+    <div id="tdnaSectionTag" class="tdna-section-tag">Experience</div>
+    <div id="tdnaQuestionText" class="tdna-question"></div>
+    <div id="tdnaOptions"></div>
+    <div class="tdna-nav">
+      <button id="tdnaBack" class="tdna-btn tdna-btn-ghost" onclick="tdnaBack()">← Back</button>
+      <button id="tdnaNext" class="tdna-btn tdna-btn-primary" onclick="tdnaNext()" disabled>Next →</button>
+    </div>
+  </div>
+
+  <!-- Submitting screen -->
+  <div id="tdnaLoading" class="tdna-card tdna-loading" style="display:none;">
+    <div class="tdna-spinner"></div>
+    <h3 style="margin-top:20px; color:#0f172a; font-size:1.2rem;">Analysing your trader DNA…</h3>
+    <p style="color:#64748b; margin-top:6px;">Scoring 6 dimensions and classifying your level.</p>
+  </div>
+
+</div>
+
+<script>
+const TDNA_QUESTIONS = {{ questions | tojson }};
+const TDNA_CSRF = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+let tdnaIdx = 0;
+const tdnaAnswers = {};
+
+function tdnaStart() {
+  document.getElementById('tdnaIntro').style.display = 'none';
+  document.getElementById('tdnaQuestion').style.display = 'block';
+  tdnaIdx = 0;
+  tdnaRender();
+}
+
+function tdnaRender() {
+  const q = TDNA_QUESTIONS[tdnaIdx];
+  const total = TDNA_QUESTIONS.length;
+  const pct = Math.round((tdnaIdx + 1) * 100 / total);
+  document.getElementById('tdnaBar').style.width = pct + '%';
+  document.getElementById('tdnaStep').textContent = `Question ${tdnaIdx + 1} of ${total}`;
+  document.getElementById('tdnaPct').textContent = pct + '%';
+  document.getElementById('tdnaSectionTag').textContent = q.section;
+  document.getElementById('tdnaQuestionText').textContent = q.text;
+
+  const wrap = document.getElementById('tdnaOptions');
+  wrap.innerHTML = '';
+
+  if (q.type === 'scale') {
+    const row = document.createElement('div');
+    row.className = 'tdna-scale';
+    for (let n = q.min; n <= q.max; n++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tdna-scale-btn';
+      b.textContent = n;
+      if (tdnaAnswers[q.id] === n) b.classList.add('selected');
+      b.onclick = () => {
+        tdnaAnswers[q.id] = n;
+        wrap.querySelectorAll('.tdna-scale-btn').forEach(x => x.classList.remove('selected'));
+        b.classList.add('selected');
+        tdnaUpdateNav();
+      };
+      row.appendChild(b);
+    }
+    wrap.appendChild(row);
+    const meta = document.createElement('div');
+    meta.className = 'tdna-scale-meta';
+    meta.innerHTML = '<span>Not serious</span><span>Extremely serious</span>';
+    wrap.appendChild(meta);
+  } else {
+    const isMulti = q.type === 'multi';
+    const cur = tdnaAnswers[q.id] || (isMulti ? [] : null);
+    q.options.forEach(opt => {
+      const el = document.createElement('div');
+      el.className = 'tdna-option';
+      const selected = isMulti ? cur.includes(opt.value) : cur === opt.value;
+      if (selected) el.classList.add('selected');
+      el.innerHTML = `
+        <div class="tdna-option-dot ${isMulti ? 'tdna-option-square' : ''}"></div>
+        <div class="tdna-option-label">${opt.label}</div>`;
+      el.onclick = () => {
+        if (isMulti) {
+          const arr = tdnaAnswers[q.id] || [];
+          const i = arr.indexOf(opt.value);
+          if (i >= 0) arr.splice(i, 1); else arr.push(opt.value);
+          tdnaAnswers[q.id] = arr;
+          el.classList.toggle('selected');
+        } else {
+          tdnaAnswers[q.id] = opt.value;
+          wrap.querySelectorAll('.tdna-option').forEach(x => x.classList.remove('selected'));
+          el.classList.add('selected');
+        }
+        tdnaUpdateNav();
+      };
+      wrap.appendChild(el);
+    });
+  }
+
+  document.getElementById('tdnaBack').style.visibility = tdnaIdx === 0 ? 'hidden' : 'visible';
+  const isLast = tdnaIdx === total - 1;
+  document.getElementById('tdnaNext').textContent = isLast ? 'See My Result →' : 'Next →';
+  tdnaUpdateNav();
+}
+
+function tdnaUpdateNav() {
+  const q = TDNA_QUESTIONS[tdnaIdx];
+  const a = tdnaAnswers[q.id];
+  const ok = (q.type === 'multi') ? (a && a.length > 0) : (a !== undefined && a !== null && a !== '');
+  document.getElementById('tdnaNext').disabled = !ok;
+}
+
+function tdnaBack() {
+  if (tdnaIdx > 0) { tdnaIdx--; tdnaRender(); }
+}
+
+function tdnaNext() {
+  if (tdnaIdx < TDNA_QUESTIONS.length - 1) {
+    tdnaIdx++;
+    tdnaRender();
+  } else {
+    tdnaSubmit();
+  }
+}
+
+function tdnaSubmit() {
+  document.getElementById('tdnaQuestion').style.display = 'none';
+  document.getElementById('tdnaLoading').style.display = 'block';
+  fetch('/api/trader-profile/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': TDNA_CSRF },
+    body: JSON.stringify({ answers: tdnaAnswers })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success && d.redirect) {
+      window.location.href = d.redirect;
+    } else {
+      alert('Could not save your profile: ' + (d.error || 'unknown error'));
+      document.getElementById('tdnaLoading').style.display = 'none';
+      document.getElementById('tdnaQuestion').style.display = 'block';
+    }
+  })
+  .catch(e => {
+    alert('Network error: ' + e.message);
+    document.getElementById('tdnaLoading').style.display = 'none';
+    document.getElementById('tdnaQuestion').style.display = 'block';
+  });
+}
+</script>
+{% endblock %}

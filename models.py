@@ -3465,3 +3465,63 @@ class BehaviouralAlert(db.Model):
         }
 
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Trader Intelligence Profiling — 20-question Trader DNA assessment.
+# Drives the 6-level classifier (L1..L6) shown in Dashboard and Profile.
+# ─────────────────────────────────────────────────────────────────────────────
+class TraderProfile(db.Model):
+    """One row per user — the latest computed Trader Intelligence Profile."""
+    __tablename__ = 'trader_profile'
+
+    id           = db.Column(db.Integer, primary_key=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'),
+                             nullable=False, unique=True, index=True)
+    tenant_id    = db.Column(db.String(255), nullable=True, default='live', index=True)
+
+    trader_level                = db.Column(db.String(4), nullable=False, default='L1')
+    overall_score               = db.Column(db.Float,   nullable=False, default=0.0)
+    discipline_score            = db.Column(db.Float,   nullable=False, default=0.0)
+    risk_score                  = db.Column(db.Float,   nullable=False, default=0.0)
+    emotional_score             = db.Column(db.Float,   nullable=False, default=0.0)
+    strategy_score              = db.Column(db.Float,   nullable=False, default=0.0)
+    experience_score            = db.Column(db.Float,   nullable=False, default=0.0)
+    market_understanding_score  = db.Column(db.Float,   nullable=False, default=0.0)
+
+    behavioural_risk = db.Column(db.String(10), nullable=False, default='MEDIUM')  # LOW|MEDIUM|HIGH
+    xp_points        = db.Column(db.Integer,    nullable=False, default=0)
+
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at   = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('trader_profile', uselist=False))
+
+
+class TraderAnswer(db.Model):
+    """Raw answers from each completed assessment — history per user."""
+    __tablename__ = 'trader_answer'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    user_id     = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'),
+                            nullable=False, index=True)
+    profile_id  = db.Column(db.Integer, db.ForeignKey('trader_profile.id', ondelete='CASCADE'),
+                            nullable=True, index=True)
+    question_id = db.Column(db.String(8), nullable=False)
+    answer      = db.Column(db.Text, nullable=True)   # JSON-encoded for multi-select
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TraderProgression(db.Model):
+    """Audit trail of level-ups — feeds gamification + history view."""
+    __tablename__ = 'trader_progression'
+
+    id             = db.Column(db.Integer, primary_key=True)
+    user_id        = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'),
+                               nullable=False, index=True)
+    from_level     = db.Column(db.String(4), nullable=True)
+    to_level       = db.Column(db.String(4), nullable=False)
+    overall_score  = db.Column(db.Float,    nullable=True)
+    xp_earned      = db.Column(db.Integer,  nullable=False, default=0)
+    date_achieved  = db.Column(db.DateTime, default=datetime.utcnow)

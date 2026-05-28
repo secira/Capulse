@@ -1,0 +1,415 @@
+ Recommended Trader Classification Model
+Classify users into:
+Level	Description
+L1	Beginner
+L2	Learning Trader
+L3	Active Trader
+L4	Disciplined Trader
+L5	Advanced/Systematic Trader
+L6	Professional/Desk-style Trader
+________________________________________
+15–20 intelligent adaptive questions
+Goal:
+Classify trader cognition, behaviour, discipline, and sophistication
+within:
+3–5 minutes maximum.
+________________________________________
+🎯 OBJECTIVE
+Build:
+“Trader Intelligence Profile”
+This becomes:
+•	onboarding engine
+•	personalization layer
+•	behavioural AI foundation
+•	gamification system
+•	progression engine
+•	risk intelligence layer
+________________________________________
+🧠 FINAL LEVEL SYSTEM
+________________________________________
+L1 — Beginner
+Characteristics:
+•	emotional
+•	random entries
+•	no process
+•	social-media driven
+________________________________________
+L2 — Learning Trader
+Characteristics:
+•	understands basics
+•	inconsistent discipline
+•	experimenting
+________________________________________
+L3 — Active Trader
+Characteristics:
+•	regular trader
+•	strategy-aware
+•	inconsistent execution
+________________________________________
+L4 — Disciplined Trader
+Characteristics:
+•	risk-managed
+•	structured
+•	emotionally stable
+________________________________________
+L5 — Advanced/Systematic Trader
+Characteristics:
+•	process-driven
+•	probabilistic
+•	strategy-focused
+•	portfolio-aware
+________________________________________
+L6 — Professional-Level Trader
+Characteristics:
+•	data-driven
+•	behaviour-controlled
+•	portfolio optimized
+•	systematic execution
+________________________________________
+🔥 FINAL 20 QUESTIONS
+Designed for:
+•	low friction
+•	high signal
+•	behavioural classification
+________________________________________
+SECTION 1 — EXPERIENCE (4 Questions)
+________________________________________
+Q1
+How long have you been trading?
+•	Never traded
+•	<6 months
+•	6–12 months
+•	1–3 years
+•	3+ years
+________________________________________
+Q2
+Which market do you trade most?
+•	Equity investing
+•	Swing trading
+•	Intraday
+•	Options/F&O
+•	Crypto
+________________________________________
+Q3
+How often do you trade?
+•	Rarely
+•	Weekly
+•	Daily
+•	Multiple times/day
+________________________________________
+Q4
+Are you currently profitable?
+•	Mostly losing
+•	Break-even
+•	Slightly profitable
+•	Consistently profitable
+________________________________________
+SECTION 2 — STRATEGY & EXECUTION (5 Questions)
+________________________________________
+Q5
+How do you usually decide trades?
+•	Telegram/social media
+•	News
+•	Indicators
+•	Price action
+•	Structured strategy
+________________________________________
+Q6
+Do you use stop-loss consistently?
+•	Never
+•	Sometimes
+•	Mostly
+•	Always
+________________________________________
+Q7
+Do you follow a predefined setup before entering trades?
+•	Never
+•	Sometimes
+•	Often
+•	Always
+________________________________________
+Q8
+How do you manage position size?
+•	Randomly
+•	Fixed quantity
+•	% of capital
+•	Risk-based sizing
+________________________________________
+Q9
+Do you maintain a trading journal or review trades?
+•	Never
+•	Occasionally
+•	Weekly
+•	Regularly
+________________________________________
+SECTION 3 — BEHAVIOURAL INTELLIGENCE (6 Questions)
+MOST IMPORTANT SECTION.
+________________________________________
+Q10
+After a loss, what do you usually do?
+•	Recover losses immediately
+•	Increase trade size
+•	Pause briefly
+•	Re-evaluate setup calmly
+________________________________________
+Q11
+How often do you take trades due to FOMO?
+•	Very often
+•	Sometimes
+•	Rarely
+•	Never
+________________________________________
+Q12
+Do you move stop-losses emotionally?
+•	Very often
+•	Sometimes
+•	Rarely
+•	Never
+________________________________________
+Q13
+What affects your trading most?
+•	Fear
+•	Greed
+•	FOMO
+•	Impatience
+•	Overconfidence
+________________________________________
+Q14
+How often do you overtrade?
+•	Daily
+•	Frequently
+•	Occasionally
+•	Rarely
+________________________________________
+Q15
+What is your biggest challenge?
+•	Discipline
+•	Entries
+•	Exits
+•	Risk management
+•	Emotional control
+________________________________________
+SECTION 4 — MARKET UNDERSTANDING (3 Questions)
+________________________________________
+Q16
+Do you understand risk/reward properly?
+•	No
+•	Somewhat
+•	Yes
+•	Very well
+________________________________________
+Q17
+Which matters most before entering a trade?
+•	Tips/news
+•	Momentum
+•	Indicators
+•	Risk/reward
+•	Market structure
+________________________________________
+Q18
+Do you understand:
+(checklist)
+•	VWAP
+•	OI
+•	Greeks
+•	PCR
+•	Position sizing
+________________________________________
+SECTION 5 — GOALS & MATURITY (2 Questions)
+________________________________________
+Q19
+What is your primary goal?
+•	Learning
+•	Side income
+•	Full-time trading
+•	Wealth building
+•	Professional trading
+________________________________________
+Q20
+How serious are you about becoming a disciplined trader?
+Scale:
+1–10
+________________________________________
+🧠 SCORING ENGINE
+Each question contributes to:
+Dimension	Weight
+Discipline	25%
+Emotional Control	25%
+Strategy Maturity	20%
+Risk Management	20%
+Experience	10%
+________________________________________
+FINAL OUTPUT
+Generate:
+Trader Intelligence Profile
+Example:
+Level: L3 Active Trader
+
+Discipline: 58
+Risk Management: 62
+Emotional Control: 41
+Strategy Maturity: 55
+Market Understanding: 60
+
+Behavioural Risk: HIGH
+________________________________________
+🔥 LEVEL PROGRESSION SYSTEM
+This is VERY important.
+You should NOT only classify.
+You should:
+gamify progression.
+________________________________________
+LEVEL-UP MODEL
+________________________________________
+L1 → L2
+Needs:
+•	use stop-loss consistently
+•	avoid revenge trading
+•	complete education modules
+________________________________________
+L2 → L3
+Needs:
+•	maintain trading journal
+•	follow structured setups
+•	reduce impulsive trades
+________________________________________
+L3 → L4
+Needs:
+•	consistent risk sizing
+•	stable emotional control
+•	reduced FOMO score
+________________________________________
+L4 → L5
+Needs:
+•	portfolio risk management
+•	expectancy tracking
+•	systematic execution
+________________________________________
+L5 → L6
+Needs:
+•	strategy consistency
+•	drawdown management
+•	advanced risk discipline
+•	behavioural stability
+
+🚀 TARGETCAPITAL DIFFERENTIATOR
+This becomes:
+“Behavioural Trading Intelligence”
+Most apps:
+show charts
+You:
+improve trader cognition
+VERY strong moat.
+________________________________________
+🏗️ REPLIT BUILD REQUIREMENTS
+________________________________________
+FEATURE NAME
+Trader Intelligence Profiling System
+________________________________________
+FRONTEND REQUIREMENTS
+________________________________________
+1. Onboarding Flow
+Multi-step wizard:
+•	progress bar
+•	conversational UI
+•	mobile optimized
+________________________________________
+2. UI Style
+Modern:
+•	gamified
+•	card-based
+•	animated transitions
+________________________________________
+3. Screens
+Screen 1
+Welcome:
+Discover Your Trader DNA
+________________________________________
+Screen 2–6
+Questions
+________________________________________
+Final Screen
+Trader Intelligence Report
+________________________________________
+BACKEND REQUIREMENTS
+________________________________________
+DATABASE TABLES
+________________________________________
+users
+id
+name
+email
+created_at
+________________________________________
+trader_profiles
+user_id
+trader_level
+discipline_score
+risk_score
+emotional_score
+strategy_score
+experience_score
+behavioural_risk
+xp_points
+created_at
+updated_at
+________________________________________
+trader_answers
+id
+user_id
+question_id
+answer
+score
+created_at
+________________________________________
+trader_progression
+id
+user_id
+from_level
+to_level
+date_achieved
+xp_earned
+________________________________________
+API REQUIREMENTS
+________________________________________
+POST
+/api/trader-profile/submit
+Submits answers.
+________________________________________
+GET
+/api/trader-profile/result
+Returns:
+•	level
+•	scores
+•	behavioural insights
+________________________________________
+GET
+/api/trader-profile/progression
+Returns:
+•	next level requirements
+•	XP progress
+________________________________________
+AI ENGINE REQUIREMENTS
+Scoring logic:
+•	weighted scoring
+•	behavioural classification
+•	emotional-risk detection
+•	trader maturity classification
+FUTURE REQUIREMENTS
+PHASE 2
+Add:
+•	broker sync
+•	actual trading behaviour analysis
+•	real-time discipline scoring
+________________________________________
+PHASE 3
+Build:
+AI Trader Coach
+Example:
+You are overtrading this week.
+
+Your emotional-risk score increased 18%.
+VERY powerful future feature.
+
+
+

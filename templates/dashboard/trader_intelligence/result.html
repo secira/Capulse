@@ -1,0 +1,180 @@
+{% extends "dashboard/dashboard_base.html" %}
+
+{% block title %}Your Trader Intelligence Profile - Target Capital{% endblock %}
+{% block dashboard_title %}Your Trader Intelligence Profile{% endblock %}
+{% block dashboard_subtitle %}Personalised analysis of your trading cognition, discipline and behaviour.{% endblock %}
+
+{% block dashboard_content %}
+<style>
+.tip-wrap { max-width: 980px; margin: 0 auto; font-family: 'Poppins','Inter',sans-serif; }
+.tip-hero { background: linear-gradient(135deg, {{ profile.level_color }} 0%, #1e293b 100%);
+            color:#fff; border-radius:18px; padding:36px 32px; margin-bottom:24px;
+            display:flex; align-items:center; gap:28px; flex-wrap:wrap; }
+.tip-badge { width:96px; height:96px; border-radius:24px; background:rgba(255,255,255,.18);
+             display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; }
+.tip-badge .lvl { font-size:1.8rem; font-weight:800; letter-spacing:.05em; }
+.tip-badge .lvl-sub { font-size:.7rem; opacity:.85; letter-spacing:.1em; text-transform:uppercase; }
+.tip-hero h1 { font-size:1.7rem; font-weight:700; margin-bottom:6px; }
+.tip-hero p  { opacity:.9; margin-bottom:0; font-size:1rem; line-height:1.5; }
+.tip-hero-meta { display:flex; gap:24px; margin-top:14px; font-size:.85rem; opacity:.95; }
+.tip-hero-meta strong { font-weight:700; font-size:1rem; display:block; margin-bottom:2px; }
+.tip-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:16px; margin-bottom:24px; }
+.tip-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:22px; }
+.tip-card h3 { font-size:1rem; font-weight:700; color:#0f172a; margin-bottom:14px;
+               display:flex; align-items:center; gap:8px; }
+.tip-card h3 i { color:#3b82f6; }
+.tip-dim { display:flex; justify-content:space-between; font-size:.88rem; color:#475569; margin-bottom:6px; }
+.tip-dim-bar { background:#f1f5f9; height:7px; border-radius:999px; margin-bottom:14px; overflow:hidden; }
+.tip-dim-bar-fill { height:100%; border-radius:999px; transition:width .4s ease; }
+.tip-risk-pill { display:inline-block; padding:6px 14px; border-radius:999px; font-size:.78rem;
+                 font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+.tip-risk-LOW  { background:#dcfce7; color:#166534; }
+.tip-risk-MEDIUM { background:#fef3c7; color:#92400e; }
+.tip-risk-HIGH   { background:#fee2e2; color:#991b1b; }
+.tip-progress-shell { background:#f1f5f9; height:10px; border-radius:999px; overflow:hidden; margin:10px 0 6px; }
+.tip-progress-bar { height:100%; background:linear-gradient(90deg,#3b82f6,#8b5cf6); transition:width .4s ease; }
+.tip-req { list-style:none; padding:0; margin:0; }
+.tip-req li { padding:10px 0; border-bottom:1px dashed #e2e8f0; color:#334155; font-size:.92rem;
+              display:flex; align-items:flex-start; gap:10px; }
+.tip-req li:last-child { border-bottom:none; }
+.tip-req i { color:#3b82f6; margin-top:2px; }
+.tip-levels { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-top:14px; }
+.tip-level-pill { padding:10px 6px; text-align:center; border-radius:8px; font-size:.7rem;
+                  font-weight:600; color:#94a3b8; background:#f8fafc; border:1.5px solid transparent; }
+.tip-level-pill .code { display:block; font-size:.95rem; font-weight:800; color:#475569; margin-bottom:2px; }
+.tip-level-pill.current { background:#eff6ff; border-color:#3b82f6; color:#1e40af; }
+.tip-level-pill.current .code { color:#1e40af; }
+.tip-actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:24px; }
+.tip-btn { padding:12px 22px; border-radius:10px; font-weight:600; text-decoration:none;
+           font-size:.92rem; display:inline-flex; align-items:center; gap:8px; transition:all .15s ease; }
+.tip-btn-primary { background:#3b82f6; color:#fff; }
+.tip-btn-primary:hover { background:#2563eb; color:#fff; }
+.tip-btn-outline { background:#fff; color:#475569; border:1.5px solid #cbd5e1; }
+.tip-btn-outline:hover { border-color:#3b82f6; color:#3b82f6; }
+@media (max-width: 640px) {
+  .tip-levels { grid-template-columns:repeat(3,1fr); }
+  .tip-hero { padding:24px; }
+}
+</style>
+
+<div class="tip-wrap">
+
+  <!-- Hero card -->
+  <div class="tip-hero">
+    <div class="tip-badge">
+      <div class="lvl">{{ profile.level }}</div>
+      <div class="lvl-sub">Level</div>
+    </div>
+    <div style="flex:1; min-width:240px;">
+      <h1>{{ profile.level_name }}</h1>
+      <p>{{ profile.level_tagline }}</p>
+      <div class="tip-hero-meta">
+        <div><strong>{{ profile.overall_score }}</strong>Overall Score</div>
+        <div><strong>{{ profile.xp_points }}</strong>XP Points</div>
+        <div><strong>{{ profile.behavioural_risk }}</strong>Behavioural Risk</div>
+      </div>
+    </div>
+    <span class="tip-risk-pill tip-risk-{{ profile.behavioural_risk }}">
+      Risk: {{ profile.behavioural_risk }}
+    </span>
+  </div>
+
+  <!-- Level ladder -->
+  <div class="tip-card" style="margin-bottom:24px;">
+    <h3><i class="fas fa-layer-group"></i>Trader Level Ladder</h3>
+    <div class="tip-levels">
+      {% for code in level_order %}
+        {% set lv = levels[code] %}
+        <div class="tip-level-pill {{ 'current' if code == profile.level else '' }}">
+          <span class="code">{{ code }}</span>
+          {{ lv.name }}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="tip-grid">
+
+    <!-- Dimension scores -->
+    <div class="tip-card" style="grid-column: span 2;">
+      <h3><i class="fas fa-chart-bar"></i>Dimension Breakdown</h3>
+      {% for label, score in profile.dimensions.items() %}
+        {% set color = '#22c55e' if score >= 70 else ('#eab308' if score >= 45 else '#ef4444') %}
+        <div class="tip-dim">
+          <span>{{ label }}</span>
+          <strong>{{ score }} / 100</strong>
+        </div>
+        <div class="tip-dim-bar">
+          <div class="tip-dim-bar-fill" style="width:{{ score }}%; background:{{ color }};"></div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Next level -->
+    <div class="tip-card">
+      <h3><i class="fas fa-arrow-up"></i>Next Level
+        {% if progression.next %}— {{ progression.next }}{% endif %}
+      </h3>
+      {% if progression.next %}
+        <div class="tip-progress-shell">
+          <div class="tip-progress-bar" style="width:{{ progression.percent_to_next }}%;"></div>
+        </div>
+        <div style="font-size:.82rem; color:#64748b; display:flex; justify-content:space-between;">
+          <span>{{ progression.percent_to_next }}% there</span>
+          <span>+{{ progression.points_to_next }} pts to {{ progression.next }}</span>
+        </div>
+        <h4 style="font-size:.85rem; font-weight:700; color:#0f172a; margin:18px 0 8px;">
+          To level up:
+        </h4>
+        <ul class="tip-req">
+          {% for r in progression.requirements %}
+          <li><i class="fas fa-check-circle"></i>{{ r }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div style="text-align:center; padding:14px 0; color:#475569;">
+          🏆 You're at the top level — keep refining and mentor others.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- History -->
+  {% if history %}
+  <div class="tip-card" style="margin-bottom:24px;">
+    <h3><i class="fas fa-history"></i>Progression History</h3>
+    <ul class="tip-req">
+      {% for h in history %}
+      <li>
+        <i class="fas fa-trophy"></i>
+        <span>
+          {% if h.from_level %}{{ h.from_level }} → {% endif %}<strong>{{ h.to_level }}</strong>
+          <span style="color:#94a3b8; font-size:.82rem; margin-left:8px;">
+            {{ h.date_achieved.strftime('%d %b %Y, %H:%M') }} ·
+            +{{ h.xp_earned }} XP
+            {% if h.overall_score %} · score {{ '%.1f'|format(h.overall_score) }}{% endif %}
+          </span>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="tip-actions">
+    <a href="{{ url_for('trader_intelligence') }}" class="tip-btn tip-btn-primary">
+      <i class="fas fa-redo"></i>Retake Assessment
+    </a>
+    <a href="{{ url_for('behavioural_insights') }}" class="tip-btn tip-btn-outline">
+      <i class="fas fa-brain"></i>Behavioural Insights
+    </a>
+    <a href="{{ url_for('dashboard') }}" class="tip-btn tip-btn-outline">
+      <i class="fas fa-home"></i>Back to Dashboard
+    </a>
+  </div>
+
+  <p style="text-align:center; color:#94a3b8; font-size:.78rem; margin-top:18px;">
+    Last assessed: {{ profile.completed_at[:10] if profile.completed_at else '—' }}
+  </p>
+</div>
+{% endblock %}

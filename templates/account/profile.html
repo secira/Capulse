@@ -4,6 +4,50 @@
 {% block dashboard_subtitle %}Manage your personal information and preferences{% endblock %}
 
 {% block dashboard_content %}
+
+<!-- Trader DNA badge -->
+{% if trader_profile_badge %}
+<a href="{{ url_for('trader_intelligence_result') }}" style="text-decoration:none;color:inherit;display:block;margin-bottom:24px;">
+  <div style="background:linear-gradient(135deg,{{ trader_profile_badge.level_color }} 0%,#1e293b 100%);
+              color:#fff;border-radius:14px;padding:20px 24px;display:flex;align-items:center;gap:18px;
+              box-shadow:0 6px 20px rgba(15,23,42,.08);font-family:'Poppins','Inter',sans-serif;">
+    <div style="width:64px;height:64px;border-radius:16px;background:rgba(255,255,255,.18);
+                display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;">
+      <div style="font-size:1.25rem;font-weight:800;letter-spacing:.05em;">{{ trader_profile_badge.level }}</div>
+      <div style="font-size:.6rem;opacity:.85;letter-spacing:.1em;text-transform:uppercase;">Level</div>
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:1.1rem;font-weight:700;">{{ trader_profile_badge.level_name }}</div>
+      <div style="opacity:.85;font-size:.85rem;margin-top:3px;">{{ trader_profile_badge.level_tagline }}</div>
+      <div style="opacity:.95;font-size:.78rem;margin-top:6px;">
+        Score {{ trader_profile_badge.overall_score }} · {{ trader_profile_badge.xp_points }} XP ·
+        Behavioural risk: <strong>{{ trader_profile_badge.behavioural_risk }}</strong>
+      </div>
+    </div>
+    <div style="font-size:.8rem;opacity:.9;white-space:nowrap;">
+      <i class="fas fa-arrow-right"></i> View
+    </div>
+  </div>
+</a>
+{% else %}
+<a href="{{ url_for('trader_intelligence') }}" style="text-decoration:none;color:inherit;display:block;margin-bottom:24px;">
+  <div style="background:linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%);color:#fff;border-radius:14px;
+              padding:20px 24px;display:flex;align-items:center;gap:18px;
+              box-shadow:0 6px 20px rgba(59,130,246,.18);font-family:'Poppins','Inter',sans-serif;">
+    <div style="font-size:2.2rem;">🧬</div>
+    <div style="flex:1;">
+      <div style="font-size:1.1rem;font-weight:700;">Discover Your Trader DNA</div>
+      <div style="opacity:.9;font-size:.85rem;margin-top:3px;">
+        Take the 5-minute, 20-question assessment to find your trader level.
+      </div>
+    </div>
+    <div style="background:#fff;color:#3b82f6;padding:9px 18px;border-radius:8px;font-weight:600;font-size:.85rem;">
+      Start →
+    </div>
+  </div>
+</a>
+{% endif %}
+
 <div class="row">
     <div class="col-lg-8">
         <div class="card">
