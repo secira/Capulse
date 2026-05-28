@@ -365,25 +365,16 @@ def dashboard_daily_signals():
         flash("This feature requires a Target Plus or higher subscription.", "warning")
         return redirect(url_for('pricing'))
 
-    # Holiday short-circuit — render only the holiday wish card, skip the
-    # expensive index / treemap / NSE fetches entirely. Template hides every
-    # market-data section when is_holiday is truthy.
+    # Holiday notification — we still render the full Market Intelligence page
+    # with yesterday's data, but flag `is_holiday`/`holiday` so the template
+    # shows a single-line banner at the top. (The big "Happy <festival>" card
+    # is now exclusive to the Telegram channel.)
+    holiday_ctx = None
     try:
         from services.market_calendar import get_holiday
-        _h = get_holiday()
-        if _h:
-            return render_template(
-                'dashboard/live_market_pulse.html',
-                is_holiday=True,
-                holiday=_h,
-                signals=[], selected_date=_today_ist(), date_range=[],
-                asset_type_filter='all', duration_filter='all', status_filter='all',
-                summary_stats={}, market_indices={}, top_gainers=[], top_losers=[],
-                most_active=[], nifty50_data=[], nifty50_source='holiday',
-                sector_data=[],
-            )
+        holiday_ctx = get_holiday()
     except Exception:
-        pass
+        holiday_ctx = None
 
     selected_date_str = request.args.get('date')
     asset_type_filter = request.args.get('asset_type', 'all')
@@ -626,6 +617,8 @@ def dashboard_daily_signals():
         nifty50_data=nifty50_data,
         nifty50_source=nifty50_source,
         sector_data=sector_data,
+        is_holiday=bool(holiday_ctx),
+        holiday=holiday_ctx,
     )
 
 
