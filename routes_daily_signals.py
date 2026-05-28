@@ -686,7 +686,12 @@ def dashboard_daily_signals():
 @app.route('/api/market-pulse/commentary')
 @login_required
 def market_pulse_commentary():
-    """Generate an AI-powered market commentary using Perplexity (uses in-memory cache for speed)."""
+    """Generate an AI-powered market commentary using Perplexity (uses in-memory cache for speed).
+
+    Response-level cache: Perplexity calls take ~10s; the answer stays valid for
+    several minutes. We key by user language so multilingual users still get
+    their preferred response, and cache the JSON body for 5 minutes.
+    """
     try:
         # Holiday gate — no market commentary on trading holidays.
         try:
@@ -727,6 +732,15 @@ def market_pulse_commentary():
         top_l = ', '.join(f"{l.get('symbol','')} ({float(l.get('change_percent',0)):.1f}%)"  for l in losers[:3])
 
         lang_code = getattr(current_user, 'preferred_language', 'en') or 'en'
+
+        # ── Response cache (5 min) keyed by language ────────────────────────
+        # Perplexity call is ~10s. The commentary is a high-level market
+        # summary — fine to share across all users sharing the same language.
+        _commentary_cache_key = f"commentary:{lang_code}"
+        cached_resp, stale = _market_cache_get_stale(_commentary_cache_key, fresh_ttl=300)
+        if cached_resp is not None and not stale:
+            return jsonify(cached_resp)
+
         lang_name = LANG_NAMES.get(lang_code, 'English')
         lang_instr = (
             f" Respond entirely in {lang_name}. Every word of your response must be written in {lang_name}."
@@ -746,10 +760,27 @@ def market_pulse_commentary():
             f"Use plain, direct language. No disclaimers.{lang_instr}"
         )
 
+        # Stale cache exists → serve immediately, refresh in background
+        if cached_resp is not None and stale:
+            def _refresh_commentary():
+                try:
+                    px = PerplexityAPI()
+                    txt, _ = px.get_investment_advice(prompt)
+                    if txt and txt.strip():
+                        _market_cache_set(_commentary_cache_key,
+                                          {'success': True, 'commentary': txt.strip(), 'lang': lang_code})
+                except Exception as _ce:
+                    logger.warning(f"commentary bg refresh failed: {_ce}")
+            _refresh_in_background(_commentary_cache_key, _refresh_commentary)
+            return jsonify(cached_resp)
+
+        # Cold cache: do the call inline (this is the only slow path)
         perplexity = PerplexityAPI()
         text, _ = perplexity.get_investment_advice(prompt)
-
-        return jsonify({'success': True, 'commentary': (text or '').strip(), 'lang': lang_code})
+        resp = {'success': True, 'commentary': (text or '').strip(), 'lang': lang_code}
+        if resp['commentary']:
+            _market_cache_set(_commentary_cache_key, resp)
+        return jsonify(resp)
 
     except Exception as e:
         logger.error(f"AI commentary error: {e}")
@@ -800,28 +831,59 @@ def _api_market_pulse_direction_impl():
 
     Uses the same EMA 9/21 + Supertrend + VWAP + RSI logic as the F&O engine.
     Candles are shared via the module-level cache, so this is fast after the
-    first call. Results are cached for 58 seconds (matches the F&O monitor cycle).
+    first call. SWR cache: 60s freshness; stale serves immediately with bg refresh.
     """
     try:
         uid = current_user.id
-        results = {}
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            futures = {pool.submit(_fetch_one_direction, idx, uid): idx
-                       for idx in _DIRECTION_INDICES}
-            for fut in as_completed(futures, timeout=12):
-                idx = futures[fut]
-                try:
-                    results[idx] = fut.result()
-                except Exception as ex:
-                    logger.warning(f"market_direction fut({idx}): {ex}")
-                    results[idx] = {
-                        'index': idx, 'label': idx, 'direction': 'SIDEWAYS',
-                        'reason': 'Error', 'score': {'bull': 0, 'bear': 0},
-                        'signals': {}, 'data_ok': False,
-                    }
 
-        now_ist = datetime.now(_IST).strftime('%H:%M:%S IST')
-        return jsonify({'success': True, 'data': results, 'timestamp': now_ist})
+        # SWR response cache — 4-index direction takes ~7.5s when cold.
+        # Direction is a coarse signal that stays valid for at least a minute.
+        # Keyed per-user because _fetch_one_direction(idx, uid) instantiates
+        # NiftyOptionsEngine(user_id=uid), which picks up the user's data
+        # source (admin TrueData plan vs the user's own Data API broker).
+        # Different users can therefore see slightly different computed
+        # directions — a global key would let one user's result leak to
+        # everyone for up to 60s.
+        _dir_key = f'market_direction:{uid}'
+        cached_resp, stale = _market_cache_get_stale(_dir_key, fresh_ttl=60)
+        if cached_resp is not None and not stale:
+            return jsonify(cached_resp)
+
+        def _compute():
+            results = {}
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                futures = {pool.submit(_fetch_one_direction, idx, uid): idx
+                           for idx in _DIRECTION_INDICES}
+                for fut in as_completed(futures, timeout=12):
+                    idx = futures[fut]
+                    try:
+                        results[idx] = fut.result()
+                    except Exception as ex:
+                        logger.warning(f"market_direction fut({idx}): {ex}")
+                        results[idx] = {
+                            'index': idx, 'label': idx, 'direction': 'SIDEWAYS',
+                            'reason': 'Error', 'score': {'bull': 0, 'bear': 0},
+                            'signals': {}, 'data_ok': False,
+                        }
+            now_ist = datetime.now(_IST).strftime('%H:%M:%S IST')
+            return {'success': True, 'data': results, 'timestamp': now_ist}
+
+        # Warm but stale → serve stale, refresh in background
+        if cached_resp is not None and stale:
+            def _refresh_direction():
+                try:
+                    fresh = _compute()
+                    _market_cache_set(_dir_key, fresh)
+                except Exception as _de:
+                    logger.warning(f"direction bg refresh failed: {_de}")
+            _refresh_in_background(_dir_key, _refresh_direction)
+            return jsonify(cached_resp)
+
+        # Cold cache: compute inline (only path that blocks)
+        resp = _compute()
+        if resp.get('data'):
+            _market_cache_set(_dir_key, resp)
+        return jsonify(resp)
 
     except Exception as e:
         logger.error(f"api_market_pulse_direction error: {e}")

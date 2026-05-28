@@ -2347,34 +2347,75 @@ def detailed_stock_analysis(symbol):
                          analysis_date=date.today().strftime('%B %d, %Y'),
                          **data)
 
+_PORTFOLIO_PAGE_CACHE: dict = {}
+_PORTFOLIO_PAGE_TTL = 180  # seconds — portfolio state changes slowly between trades
+
+
+def _invalidate_portfolio_page_cache(user_id):
+    """Drop the cached Portfolio & Risk page bundle for a user.
+    Call this after a successful trade execution or holdings sync so the
+    next page load reflects fresh state immediately instead of waiting
+    for the 3-minute TTL."""
+    _PORTFOLIO_PAGE_CACHE.pop(user_id, None)
+
+
 @app.route('/dashboard/my-portfolio')
 @login_required
 def dashboard_my_portfolio():
-    """Comprehensive Portfolio View with AI Analysis across all asset classes"""
+    """Comprehensive Portfolio View with AI Analysis across all asset classes.
+
+    Optimization: the 6 expensive ops below (portfolio summary across all
+    brokers + 4 risk-engine calls + top performers) take 4–5s combined. They
+    don't change between trades, so we cache the bundle per user for 3 minutes.
+    Cache key resets when the user places a trade (broker order callback) —
+    handled via _invalidate_portfolio_page_cache() in the trade routes.
+    """
+    import time
     from datetime import date, datetime
     from services.comprehensive_portfolio_service import get_comprehensive_portfolio_service
     from services.risk_engine import get_risk_engine
 
-    # Get comprehensive portfolio analysis
     portfolio_service = get_comprehensive_portfolio_service(current_user.id)
-    portfolio_summary = portfolio_service.get_complete_portfolio_summary()
-
-    # Generate AI insights (cached per user, 2-hour TTL to avoid blocking every page load)
-    ai_insights = _get_portfolio_ai_insights(portfolio_service, portfolio_summary, current_user.id)
-
-    # Get top performers
-    top_performers = portfolio_service.get_top_performers(limit=5)
-
-    # Scentric AI Engine — Risk Heat Map, Goal Progress, Portfolio Pulse
     risk_engine = get_risk_engine(current_user.id)
-    risk_heatmap = risk_engine.get_risk_heatmap(portfolio_summary)
-    goal_progress = risk_engine.get_goal_progress(portfolio_summary)
-    portfolio_pulse = risk_engine.get_portfolio_pulse(portfolio_summary, risk_heatmap)
-    recent_events = risk_engine.get_recent_events(limit=8)
 
-    # Log this analysis visit as a portfolio event
-    health_score_log = portfolio_pulse["health_score"] if portfolio_pulse else "—"
-    risk_engine.log_event('analysis', 'Portfolio viewed', detail=f'Health score: {health_score_log}')
+    _pcache_key = current_user.id
+    _entry = _PORTFOLIO_PAGE_CACHE.get(_pcache_key)
+    _now = time.time()
+
+    if _entry and (_now - _entry['ts']) < _PORTFOLIO_PAGE_TTL:
+        portfolio_summary = _entry['portfolio_summary']
+        top_performers    = _entry['top_performers']
+        risk_heatmap      = _entry['risk_heatmap']
+        goal_progress     = _entry['goal_progress']
+        portfolio_pulse   = _entry['portfolio_pulse']
+        recent_events     = _entry['recent_events']
+    else:
+        portfolio_summary = portfolio_service.get_complete_portfolio_summary()
+        top_performers    = portfolio_service.get_top_performers(limit=5)
+        risk_heatmap      = risk_engine.get_risk_heatmap(portfolio_summary)
+        goal_progress     = risk_engine.get_goal_progress(portfolio_summary)
+        portfolio_pulse   = risk_engine.get_portfolio_pulse(portfolio_summary, risk_heatmap)
+        recent_events     = risk_engine.get_recent_events(limit=8)
+        _PORTFOLIO_PAGE_CACHE[_pcache_key] = {
+            'ts': _now,
+            'portfolio_summary': portfolio_summary,
+            'top_performers': top_performers,
+            'risk_heatmap': risk_heatmap,
+            'goal_progress': goal_progress,
+            'portfolio_pulse': portfolio_pulse,
+            'recent_events': recent_events,
+        }
+        # Log the visit only on a real (cache-miss) load — avoids one DB
+        # INSERT per page view when users refresh. The event timeline still
+        # captures every meaningful state change via other write paths.
+        health_score_log = portfolio_pulse["health_score"] if portfolio_pulse else "—"
+        try:
+            risk_engine.log_event('analysis', 'Portfolio viewed', detail=f'Health score: {health_score_log}')
+        except Exception:
+            pass
+
+    # AI insights have their own 2-hour cache inside the helper — leave untouched.
+    ai_insights = _get_portfolio_ai_insights(portfolio_service, portfolio_summary, current_user.id)
 
     # Fetch most recent LangGraph optimization report (if any)
     latest_optimization = None
@@ -4268,6 +4309,10 @@ def portfolio_sync_brokers():
         
         if result['success']:
             flash(f'Successfully synced {result["total_holdings"]} holdings from {len(result["synced_brokers"])} brokers', 'success')
+            # Fresh holdings → drop the cached portfolio page bundle so the
+            # next /dashboard/my-portfolio load reflects the new state
+            # immediately instead of waiting up to 180s.
+            _invalidate_portfolio_page_cache(current_user.id)
         else:
             flash(f'Sync completed with errors: {"; ".join(result.get("errors", []))}', 'warning')
         
@@ -5569,7 +5614,11 @@ def api_trade_execute_confirmed():
         
         # Execute order through broker
         order_result = BrokerService.place_order_via_broker(broker_account, order_data)
-        
+
+        # Drop the cached portfolio page bundle so the next page load
+        # reflects the new position immediately instead of waiting up to 180s.
+        _invalidate_portfolio_page_cache(current_user.id)
+
         return jsonify({
             'success': True,
             'order_id': order_result.id,
@@ -5585,13 +5634,36 @@ def api_trade_execute_confirmed():
             'error': f'Trade execution failed: {str(e)}'
         }), 500
 
+_LIVE_DATA_STATUS_CACHE: dict = {}
+_LIVE_DATA_STATUS_TTL = 60  # seconds — banner refresh granularity
+
 @app.route('/api/live-data-status', methods=['GET'])
 @login_required
 def api_live_data_status():
     """
     Fast (no external calls) check of live market data availability.
     Returns overall status used by dashboard and F&O page banners.
+
+    Per-user 60s response cache: this endpoint was taking 13–19s on some
+    requests despite being "DB only" — most of that is request-queue wait
+    behind slower routes plus tenant-filter middleware overhead on every
+    BrokerAccount/DataApiBroker/AdminDataBroker query. The banner refreshes
+    every minute anyway, so a 60s cache per user is safe.
     """
+    import time
+    _ck = current_user.id
+    _entry = _LIVE_DATA_STATUS_CACHE.get(_ck)
+    if _entry and (time.time() - _entry['ts']) < _LIVE_DATA_STATUS_TTL:
+        # Recompute only the time fields so the banner clock stays current
+        _resp = dict(_entry['data'])
+        _now_ist = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+        _resp['ist_time'] = _now_ist.strftime('%I:%M %p IST')
+        _wd = _now_ist.weekday()
+        _ms = _now_ist.replace(hour=9, minute=15, second=0, microsecond=0)
+        _me = _now_ist.replace(hour=15, minute=30, second=0, microsecond=0)
+        _resp['market_open'] = (_wd < 5) and (_ms <= _now_ist <= _me)
+        return jsonify(_resp)
+
     from datetime import datetime, timezone, timedelta
     from models_broker import BrokerAccount, DataApiBroker
 
@@ -5666,7 +5738,7 @@ def api_live_data_status():
     if not has_data_broker:
         _alert_admin_data_outage_once()
 
-    return jsonify({
+    _payload = {
         'success': True,
         'status': 'live',
         'severity': 'ok',
@@ -5676,7 +5748,9 @@ def api_live_data_status():
         'data_source_kind': None,
         'market_open': market_open,
         'ist_time': now_ist.strftime('%I:%M %p IST'),
-    })
+    }
+    _LIVE_DATA_STATUS_CACHE[_ck] = {'data': _payload, 'ts': time.time()}
+    return jsonify(_payload)
 
 
 # Module-level rate limiter for admin outage alerts (avoid telegram spam).
@@ -6033,6 +6107,7 @@ def api_trade_execute_signal():
                         order_status = eng_resp.get('order_status', 'SUBMITTED')
 
                     _mark_fno_signal_executed(data, current_user.id, tc_order_id)
+                    _invalidate_portfolio_page_cache(current_user.id)
 
                     return jsonify({
                         'success': True,
@@ -6078,6 +6153,7 @@ def api_trade_execute_signal():
             _tc_order_id = order_result.id if hasattr(order_result, 'id') else None
             _mark_fno_signal_executed(data, current_user.id, _tc_order_id)
 
+            _invalidate_portfolio_page_cache(current_user.id)
             return jsonify({
                 'success': True,
                 'order_id': _tc_order_id,
