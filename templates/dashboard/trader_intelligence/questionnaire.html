@@ -110,7 +110,7 @@
 
 <script>
 const TDNA_QUESTIONS = {{ questions | tojson }};
-const TDNA_CSRF = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+const TDNA_CSRF = {{ csrf_token() | tojson }};
 let tdnaIdx = 0;
 const tdnaAnswers = {};
 
@@ -216,10 +216,25 @@ function tdnaSubmit() {
   document.getElementById('tdnaLoading').style.display = 'block';
   fetch('/api/trader-profile/submit', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': TDNA_CSRF },
     body: JSON.stringify({ answers: tdnaAnswers })
   })
-  .then(r => r.json())
+  .then(async (r) => {
+    // Guard: if the server returned HTML (login redirect, error page,
+    // CSRF failure rendered as a template) parsing as JSON would throw
+    // the cryptic "Unexpected token '<'" error the user used to see.
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      const text = (await r.text()).slice(0, 200);
+      throw new Error(
+        r.status === 401 || r.status === 403
+          ? 'Your session has expired. Please refresh and sign in again.'
+          : `Server returned a non-JSON response (HTTP ${r.status}). ${text}`
+      );
+    }
+    return r.json();
+  })
   .then(d => {
     if (d.success && d.redirect) {
       window.location.href = d.redirect;
@@ -230,7 +245,7 @@ function tdnaSubmit() {
     }
   })
   .catch(e => {
-    alert('Network error: ' + e.message);
+    alert(e.message);
     document.getElementById('tdnaLoading').style.display = 'none';
     document.getElementById('tdnaQuestion').style.display = 'block';
   });
