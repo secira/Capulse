@@ -1,3 +1,26 @@
+<script>
+/* Early stubs for sidebar submenu toggles — registered BEFORE the
+   collapsible-header onclick attributes below are parsed, so a fast
+   user click during page load never fires before the function exists.
+   The richer versions in dashboard_base.html / static/js/main.js
+   overwrite these later but behave identically. */
+(function () {
+    function _earlyToggle(menuId, iconId) {
+        var menu = document.getElementById(menuId);
+        if (!menu) return;
+        var isOpen = menu.style.display !== 'none';
+        menu.style.display = isOpen ? 'none' : 'block';
+        var icon = document.getElementById(iconId);
+        if (icon) icon.style.transform = isOpen ? '' : 'rotate(180deg)';
+    }
+    window.toggleFnoMenu       = window.toggleFnoMenu       || function () { _earlyToggle('fnoMenu',          'fnoMenuToggle'); };
+    window.toggleBehaviourMenu = window.toggleBehaviourMenu || function () { _earlyToggle('behaviourMenu',    'behaviourToggle'); };
+    window.togglePortfolioHub  = window.togglePortfolioHub  || function () { _earlyToggle('portfolioHubMenu', 'portfolioHubToggle'); };
+    window.toggleAdminMenu     = window.toggleAdminMenu     || function () { _earlyToggle('adminMenu',        'adminMenuToggle'); };
+    window.toggleSignalPanel   = window.toggleSignalPanel   || function () { /* no-op until signal panel script loads */ };
+})();
+</script>
+
 <nav class="sidebar-nav">
 
     <!-- Sidebar Header: Logo + Bell -->
