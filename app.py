@@ -1139,7 +1139,7 @@ except Exception as _routes_err:
 # redirected to /pricing so they can upgrade.  Admins are always exempt.
 _TRIAL_EXEMPT_ENDPOINTS: frozenset = frozenset({
     # Infrastructure
-    'static', 'health_check', 'liveness_check',
+    'static', 'health_check', 'liveness_check', 'readiness_check',
     # Public / marketing pages
     'index', 'about', 'services', 'algo_trading', 'algo_trading_service',
     'blog', 'blog_post', 'blog_post_by_slug', 'pricing', 'careers',
