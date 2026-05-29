@@ -373,6 +373,13 @@ class User(UserMixin, db.Model):
     
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def is_active(self):
+        """Flask-Login uses this to decide whether the account may log in.
+        Backed by the `active` column so admins can deactivate accounts.
+        New signups default to active=True."""
+        return bool(self.active)
     
     def get_full_name(self):
         if self.first_name and self.last_name:

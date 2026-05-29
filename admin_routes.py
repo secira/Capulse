@@ -351,6 +351,32 @@ def delete_user(user_id):
     return redirect(url_for('admin.users'))
 
 
+@admin_bp.route('/user/<int:user_id>/toggle-active', methods=['POST'])
+@admin_required
+def toggle_user_active(user_id):
+    """Activate or deactivate a user account (flips the `active` flag)."""
+    from flask_wtf.csrf import validate_csrf
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except Exception:
+        flash('Security check failed. Please try again.', 'danger')
+        return redirect(url_for('admin.users'))
+    user = User.query.get_or_404(user_id)
+    if user.is_admin:
+        flash('Admin accounts cannot be deactivated.', 'danger')
+        return redirect(url_for('admin.users'))
+    username = user.username or user.email
+    try:
+        user.active = not bool(user.active)
+        db.session.commit()
+        state = 'activated' if user.active else 'deactivated'
+        flash(f'User "{username}" has been {state}.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Could not update user status: {str(e)}', 'danger')
+    return redirect(url_for('admin.users'))
+
+
 @admin_bp.route('/research-list')
 @admin_bp.route('/research-list/<int:page>')
 @admin_required

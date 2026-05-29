@@ -125,6 +125,10 @@ def callback():
         else:
             logger.info(f"Existing user logged in via Google OAuth: {users_email}")
 
+        if not user.is_active:
+            flash('Your account has been deactivated. Please contact support.', 'error')
+            return redirect(url_for('login'))
+
         # Auto-promote to admin if email is listed in ADMIN_EMAILS env var
         admin_emails_raw = os.environ.get('ADMIN_EMAILS', '')
         admin_emails = [e.strip().lower() for e in admin_emails_raw.split(',') if e.strip()]

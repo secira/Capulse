@@ -321,7 +321,13 @@ login_manager.login_message_category = 'info'
 @login_manager.user_loader
 def load_user(user_id):
     from models import User
-    return User.query.get(int(user_id))
+    user = User.query.get(int(user_id))
+    # Drop the session immediately if the account has been deactivated, so an
+    # admin "deactivate" takes effect on the user's very next request rather
+    # than only at logout/session expiry.
+    if user is not None and not user.is_active:
+        return None
+    return user
 
 # Fix OAuth issue: Return 401 JSON for API requests instead of redirecting
 @login_manager.unauthorized_handler
@@ -1173,29 +1179,17 @@ def _beta_invite_only_enabled() -> bool:
 
 @app.before_request
 def check_beta_invite_gate():
-    """Pre-launch: redirect unauthenticated visitors away from product routes
-    to the login page. Public endpoints (marketing, auth, legal, health) are
-    untouched so SEO and signup flows still work."""
-    from flask import request, redirect, url_for
-    from flask_login import current_user
+    """Beta is now DISPLAY-ONLY.
 
-    if not _beta_invite_only_enabled():
-        return
+    The beta status is still surfaced on the website (see ``inject_beta_flags``
+    for the banner), but it no longer gates access. Every route follows its
+    normal authentication flow — product pages keep their own
+    ``@login_required`` protection, and signup/login are fully open. New
+    signups are active immediately and can use the system right away.
 
-    endpoint = request.endpoint
-    # Public allow-list (same as trial guard) + reset/forgot password helpers
-    if not endpoint or endpoint in _TRIAL_EXEMPT_ENDPOINTS:
-        return
-    # Anything starting with these prefixes stays open
-    path = request.path or ""
-    if path.startswith("/static/") or path.startswith("/_ah/") or path.startswith("/api/health"):
-        return
-
-    if current_user.is_authenticated:
-        return
-
-    # Anonymous visitor hit a gated route → bounce to login
-    return redirect(url_for("login", next=request.full_path if request.query_string else request.path))
+    This hook is intentionally a no-op; it is kept so the beta posture can be
+    reinstated later without re-wiring the request pipeline."""
+    return
 
 
 @app.before_request

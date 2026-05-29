@@ -1332,6 +1332,9 @@ def login():
         ).first()
         
         if user and user.check_password(password):
+            if not user.is_active:
+                flash('Your account has been deactivated. Please contact support.', 'error')
+                return render_template('auth/login.html')
             ensure_admin_status(user)
             login_user(user)
             user.last_login = datetime.utcnow()
