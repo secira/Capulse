@@ -778,6 +778,22 @@ def ensure_missing_columns(session):
 
     logger.info("Column checks complete.")
 
+    # ── Data fix: activate all existing users ──────────────────
+    # Signup is open (no invite code required) and every user should be
+    # active. New rows default to active=TRUE, but any pre-existing user
+    # left inactive on this database is flipped here. Idempotent: the
+    # WHERE clause means repeat deploys touch zero rows.
+    from sqlalchemy import text as _text
+    try:
+        result = session.execute(
+            _text('UPDATE "user" SET active = TRUE WHERE active IS DISTINCT FROM TRUE')
+        )
+        session.commit()
+        logger.info("Activated %s previously-inactive user(s).", result.rowcount)
+    except Exception as exc:
+        session.rollback()
+        logger.warning("Could not activate users: %s", exc)
+
 
 # ─────────────────────────────────────────────
 # Index creation
