@@ -263,6 +263,9 @@ def ensure_missing_columns(session):
         ("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE",                                           "user.is_verified"),
         ("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN DEFAULT FALSE",                                    "user.two_factor_enabled"),
         ("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS last_login TIMESTAMP",                                                        "user.last_login"),
+        ("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS trial_extended_until TIMESTAMP",                                              "user.trial_extended_until"),
+        ("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS trial_extended_at TIMESTAMP",                                                 "user.trial_extended_at"),
+        ("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS use_remote_execution BOOLEAN NOT NULL DEFAULT FALSE",                         "user.use_remote_execution"),
     ]
     for ddl, label in cols:
         _col(session, ddl, label)
