@@ -1164,7 +1164,9 @@ _TRIAL_EXEMPT_ENDPOINTS: frozenset = frozenset({
 # Marketing pages, auth pages, legal pages and health checks remain public
 # (reuses the same allow-list as the trial guard).
 #   Flip with:  BETA_INVITE_ONLY=false  →  fully public site (post-launch)
-#   Register code:  BETA_INVITE_CODE=<secret>  (required at /register signup)
+#   Signup supports BOTH methods: direct site registration AND invite codes.
+#   BETA_INVITE_CODE=<secret> is optional — a valid code is honoured at /register
+#   but is no longer required to sign up (registration is open).
 def _beta_invite_only_enabled() -> bool:
     return os.environ.get("BETA_INVITE_ONLY", "true").strip().lower() in ("1", "true", "yes", "on")
 
