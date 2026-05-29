@@ -2362,7 +2362,25 @@ def _invalidate_portfolio_page_cache(user_id):
 @app.route('/dashboard/my-portfolio')
 @login_required
 def dashboard_my_portfolio():
-    """Comprehensive Portfolio View with AI Analysis across all asset classes.
+    """Shell for the Portfolio & Risk page.
+
+    Renders instantly with the page chrome + a spinner; the heavy data bundle
+    is loaded via AJAX from dashboard_my_portfolio_content() (mirrors the F&O
+    hybrid loading pattern). Only the toolbar's broker list is computed here.
+    """
+    from models_broker import BrokerAccount as _BA
+    portfolio_broker_accounts = _BA.query.filter_by(
+        user_id=current_user.id, is_active=True
+    ).all()
+    return render_template('dashboard/my_portfolio_comprehensive.html',
+                           broker_accounts=portfolio_broker_accounts,
+                           current_user=current_user)
+
+
+@app.route('/dashboard/my-portfolio/content')
+@login_required
+def dashboard_my_portfolio_content():
+    """Heavy data partial for the Portfolio & Risk page (loaded via AJAX).
 
     Optimization: the 6 expensive ops below (portfolio summary across all
     brokers + 4 risk-engine calls + top performers) take 4–5s combined. They
@@ -2654,7 +2672,7 @@ def dashboard_my_portfolio():
         user_id=current_user.id, is_active=True
     ).all()
 
-    return render_template('dashboard/my_portfolio_comprehensive.html',
+    return render_template('dashboard/_my_portfolio_content.html',
                            portfolio_summary=portfolio_summary,
                            ai_insights=ai_insights,
                            top_performers=top_performers,

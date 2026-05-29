@@ -396,9 +396,24 @@ def _get_sector_summary(nifty50_data):
 @app.route('/dashboard/daily-signals')
 @login_required
 def dashboard_daily_signals():
+    """Shell for the Market Intelligence page.
+
+    Renders instantly with the page chrome + a spinner; the heavy market data
+    bundle is loaded via AJAX from dashboard_daily_signals_content() (mirrors
+    the F&O hybrid loading pattern).
+    """
     if not current_user.is_authenticated or not current_user.can_access_menu('dashboard_trading_signals'):
         flash("This feature requires a Target Plus or higher subscription.", "warning")
         return redirect(url_for('pricing'))
+    return render_template('dashboard/live_market_pulse.html')
+
+
+@app.route('/dashboard/daily-signals/content')
+@login_required
+def dashboard_daily_signals_content():
+    """Heavy market-data partial for the Market Intelligence page (AJAX)."""
+    if not current_user.is_authenticated or not current_user.can_access_menu('dashboard_trading_signals'):
+        return "", 403
 
     # Holiday notification — we still render the full Market Intelligence page
     # with yesterday's data, but flag `is_holiday`/`holiday` so the template
@@ -663,7 +678,7 @@ def dashboard_daily_signals():
             _market_cache_set('sector_data', sector_data)
 
     return render_template(
-        'dashboard/live_market_pulse.html',
+        'dashboard/_live_market_pulse_content.html',
         signals=signals,
         selected_date=selected_date,
         date_range=date_range,
