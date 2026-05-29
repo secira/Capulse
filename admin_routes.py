@@ -342,8 +342,31 @@ def delete_user(user_id):
         return redirect(url_for('admin.users'))
     username = user.username or user.email
     try:
-        db.session.delete(user)
-        db.session.commit()
+        from sqlalchemy import text as _sql_text
+        # Many child tables reference user.id without ON DELETE CASCADE, so a
+        # plain delete fails with a foreign-key violation when the user has any
+        # related data (brokers, signals, trades, profile, etc.). Clear every
+        # referencing row first: NULL it out where the FK is nullable, otherwise
+        # delete the dependent rows. Children are handled before parents.
+        with db.engine.begin() as conn:
+            for table in reversed(db.metadata.sorted_tables):
+                if table.name == 'user':
+                    continue
+                for fk in table.foreign_keys:
+                    if fk.column.table.name == 'user' and fk.column.name == 'id':
+                        col = fk.parent
+                        if col.nullable:
+                            conn.execute(
+                                _sql_text(f'UPDATE "{table.name}" SET "{col.name}" = NULL WHERE "{col.name}" = :uid'),
+                                {"uid": user_id},
+                            )
+                        else:
+                            conn.execute(
+                                _sql_text(f'DELETE FROM "{table.name}" WHERE "{col.name}" = :uid'),
+                                {"uid": user_id},
+                            )
+            conn.execute(_sql_text('DELETE FROM "user" WHERE id = :uid'), {"uid": user_id})
+        db.session.expire_all()
         flash(f'User "{username}" has been permanently deleted.', 'success')
     except Exception as e:
         db.session.rollback()

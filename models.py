@@ -372,6 +372,11 @@ class User(UserMixin, db.Model):
         self.password_hash = generate_password_hash(password)
     
     def check_password(self, password):
+        # Accounts created via Google OAuth (or otherwise without a local
+        # password) have no password_hash. Guard against passing None to
+        # werkzeug, which raises and would surface as a 500 on the login page.
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
 
     @property
