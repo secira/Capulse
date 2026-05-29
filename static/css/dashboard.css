@@ -61,6 +61,9 @@ body:has(.dashboard-app) {
 @media (min-width: 576px) {
     .dashboard-sidebar { transform: none !important; }
     .dashboard-main  { margin-left: var(--tc-sidebar-width); }
+    /* The site footer lives outside .dashboard-main, so the fixed sidebar
+       overlaps its left columns on dashboard pages. Shift it clear. */
+    body:has(.dashboard-app) footer { margin-left: var(--tc-sidebar-width); }
 }
 
 .sidebar-nav {
