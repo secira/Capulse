@@ -33,19 +33,20 @@
         </div>
         <div class="card-body">
             <p class="text-muted small mb-4">
-                Set a fixed <strong>number of points</strong> for Stop&nbsp;Loss and Target for
-                <strong>each index</strong>. Because NIFTY, Bank&nbsp;Nifty, Sensex and Fin&nbsp;Nifty trade at
-                very different premium levels, each gets its own values. The engine applies these points
-                to every signal it generates for that index, and they appear in the Telegram alert.
+                Set <strong>three target levels</strong> (T1 / T2 / T3) and a Stop&nbsp;Loss for
+                <strong>each index</strong>. T1 is the first target, T2 allows the trade to run further, and T3 is the long-hold goal.
+                T2 must be greater than T1, and T3 greater than T2. All values are <strong>absolute option premium points</strong>.
             </p>
 
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
                     <thead>
                         <tr class="small text-muted">
-                            <th style="min-width:140px;">Index</th>
-                            <th><i class="fas fa-bullseye me-1 text-success"></i>Target (points)</th>
-                            <th><i class="fas fa-hand-paper me-1 text-danger"></i>Stop&nbsp;Loss (points)</th>
+                            <th style="min-width:130px;">Index</th>
+                            <th><i class="fas fa-bullseye me-1 text-success"></i>T1 — Target 1</th>
+                            <th><i class="fas fa-bullseye me-1 text-success"></i>T2 — Target 2</th>
+                            <th><i class="fas fa-bullseye me-1 text-success"></i>T3 — Target 3</th>
+                            <th><i class="fas fa-hand-paper me-1 text-danger"></i>Stop Loss</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -54,14 +55,28 @@
                         <tr>
                             <td class="fw-semibold">{{ label }}</td>
                             <td>
-                                <input type="number" step="0.5" min="0.5" class="form-control"
+                                <input type="number" step="0.5" min="0.5" class="form-control form-control-sm"
                                        name="{{ key }}_target_points"
-                                       value="{{ idx.target_points if idx else '' }}" required>
+                                       value="{{ idx.target_points if idx else '' }}" required
+                                       placeholder="T1 pts">
                             </td>
                             <td>
-                                <input type="number" step="0.5" min="0.5" class="form-control"
+                                <input type="number" step="0.5" min="0.5" class="form-control form-control-sm"
+                                       name="{{ key }}_target_2_points"
+                                       value="{{ idx.target_2_points if idx else '' }}" required
+                                       placeholder="T2 pts">
+                            </td>
+                            <td>
+                                <input type="number" step="0.5" min="0.5" class="form-control form-control-sm"
+                                       name="{{ key }}_target_3_points"
+                                       value="{{ idx.target_3_points if idx else '' }}" required
+                                       placeholder="T3 pts">
+                            </td>
+                            <td>
+                                <input type="number" step="0.5" min="0.5" class="form-control form-control-sm"
                                        name="{{ key }}_sl_points"
-                                       value="{{ idx.sl_points if idx else '' }}" required>
+                                       value="{{ idx.sl_points if idx else '' }}" required
+                                       placeholder="SL pts">
                             </td>
                         </tr>
                         {% endfor %}

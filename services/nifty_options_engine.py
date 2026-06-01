@@ -1859,11 +1859,13 @@ class NiftyOptionsEngine:
             # SL/Target are admin-configurable absolute points, set PER INDEX
             # via Admin → F&O Settings. _compute_sl_tgt resolved once above this loop.
             try:
-                sl_points, target_points = _compute_sl_tgt(ltp, self.index)
+                sl_points, target_points, target_2_points, target_3_points = _compute_sl_tgt(ltp, self.index)
             except Exception as _cfg_err:
                 logger.warning(f"compute_sl_target_points failed, using legacy defaults: {_cfg_err}")
-                sl_points     = max(20, round(ltp * 0.10))
-                target_points = max(30, round(ltp * 0.15))
+                sl_points      = max(20, round(ltp * 0.10))
+                target_points  = max(30, round(ltp * 0.15))
+                target_2_points = max(50, round(ltp * 0.25))
+                target_3_points = max(70, round(ltp * 0.35))
 
             entry_price = ltp
             # Floor SL so it never crosses zero (cap at 0.05 minimum tick).
@@ -1877,8 +1879,12 @@ class NiftyOptionsEngine:
                     logger.info(f"Skipping {key}: premium {entry_price:.2f} too low for valid SL {sl_points}")
                     continue
                 sl_points = adjusted_sl
-                target_points = max(target_points, int(round(1.5 * sl_points)))
-            target = round(entry_price + target_points, 2)
+                target_points   = max(target_points,   int(round(1.5 * sl_points)))
+                target_2_points = max(target_2_points, int(round(2.5 * sl_points)))
+                target_3_points = max(target_3_points, int(round(3.5 * sl_points)))
+            target   = round(entry_price + target_points,   2)
+            target_2 = round(entry_price + target_2_points, 2)
+            target_3 = round(entry_price + target_3_points, 2)
             sl = round(max(MIN_TICK, entry_price - sl_points), 2)
 
             lot_value = ltp * self.lot_size
@@ -1893,8 +1899,12 @@ class NiftyOptionsEngine:
                 'entry_price': round(entry_price, 2),
                 'sl': sl,
                 'target': target,
+                'target_2': target_2,
+                'target_3': target_3,
                 'sl_points': sl_points,
                 'target_points': target_points,
+                'target_2_points': target_2_points,
+                'target_3_points': target_3_points,
                 'oi': opt_data.get('oi', 0),
                 'oi_change': opt_data.get('oi_change', 0),
                 'volume': opt_data.get('volume', 0),

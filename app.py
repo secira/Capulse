@@ -598,6 +598,14 @@ with app.app_context():
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_sl_points FLOAT DEFAULT 40.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_points FLOAT DEFAULT 60.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_telegram BOOLEAN DEFAULT TRUE',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS nifty_target_2_points FLOAT DEFAULT 50.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS nifty_target_3_points FLOAT DEFAULT 70.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_target_2_points FLOAT DEFAULT 100.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_target_3_points FLOAT DEFAULT 140.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_2_points FLOAT DEFAULT 50.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_3_points FLOAT DEFAULT 70.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_2_points FLOAT DEFAULT 100.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_3_points FLOAT DEFAULT 140.0',
         '''INSERT INTO fno_config (telegram_fields)
             SELECT 'header,direction,confidence,entry_mode,spot_atm,trades_list,active_trade,exit_reason,timestamp,dashboard_link'
             WHERE NOT EXISTS (SELECT 1 FROM fno_config)''',

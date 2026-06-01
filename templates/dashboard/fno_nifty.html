@@ -678,8 +678,10 @@ function buildTradeCard(t) {
                 '<div class="opt-data-grid" style="margin:0 -16px">' +
                     '<div class="opt-data-item"><span class="opt-data-lbl">Entry</span><span class="opt-data-val">₹' + fmt(t.entry_price) + '</span></div>' +
                     '<div class="opt-data-item"><span class="opt-data-lbl">R:R</span><span class="opt-data-val">' + t.risk_reward + '</span></div>' +
-                    '<div class="opt-data-item"><span class="opt-data-lbl">Target</span><span class="opt-data-val" style="color:#16a34a">₹' + fmt(t.target) + ' (+' + t.target_points + ')</span></div>' +
-                    '<div class="opt-data-item"><span class="opt-data-lbl">Stop Loss</span><span class="opt-data-val" style="color:#dc2626">₹' + fmt(t.sl) + ' (−' + t.sl_points + ')</span></div>' +
+                    '<div class="opt-data-item" style="background:#f0fdf4;border-radius:4px"><span class="opt-data-lbl" style="color:#15803d">🎯 T1</span><span class="opt-data-val" style="color:#16a34a">₹' + fmt(t.target) + ' (+' + t.target_points + ')</span></div>' +
+                    '<div class="opt-data-item" style="background:#f0fdf4;border-radius:4px"><span class="opt-data-lbl" style="color:#15803d">🎯 T2</span><span class="opt-data-val" style="color:#16a34a">₹' + fmt(t.target_2 || 0) + ' (+' + (t.target_2_points || 0) + ')</span></div>' +
+                    '<div class="opt-data-item" style="background:#f0fdf4;border-radius:4px"><span class="opt-data-lbl" style="color:#15803d">🎯 T3</span><span class="opt-data-val" style="color:#16a34a">₹' + fmt(t.target_3 || 0) + ' (+' + (t.target_3_points || 0) + ')</span></div>' +
+                    '<div class="opt-data-item" style="background:#fef2f2;border-radius:4px"><span class="opt-data-lbl" style="color:#dc2626">🛑 SL</span><span class="opt-data-val" style="color:#dc2626">₹' + fmt(t.sl) + ' (−' + t.sl_points + ')</span></div>' +
                     '<div class="opt-data-item"><span class="opt-data-lbl">Lots × Qty</span><span class="opt-data-val">' + suggestedLots + ' × ' + niftyLotSize + ' = ' + suggestedQty + '</span></div>' +
                     '<div class="opt-data-item"><span class="opt-data-lbl">Lot Value</span><span class="opt-data-val">₹' + formatINR(Math.round(lotVal)) + '</span></div>' +
                     '<div class="opt-data-item"><span class="opt-data-lbl">Max Loss/Lot</span><span class="opt-data-val" style="color:#dc2626">₹' + formatINR(Math.round(t.max_loss_per_lot || maxLossPerLot)) + '</span></div>' +
@@ -1160,8 +1162,10 @@ function loadActiveTrade() {
             var grid = [
                 {lbl:'Direction', val: at.direction, cls: at.direction === 'BULLISH' ? 'green' : 'red'},
                 {lbl:'Entry Price', val: '₹' + (at.entry_price||0).toFixed(0)},
-                {lbl:'Stop Loss', val: '₹' + (at.sl||0).toFixed(0), cls:'red'},
-                {lbl:'Target', val: '₹' + (at.target||0).toFixed(0), cls:'green'},
+                {lbl:'🛑 Stop Loss', val: '₹' + (at.sl||0).toFixed(0), cls:'red'},
+                {lbl:'🎯 T1', val: '₹' + (at.target||0).toFixed(0), cls:'green'},
+                {lbl:'🎯 T2', val: at.target_2 ? '₹' + (at.target_2||0).toFixed(0) : '—', cls:'green'},
+                {lbl:'🎯 T3', val: at.target_3 ? '₹' + (at.target_3||0).toFixed(0) : '—', cls:'green'},
                 {lbl:'Time In Trade', val: at.elapsed_min + ' min'},
                 {lbl:'Time Remaining', val: at.remaining_min + ' min'},
                 {lbl:'Confidence', val: at.confidence + '/100'},
@@ -1171,7 +1175,9 @@ function loadActiveTrade() {
                 return '<div class="at-item"><div class="at-lbl">' + g.lbl + '</div><div class="at-val' + (g.cls ? ' ' + g.cls : '') + '">' + g.val + '</div></div>';
             }).join('');
             document.getElementById('atGrid').innerHTML = gridHtml;
-            document.getElementById('atTimer').innerHTML = '⏱ Auto-exit in <strong>' + at.remaining_min + ' min</strong> · SL: ₹' + (at.sl||0).toFixed(0) + ' · Target: ₹' + (at.target||0).toFixed(0);
+            var t2str = at.target_2 ? ' · T2: ₹' + (at.target_2||0).toFixed(0) : '';
+            var t3str = at.target_3 ? ' · T3: ₹' + (at.target_3||0).toFixed(0) : '';
+            document.getElementById('atTimer').innerHTML = '⏱ Auto-exit in <strong>' + at.remaining_min + ' min</strong> · SL: ₹' + (at.sl||0).toFixed(0) + ' · T1: ₹' + (at.target||0).toFixed(0) + t2str + t3str;
 
         } else if (state === 'CONFIRMING') {
             _activeTradeData = null;
@@ -1243,8 +1249,10 @@ function loadSignalHistory() {
                 {lbl:'Option Type', val: optType, bg: '#f8fafc', color: '#1e293b'},
                 {lbl:'Entry Price', val: '₹' + (at.entry_price||0).toFixed(0), bg: '#f8fafc', color: '#1e293b'},
                 {lbl:'ATM Strike', val: at.atm_strike || '—', bg: '#f8fafc', color: '#1e293b'},
-                {lbl:'Stop Loss', val: '₹' + (at.sl||0).toFixed(0), bg: '#fef2f2', color: '#dc2626'},
-                {lbl:'Target', val: '₹' + (at.target||0).toFixed(0), bg: '#f0fdf4', color: '#15803d'},
+                {lbl:'🛑 Stop Loss', val: '₹' + (at.sl||0).toFixed(0), bg: '#fef2f2', color: '#dc2626'},
+                {lbl:'🎯 T1', val: '₹' + (at.target||0).toFixed(0), bg: '#f0fdf4', color: '#15803d'},
+                {lbl:'🎯 T2', val: at.target_2 ? '₹' + (at.target_2||0).toFixed(0) : '—', bg: '#f0fdf4', color: '#15803d'},
+                {lbl:'🎯 T3', val: at.target_3 ? '₹' + (at.target_3||0).toFixed(0) : '—', bg: '#f0fdf4', color: '#15803d'},
                 {lbl:'Time In Trade', val: elapsed + ' min', bg: '#f8fafc', color: '#1e293b'},
                 {lbl:'Time Remaining', val: remaining + ' min', bg: '#fefce8', color: '#a16207'},
             ];

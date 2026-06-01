@@ -34,10 +34,10 @@ _INDEX_KEYS = [k for k, _ in FNO_INDICES]
 # Sensible per-index defaults (absolute points). Indices trade at very
 # different premium levels, so the defaults differ.
 _INDEX_DEFAULTS: Dict[str, Dict[str, Any]] = {
-    "NIFTY":     {"sl_points": 20.0, "target_points": 30.0, "telegram": True},
-    "BANKNIFTY": {"sl_points": 40.0, "target_points": 60.0, "telegram": True},
-    "FINNIFTY":  {"sl_points": 20.0, "target_points": 30.0, "telegram": True},
-    "SENSEX":    {"sl_points": 40.0, "target_points": 60.0, "telegram": True},
+    "NIFTY":     {"sl_points": 20.0, "target_points": 30.0, "target_2_points": 50.0, "target_3_points": 70.0, "telegram": True},
+    "BANKNIFTY": {"sl_points": 40.0, "target_points": 60.0, "target_2_points": 100.0, "target_3_points": 140.0, "telegram": True},
+    "FINNIFTY":  {"sl_points": 20.0, "target_points": 30.0, "target_2_points": 50.0, "target_3_points": 70.0, "telegram": True},
+    "SENSEX":    {"sl_points": 40.0, "target_points": 60.0, "target_2_points": 100.0, "target_3_points": 140.0, "telegram": True},
 }
 
 
@@ -54,7 +54,7 @@ TELEGRAM_FIELDS: List[Tuple[str, str, bool, str]] = [
     ("confidence",    "Confidence score & grade",                  True,  "📊 Confidence: 82/100 (HIGH)"),
     ("entry_mode",    "Entry mode (CONFIRMED / EARLY / …)",        True,  "🎯 Entry Mode: CONFIRMED"),
     ("spot_atm",      "Spot price + ATM strike",                   True,  "💰 Spot: ₹24,150.00 | ATM: 24150"),
-    ("trades_list",   "Trade list (Symbol / Entry / Target / SL)", True,  "📗 NIFTY 24200 CE — Entry ₹120, Target ₹138, SL ₹108"),
+    ("trades_list",   "Trade list (Symbol / Entry / T1 / T2 / T3 / SL)", True,  "📗 NIFTY 24200 CE — Entry ₹120, T1 ₹138, T2 ₹158, T3 ₹178, SL ₹108"),
     ("active_trade",  "Active-trade live block (elapsed, LTP, PnL)", True,  "⏱ Running: 12 min | 18 min left  📈 LTP ₹135"),
     ("exit_reason",   "Exit reason (TRADE_EXIT only)",             True,  "🚪 Exit Reason: Target hit"),
     ("timestamp",     "IST timestamp",                             True,  "⏰ 24/05/2026 02:15 PM IST"),
@@ -99,6 +99,14 @@ def bootstrap_fno_config() -> None:
             ))
             db.session.execute(text(
                 f"ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS "
+                f"{_col(key, 'target_2_points')} FLOAT DEFAULT {d['target_2_points']}"
+            ))
+            db.session.execute(text(
+                f"ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS "
+                f"{_col(key, 'target_3_points')} FLOAT DEFAULT {d['target_3_points']}"
+            ))
+            db.session.execute(text(
+                f"ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS "
                 f"{_col(key, 'telegram')} BOOLEAN DEFAULT {'TRUE' if d['telegram'] else 'FALSE'}"
             ))
 
@@ -121,7 +129,7 @@ def get_fno_config() -> Dict[str, Any]:
     Shape:
         {
             "indices": {
-                "NIFTY":     {"sl_points": .., "target_points": .., "telegram": bool},
+                "NIFTY":     {"sl_points": .., "target_points": .., "target_2_points": .., "target_3_points": .., "telegram": bool},
                 "BANKNIFTY": {...}, "FINNIFTY": {...}, "SENSEX": {...},
             },
             "telegram_fields": [...],
@@ -130,7 +138,9 @@ def get_fno_config() -> Dict[str, Any]:
     try:
         select_cols = ["telegram_fields"]
         for key in _INDEX_KEYS:
-            select_cols += [_col(key, 'sl_points'), _col(key, 'target_points'), _col(key, 'telegram')]
+            select_cols += [_col(key, 'sl_points'), _col(key, 'target_points'),
+                            _col(key, 'target_2_points'), _col(key, 'target_3_points'),
+                            _col(key, 'telegram')]
         row = db.session.execute(text(
             f"SELECT {', '.join(select_cols)} FROM fno_config ORDER BY id ASC LIMIT 1"
         )).first()
@@ -145,13 +155,17 @@ def get_fno_config() -> Dict[str, Any]:
         indices: Dict[str, Dict[str, Any]] = {}
         for key in _INDEX_KEYS:
             d = _INDEX_DEFAULTS[key]
-            sl_raw = m.get(_col(key, 'sl_points'))
-            tg_raw = m.get(_col(key, 'target_points'))
+            sl_raw  = m.get(_col(key, 'sl_points'))
+            t1_raw  = m.get(_col(key, 'target_points'))
+            t2_raw  = m.get(_col(key, 'target_2_points'))
+            t3_raw  = m.get(_col(key, 'target_3_points'))
             tel_raw = m.get(_col(key, 'telegram'))
             indices[key] = {
-                "sl_points":     float(sl_raw if sl_raw is not None else d["sl_points"]),
-                "target_points": float(tg_raw if tg_raw is not None else d["target_points"]),
-                "telegram":      bool(tel_raw if tel_raw is not None else d["telegram"]),
+                "sl_points":       float(sl_raw  if sl_raw  is not None else d["sl_points"]),
+                "target_points":   float(t1_raw  if t1_raw  is not None else d["target_points"]),
+                "target_2_points": float(t2_raw  if t2_raw  is not None else d["target_2_points"]),
+                "target_3_points": float(t3_raw  if t3_raw  is not None else d["target_3_points"]),
+                "telegram":        bool(tel_raw  if tel_raw is not None else d["telegram"]),
             }
         return {"indices": indices, "telegram_fields": fields}
     except Exception as e:
@@ -179,16 +193,22 @@ def update_fno_config(
     for key in _INDEX_KEYS:
         d = _INDEX_DEFAULTS[key]
         cfg = indices.get(key, {}) or {}
-        sl = float(cfg.get("sl_points", d["sl_points"]))
-        tg = float(cfg.get("target_points", d["target_points"]))
-        tel = bool(cfg.get("telegram", d["telegram"]))
+        sl  = float(cfg.get("sl_points",       d["sl_points"]))
+        t1  = float(cfg.get("target_points",   d["target_points"]))
+        t2  = float(cfg.get("target_2_points", d["target_2_points"]))
+        t3  = float(cfg.get("target_3_points", d["target_3_points"]))
+        tel = bool(cfg.get("telegram",         d["telegram"]))
         set_clauses += [
             f"{_col(key, 'sl_points')} = :{key}_sl",
-            f"{_col(key, 'target_points')} = :{key}_tg",
+            f"{_col(key, 'target_points')} = :{key}_t1",
+            f"{_col(key, 'target_2_points')} = :{key}_t2",
+            f"{_col(key, 'target_3_points')} = :{key}_t3",
             f"{_col(key, 'telegram')} = :{key}_tel",
         ]
-        params[f"{key}_sl"] = sl
-        params[f"{key}_tg"] = tg
+        params[f"{key}_sl"]  = sl
+        params[f"{key}_t1"]  = t1
+        params[f"{key}_t2"]  = t2
+        params[f"{key}_t3"]  = t3
         params[f"{key}_tel"] = tel
 
     try:
@@ -214,8 +234,8 @@ def update_fno_config(
 
 
 # ── Helpers used by the options engine + monitor ─────────────────────────────
-def compute_sl_target_points(ltp: float, index: str = "NIFTY") -> Tuple[float, float]:
-    """Return (sl_points, target_points) for the given index.
+def compute_sl_target_points(ltp: float, index: str = "NIFTY") -> Tuple[float, float, float, float]:
+    """Return (sl_points, target_1_points, target_2_points, target_3_points) for the given index.
 
     Absolute points only — `ltp` is accepted for backward compatibility but the
     configured points are used directly. Each index has its own SL/Target points
@@ -223,7 +243,13 @@ def compute_sl_target_points(ltp: float, index: str = "NIFTY") -> Tuple[float, f
     index_key = (index or "NIFTY").upper()
     cfg = get_fno_config()
     idx = cfg["indices"].get(index_key) or _INDEX_DEFAULTS.get(index_key) or _INDEX_DEFAULTS["NIFTY"]
-    return float(idx["sl_points"]), float(idx["target_points"])
+    d   = _INDEX_DEFAULTS.get(index_key, _INDEX_DEFAULTS["NIFTY"])
+    return (
+        float(idx.get("sl_points",       d["sl_points"])),
+        float(idx.get("target_points",   d["target_points"])),
+        float(idx.get("target_2_points", d["target_2_points"])),
+        float(idx.get("target_3_points", d["target_3_points"])),
+    )
 
 
 def is_index_telegram_enabled(index: str) -> bool:

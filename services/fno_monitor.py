@@ -399,7 +399,12 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
                     msg += f"  🏷 Entry: ₹{entry_px:,.0f}\n"
                     if ltp:
                         msg += f"  {pnl_emoji} LTP: ₹{ltp:,.0f} ({'+' if pnl_pts >= 0 else ''}{pnl_pts:.0f} pts)\n"
-                    msg += f"  🛑 SL: ₹{sl_px:,.0f}  |  🎯 Target: ₹{tgt_px:,.0f}\n"
+                    t2_px  = active.get('target_2', 0)
+                    t3_px  = active.get('target_3', 0)
+                    t2_str = f"  🎯 T2: ₹{t2_px:,.0f}\n" if t2_px else ''
+                    t3_str = f"  🎯 T3: ₹{t3_px:,.0f}\n" if t3_px else ''
+                    msg += f"  🛑 SL: ₹{sl_px:,.0f}  |  🎯 T1: ₹{tgt_px:,.0f}\n"
+                    msg += t2_str + t3_str
         else:
             if 'trades_list' in enabled:
                 trades = signal_data.get('trades', [])
@@ -407,10 +412,12 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
                     msg += f"<b>Trades ({len(trades)}):</b>\n"
                     for t in trades[:3]:
                         t_emoji = '📗' if t.get('type') == 'CE' else '📕'
+                        t2_str = f", T2 ₹{t.get('target_2', 0):,.0f}" if t.get('target_2') else ''
+                        t3_str = f", T3 ₹{t.get('target_3', 0):,.0f}" if t.get('target_3') else ''
                         msg += (
                             f"{t_emoji} {t.get('symbol', '')} — "
                             f"Entry ₹{t.get('entry_price', 0):,.0f}, "
-                            f"Target ₹{t.get('target', 0):,.0f}, "
+                            f"T1 ₹{t.get('target', 0):,.0f}{t2_str}{t3_str}, "
                             f"SL ₹{t.get('sl', 0):,.0f}\n"
                         )
 
@@ -584,6 +591,8 @@ def _try_trigger_trade(analysis: dict, idx: str):
             'entry_price': atm_trade.get('entry_price', 0) if atm_trade else 0,
             'sl':          atm_trade.get('sl', 0) if atm_trade else 0,
             'target':      atm_trade.get('target', 0) if atm_trade else 0,
+            'target_2':    atm_trade.get('target_2', 0) if atm_trade else 0,
+            'target_3':    atm_trade.get('target_3', 0) if atm_trade else 0,
             'type':        atm_trade.get('type', '') if atm_trade else '',
             'data_source': analysis.get('data_source', ''),
             'index_id':    idx,
@@ -845,6 +854,8 @@ def get_monitor_status(index_id: str = 'NIFTY') -> dict:
             'entry_price': trade.get('entry_price'),
             'sl':          trade.get('sl'),
             'target':      trade.get('target'),
+            'target_2':    trade.get('target_2', 0),
+            'target_3':    trade.get('target_3', 0),
             'entry_time':  entry_time.strftime('%I:%M %p') if entry_time else None,
             'elapsed_min': elapsed,
             'remaining_min': remaining,

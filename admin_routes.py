@@ -91,18 +91,25 @@ def fno_settings():
             indices = {}
             for key, label in FNO_INDICES:
                 sl_pts  = float(request.form.get(f'{key}_sl_points') or 0)
-                tgt_pts = float(request.form.get(f'{key}_target_points') or 0)
-                if sl_pts <= 0 or tgt_pts <= 0:
-                    flash(f'{label}: Stop-Loss and Target points must be greater than zero.', 'error')
+                t1_pts  = float(request.form.get(f'{key}_target_points') or 0)
+                t2_pts  = float(request.form.get(f'{key}_target_2_points') or 0)
+                t3_pts  = float(request.form.get(f'{key}_target_3_points') or 0)
+                if sl_pts <= 0 or t1_pts <= 0 or t2_pts <= 0 or t3_pts <= 0:
+                    flash(f'{label}: All target and Stop-Loss points must be greater than zero.', 'error')
                     return redirect(url_for('admin.fno_settings'))
-                if sl_pts > 5000 or tgt_pts > 5000:
+                if max(sl_pts, t1_pts, t2_pts, t3_pts) > 5000:
                     flash(f'{label}: points look too large — please enter sensible values.', 'error')
                     return redirect(url_for('admin.fno_settings'))
+                if not (t1_pts < t2_pts < t3_pts):
+                    flash(f'{label}: T2 must be greater than T1, and T3 must be greater than T2.', 'error')
+                    return redirect(url_for('admin.fno_settings'))
                 indices[key] = {
-                    'sl_points':     sl_pts,
-                    'target_points': tgt_pts,
+                    'sl_points':       sl_pts,
+                    'target_points':   t1_pts,
+                    'target_2_points': t2_pts,
+                    'target_3_points': t3_pts,
                     # Checkbox present only when ticked.
-                    'telegram':      request.form.get(f'{key}_telegram') == '1',
+                    'telegram':        request.form.get(f'{key}_telegram') == '1',
                 }
 
             # Respect explicit empty selection — admin may want a minimal alert.
