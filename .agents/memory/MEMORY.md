@@ -1,0 +1,1 @@
+- [fno_config table bootstrap](fno-config-bootstrap.md) — the live fno_config schema is created by an inline SQL list in app.py, NOT by services/fno_config.bootstrap_fno_config() (which is dead/uncalled).

@@ -1816,7 +1816,7 @@ class NiftyOptionsEngine:
             from services.fno_config import compute_sl_target_points as _compute_sl_tgt
         except Exception as _cfg_err:
             logger.warning(f"fno_config import failed, using legacy defaults: {_cfg_err}")
-            def _compute_sl_tgt(ltp_):
+            def _compute_sl_tgt(ltp_, index=None):
                 return max(20, round(ltp_ * 0.10)), max(30, round(ltp_ * 0.15))
 
         for t in trades:
@@ -1856,10 +1856,10 @@ class NiftyOptionsEngine:
                 logger.info(f"Skipping {key}: premium overheated ({pct_chg:.1f}%)")
                 continue
 
-            # SL/Target are admin-configurable (percent-of-premium OR absolute points)
+            # SL/Target are admin-configurable absolute points, set PER INDEX
             # via Admin → F&O Settings. _compute_sl_tgt resolved once above this loop.
             try:
-                sl_points, target_points = _compute_sl_tgt(ltp)
+                sl_points, target_points = _compute_sl_tgt(ltp, self.index)
             except Exception as _cfg_err:
                 logger.warning(f"compute_sl_target_points failed, using legacy defaults: {_cfg_err}")
                 sl_points     = max(20, round(ltp * 0.10))

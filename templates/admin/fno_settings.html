@@ -7,8 +7,8 @@
     <div>
         <h2 class="mb-1"><i class="fas fa-sliders-h me-2 text-primary"></i>F&amp;O Settings</h2>
         <p class="text-muted mb-0 small">
-            Configure how Stop&nbsp;Loss / Target are calculated for the NIFTY Options engine
-            and which fields are included in F&amp;O Telegram alerts.
+            Configure per-index Stop&nbsp;Loss / Target points for the F&amp;O options engine,
+            which indices broadcast to Telegram, and which fields are included in F&amp;O Telegram alerts.
         </p>
     </div>
 </div>
@@ -26,90 +26,74 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <input type="hidden" name="telegram_fields_submitted" value="1"/>
 
-    <!-- ── SL / Target mode ────────────────────────────────────────────── -->
+    <!-- ── Per-index SL / Target points ──────────────────────────────────── -->
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white">
-            <h5 class="mb-0"><i class="fas fa-shield-alt me-2 text-danger"></i>Stop&nbsp;Loss &amp; Target Calculation</h5>
+            <h5 class="mb-0"><i class="fas fa-shield-alt me-2 text-danger"></i>Stop&nbsp;Loss &amp; Target — per Index</h5>
         </div>
         <div class="card-body">
             <p class="text-muted small mb-4">
-                Choose whether SL &amp; Target are a <strong>percent of the option premium (LTP)</strong>
-                or a fixed <strong>absolute number of points</strong>. The engine applies the chosen formula
-                to every signal it generates.
+                Set a fixed <strong>number of points</strong> for Stop&nbsp;Loss and Target for
+                <strong>each index</strong>. Because NIFTY, Bank&nbsp;Nifty, Sensex and Fin&nbsp;Nifty trade at
+                very different premium levels, each gets its own values. The engine applies these points
+                to every signal it generates for that index, and they appear in the Telegram alert.
             </p>
 
-            <div class="row g-4">
-                <!-- Stop Loss -->
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr class="small text-muted">
+                            <th style="min-width:140px;">Index</th>
+                            <th><i class="fas fa-bullseye me-1 text-success"></i>Target (points)</th>
+                            <th><i class="fas fa-hand-paper me-1 text-danger"></i>Stop&nbsp;Loss (points)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for key, label in fno_indices %}
+                        {% set idx = cfg.indices.get(key) %}
+                        <tr>
+                            <td class="fw-semibold">{{ label }}</td>
+                            <td>
+                                <input type="number" step="0.5" min="0.5" class="form-control"
+                                       name="{{ key }}_target_points"
+                                       value="{{ idx.target_points if idx else '' }}" required>
+                            </td>
+                            <td>
+                                <input type="number" step="0.5" min="0.5" class="form-control"
+                                       name="{{ key }}_sl_points"
+                                       value="{{ idx.sl_points if idx else '' }}" required>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Per-index Telegram broadcast selection ────────────────────────── -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="fab fa-telegram me-2 text-info"></i>Send to Telegram — per Index</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Tick the indices whose signals should be sent to Telegram. Unticked indices still appear
+                in the app but <strong>will not</strong> broadcast any Telegram messages.
+            </p>
+            <div class="row g-2">
+                {% for key, label in fno_indices %}
+                {% set idx = cfg.indices.get(key) %}
                 <div class="col-md-6">
-                    <div class="border rounded p-3 h-100" style="background:#fef2f2;">
-                        <h6 class="fw-bold text-danger mb-3"><i class="fas fa-hand-paper me-1"></i>Stop&nbsp;Loss</h6>
-
-                        <label class="form-label small fw-semibold mb-1">Mode</label>
-                        <div class="btn-group w-100 mb-3" role="group">
-                            <input type="radio" class="btn-check" name="sl_mode" id="sl_pct" value="percent"
-                                   {% if cfg.sl_mode == 'percent' %}checked{% endif %}>
-                            <label class="btn btn-outline-danger" for="sl_pct">% of Premium</label>
-
-                            <input type="radio" class="btn-check" name="sl_mode" id="sl_abs" value="absolute"
-                                   {% if cfg.sl_mode == 'absolute' %}checked{% endif %}>
-                            <label class="btn btn-outline-danger" for="sl_abs">Absolute (points)</label>
-                        </div>
-
-                        <label for="sl_value" class="form-label small fw-semibold mb-1">
-                            Value <span class="text-muted">(% or points)</span>
-                        </label>
-                        <input type="number" step="0.1" min="0.1" class="form-control" id="sl_value"
-                               name="sl_value" value="{{ cfg.sl_value }}" required>
-
-                        <label for="sl_floor" class="form-label small fw-semibold mb-1 mt-3">
-                            Minimum Floor (points) <span class="text-muted">— only applied in % mode</span>
-                        </label>
-                        <input type="number" step="1" min="0" class="form-control" id="sl_floor"
-                               name="sl_floor" value="{{ cfg.sl_floor }}">
-
-                        <p class="text-muted small mb-0 mt-3">
-                            Example: with <strong>{{ cfg.sl_value }}{% if cfg.sl_mode == 'percent' %}%{% else %} pts{% endif %}</strong>
-                            and LTP ₹120, SL =
-                            {% if cfg.sl_mode == 'percent' %}max({{ cfg.sl_floor|int }}, {{ cfg.sl_value }}% × 120) pts{% else %}{{ cfg.sl_value|int }} pts{% endif %}.
-                        </p>
+                    <div class="form-check border rounded p-3 h-100"
+                         style="background:{% if idx and idx.telegram %}#eff6ff{% else %}#fafafa{% endif %};">
+                        <input class="form-check-input" type="checkbox"
+                               id="tel_{{ key }}" name="{{ key }}_telegram" value="1"
+                               {% if idx and idx.telegram %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold w-100" for="tel_{{ key }}">{{ label }}</label>
                     </div>
                 </div>
-
-                <!-- Target -->
-                <div class="col-md-6">
-                    <div class="border rounded p-3 h-100" style="background:#f0fdf4;">
-                        <h6 class="fw-bold text-success mb-3"><i class="fas fa-bullseye me-1"></i>Target</h6>
-
-                        <label class="form-label small fw-semibold mb-1">Mode</label>
-                        <div class="btn-group w-100 mb-3" role="group">
-                            <input type="radio" class="btn-check" name="target_mode" id="tg_pct" value="percent"
-                                   {% if cfg.target_mode == 'percent' %}checked{% endif %}>
-                            <label class="btn btn-outline-success" for="tg_pct">% of Premium</label>
-
-                            <input type="radio" class="btn-check" name="target_mode" id="tg_abs" value="absolute"
-                                   {% if cfg.target_mode == 'absolute' %}checked{% endif %}>
-                            <label class="btn btn-outline-success" for="tg_abs">Absolute (points)</label>
-                        </div>
-
-                        <label for="target_value" class="form-label small fw-semibold mb-1">
-                            Value <span class="text-muted">(% or points)</span>
-                        </label>
-                        <input type="number" step="0.1" min="0.1" class="form-control" id="target_value"
-                               name="target_value" value="{{ cfg.target_value }}" required>
-
-                        <label for="target_floor" class="form-label small fw-semibold mb-1 mt-3">
-                            Minimum Floor (points) <span class="text-muted">— only applied in % mode</span>
-                        </label>
-                        <input type="number" step="1" min="0" class="form-control" id="target_floor"
-                               name="target_floor" value="{{ cfg.target_floor }}">
-
-                        <p class="text-muted small mb-0 mt-3">
-                            Example: with <strong>{{ cfg.target_value }}{% if cfg.target_mode == 'percent' %}%{% else %} pts{% endif %}</strong>
-                            and LTP ₹120, Target =
-                            {% if cfg.target_mode == 'percent' %}max({{ cfg.target_floor|int }}, {{ cfg.target_value }}% × 120) pts{% else %}{{ cfg.target_value|int }} pts{% endif %}.
-                        </p>
-                    </div>
-                </div>
+                {% endfor %}
             </div>
         </div>
     </div>

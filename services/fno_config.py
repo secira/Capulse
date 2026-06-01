@@ -2,12 +2,13 @@
 F&O configuration service.
 
 Single-row table `fno_config` controls:
-  - SL/Target mode (percent of premium  OR  absolute points)
-  - SL/Target value
+  - Per-index Stop-Loss / Target points (absolute points only — no percent mode)
+  - Per-index "send to Telegram" flag (only ticked indices broadcast alerts)
   - Which fields are included in F&O Telegram alerts
 
 Admin manages everything from  Admin → F&O Settings.
-Engine + monitor read via get_fno_config().
+Engine + monitor read via get_fno_config() / compute_sl_target_points() /
+is_index_telegram_enabled().
 """
 from __future__ import annotations
 
@@ -19,6 +20,31 @@ from sqlalchemy import text
 from app import db
 
 logger = logging.getLogger(__name__)
+
+# ── Indices ──────────────────────────────────────────────────────────────────
+# (key, display label) — keep in sync with services/fno_monitor.SCAN_INDICES.
+FNO_INDICES: List[Tuple[str, str]] = [
+    ("NIFTY",     "NIFTY 50"),
+    ("BANKNIFTY", "Bank Nifty"),
+    ("FINNIFTY",  "Fin Nifty"),
+    ("SENSEX",    "SENSEX"),
+]
+_INDEX_KEYS = [k for k, _ in FNO_INDICES]
+
+# Sensible per-index defaults (absolute points). Indices trade at very
+# different premium levels, so the defaults differ.
+_INDEX_DEFAULTS: Dict[str, Dict[str, Any]] = {
+    "NIFTY":     {"sl_points": 20.0, "target_points": 30.0, "telegram": True},
+    "BANKNIFTY": {"sl_points": 40.0, "target_points": 60.0, "telegram": True},
+    "FINNIFTY":  {"sl_points": 20.0, "target_points": 30.0, "telegram": True},
+    "SENSEX":    {"sl_points": 40.0, "target_points": 60.0, "telegram": True},
+}
+
+
+def _col(index_key: str, suffix: str) -> str:
+    """Return the table column name for a given index + suffix."""
+    return f"{index_key.lower()}_{suffix}"
+
 
 # ── Telegram field catalogue ─────────────────────────────────────────────────
 # (key, label, default_on, description)
@@ -37,38 +63,49 @@ TELEGRAM_FIELDS: List[Tuple[str, str, bool, str]] = [
 
 DEFAULT_TELEGRAM_FIELDS: List[str] = [k for k, _, on, _ in TELEGRAM_FIELDS if on]
 
-_DEFAULTS: Dict[str, Any] = {
-    "sl_mode":         "percent",   # percent | absolute
-    "sl_value":        10.0,        # 10% of premium  OR  10 points
-    "sl_floor":        20.0,        # minimum SL points (only applied when sl_mode=percent)
-    "target_mode":     "percent",
-    "target_value":    15.0,
-    "target_floor":    30.0,
-    "telegram_fields": DEFAULT_TELEGRAM_FIELDS,
-}
+
+def _default_indices() -> Dict[str, Dict[str, Any]]:
+    """Deep copy of the per-index defaults."""
+    return {k: dict(v) for k, v in _INDEX_DEFAULTS.items()}
 
 
 # ── Bootstrap ────────────────────────────────────────────────────────────────
 def bootstrap_fno_config() -> None:
-    """Create the table + seed the single row if missing. Idempotent."""
+    """Create the table + seed the single row if missing. Idempotent.
+
+    The legacy percent-mode columns (sl_mode/sl_value/… ) are left untouched for
+    backward compatibility; new per-index point columns are added on the fly."""
     try:
+        # Base table (legacy columns kept so older deployments don't break).
         db.session.execute(text("""
             CREATE TABLE IF NOT EXISTS fno_config (
                 id              SERIAL PRIMARY KEY,
-                sl_mode         VARCHAR(10)  DEFAULT 'percent',
-                sl_value        FLOAT        DEFAULT 10.0,
-                sl_floor        FLOAT        DEFAULT 20.0,
-                target_mode     VARCHAR(10)  DEFAULT 'percent',
-                target_value    FLOAT        DEFAULT 15.0,
-                target_floor    FLOAT        DEFAULT 30.0,
                 telegram_fields TEXT         DEFAULT '',
                 updated_at      TIMESTAMP    DEFAULT NOW(),
                 updated_by      VARCHAR(100)
             )
         """))
+
+        # Per-index point + telegram columns (additive, safe to re-run).
+        for key in _INDEX_KEYS:
+            d = _INDEX_DEFAULTS[key]
+            db.session.execute(text(
+                f"ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS "
+                f"{_col(key, 'sl_points')} FLOAT DEFAULT {d['sl_points']}"
+            ))
+            db.session.execute(text(
+                f"ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS "
+                f"{_col(key, 'target_points')} FLOAT DEFAULT {d['target_points']}"
+            ))
+            db.session.execute(text(
+                f"ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS "
+                f"{_col(key, 'telegram')} BOOLEAN DEFAULT {'TRUE' if d['telegram'] else 'FALSE'}"
+            ))
+
+        # Seed the single row if the table is empty.
         db.session.execute(text("""
-            INSERT INTO fno_config (sl_mode, sl_value, sl_floor, target_mode, target_value, target_floor, telegram_fields)
-            SELECT 'percent', 10.0, 20.0, 'percent', 15.0, 30.0, :fields
+            INSERT INTO fno_config (telegram_fields)
+            SELECT :fields
             WHERE NOT EXISTS (SELECT 1 FROM fno_config)
         """), {"fields": ",".join(DEFAULT_TELEGRAM_FIELDS)})
         db.session.commit()
@@ -79,79 +116,96 @@ def bootstrap_fno_config() -> None:
 
 # ── Read / Write ─────────────────────────────────────────────────────────────
 def get_fno_config() -> Dict[str, Any]:
-    """Return current config as a plain dict. Never raises — falls back to defaults."""
-    try:
-        row = db.session.execute(text("""
-            SELECT sl_mode, sl_value, sl_floor, target_mode, target_value, target_floor, telegram_fields
-            FROM fno_config ORDER BY id ASC LIMIT 1
-        """)).first()
-        if not row:
-            return dict(_DEFAULTS)
-        fields_csv = (row[6] or "").strip()
-        fields = [f.strip() for f in fields_csv.split(",") if f.strip()] if fields_csv else list(DEFAULT_TELEGRAM_FIELDS)
-        return {
-            "sl_mode":         row[0] or "percent",
-            "sl_value":        float(row[1] or 10.0),
-            "sl_floor":        float(row[2] or 20.0),
-            "target_mode":     row[3] or "percent",
-            "target_value":    float(row[4] or 15.0),
-            "target_floor":    float(row[5] or 30.0),
-            "telegram_fields": fields,
+    """Return current config as a plain dict. Never raises — falls back to defaults.
+
+    Shape:
+        {
+            "indices": {
+                "NIFTY":     {"sl_points": .., "target_points": .., "telegram": bool},
+                "BANKNIFTY": {...}, "FINNIFTY": {...}, "SENSEX": {...},
+            },
+            "telegram_fields": [...],
         }
+    """
+    try:
+        select_cols = ["telegram_fields"]
+        for key in _INDEX_KEYS:
+            select_cols += [_col(key, 'sl_points'), _col(key, 'target_points'), _col(key, 'telegram')]
+        row = db.session.execute(text(
+            f"SELECT {', '.join(select_cols)} FROM fno_config ORDER BY id ASC LIMIT 1"
+        )).first()
+
+        if not row:
+            return {"indices": _default_indices(), "telegram_fields": list(DEFAULT_TELEGRAM_FIELDS)}
+
+        m = row._mapping
+        fields_csv = (m.get("telegram_fields") or "").strip()
+        fields = [f.strip() for f in fields_csv.split(",") if f.strip()] if fields_csv else list(DEFAULT_TELEGRAM_FIELDS)
+
+        indices: Dict[str, Dict[str, Any]] = {}
+        for key in _INDEX_KEYS:
+            d = _INDEX_DEFAULTS[key]
+            sl_raw = m.get(_col(key, 'sl_points'))
+            tg_raw = m.get(_col(key, 'target_points'))
+            tel_raw = m.get(_col(key, 'telegram'))
+            indices[key] = {
+                "sl_points":     float(sl_raw if sl_raw is not None else d["sl_points"]),
+                "target_points": float(tg_raw if tg_raw is not None else d["target_points"]),
+                "telegram":      bool(tel_raw if tel_raw is not None else d["telegram"]),
+            }
+        return {"indices": indices, "telegram_fields": fields}
     except Exception as e:
         logger.warning(f"get_fno_config failed, returning defaults: {e}")
         try:
             db.session.rollback()
         except Exception:
             pass
-        return dict(_DEFAULTS)
+        return {"indices": _default_indices(), "telegram_fields": list(DEFAULT_TELEGRAM_FIELDS)}
 
 
 def update_fno_config(
     *,
-    sl_mode: str,
-    sl_value: float,
-    sl_floor: float,
-    target_mode: str,
-    target_value: float,
-    target_floor: float,
+    indices: Dict[str, Dict[str, Any]],
     telegram_fields: List[str],
     updated_by: str = "admin",
 ) -> None:
-    """Upsert the single config row."""
-    sl_mode = sl_mode if sl_mode in ("percent", "absolute") else "percent"
-    target_mode = target_mode if target_mode in ("percent", "absolute") else "percent"
+    """Upsert the single config row with per-index points + telegram flags."""
     valid_keys = {k for k, _, _, _ in TELEGRAM_FIELDS}
     fields_csv = ",".join([f for f in telegram_fields if f in valid_keys])
 
+    set_clauses = ["telegram_fields = :fields", "updated_at = NOW()", "updated_by = :by"]
+    params: Dict[str, Any] = {"fields": fields_csv, "by": updated_by}
+
+    for key in _INDEX_KEYS:
+        d = _INDEX_DEFAULTS[key]
+        cfg = indices.get(key, {}) or {}
+        sl = float(cfg.get("sl_points", d["sl_points"]))
+        tg = float(cfg.get("target_points", d["target_points"]))
+        tel = bool(cfg.get("telegram", d["telegram"]))
+        set_clauses += [
+            f"{_col(key, 'sl_points')} = :{key}_sl",
+            f"{_col(key, 'target_points')} = :{key}_tg",
+            f"{_col(key, 'telegram')} = :{key}_tel",
+        ]
+        params[f"{key}_sl"] = sl
+        params[f"{key}_tg"] = tg
+        params[f"{key}_tel"] = tel
+
     try:
-        # Try update first
-        result = db.session.execute(text("""
-            UPDATE fno_config SET
-                sl_mode = :sl_mode,
-                sl_value = :sl_value,
-                sl_floor = :sl_floor,
-                target_mode = :target_mode,
-                target_value = :target_value,
-                target_floor = :target_floor,
-                telegram_fields = :fields,
-                updated_at = NOW(),
-                updated_by = :by
-            WHERE id = (SELECT id FROM fno_config ORDER BY id ASC LIMIT 1)
-        """), {
-            "sl_mode": sl_mode, "sl_value": sl_value, "sl_floor": sl_floor,
-            "target_mode": target_mode, "target_value": target_value, "target_floor": target_floor,
-            "fields": fields_csv, "by": updated_by,
-        })
+        result = db.session.execute(text(
+            f"UPDATE fno_config SET {', '.join(set_clauses)} "
+            f"WHERE id = (SELECT id FROM fno_config ORDER BY id ASC LIMIT 1)"
+        ), params)
+
         if result.rowcount == 0:
-            db.session.execute(text("""
-                INSERT INTO fno_config (sl_mode, sl_value, sl_floor, target_mode, target_value, target_floor, telegram_fields, updated_by)
-                VALUES (:sl_mode, :sl_value, :sl_floor, :target_mode, :target_value, :target_floor, :fields, :by)
-            """), {
-                "sl_mode": sl_mode, "sl_value": sl_value, "sl_floor": sl_floor,
-                "target_mode": target_mode, "target_value": target_value, "target_floor": target_floor,
-                "fields": fields_csv, "by": updated_by,
-            })
+            # No row yet — insert one then re-apply the values.
+            db.session.execute(text(
+                "INSERT INTO fno_config (telegram_fields) VALUES (:fields)"
+            ), {"fields": fields_csv})
+            db.session.execute(text(
+                f"UPDATE fno_config SET {', '.join(set_clauses)} "
+                f"WHERE id = (SELECT id FROM fno_config ORDER BY id ASC LIMIT 1)"
+            ), params)
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -159,18 +213,29 @@ def update_fno_config(
         raise
 
 
-# ── Helper used by the options engine ────────────────────────────────────────
-def compute_sl_target_points(ltp: float) -> Tuple[float, float]:
-    """Return (sl_points, target_points) for a given option premium, honouring
-    the admin-configured mode (percent vs absolute) and the minimum floors.
-    Floors only apply in percent mode."""
+# ── Helpers used by the options engine + monitor ─────────────────────────────
+def compute_sl_target_points(ltp: float, index: str = "NIFTY") -> Tuple[float, float]:
+    """Return (sl_points, target_points) for the given index.
+
+    Absolute points only — `ltp` is accepted for backward compatibility but the
+    configured points are used directly. Each index has its own SL/Target points
+    configured in Admin → F&O Settings."""
+    index_key = (index or "NIFTY").upper()
     cfg = get_fno_config()
-    if cfg["sl_mode"] == "absolute":
-        sl_points = float(cfg["sl_value"])
-    else:
-        sl_points = max(float(cfg["sl_floor"]), round(ltp * (float(cfg["sl_value"]) / 100.0)))
-    if cfg["target_mode"] == "absolute":
-        target_points = float(cfg["target_value"])
-    else:
-        target_points = max(float(cfg["target_floor"]), round(ltp * (float(cfg["target_value"]) / 100.0)))
-    return sl_points, target_points
+    idx = cfg["indices"].get(index_key) or _INDEX_DEFAULTS.get(index_key) or _INDEX_DEFAULTS["NIFTY"]
+    return float(idx["sl_points"]), float(idx["target_points"])
+
+
+def is_index_telegram_enabled(index: str) -> bool:
+    """Return True if the given index is allowed to broadcast Telegram alerts."""
+    index_key = (index or "").upper()
+    try:
+        cfg = get_fno_config()
+        idx = cfg["indices"].get(index_key)
+        if idx is None:
+            # Unknown index — default to the per-index default (or True).
+            return bool(_INDEX_DEFAULTS.get(index_key, {}).get("telegram", True))
+        return bool(idx["telegram"])
+    except Exception as e:
+        logger.warning(f"is_index_telegram_enabled failed for {index}: {e}")
+        return True

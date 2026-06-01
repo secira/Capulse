@@ -312,6 +312,16 @@ def _dispatch_partner_webhook(signal_data: dict, index_id: str) -> None:
 
 def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
     try:
+        # Per-index Telegram gate — Admin → F&O Settings lets the admin pick which
+        # indices broadcast to Telegram. Skip silently if this index is de-selected.
+        try:
+            from services.fno_config import is_index_telegram_enabled
+            if not is_index_telegram_enabled(index_id):
+                logger.info(f"[{index_id}] Telegram alert skipped — index de-selected in F&O Settings")
+                return False
+        except Exception as _gate_err:
+            logger.warning(f"[{index_id}] telegram gate check failed (continuing): {_gate_err}")
+
         # Resolve env vars at CALL time via the shared helper. On Railway some
         # deployments populate env after gunicorn imports modules, so reading
         # TELEGRAM_BOT_TOKEN at import-time used to return '' for the lifetime

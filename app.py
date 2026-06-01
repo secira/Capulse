@@ -577,22 +577,29 @@ with app.app_context():
         '''INSERT INTO data_source_config (source_key, display_name, description, icon, is_active)
            VALUES ('user_custom', 'User Data Source', 'Manual CSV upload or custom data input for backtesting and historical analysis.', 'fa-upload', false)
            ON CONFLICT (source_key) DO NOTHING''',
-        # F&O admin-configurable settings (SL/Target mode + Telegram field selector)
+        # F&O admin-configurable settings (per-index SL/Target points + Telegram field selector)
         '''CREATE TABLE IF NOT EXISTS fno_config (
             id              SERIAL PRIMARY KEY,
-            sl_mode         VARCHAR(10)  DEFAULT 'percent',
-            sl_value        FLOAT        DEFAULT 10.0,
-            sl_floor        FLOAT        DEFAULT 20.0,
-            target_mode     VARCHAR(10)  DEFAULT 'percent',
-            target_value    FLOAT        DEFAULT 15.0,
-            target_floor    FLOAT        DEFAULT 30.0,
             telegram_fields TEXT         DEFAULT '',
             updated_at      TIMESTAMP    DEFAULT NOW(),
             updated_by      VARCHAR(100)
         )''',
-        '''INSERT INTO fno_config (sl_mode, sl_value, sl_floor, target_mode, target_value, target_floor, telegram_fields)
-            SELECT 'percent', 10.0, 20.0, 'percent', 15.0, 30.0,
-                   'header,direction,confidence,entry_mode,spot_atm,trades_list,active_trade,exit_reason,timestamp,dashboard_link'
+        # Per-index absolute SL/Target points + per-index Telegram broadcast flag.
+        # Additive ALTERs keep older deployments (legacy percent columns) working.
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS nifty_sl_points FLOAT DEFAULT 20.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS nifty_target_points FLOAT DEFAULT 30.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS nifty_telegram BOOLEAN DEFAULT TRUE',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_sl_points FLOAT DEFAULT 40.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_target_points FLOAT DEFAULT 60.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_telegram BOOLEAN DEFAULT TRUE',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_sl_points FLOAT DEFAULT 20.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_points FLOAT DEFAULT 30.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_telegram BOOLEAN DEFAULT TRUE',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_sl_points FLOAT DEFAULT 40.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_points FLOAT DEFAULT 60.0',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_telegram BOOLEAN DEFAULT TRUE',
+        '''INSERT INTO fno_config (telegram_fields)
+            SELECT 'header,direction,confidence,entry_mode,spot_atm,trades_list,active_trade,exit_reason,timestamp,dashboard_link'
             WHERE NOT EXISTS (SELECT 1 FROM fno_config)''',
         '''CREATE TABLE IF NOT EXISTS fno_signal_history (
             id SERIAL PRIMARY KEY,
