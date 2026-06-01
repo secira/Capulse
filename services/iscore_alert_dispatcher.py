@@ -76,10 +76,31 @@ def _fire_premarket_report():
     return send_premarket_report()
 
 
+def _fire_fno_signals_test():
+    """Send a sample F&O teaser message so admin can verify the channel works.
+    Uses the same teaser builder as the live monitor — no real signal data."""
+    from services.messaging_service import send_telegram_message
+    from datetime import datetime, timedelta
+    ist = datetime.utcnow() + timedelta(hours=5, minutes=30)
+    ts  = ist.strftime('%d %b %Y, %I:%M %p')
+    msg = (
+        "🔒 <b>NIFTY 50 — New Trade Signal</b> · <code>NIFTYT01</code>\n\n"
+        "🟢 <b>Direction:</b> BULLISH\n"
+        "⭐ <b>Conviction:</b> High\n"
+        f"⏰ <i>{ts} IST</i>\n\n"
+        "🔐 <i>Full entry, Stop-Loss &amp; Targets are exclusive to Target Capital members.</i>\n\n"
+        "👉 <a href='https://www.targetcapital.ai/dashboard/fno/nifty'>View Signal on Target Capital →</a>\n"
+        "🚀 <a href='https://www.targetcapital.ai/pricing'>Start Free Trial — targetcapital.ai</a>\n\n"
+        "<i>— This is a test message from Admin → Alert Schedules</i>"
+    )
+    return send_telegram_message(msg, parse_mode='HTML')
+
+
 # Mapping schedule_key (alert_schedule.schedule_key) → callable that fires
 # the alert. The admin "Send Now" button and the scheduler both look up
 # alerts through this registry.
 SCHEDULE_REGISTRY = {
+    'fno_signals':         lambda: _fire_fno_signals_test(),
     'top10_digest':        lambda: _fire_top10_digest(),
     'premarket_report':    lambda: _fire_premarket_report(),
     'snapshot_opening':    lambda: _fire_market_snapshot('opening'),
