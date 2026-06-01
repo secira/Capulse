@@ -18,7 +18,7 @@ openai>=1.99.9
 razorpay>=1.4.2
 sendgrid>=6.12.4
 requests-cache>=1.2.1
-dhanhq>=2.0.2
+dhanhq==2.0.2
 kiteconnect>=5.0.1
 smartapi-python>=1.5.5
 cryptography>=45.0.6
@@ -62,5 +62,4 @@ breeze-connect>=1.0.67
 apscheduler>=3.11.2
 pyotp>=2.9.0
 pytz>=2025.2
-dhanhq==2.0.2
 logzero
