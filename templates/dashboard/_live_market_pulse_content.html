@@ -625,40 +625,35 @@
             <h6 class="lmp-card-title">
                 <i class="fas fa-th-large" style="font-size:12px; color:#666666;"></i>
                 Nifty 50 Heat Map
-                <span class="lmp-card-sub">· sized by index weight, coloured by day change</span>
-                {% if nifty50_source == 'nse' %}
+                <span class="lmp-card-sub">· sized by market cap, coloured by day change</span>
                 <span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#15803d;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:6px;">
-                    <span style="width:6px;height:6px;background:#16a34a;border-radius:50%;display:inline-block;"></span>Live · NSE
+                    <span style="width:6px;height:6px;background:#16a34a;border-radius:50%;display:inline-block;"></span>Live · TradingView
                 </span>
-                {% elif nifty50_source == 'yfinance' %}
-                <span style="display:inline-flex;align-items:center;gap:4px;background:#fef9c3;color:#854d0e;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:6px;">
-                    <span style="width:6px;height:6px;background:#ca8a04;border-radius:50%;display:inline-block;"></span>Delayed · yfinance
-                </span>
-                {% else %}
-                <span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;color:#64748b;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:6px;">
-                    <i class="fas fa-exclamation-circle" style="font-size:9px;"></i> No Data
-                </span>
-                {% endif %}
             </h6>
-            <div class="hm-legend">
-                <div class="hm-leg"><div class="hm-sq" style="background:#14532d;"></div>&gt;+2%</div>
-                <div class="hm-leg"><div class="hm-sq" style="background:#4ade80;"></div>+0–2%</div>
-                <div class="hm-leg"><div class="hm-sq" style="background:#94a3b8;"></div>Flat</div>
-                <div class="hm-leg"><div class="hm-sq" style="background:#f87171;"></div>0–2%</div>
-                <div class="hm-leg"><div class="hm-sq" style="background:#7f1d1d;"></div>&lt;-2%</div>
+        </div>
+        <div style="background:#ffffff; border-radius:0 0 8px 8px; overflow:hidden;">
+            <div class="tradingview-widget-container" style="height:550px;">
+                <div class="tradingview-widget-container__widget" style="height:100%;"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js" async>
+                {
+                  "exchanges": [],
+                  "dataSource": "NIFTY50",
+                  "grouping": "sector",
+                  "blockSize": "market_cap_basic",
+                  "blockColor": "change",
+                  "locale": "en",
+                  "colorTheme": "light",
+                  "hasTopBar": false,
+                  "isDataSetEnabled": false,
+                  "isZoomEnabled": true,
+                  "hasSymbolTooltip": true,
+                  "isMonoSize": false,
+                  "width": "100%",
+                  "height": "100%"
+                }
+                </script>
             </div>
         </div>
-        {% if nifty50_source == 'unavailable' %}
-        <div style="padding:48px 24px;text-align:center;color:#94a3b8;">
-            <i class="fas fa-satellite-dish" style="font-size:32px;display:block;margin-bottom:12px;opacity:.4;"></i>
-            <div style="font-size:14px;font-weight:600;color:#64748b;">Heat map data unavailable</div>
-            <div style="font-size:12px;margin-top:4px;">NSE API could not be reached. Please refresh the page to retry.</div>
-        </div>
-        {% else %}
-        <div style="background:#ffffff;">
-            <div id="treemapWrap" style="width:100%;"></div>
-        </div>
-        {% endif %}
     </div>
 </div>
 
@@ -671,94 +666,40 @@
             <h6 class="lmp-card-title">
                 <i class="fas fa-fire-alt" style="font-size:12px; color:#666666;"></i>
                 Market Movers
+                <span class="lmp-card-sub">· NSE top gainers, losers &amp; most active</span>
+                <span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#15803d;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:6px;">
+                    <span style="width:6px;height:6px;background:#16a34a;border-radius:50%;display:inline-block;"></span>Live · TradingView
+                </span>
             </h6>
-            <div class="mv-tabs">
-                <button class="mv-tab active" onclick="mvTab('g',this)">
-                    <i class="fas fa-arrow-up me-1" style="font-size:9px; color:#16a34a;"></i>Gainers
-                </button>
-                <button class="mv-tab" onclick="mvTab('l',this)">
-                    <i class="fas fa-arrow-down me-1" style="font-size:9px; color:#dc2626;"></i>Losers
-                </button>
-                <button class="mv-tab" onclick="mvTab('a',this)">
-                    <i class="fas fa-bolt me-1" style="font-size:9px; color:#ca8a04;"></i>Top Volume
-                </button>
+        </div>
+        <div style="background:#ffffff; border-radius:0 0 8px 8px; overflow:hidden;">
+            <div class="tradingview-widget-container" style="height:550px;">
+                <div class="tradingview-widget-container__widget" style="height:100%;"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-hotlists.js" async>
+                {
+                  "colorTheme": "light",
+                  "dateRange": "1D",
+                  "exchange": "NSE",
+                  "showChart": true,
+                  "locale": "en",
+                  "width": "100%",
+                  "height": "100%",
+                  "isTransparent": false,
+                  "showSymbolLogo": true,
+                  "showFloatingTooltip": true,
+                  "plotLineColorGrowing": "rgba(22,163,74,1)",
+                  "plotLineColorFalling": "rgba(220,38,38,1)",
+                  "gridLineColor": "rgba(240,243,250,0)",
+                  "scaleFontColor": "rgba(19,23,34,1)",
+                  "belowLineFillColorGrowing": "rgba(22,163,74,0.10)",
+                  "belowLineFillColorFalling": "rgba(220,38,38,0.10)",
+                  "belowLineFillColorGrowingBottom": "rgba(22,163,74,0)",
+                  "belowLineFillColorFallingBottom": "rgba(220,38,38,0)",
+                  "symbolActiveColor": "rgba(22,163,74,0.12)"
+                }
+                </script>
             </div>
         </div>
-
-        <div id="mvp-g" class="mv-pane active">
-            {% for s in top_gainers %}{% set ci = loop.index0 % 10 %}
-            <div class="mv-row">
-                <div class="mv-av avc{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
-                <div class="mv-name">
-                    <div class="mv-sym">{{ s.symbol }}</div>
-                    <div class="mv-co">{{ (s.company_name or '')[:42] }}</div>
-                </div>
-                <div class="mv-r">
-                    <div class="mv-price">₹{{ "{:,.2f}".format(s.current_price|float) }}</div>
-                    <div class="mv-chg up"><i class="fas fa-caret-up" style="font-size:10px;"></i> {{ "{:.2f}".format(s.change_percent|float) }}%</div>
-                </div>
-            </div>
-            {% else %}
-            <div class="text-center py-5" style="color:#999999; font-size:13px;">
-                <i class="fas fa-database" style="font-size:24px; display:block; opacity:.3; margin-bottom:8px;"></i>
-                No live data available right now
-            </div>
-            {% endfor %}
-            {% if top_gainers %}<a class="view-all-link" href="#" onclick="openMoversModal('g');return false;">view all ›</a>{% endif %}
-        </div>
-
-        <div id="mvp-l" class="mv-pane">
-            {% for s in top_losers %}{% set ci = loop.index0 % 10 %}
-            <div class="mv-row">
-                <div class="mv-av avc{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
-                <div class="mv-name">
-                    <div class="mv-sym">{{ s.symbol }}</div>
-                    <div class="mv-co">{{ (s.company_name or '')[:42] }}</div>
-                </div>
-                <div class="mv-r">
-                    <div class="mv-price">₹{{ "{:,.2f}".format(s.current_price|float) }}</div>
-                    <div class="mv-chg dn"><i class="fas fa-caret-down" style="font-size:10px;"></i> {{ "{:.2f}".format(s.change_percent|float|abs) }}%</div>
-                </div>
-            </div>
-            {% else %}
-            <div class="text-center py-5" style="color:#999999; font-size:13px;">
-                <i class="fas fa-database" style="font-size:24px; display:block; opacity:.3; margin-bottom:8px;"></i>
-                No live data available right now
-            </div>
-            {% endfor %}
-            {% if top_losers %}<a class="view-all-link" href="#" onclick="openMoversModal('l');return false;">view all ›</a>{% endif %}
-        </div>
-
-        <div id="mvp-a" class="mv-pane">
-            {% for s in most_active %}{% set ci = loop.index0 % 10 %}{% set c = s.change_percent|float %}
-            <div class="mv-row">
-                <div class="mv-av avc{{ ci }}">{{ (s.symbol or 'S')[:2] }}</div>
-                <div class="mv-name">
-                    <div class="mv-sym">{{ s.symbol }}</div>
-                    <div class="mv-co">
-                        {% set vol = s.volume|int %}
-                        {% if vol >= 10000000 %}{{ "%.1f"|format(vol/10000000) }} Cr
-                        {% elif vol >= 100000 %}{{ "%.1f"|format(vol/100000) }} L
-                        {% else %}{{ "{:,}".format(vol) }}{% endif %}
-                    </div>
-                </div>
-                <div class="mv-r">
-                    <div class="mv-price">₹{{ "{:,.2f}".format(s.current_price|float) }}</div>
-                    <div class="mv-chg {% if c>=0 %}up{% else %}dn{% endif %}">
-                        <i class="fas fa-caret-{% if c>=0 %}up{% else %}down{% endif %}" style="font-size:10px;"></i>
-                        {{ "{:+.2f}".format(c) }}%
-                    </div>
-                </div>
-            </div>
-            {% else %}
-            <div class="text-center py-5" style="color:#999999; font-size:13px;">
-                <i class="fas fa-database" style="font-size:24px; display:block; opacity:.3; margin-bottom:8px;"></i>
-                No live data available right now
-            </div>
-            {% endfor %}
-            {% if most_active %}<a class="view-all-link" href="#" onclick="openMoversModal('a');return false;">view all ›</a>{% endif %}
-        </div>
-
     </div>
 </div>
 
@@ -771,28 +712,59 @@
             <h6 class="lmp-card-title">
                 <i class="fas fa-layer-group" style="font-size:12px; color:#666666;"></i>
                 Sectoral Performance
+                <span class="lmp-card-sub">· NSE sector indices · Today</span>
+                <span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#15803d;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:6px;">
+                    <span style="width:6px;height:6px;background:#16a34a;border-radius:50%;display:inline-block;"></span>Live · TradingView
+                </span>
             </h6>
-            <span class="lmp-card-sub">Weighted avg change · Today</span>
         </div>
-        <div style="background:#ffffff; display:flex; align-items:center; gap:20px; padding:8px 16px; border-bottom:1px solid #f1f3f4;">
-            <span style="font-size:10px; font-weight:600; color:#999999; text-transform:uppercase; flex:1;">Sector</span>
-            <span style="font-size:10px; font-weight:600; color:#999999; text-transform:uppercase; width:36px; text-align:center;">Stocks</span>
-            <span style="font-size:10px; font-weight:600; color:#999999; text-transform:uppercase; width:72px; text-align:center;">Trend</span>
-            <span style="font-size:10px; font-weight:600; color:#999999; text-transform:uppercase; width:52px; text-align:right;">Change</span>
-        </div>
-        {% for sec in sector_data %}
-        {% set chg = sec.change_percent | float %}
-        {% set bw  = ([([chg|abs, 5]|min)/5*100, 3]|max)|round(1) %}
-        <div class="sec-row">
-            <div class="sec-dot" style="background:{% if chg>=0 %}#16a34a{% else %}#dc2626{% endif %};"></div>
-            <div class="sec-name">{{ sec.sector }}</div>
-            <div class="sec-count">{{ sec.stocks }}</div>
-            <div class="sec-bar-wrap">
-                <div class="sec-bar" style="width:{{ bw }}%; background:{% if chg>=0 %}#16a34a{% else %}#dc2626{% endif %}; opacity:.7;"></div>
+        <div style="background:#ffffff; border-radius:0 0 8px 8px; overflow:hidden;">
+            <div class="tradingview-widget-container" style="height:550px;">
+                <div class="tradingview-widget-container__widget" style="height:100%;"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
+                {
+                  "colorTheme": "light",
+                  "dateRange": "1D",
+                  "showChart": true,
+                  "locale": "en",
+                  "width": "100%",
+                  "height": "100%",
+                  "isTransparent": false,
+                  "showSymbolLogo": true,
+                  "showFloatingTooltip": true,
+                  "plotLineColorGrowing": "rgba(22,163,74,1)",
+                  "plotLineColorFalling": "rgba(220,38,38,1)",
+                  "gridLineColor": "rgba(240,243,250,0)",
+                  "scaleFontColor": "rgba(19,23,34,1)",
+                  "belowLineFillColorGrowing": "rgba(22,163,74,0.10)",
+                  "belowLineFillColorFalling": "rgba(220,38,38,0.10)",
+                  "belowLineFillColorGrowingBottom": "rgba(22,163,74,0)",
+                  "belowLineFillColorFallingBottom": "rgba(220,38,38,0)",
+                  "symbolActiveColor": "rgba(22,163,74,0.12)",
+                  "tabs": [
+                    {
+                      "title": "Sectors",
+                      "symbols": [
+                        {"s": "NSE:NIFTYIT", "d": "IT"},
+                        {"s": "NSE:NIFTYBANK", "d": "Banking"},
+                        {"s": "NSE:NIFTYPHARMA", "d": "Pharma"},
+                        {"s": "NSE:NIFTYAUTO", "d": "Auto"},
+                        {"s": "NSE:NIFTYFMCG", "d": "FMCG"},
+                        {"s": "NSE:NIFTYMETAL", "d": "Metal"},
+                        {"s": "NSE:NIFTYREALTY", "d": "Realty"},
+                        {"s": "NSE:NIFTYENERGY", "d": "Energy"},
+                        {"s": "NSE:NIFTYMEDIA", "d": "Media"},
+                        {"s": "NSE:NIFTYINFRA", "d": "Infra"},
+                        {"s": "NSE:NIFTYFINSERVICE", "d": "Fin Services"},
+                        {"s": "NSE:NIFTYHEALTHCARE", "d": "Healthcare"}
+                      ],
+                      "originalTitle": "Sectors"
+                    }
+                  ]
+                }
+                </script>
             </div>
-            <div class="sec-pct {% if chg>=0 %}up{% else %}dn{% endif %}">{{ "{:+.2f}".format(chg) }}%</div>
         </div>
-        {% endfor %}
     </div>
 </div>
 
