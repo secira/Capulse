@@ -38,9 +38,30 @@ _last_digest_fingerprint = None   # set of (symbol, tier) — only resend when c
 _scheduler = None     # type: ignore  — APScheduler BackgroundScheduler instance
 _app       = None     # type: ignore  — Flask app, captured by start_scheduler
 
-# Mapping schedule_key (alert_schedule.schedule_key) → callable that fires
-# the alert. The admin "Send Now" button and the scheduler both look up
-# alerts through this registry.
+
+def _is_schedule_enabled(schedule_key: str, default: bool = True) -> bool:
+    """Return whether the given alert_schedule row is enabled.
+
+    Used to gate alert paths that run OUTSIDE the cron scheduler (e.g. the
+    interval scan), so a disabled alert stays silent everywhere — not just in
+    the cron job that reload_schedules() removes. Falls back to `default` if the
+    row is missing or the read fails (never blocks on a transient DB error)."""
+    try:
+        row = db.session.execute(db.text(
+            "SELECT enabled FROM alert_schedule WHERE schedule_key = :k"
+        ), {"k": schedule_key}).first()
+        if row is None:
+            return default
+        return bool(row[0])
+    except Exception as e:
+        logger.warning(f"_is_schedule_enabled({schedule_key}) failed, defaulting to {default}: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return default
+
+
 def _fire_top10_digest():
     return send_top_buys_digest(force=True)
 
@@ -55,6 +76,9 @@ def _fire_premarket_report():
     return send_premarket_report()
 
 
+# Mapping schedule_key (alert_schedule.schedule_key) → callable that fires
+# the alert. The admin "Send Now" button and the scheduler both look up
+# alerts through this registry.
 SCHEDULE_REGISTRY = {
     'top10_digest':        lambda: _fire_top10_digest(),
     'premarket_report':    lambda: _fire_premarket_report(),
@@ -137,9 +161,16 @@ def scan_once(app):
                     dispatch_event('iscore', symbol, payload, score=score)
 
         # After per-subscription webhooks, send a single consolidated
-        # Telegram digest of the top 5 BUY-rated stocks.
+        # Telegram digest of the top 5 BUY-rated stocks — but ONLY if the
+        # admin has the stock-recommendation alert ('top10_digest') enabled.
+        # This scan runs on its own interval, separate from the cron scheduler,
+        # so it must honour the same Enabled toggle or a disabled alert keeps
+        # broadcasting from here.
         try:
-            send_top_buys_digest()
+            if _is_schedule_enabled('top10_digest'):
+                send_top_buys_digest()
+            else:
+                logger.info("Top-5 digest skipped — 'top10_digest' alert disabled by admin")
         except Exception as e:
             logger.warning(f"Top-5 Telegram digest failed: {e}")
 
