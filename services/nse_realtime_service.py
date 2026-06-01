@@ -61,29 +61,7 @@ class NSERealTimeService:
         except Exception as e:
             logger.warning(f"Live Market Pulse Dhan fetch failed: {e}")
 
-        # ── Priority 2: NSE official API ────────────────────────────────────
-        try:
-            url = "https://www.nseindia.com/api/allIndices"
-            response = self.session.get(url, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                _want = {'NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY AUTO', 'NIFTY FIN SERVICE', 'INDIA VIX'}
-                indices_data = {}
-                for index in data.get('data', []):
-                    if index['index'] in _want:
-                        indices_data[index['index']] = {
-                            'value':          float(index['last']),
-                            'change':         float(index['change']),
-                            'change_percent': float(index['pChange']),
-                            'timestamp':      current_time.isoformat(),
-                            'source':         'nse',
-                        }
-                if indices_data:
-                    return {'success': True, 'data': indices_data, 'timestamp': current_time.isoformat(), 'source': 'nse'}
-        except Exception as e:
-            logger.warning(f"NSE API failed: {e}")
-
-        # ── Priority 3: yfinance (last resort) ─────────────────────────────
+        # ── Priority 2: yfinance (fallback) ────────────────────────────────
         try:
             import yfinance as yf
             _yf_map = {

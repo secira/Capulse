@@ -237,7 +237,8 @@ def _fetch_perplexity_market_data() -> dict:
 
 def _fetch_nse_nifty50_stocks() -> dict:
     """
-    Fetch live Nifty 50 stock data from NSE equity-stockIndices API.
+    Fetch live Nifty 50 stock data.
+    Priority: Dhan batch API → Perplexity web search → yfinance
     Returns dict keyed by symbol:
       { "RELIANCE": {"change_percent": 1.2, "price": 2500.0, "volume": 1234567}, ... }
     Cached 2 minutes.
@@ -245,43 +246,78 @@ def _fetch_nse_nifty50_stocks() -> dict:
     cached = _market_cache_get('nse_nifty50_stocks', ttl=120)
     if cached is not None:
         return cached
+
+    # Priority 1: Dhan batch equity OHLC
     try:
-        import requests as _req
-        sess = _req.Session()
-        sess.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://www.nseindia.com/',
-            'Origin': 'https://www.nseindia.com',
-        })
-        # Establish session cookie first
-        sess.get('https://www.nseindia.com', timeout=3)
-        r = sess.get(
-            'https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050',
-            timeout=4,
-        )
-        if r.status_code == 200:
-            rows = r.json().get('data', [])
-            result = {}
-            for row in rows:
-                sym = row.get('symbol', '')
-                if not sym or sym in ('NIFTY 50',):  # skip the index row itself
-                    continue
-                pchg = row.get('pChange') or row.get('percentChange', 0)
-                price = row.get('lastPrice') or row.get('last', 0)
-                vol   = row.get('totalTradedVolume') or row.get('volume', 0)
-                result[sym] = {
-                    'change_percent': round(float(pchg), 2),
-                    'price':          round(float(price), 2),
-                    'volume':         int(vol or 0),
-                }
-            if result:
-                _market_cache_set('nse_nifty50_stocks', result)
-                logger.info(f"NSE Nifty50 live stocks fetched: {len(result)} symbols")
-                return result
+        from services.dhan_service import get_security_id, get_nifty50_stock_quotes
+        sec_id_map = {}
+        for stock in NIFTY50_STOCKS:
+            sid = get_security_id(stock['symbol'])
+            if sid:
+                sec_id_map[stock['symbol']] = sid
+        if sec_id_map:
+            raw = get_nifty50_stock_quotes(sec_id_map, timeout=5.0)
+            if raw:
+                result = {}
+                for sym, d in raw.items():
+                    ltp   = float(d.get('ltp', 0) or 0)
+                    close = float(d.get('close', 0) or ltp)
+                    pchg  = float(d.get('pct_change', 0) or 0)
+                    if not pchg and ltp and close:
+                        pchg = round((ltp - close) / close * 100, 2)
+                    if ltp > 0:
+                        result[sym] = {
+                            'change_percent': round(pchg, 2),
+                            'price':          round(ltp, 2),
+                            'volume':         int(d.get('volume', 0) or 0),
+                        }
+                if result:
+                    _market_cache_set('nse_nifty50_stocks', result)
+                    logger.info(f"Dhan Nifty50 stocks fetched: {len(result)} symbols")
+                    return result
     except Exception as e:
-        logger.warning(f"NSE Nifty50 stock fetch failed: {e}")
+        logger.warning(f"Dhan Nifty50 stock fetch failed: {e}")
+
+    # Priority 2: Perplexity web search (day recency)
+    try:
+        px = _fetch_perplexity_market_data()
+        nifty50_pct = px.get('nifty50', {})
+        if nifty50_pct:
+            result = {}
+            for stock in NIFTY50_STOCKS:
+                sym  = stock['symbol']
+                pchg = float(nifty50_pct.get(sym, 0) or 0)
+                result[sym] = {'change_percent': round(pchg, 2), 'price': 0.0, 'volume': 0}
+            _market_cache_set('nse_nifty50_stocks', result)
+            logger.info(f"Perplexity Nifty50 stocks: {len(result)} symbols")
+            return result
+    except Exception as e:
+        logger.warning(f"Perplexity Nifty50 fallback failed: {e}")
+
+    # Priority 3: yfinance batch
+    try:
+        import yfinance as _yf
+        result = {}
+        symbols_ns = [s['symbol'] + '.NS' for s in NIFTY50_STOCKS]
+        tickers = _yf.Tickers(' '.join(symbols_ns))
+        for stock in NIFTY50_STOCKS:
+            key = stock['symbol'] + '.NS'
+            try:
+                fi   = tickers.tickers[key].fast_info
+                ltp  = float(getattr(fi, 'last_price', 0) or 0)
+                prev = float(getattr(fi, 'previous_close', 0) or 0)
+                if ltp > 0 and prev > 0:
+                    pchg = round((ltp - prev) / prev * 100, 2)
+                    result[stock['symbol']] = {'change_percent': pchg, 'price': ltp, 'volume': 0}
+            except Exception:
+                continue
+        if result:
+            _market_cache_set('nse_nifty50_stocks', result)
+            logger.info(f"yfinance Nifty50 stocks: {len(result)} symbols")
+            return result
+    except Exception as e:
+        logger.warning(f"yfinance Nifty50 fallback failed: {e}")
+
     return {}
 
 
@@ -504,7 +540,7 @@ def dashboard_daily_signals_content():
     nifty50_data = []
 
     def _fetch_dhan_indices():
-        """Fetch index prices: Dhan → NSE allIndices → yfinance. Cached 5 min."""
+        """Fetch index prices: Dhan → yfinance. Cached 5 min."""
         cached = _market_cache_get('indices', ttl=_CACHE_TTL_INDICES)
         if cached is not None:
             return cached
@@ -534,37 +570,7 @@ def dashboard_daily_signals_content():
         except Exception as e:
             logger.warning(f"Dhan index fetch failed: {e}")
 
-        # Priority 2: NSE allIndices for missing
-        missing = ALL_KEYS - set(result.keys())
-        if missing:
-            try:
-                import requests
-                sess = requests.Session()
-                sess.headers.update({
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
-                    'Accept': 'application/json',
-                    'Referer': 'https://www.nseindia.com/',
-                })
-                sess.get('https://www.nseindia.com', timeout=3)
-                r = sess.get('https://www.nseindia.com/api/allIndices', timeout=4)
-                if r.status_code == 200:
-                    nse_lookup = {row['index']: row for row in r.json().get('data', [])}
-                    NSE_KEY_MAP = {
-                        'nifty_50': 'NIFTY 50', 'nifty_bank': 'NIFTY BANK',
-                        'sensex': 'SENSEX', 'nifty_it': 'NIFTY IT', 'india_vix': 'INDIA VIX',
-                    }
-                    for key in list(missing):
-                        row = nse_lookup.get(NSE_KEY_MAP[key])
-                        if row:
-                            ltp = float(row.get('last', 0) or 0)
-                            chg = float(row.get('percentChange', row.get('pChange', 0)) or 0)
-                            if ltp > 0:
-                                result[key] = {'value': round(ltp, 2), 'change_percent': chg, 'live': True, 'source': 'NSE'}
-                logger.info(f"NSE fallback merged: now have {list(result.keys())}")
-            except Exception as e:
-                logger.warning(f"NSE allIndices fallback failed: {e}")
-
-        # Priority 3: yfinance for missing
+        # Priority 2: yfinance for missing
         missing = ALL_KEYS - set(result.keys())
         if missing:
             try:

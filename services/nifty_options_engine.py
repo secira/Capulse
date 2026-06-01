@@ -375,36 +375,7 @@ class NiftyOptionsEngine:
         except Exception as e:
             logger.warning(f"Dhan market indices error: {e}")
 
-        # ── Priority 2: NSE official allIndices API ─────────────────────────
-        if not nifty_price or not bn_price or not sensex_price or not vix_price or not finnifty_price:
-            try:
-                import requests
-                sess = requests.Session()
-                sess.headers.update({
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
-                    'Accept': 'application/json',
-                    'Referer': 'https://www.nseindia.com/',
-                })
-                sess.get('https://www.nseindia.com', timeout=5)
-                r = sess.get('https://www.nseindia.com/api/allIndices', timeout=8)
-                if r.status_code == 200:
-                    nse_map = {row['index']: row for row in r.json().get('data', [])}
-                    def _pull(key):
-                        row = nse_map.get(key) or {}
-                        return float(row.get('last', 0) or 0), float(row.get('variation', row.get('change', 0)) or 0), float(row.get('percentChange', row.get('pChange', 0)) or 0)
-                    if not nifty_price:
-                        nifty_price, nifty_change, nifty_pct = _pull('NIFTY 50')
-                    if not bn_price:
-                        bn_price, bn_change, bn_pct = _pull('NIFTY BANK')
-                    if not finnifty_price:
-                        finnifty_price, finnifty_change, finnifty_pct = _pull('NIFTY FIN SERVICE')
-                    if not vix_price:
-                        vix_price, _, _ = _pull('INDIA VIX')
-                    logger.info(f"NSE allIndices fallback used: NIFTY={nifty_price}, BANK={bn_price}")
-            except Exception as e:
-                logger.warning(f"NSE allIndices fallback failed: {e}")
-
-        # ── Priority 3: yfinance (last resort) ──────────────────────────────
+        # ── Priority 2: yfinance (fallback) ─────────────────────────────────
         if not nifty_price or not bn_price or not sensex_price or not vix_price:
             try:
                 import yfinance as yf
@@ -454,44 +425,8 @@ class NiftyOptionsEngine:
         }
 
     def _get_nse_option_chain_raw(self) -> dict:
-        try:
-            from nsepython import option_chain as nse_oc
-            raw = nse_oc(self.nse_symbol)
-            if raw and isinstance(raw, dict) and raw.get('records', {}).get('data'):
-                logger.info(f"NSE option chain via nsepython: {len(raw['records']['data'])} entries")
-                return raw
-            else:
-                logger.warning("nsepython returned empty/invalid data")
-        except Exception as e:
-            logger.warning(f"nsepython option_chain error: {e}")
-
-        try:
-            import requests
-            session = requests.Session()
-            session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'application/json',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Referer': 'https://www.nseindia.com/option-chain',
-            })
-            session.get('https://www.nseindia.com', timeout=10)
-            resp = session.get(
-                f'https://www.nseindia.com/api/option-chain-indices?symbol={self.nse_symbol}',
-                timeout=15,
-            )
-            if resp.status_code == 200:
-                raw = resp.json()
-                if raw and isinstance(raw, dict) and raw.get('records', {}).get('data'):
-                    logger.info(f"NSE option chain via direct API: {len(raw['records']['data'])} entries")
-                    return raw
-                else:
-                    logger.warning("NSE direct API returned empty data (likely geo-blocked)")
-            else:
-                logger.warning(f"NSE direct API status: {resp.status_code}")
-        except Exception as e:
-            logger.warning(f"NSE direct API error: {e}")
-
+        """NSE direct option chain — disabled (geo-blocked on server).
+        Option chain data comes from Dhan via _get_option_chain_data()."""
         return {}
 
     def _parse_expiry_dates(self, raw: dict) -> List[str]:
