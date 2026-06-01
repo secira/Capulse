@@ -4743,9 +4743,8 @@ def dashboard_nse_stocks():
 @app.route('/dashboard/live-market')
 @login_required
 def live_market():
-    """Live market data dashboard"""
-    return render_template('dashboard/live_market.html',
-                          last_updated=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))
+    """Market Intelligence dashboard"""
+    return render_template('dashboard/live_market_pulse.html')
 
 @app.route('/dashboard/add-nse-stock', methods=['POST'])
 @login_required
