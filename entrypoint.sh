@@ -90,6 +90,47 @@ if [ "${RUN_SEEDS}" = "1" ]; then
         || echo "⚠️  Seed step exited non-zero; continuing to gunicorn."
 fi
 
+# ─── Railway deployment notification ────────────────────────────────────
+# Sends a Telegram ping when this is a production Railway deploy so the
+# admin knows exactly when a new build went live.  Non-blocking: a failed
+# send (missing token, network hiccup) is logged as a warning but never
+# prevents gunicorn from starting.
+if [ "${ENVIRONMENT}" = "production" ] && \
+   [ -n "${TELEGRAM_BOT_TOKEN}" ] && \
+   [ -n "${TELEGRAM_CHAT_ID}" ]; then
+    echo ""
+    echo "Sending Railway deployment notification to Telegram..."
+    python - <<'PYEOF'
+import os, datetime, requests
+token   = os.environ["TELEGRAM_BOT_TOKEN"]
+chat_id = os.environ["TELEGRAM_CHAT_ID"]
+now     = datetime.datetime.utcnow().strftime("%d %b %Y %H:%M UTC")
+railway_env  = os.environ.get("RAILWAY_ENVIRONMENT", "production")
+railway_svc  = os.environ.get("RAILWAY_SERVICE_NAME", "target-capital")
+railway_dep  = os.environ.get("RAILWAY_DEPLOYMENT_ID", "—")
+msg = (
+    "🚀 <b>Target Capital — Deployed on Railway</b>\n\n"
+    f"🌐 Environment : <code>{railway_env}</code>\n"
+    f"🔧 Service     : <code>{railway_svc}</code>\n"
+    f"🆔 Deploy ID   : <code>{railway_dep}</code>\n"
+    f"🕒 Time        : <code>{now}</code>\n\n"
+    "Server is starting. <b>/health</b> will be live within seconds."
+)
+try:
+    r = requests.post(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
+        timeout=8,
+    )
+    if r.ok:
+        print("  ✓ Deployment notification sent to Telegram")
+    else:
+        print(f"  ⚠️  Telegram responded {r.status_code}: {r.text[:120]}")
+except Exception as e:
+    print(f"  ⚠️  Telegram notification skipped: {e}")
+PYEOF
+fi
+
 # ─── Start the app ───────────────────────────────────────────────────────
 # --preload loads app.py ONCE in the master process.  Workers are then
 # forked (copy-on-write, <1 s) and ready to serve /health immediately.

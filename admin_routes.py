@@ -2881,6 +2881,27 @@ def update_alert_schedules():
     return redirect(url_for('admin.alert_schedules'))
 
 
+@admin_bp.route('/alert-schedules/ping', methods=['POST'])
+@admin_required
+def ping_telegram():
+    """Send a simple connectivity test message to Telegram (no digest data)."""
+    from services.messaging_service import send_telegram_message
+    import datetime
+    now = datetime.datetime.now().strftime('%d %b %Y %I:%M %p')
+    ok = send_telegram_message(
+        f"🔔 <b>Target Capital — Telegram Test</b>\n\n"
+        f"✅ Connection working correctly.\n"
+        f"📅 Sent at: <code>{now} IST</code>\n\n"
+        f"All alert channels are reachable from this deployment.",
+        parse_mode='HTML',
+    )
+    if ok:
+        flash('Test message sent to Telegram ✓ — connection is working.', 'success')
+    else:
+        flash('Test FAILED — Telegram bot token or chat ID may not be set. Check Admin → Telegram.', 'error')
+    return redirect(url_for('admin.alert_schedules'))
+
+
 @admin_bp.route('/alert-schedules/test/<key>', methods=['POST'])
 @admin_required
 def test_alert_schedule(key):

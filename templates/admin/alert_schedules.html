@@ -8,8 +8,16 @@
         <h2 class="mb-1"><i class="fas fa-clock me-2"></i>Alert Schedules</h2>
         <p class="text-muted mb-0">Control when each automatic Telegram alert is sent. All times are <strong>India Standard Time (IST)</strong>.</p>
     </div>
-    <div class="text-muted small">
-        <i class="fas fa-info-circle me-1"></i>Changes apply immediately — no restart required.
+    <div class="d-flex align-items-center gap-3">
+        <form method="POST" action="{{ url_for('admin.ping_telegram') }}" class="d-inline">
+            <button type="submit" class="btn btn-outline-primary btn-sm"
+                    title="Send a quick test message to Telegram to verify the connection">
+                <i class="fab fa-telegram me-1"></i>Test Telegram
+            </button>
+        </form>
+        <span class="text-muted small">
+            <i class="fas fa-info-circle me-1"></i>Changes apply immediately — no restart required.
+        </span>
     </div>
 </div>
 
