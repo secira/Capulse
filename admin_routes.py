@@ -120,9 +120,13 @@ def fno_settings():
             else:
                 telegram_fields = request.form.getlist('telegram_fields') or list(DEFAULT_TELEGRAM_FIELDS)
 
+            telegram_mode = request.form.get('telegram_mode', 'teaser')
+            if telegram_mode not in ('teaser', 'full'):
+                telegram_mode = 'teaser'
             update_fno_config(
                 indices=indices,
                 telegram_fields=telegram_fields,
+                telegram_mode=telegram_mode,
                 updated_by=getattr(current_user, 'username', 'admin'),
             )
             flash('F&O settings updated successfully.', 'success')

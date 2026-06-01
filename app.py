@@ -798,6 +798,10 @@ with app.app_context():
         '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order)
            VALUES ('snapshot_close', 'Market Intelligence — Market Close', 'Market-close snapshot at 3:20 PM IST with final PCR, support/resistance and end-of-day direction across NIFTY 50, BANK NIFTY, FIN NIFTY and SENSEX.', 15, 20, 50)
            ON CONFLICT (schedule_key) DO NOTHING''',
+        '''INSERT INTO alert_schedule (schedule_key, display_name, description, hour, minute, sort_order, enabled)
+           VALUES ('fno_signals', 'F&O Trade Signals', 'Master on/off switch for all F&O trade signals sent to Telegram (TRADE_TRIGGER + TRADE_EXIT). Per-index toggles are in Admin → F&O Settings. The hour/minute fields are not used — F&O signals are event-driven.', 9, 15, 1, TRUE)
+           ON CONFLICT (schedule_key) DO NOTHING''',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS telegram_mode VARCHAR(10) DEFAULT \'teaser\'',
         # ── NSE/BSE Trading Holiday Calendar ──────────────────────────────
         '''CREATE TABLE IF NOT EXISTS market_holiday (
             id SERIAL PRIMARY KEY,

@@ -310,139 +310,224 @@ def _dispatch_partner_webhook(signal_data: dict, index_id: str) -> None:
         logger.warning(f"[{index_id}] partner webhook dispatch failed: {e}")
 
 
+def _build_teaser_message(signal_data: dict, index_id: str) -> str:
+    """
+    Teaser format — gives direction + conviction grade but NO prices, strikes or
+    option symbols. Goal: pique interest and drive users to the site.
+    """
+    display     = _INDEX_DISPLAY.get(index_id, index_id)
+    direction   = signal_data.get('trade_direction', 'NEUTRAL')
+    confidence  = signal_data.get('confidence', 0)
+    grade       = signal_data.get('confidence_grade', '')
+    signal_type = signal_data.get('signal_type', 'TRADE')
+    trade_code  = signal_data.get('trade_code', '')
+    page_path   = _INDEX_PAGE_PATH.get(index_id, 'nifty')
+
+    dir_label = 'CALL + PUT' if direction == 'BOTH' else direction
+    dir_emoji = '🟢' if direction == 'BULLISH' else '🔴' if direction == 'BEARISH' else '🟣' if direction == 'BOTH' else '🟡'
+
+    # Conviction label from confidence score
+    if confidence >= 85:
+        conviction = 'Very High'
+    elif confidence >= 75:
+        conviction = 'High'
+    elif confidence >= 65:
+        conviction = 'Moderate'
+    else:
+        conviction = 'Developing'
+
+    code_tag = f" · <code>{trade_code}</code>" if trade_code else ''
+
+    if signal_type == 'TRADE_TRIGGER':
+        header = f"🔒 <b>{display} — New Trade Signal</b>{code_tag}"
+        body = (
+            f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
+            f"⭐ <b>Conviction:</b> {conviction}\n"
+            f"⏰ <i>{_now_ist().strftime('%d %b %Y, %I:%M %p')} IST</i>\n\n"
+            f"🔐 <i>Full entry, Stop-Loss &amp; Targets are exclusive to Target Capital members.</i>\n\n"
+            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View Signal on Target Capital →</a>\n"
+            f"🚀 <a href='https://www.targetcapital.ai/pricing'>Start Free Trial — targetcapital.ai</a>"
+        )
+    elif signal_type == 'TRADE_EXIT':
+        outcome     = signal_data.get('outcome', signal_data.get('exit_reason', 'Closed'))
+        outcome_map = {
+            'TARGET HIT': ('🎯', 'Target Hit'),
+            'SL HIT':     ('🛑', 'Stop-Loss Hit'),
+            'EOD CLOSE':  ('🌙', 'EOD Close'),
+            'TIME EXIT':  ('⏱', 'Time Exit'),
+        }
+        out_emoji, out_label = outcome_map.get(outcome, ('🚪', outcome or 'Trade Closed'))
+        header = f"🚪 <b>{display} — Trade Closed</b>{code_tag}"
+        body = (
+            f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
+            f"{out_emoji} <b>Result:</b> {out_label}\n"
+            f"⏰ <i>{_now_ist().strftime('%d %b %Y, %I:%M %p')} IST</i>\n\n"
+            f"📊 <i>Full trade history &amp; P&amp;L analytics are on our platform.</i>\n\n"
+            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>Track Your Trades →</a>"
+        )
+    else:
+        header = f"📡 <b>{display} — Signal Update</b>"
+        body   = (
+            f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
+            f"⏰ <i>{_now_ist().strftime('%d %b %Y, %I:%M %p')} IST</i>\n\n"
+            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital →</a>"
+        )
+
+    return f"{header}\n\n{body}"
+
+
+def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
+    """
+    Full message — includes all fields selected in Admin → F&O Settings → Field Selector.
+    Preserves the original format exactly.
+    """
+    display     = _INDEX_DISPLAY.get(index_id, index_id)
+    direction   = signal_data.get('trade_direction', 'NEUTRAL')
+    confidence  = signal_data.get('confidence', 0)
+    entry_mode  = signal_data.get('entry_mode', 'NO TRADE')
+    spot        = signal_data.get('spot_price', 0)
+    atm         = signal_data.get('atm_strike', 0)
+    signal_type = signal_data.get('signal_type', 'TRADE')
+
+    dir_label  = 'CALL + PUT' if direction == 'BOTH' else direction
+    dir_emoji  = '🟢' if direction == 'BULLISH' else '🔴' if direction == 'BEARISH' else '🟣' if direction == 'BOTH' else '🟡'
+    if signal_type == 'TRADE_TRIGGER':
+        type_emoji = '🔒'
+    elif signal_type == 'TRADE_EXIT':
+        type_emoji = '🚪'
+    elif signal_type == 'TRADE_ACTIVE':
+        type_emoji = '📍'
+    else:
+        type_emoji = '📡'
+
+    trade_code = signal_data.get('trade_code', '')
+    code_tag   = f" <code>{trade_code}</code>" if trade_code else ''
+
+    msg = ''
+    if 'header' in enabled:
+        msg += f"{type_emoji} <b>{display} F&amp;O — {signal_type.replace('_', ' ')}</b>{code_tag}\n\n"
+    if 'direction' in enabled:
+        msg += f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
+    if 'confidence' in enabled:
+        msg += f"📊 <b>Confidence:</b> {confidence}/100 ({signal_data.get('confidence_grade', '')})\n"
+    if 'entry_mode' in enabled:
+        msg += f"🎯 <b>Entry Mode:</b> {entry_mode}\n"
+    if 'spot_atm' in enabled:
+        msg += f"💰 <b>Spot:</b> ₹{spot:,.2f} | ATM: {atm}\n"
+    msg += "\n"
+
+    if signal_type == 'TRADE_ACTIVE':
+        if 'active_trade' in enabled:
+            active = signal_data.get('active_trade', {})
+            if active:
+                elapsed   = active.get('elapsed_min', 0)
+                remaining = active.get('remaining_min', TRADE_MAX_DURATION_MIN)
+                entry_px  = active.get('entry_price', 0)
+                sl_px     = active.get('sl', 0)
+                tgt_px    = active.get('target', 0)
+                ltp       = active.get('ltp', 0)
+                pnl_pts   = round(ltp - entry_px, 2) if ltp and entry_px else 0
+                pnl_emoji = '📈' if pnl_pts >= 0 else '📉'
+                opt_type  = active.get('type', '')
+                t2_px     = active.get('target_2', 0)
+                t3_px     = active.get('target_3', 0)
+                msg += f"<b>Active Trade ({opt_type}):</b>\n"
+                msg += f"  ⏱ Running: {elapsed} min | {remaining} min left\n"
+                msg += f"  🏷 Entry: ₹{entry_px:,.0f}\n"
+                if ltp:
+                    msg += f"  {pnl_emoji} LTP: ₹{ltp:,.0f} ({'+' if pnl_pts >= 0 else ''}{pnl_pts:.0f} pts)\n"
+                msg += f"  🛑 SL: ₹{sl_px:,.0f}  |  🎯 T1: ₹{tgt_px:,.0f}\n"
+                if t2_px:
+                    msg += f"  🎯 T2: ₹{t2_px:,.0f}\n"
+                if t3_px:
+                    msg += f"  🎯 T3: ₹{t3_px:,.0f}\n"
+    else:
+        if 'trades_list' in enabled:
+            trades = signal_data.get('trades', [])
+            if trades:
+                msg += f"<b>Trades ({len(trades)}):</b>\n"
+                for t in trades[:3]:
+                    t_emoji = '📗' if t.get('type') == 'CE' else '📕'
+                    t2_str  = f", T2 ₹{t.get('target_2', 0):,.0f}" if t.get('target_2') else ''
+                    t3_str  = f", T3 ₹{t.get('target_3', 0):,.0f}" if t.get('target_3') else ''
+                    msg += (
+                        f"{t_emoji} {t.get('symbol', '')} — "
+                        f"Entry ₹{t.get('entry_price', 0):,.0f}, "
+                        f"T1 ₹{t.get('target', 0):,.0f}{t2_str}{t3_str}, "
+                        f"SL ₹{t.get('sl', 0):,.0f}\n"
+                    )
+
+    if signal_type == 'TRADE_EXIT' and 'exit_reason' in enabled:
+        msg += f"\n🚪 <b>Exit Reason:</b> {signal_data.get('exit_reason', 'Unknown')}\n"
+
+    if 'timestamp' in enabled:
+        msg += f"\n⏰ <i>{_now_ist().strftime('%d/%m/%Y %I:%M %p')} IST</i>"
+    if 'dashboard_link' in enabled:
+        page_path = _INDEX_PAGE_PATH.get(index_id, 'nifty')
+        msg += f"\n\n<a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital</a>"
+
+    return msg
+
+
 def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
     try:
-        # Per-index Telegram gate — Admin → F&O Settings lets the admin pick which
-        # indices broadcast to Telegram. Skip silently if this index is de-selected.
+        # ── Gate 1: per-index toggle (Admin → F&O Settings) ──────────────────
         try:
             from services.fno_config import is_index_telegram_enabled
             if not is_index_telegram_enabled(index_id):
                 logger.info(f"[{index_id}] Telegram alert skipped — index de-selected in F&O Settings")
                 return False
         except Exception as _gate_err:
-            logger.warning(f"[{index_id}] telegram gate check failed (continuing): {_gate_err}")
+            logger.warning(f"[{index_id}] per-index telegram gate failed (continuing): {_gate_err}")
 
-        # Resolve env vars at CALL time via the shared helper. On Railway some
-        # deployments populate env after gunicorn imports modules, so reading
-        # TELEGRAM_BOT_TOKEN at import-time used to return '' for the lifetime
-        # of the worker and every send silently failed. messaging_service.
-        # _get_telegram_config() also strips wrapping quotes / 'Bot ' prefix.
+        # ── Gate 2: master on/off from Alert Schedules page ──────────────────
+        # Admin → Alert Schedules → "F&O Trade Signals" enabled toggle.
+        try:
+            from services.iscore_alert_dispatcher import _is_schedule_enabled
+            if not _is_schedule_enabled('fno_signals', default=True):
+                logger.info(f"[{index_id}] Telegram alert skipped — 'fno_signals' disabled in Alert Schedules")
+                return False
+        except Exception as _sched_err:
+            logger.warning(f"[{index_id}] schedule gate check failed (continuing): {_sched_err}")
+
+        # ── Resolve credentials ───────────────────────────────────────────────
         from services.messaging_service import _get_telegram_config
         token, chat_id = _get_telegram_config()
         if not token or not chat_id:
             logger.warning(
                 f"[{index_id}] Telegram not configured — "
-                f"token_present={bool(token)} chat_id_present={bool(chat_id)} "
-                f"(set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID on Railway)"
+                f"token_present={bool(token)} chat_id_present={bool(chat_id)}"
             )
             return False
 
-        display    = _INDEX_DISPLAY.get(index_id, index_id)
-        direction  = signal_data.get('trade_direction', 'NEUTRAL')
-        confidence = signal_data.get('confidence', 0)
-        entry_mode = signal_data.get('entry_mode', 'NO TRADE')
-        spot       = signal_data.get('spot_price', 0)
-        atm        = signal_data.get('atm_strike', 0)
-        signal_type = signal_data.get('signal_type', 'TRADE')
-
-        dir_label  = 'CALL + PUT' if direction == 'BOTH' else direction
-        dir_emoji  = '🟢' if direction == 'BULLISH' else '🔴' if direction == 'BEARISH' else '🟣' if direction == 'BOTH' else '🟡'
-        if signal_type == 'TRADE_TRIGGER':
-            type_emoji = '🔒'
-        elif signal_type == 'TRADE_EXIT':
-            type_emoji = '🚪'
-        elif signal_type == 'TRADE_ACTIVE':
-            type_emoji = '📍'
-        else:
-            type_emoji = '📡'
-
-        # Admin-configurable field selector — Admin → F&O Settings → Telegram Fields
+        # ── Build message (teaser vs full) ────────────────────────────────────
         try:
             from services.fno_config import get_fno_config, DEFAULT_TELEGRAM_FIELDS
-            enabled = set(get_fno_config().get('telegram_fields') or DEFAULT_TELEGRAM_FIELDS)
+            cfg  = get_fno_config()
+            mode = cfg.get('telegram_mode', 'teaser')
         except Exception:
-            enabled = {'header', 'direction', 'confidence', 'entry_mode', 'spot_atm',
-                       'trades_list', 'active_trade', 'exit_reason', 'timestamp', 'dashboard_link'}
+            mode = 'teaser'
+            cfg  = {}
 
-        trade_code = signal_data.get('trade_code', '')
-        code_tag   = f" <code>{trade_code}</code>" if trade_code else ''
+        signal_type = signal_data.get('signal_type', 'TRADE')
+        direction   = signal_data.get('trade_direction', 'NEUTRAL')
+        confidence  = signal_data.get('confidence', 0)
 
-        msg = ''
-        if 'header' in enabled:
-            msg += f"{type_emoji} <b>{display} F&amp;O — {signal_type.replace('_', ' ')}</b>{code_tag}\n\n"
-        if 'direction' in enabled:
-            msg += f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
-        if 'confidence' in enabled:
-            msg += f"📊 <b>Confidence:</b> {confidence}/100 ({signal_data.get('confidence_grade', '')})\n"
-        if 'entry_mode' in enabled:
-            msg += f"🎯 <b>Entry Mode:</b> {entry_mode}\n"
-        if 'spot_atm' in enabled:
-            msg += f"💰 <b>Spot:</b> ₹{spot:,.2f} | ATM: {atm}\n"
-        msg += "\n"
-
-        # For TRADE_ACTIVE updates, show live trade details with elapsed time
-        if signal_type == 'TRADE_ACTIVE':
-            if 'active_trade' in enabled:
-                active = signal_data.get('active_trade', {})
-                if active:
-                    elapsed = active.get('elapsed_min', 0)
-                    remaining = active.get('remaining_min', TRADE_MAX_DURATION_MIN)
-                    entry_px  = active.get('entry_price', 0)
-                    sl_px     = active.get('sl', 0)
-                    tgt_px    = active.get('target', 0)
-                    ltp       = active.get('ltp', 0)
-                    pnl_pts   = round(ltp - entry_px, 2) if ltp and entry_px else 0
-                    pnl_emoji = '📈' if pnl_pts >= 0 else '📉'
-                    opt_type  = active.get('type', '')
-                    msg += f"<b>Active Trade ({opt_type}):</b>\n"
-                    msg += f"  ⏱ Running: {elapsed} min | {remaining} min left\n"
-                    msg += f"  🏷 Entry: ₹{entry_px:,.0f}\n"
-                    if ltp:
-                        msg += f"  {pnl_emoji} LTP: ₹{ltp:,.0f} ({'+' if pnl_pts >= 0 else ''}{pnl_pts:.0f} pts)\n"
-                    t2_px  = active.get('target_2', 0)
-                    t3_px  = active.get('target_3', 0)
-                    t2_str = f"  🎯 T2: ₹{t2_px:,.0f}\n" if t2_px else ''
-                    t3_str = f"  🎯 T3: ₹{t3_px:,.0f}\n" if t3_px else ''
-                    msg += f"  🛑 SL: ₹{sl_px:,.0f}  |  🎯 T1: ₹{tgt_px:,.0f}\n"
-                    msg += t2_str + t3_str
+        if mode == 'full':
+            enabled = set(cfg.get('telegram_fields') or DEFAULT_TELEGRAM_FIELDS)
+            msg = _build_full_message(signal_data, index_id, enabled)
         else:
-            if 'trades_list' in enabled:
-                trades = signal_data.get('trades', [])
-                if trades:
-                    msg += f"<b>Trades ({len(trades)}):</b>\n"
-                    for t in trades[:3]:
-                        t_emoji = '📗' if t.get('type') == 'CE' else '📕'
-                        t2_str = f", T2 ₹{t.get('target_2', 0):,.0f}" if t.get('target_2') else ''
-                        t3_str = f", T3 ₹{t.get('target_3', 0):,.0f}" if t.get('target_3') else ''
-                        msg += (
-                            f"{t_emoji} {t.get('symbol', '')} — "
-                            f"Entry ₹{t.get('entry_price', 0):,.0f}, "
-                            f"T1 ₹{t.get('target', 0):,.0f}{t2_str}{t3_str}, "
-                            f"SL ₹{t.get('sl', 0):,.0f}\n"
-                        )
-
-        if signal_type == 'TRADE_EXIT' and 'exit_reason' in enabled:
-            msg += f"\n🚪 <b>Exit Reason:</b> {signal_data.get('exit_reason', 'Unknown')}\n"
-
-        if 'timestamp' in enabled:
-            msg += f"\n⏰ <i>{_now_ist().strftime('%d/%m/%Y %I:%M %p')} IST</i>"
-        if 'dashboard_link' in enabled:
-            page_path = _INDEX_PAGE_PATH.get(index_id, 'nifty')
-            msg += f"\n\n<a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital</a>"
+            msg = _build_teaser_message(signal_data, index_id)
 
         # Delegate the actual HTTP call to messaging_service.send_telegram_message
-        # — the SAME code path Market Intelligence and I-Score alerts use. On
-        # Railway that pipe is proven to work; the previous local requests.post
-        # was occasionally being blocked by Railway's egress on first cold call
-        # and never recovering for the worker.
         from services.messaging_service import send_telegram_message
         ok = send_telegram_message(msg, parse_mode='HTML')
         if ok:
-            logger.info(f"[{index_id}] Telegram alert sent: {signal_type}")
+            logger.info(f"[{index_id}] Telegram alert sent ({mode} mode): {signal_type}")
         else:
             logger.error(
-                f"[{index_id}] Telegram alert send_telegram_message returned False "
-                f"(signal_type={signal_type}, direction={direction}, conf={confidence})"
+                f"[{index_id}] Telegram alert failed "
+                f"(signal_type={signal_type}, direction={direction}, conf={confidence}, mode={mode})"
             )
         return ok
     except Exception as e:
@@ -458,25 +543,21 @@ SCAN_ALERT_MAX_PER_DAY    = 4    # safety cap (per index) — covers TRIGGER + S
 
 
 def _should_send_alert(signal_data: dict, idx: str) -> bool:
-    """Telegram alert gate — ONE message per trade.
+    """Telegram alert gate.
 
-    Policy (user-requested):
-      • Send exactly one Telegram message per trade — the TRADE_TRIGGER,
-        which already contains entry, SL, and target. The trader has
-        everything they need from that single message.
-      • Do NOT send SCAN previews — they create pre-trigger noise.
-      • Do NOT send TRADE_EXIT pings — SL/target are known from the entry
-        message; the position closes itself at SL/target/EOD.
-      • A new message goes out only when a NEW trade triggers, i.e. a
-        direction change or a fresh entry after exit/cooldown — which
-        happens naturally via TRADE_TRIGGER.
-
-    Per-direction dedupe: if the very last alert was the same direction
-    AND no exit happened in between, suppress (defensive — the trade
-    lifecycle should already prevent this, but guard just in case).
+    Policy:
+      • TRADE_TRIGGER — one message when a trade locks in. Subject to the
+        daily cap (TRIGGER + EXIT combined ≤ SCAN_ALERT_MAX_PER_DAY * 2).
+      • TRADE_EXIT    — one closing message per trade. Not counted toward the
+        daily cap so every trigger always gets its matching exit ping.
+      • SCAN / TRADE_ACTIVE — suppressed (no pre-trigger noise, no spam).
     """
     _reset_daily_if_needed(idx)
     signal_type = signal_data.get('signal_type')
+
+    if signal_type == 'TRADE_EXIT':
+        # Always send exit — no daily-cap check (paired with its trigger)
+        return True
 
     if signal_type != 'TRADE_TRIGGER':
         return False

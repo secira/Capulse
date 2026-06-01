@@ -48,6 +48,12 @@ def _col(index_key: str, suffix: str) -> str:
 
 # ── Telegram field catalogue ─────────────────────────────────────────────────
 # (key, label, default_on, description)
+TELEGRAM_MODE_OPTIONS = [
+    ("teaser", "Teaser (direction + conviction only — encourages site visits)"),
+    ("full",   "Full (all selected fields, including entry / SL / targets)"),
+]
+DEFAULT_TELEGRAM_MODE = "teaser"
+
 TELEGRAM_FIELDS: List[Tuple[str, str, bool, str]] = [
     ("header",        "Header (Index + Signal type + Trade code)", True,  "🔒 NIFTY 50 F&O — TRADE TRIGGER  XYZ123"),
     ("direction",     "Direction (BULLISH / BEARISH / BOTH)",      True,  "🟢 Direction: BULLISH"),
@@ -110,12 +116,18 @@ def bootstrap_fno_config() -> None:
                 f"{_col(key, 'telegram')} BOOLEAN DEFAULT {'TRUE' if d['telegram'] else 'FALSE'}"
             ))
 
+        # telegram_mode column
+        db.session.execute(text(
+            "ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS "
+            "telegram_mode VARCHAR(10) DEFAULT 'teaser'"
+        ))
+
         # Seed the single row if the table is empty.
         db.session.execute(text("""
-            INSERT INTO fno_config (telegram_fields)
-            SELECT :fields
+            INSERT INTO fno_config (telegram_fields, telegram_mode)
+            SELECT :fields, :mode
             WHERE NOT EXISTS (SELECT 1 FROM fno_config)
-        """), {"fields": ",".join(DEFAULT_TELEGRAM_FIELDS)})
+        """), {"fields": ",".join(DEFAULT_TELEGRAM_FIELDS), "mode": DEFAULT_TELEGRAM_MODE})
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -136,7 +148,7 @@ def get_fno_config() -> Dict[str, Any]:
         }
     """
     try:
-        select_cols = ["telegram_fields"]
+        select_cols = ["telegram_fields", "telegram_mode"]
         for key in _INDEX_KEYS:
             select_cols += [_col(key, 'sl_points'), _col(key, 'target_points'),
                             _col(key, 'target_2_points'), _col(key, 'target_3_points'),
@@ -146,11 +158,15 @@ def get_fno_config() -> Dict[str, Any]:
         )).first()
 
         if not row:
-            return {"indices": _default_indices(), "telegram_fields": list(DEFAULT_TELEGRAM_FIELDS)}
+            return {"indices": _default_indices(), "telegram_fields": list(DEFAULT_TELEGRAM_FIELDS),
+                    "telegram_mode": DEFAULT_TELEGRAM_MODE}
 
         m = row._mapping
         fields_csv = (m.get("telegram_fields") or "").strip()
         fields = [f.strip() for f in fields_csv.split(",") if f.strip()] if fields_csv else list(DEFAULT_TELEGRAM_FIELDS)
+        mode = (m.get("telegram_mode") or DEFAULT_TELEGRAM_MODE).strip()
+        if mode not in ("teaser", "full"):
+            mode = DEFAULT_TELEGRAM_MODE
 
         indices: Dict[str, Dict[str, Any]] = {}
         for key in _INDEX_KEYS:
@@ -167,28 +183,32 @@ def get_fno_config() -> Dict[str, Any]:
                 "target_3_points": float(t3_raw  if t3_raw  is not None else d["target_3_points"]),
                 "telegram":        bool(tel_raw  if tel_raw is not None else d["telegram"]),
             }
-        return {"indices": indices, "telegram_fields": fields}
+        return {"indices": indices, "telegram_fields": fields, "telegram_mode": mode}
     except Exception as e:
         logger.warning(f"get_fno_config failed, returning defaults: {e}")
         try:
             db.session.rollback()
         except Exception:
             pass
-        return {"indices": _default_indices(), "telegram_fields": list(DEFAULT_TELEGRAM_FIELDS)}
+        return {"indices": _default_indices(), "telegram_fields": list(DEFAULT_TELEGRAM_FIELDS),
+                "telegram_mode": DEFAULT_TELEGRAM_MODE}
 
 
 def update_fno_config(
     *,
     indices: Dict[str, Dict[str, Any]],
     telegram_fields: List[str],
+    telegram_mode: str = DEFAULT_TELEGRAM_MODE,
     updated_by: str = "admin",
 ) -> None:
     """Upsert the single config row with per-index points + telegram flags."""
     valid_keys = {k for k, _, _, _ in TELEGRAM_FIELDS}
     fields_csv = ",".join([f for f in telegram_fields if f in valid_keys])
+    mode = telegram_mode if telegram_mode in ("teaser", "full") else DEFAULT_TELEGRAM_MODE
 
-    set_clauses = ["telegram_fields = :fields", "updated_at = NOW()", "updated_by = :by"]
-    params: Dict[str, Any] = {"fields": fields_csv, "by": updated_by}
+    set_clauses = ["telegram_fields = :fields", "telegram_mode = :mode",
+                   "updated_at = NOW()", "updated_by = :by"]
+    params: Dict[str, Any] = {"fields": fields_csv, "mode": mode, "by": updated_by}
 
     for key in _INDEX_KEYS:
         d = _INDEX_DEFAULTS[key]
