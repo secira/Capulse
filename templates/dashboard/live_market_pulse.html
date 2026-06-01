@@ -16,10 +16,10 @@
 {% block dashboard_content %}
 <div id="lmpContent">
     <div class="text-center" style="padding:80px 16px;font-family:'Inter',sans-serif;">
-        <div class="spinner-border text-primary" style="width:48px;height:48px;" role="status">
+        <div class="spinner-border text-primary" style="width:36px;height:36px;" role="status">
             <span class="visually-hidden">Loading…</span>
         </div>
-        <p class="mt-3 mb-0" style="color:#666;">Loading market intelligence…</p>
+        <p class="mt-3 mb-0" style="color:#666;font-size:13px;">Loading market intelligence…</p>
     </div>
 </div>
 {% endblock %}
@@ -28,6 +28,25 @@
 {{ super() }}
 <script src="{{ url_for('static', filename='js/lazy_section.js') }}"></script>
 <script>
-    loadLazySection('lmpContent', '{{ url_for("dashboard_daily_signals_content") }}' + window.location.search);
+(function() {
+    var _MI_URL = '{{ url_for("dashboard_daily_signals_content") }}?mi=1';
+
+    function _loadContent(retryOnEmpty) {
+        loadLazySection('lmpContent', _MI_URL, function() {
+            if (!retryOnEmpty) return;
+            var cards = document.querySelectorAll('.idx-card');
+            var hasData = false;
+            cards.forEach(function(c) {
+                var val = c.querySelector('.idx-val');
+                if (val && val.textContent && val.textContent.trim() !== 'No Data') hasData = true;
+            });
+            if (!hasData) {
+                setTimeout(function() { _loadContent(false); }, 2500);
+            }
+        });
+    }
+
+    _loadContent(true);
+})();
 </script>
 {% endblock %}

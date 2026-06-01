@@ -950,7 +950,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script>
 /* ── Tab switching ── */
-let treemapBuilt = false;
+window.treemapBuilt = window.treemapBuilt || false;
 function lmpTab(id, el) {
     document.querySelectorAll('.lmp-pane').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.lmp-tab-btn').forEach(t => t.classList.remove('active'));
@@ -976,7 +976,7 @@ function hcol(p) {
 }
 
 /* ── Treemap ── */
-const N50 = {{ nifty50_data | tojson }};
+var N50 = {{ nifty50_data | tojson }};
 function buildMap() {
     const wrap = document.getElementById('treemapWrap');
     if (!wrap || !N50.length) return;
@@ -1028,7 +1028,7 @@ function applyFilters() {
 function resetFilters(){document.getElementById('sigAsset').value='all';document.getElementById('sigDur').value='all';applyFilters();}
 
 /* ── Signal detail ── */
-const SIG = {
+var SIG = {
     {% for s in signals %}
     {{ s.id }}: {
         id:{{s.id}}, script:"{{s.script}}", symbol:"{{s.symbol}}",
@@ -1169,10 +1169,10 @@ async function loadAI() {
 }
 
 /* ── AI Query ── */
-const aiInput  = document.getElementById('aiQueryInput');
-const aiMsgBox = document.getElementById('aiMessages');
-const aiTyping = document.getElementById('aiTyping');
-const aiChips  = document.getElementById('aiChips');
+var aiInput  = document.getElementById('aiQueryInput');
+var aiMsgBox = document.getElementById('aiMessages');
+var aiTyping = document.getElementById('aiTyping');
+var aiChips  = document.getElementById('aiChips');
 
 if (aiInput) {
     aiInput.addEventListener('keydown', e => {
@@ -1260,8 +1260,8 @@ async function sendAIQuery() {
 }
 
 /* ── Voice Input (Web Speech API) ── */
-let recognition = null;
-let isListening = false;
+var recognition = null;
+var isListening = false;
 
 function initVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1330,17 +1330,17 @@ function stopVoice() {
  * Each chunk triggers the next through its onend callback.
  * A keep-alive interval also pauses/resumes every 10 s as an extra safety net.
  */
-let ttsQueue      = [];
-let ttsActive     = false;
-let ttsKeepAlive  = null;
-let _ttsActiveBtn = null;   // the button currently driving speech
-let _ttsLang      = 'en-IN'; // BCP-47 tag for the current TTS session (set by startTTS)
+var ttsQueue      = [];
+var ttsActive     = false;
+var ttsKeepAlive  = null;
+var _ttsActiveBtn = null;   // the button currently driving speech
+var _ttsLang      = 'en-IN'; // BCP-47 tag for the current TTS session (set by startTTS)
 
 /* ── Language Configuration ── */
-const USER_LANG       = '{{ current_user.preferred_language | default("en") }}';
-const LANG_BCP47      = {en:'en-IN', hi:'hi-IN', ta:'ta-IN', te:'te-IN', mr:'mr-IN', gu:'gu-IN', kn:'kn-IN'};
-const LANG_LABEL      = {en:'English', hi:'हिन्दी', ta:'தமிழ்', te:'తెలుగు', mr:'मराठी', gu:'ગુજરાતી', kn:'ಕನ್ನಡ'};
-const USER_LANG_BCP47 = LANG_BCP47[USER_LANG] || 'en-IN';
+var USER_LANG       = '{{ current_user.preferred_language | default("en") }}';
+var LANG_BCP47      = {en:'en-IN', hi:'hi-IN', ta:'ta-IN', te:'te-IN', mr:'mr-IN', gu:'gu-IN', kn:'kn-IN'};
+var LANG_LABEL      = {en:'English', hi:'हिन्दी', ta:'தமிழ்', te:'తెలుగు', mr:'मराठी', gu:'ગુજरาती', kn:'ಕನ್ನಡ'};
+var USER_LANG_BCP47 = LANG_BCP47[USER_LANG] || 'en-IN';
 
 /* Split text into sentence-sized chunks (≤ 200 chars), keeping punctuation. */
 function splitSentences(text) {
@@ -1476,7 +1476,7 @@ function stopSpeech() {
 }
 
 /* ── Server-side TTS (gTTS) — works on all devices, no voice install needed ── */
-let _serverAudio = null;   // current HTMLAudioElement for server TTS
+var _serverAudio = null;   // current HTMLAudioElement for server TTS
 
 function _stopServerTTS() {
     if (_serverAudio) {
@@ -1660,7 +1660,7 @@ async function loadMarketDirection() {
     }
 })();
 
-let rTimer;
+var rTimer;
 window.addEventListener('resize', () => {
     clearTimeout(rTimer);
     rTimer = setTimeout(() => {

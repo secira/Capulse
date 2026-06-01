@@ -25,10 +25,10 @@ LANG_NAMES = {
     'te': 'Telugu',  'mr': 'Marathi', 'gu': 'Gujarati', 'kn': 'Kannada',
 }
 
-# ── In-memory market data cache (5-minute TTL) ───────────────────────────────
+# ── In-memory market data cache ──────────────────────────────────────────────
 _MARKET_CACHE: dict = {}
-_CACHE_TTL         = 300  # seconds — general market data (gainers/losers/movers)
-_CACHE_TTL_INDICES = 60   # seconds — index prices refresh every minute
+_CACHE_TTL         = 600  # seconds — general market data (gainers/losers/movers)
+_CACHE_TTL_INDICES = 300  # seconds — index prices (5-minute cache)
 
 
 def _market_cache_get(key, ttl=None):
@@ -256,10 +256,10 @@ def _fetch_nse_nifty50_stocks() -> dict:
             'Origin': 'https://www.nseindia.com',
         })
         # Establish session cookie first
-        sess.get('https://www.nseindia.com', timeout=6)
+        sess.get('https://www.nseindia.com', timeout=3)
         r = sess.get(
             'https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050',
-            timeout=8,
+            timeout=4,
         )
         if r.status_code == 200:
             rows = r.json().get('data', [])
@@ -411,14 +411,18 @@ def dashboard_daily_signals():
 @app.route('/dashboard/daily-signals/content')
 @login_required
 def dashboard_daily_signals_content():
-    """Heavy market-data partial for the Market Intelligence page (AJAX)."""
+    """Market-data partial for the Market Intelligence page (AJAX).
+    Pass ?mi=1 from the Market Intelligence page for a fast-path that skips
+    the signals DB query (the signals pane has no tab on that page).
+    """
     if not current_user.is_authenticated or not current_user.can_access_menu('dashboard_trading_signals'):
         return "", 403
 
-    # Holiday notification — we still render the full Market Intelligence page
-    # with yesterday's data, but flag `is_holiday`/`holiday` so the template
-    # shows a single-line banner at the top. (The big "Happy <festival>" card
-    # is now exclusive to the Telegram channel.)
+    # mi=1 → called from Market Intelligence page; skip signals DB work entirely
+    _is_mi = request.args.get('mi') == '1'
+
+    # Holiday notification — flag `is_holiday`/`holiday` so the template
+    # shows a single-line banner at the top.
     holiday_ctx = None
     try:
         from services.market_calendar import get_holiday
@@ -439,51 +443,54 @@ def dashboard_daily_signals_content():
     else:
         selected_date = _today_ist()
 
-    query = DailyTradingSignal.query.filter(DailyTradingSignal.signal_date == selected_date)
-    if asset_type_filter != 'all':
-        query = query.filter(DailyTradingSignal.asset_type == asset_type_filter)
-    if duration_filter != 'all':
-        query = query.filter(DailyTradingSignal.trade_duration == duration_filter)
-    if status_filter != 'all':
-        query = query.filter(DailyTradingSignal.status == status_filter)
-
-    try:
-        signals = query.order_by(DailyTradingSignal.signal_number.asc()).all()
-    except Exception as _e:
-        # Schema drift safety net (e.g. missing column on prod): roll back the
-        # aborted transaction so the rest of the page can still render, and
-        # show an empty signals list instead of returning 500.
-        from flask import current_app
-        current_app.logger.error(f"daily_signals query failed: {_e}")
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
+    # ── Signals + summary: skip entirely when called from Market Intelligence ──
+    if _is_mi:
         signals = []
-
-    date_range = [_today_ist() - timedelta(days=i) for i in range(30)]
-    try:
-        summary_stats = calculate_daily_summary(selected_date)
-    except Exception as _e:
-        from flask import current_app
-        current_app.logger.error(f"daily_signals summary failed: {_e}")
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-        # Same shape as calculate_daily_summary's empty-result branch — the
-        # template dereferences keys like .success_rate in numeric comparisons,
-        # so an empty dict would itself raise UndefinedError.
+        date_range = []
         summary_stats = {
             'total_signals': 0, 'active': 0, 'target_1_hit': 0, 'target_2_hit': 0,
             'sl_hit': 0, 'early_exit': 0, 'total_profit_points': 0,
             'total_loss_points': 0, 'net_points': 0, 'success_rate': 0,
             'by_asset_type': {}, 'by_duration': {},
         }
+    else:
+        query = DailyTradingSignal.query.filter(DailyTradingSignal.signal_date == selected_date)
+        if asset_type_filter != 'all':
+            query = query.filter(DailyTradingSignal.asset_type == asset_type_filter)
+        if duration_filter != 'all':
+            query = query.filter(DailyTradingSignal.trade_duration == duration_filter)
+        if status_filter != 'all':
+            query = query.filter(DailyTradingSignal.status == status_filter)
 
-    # ── Market data: Dhan (indices) + Perplexity (movers + treemap), parallel ──
-    # NO hardcoded values — start with empty placeholders. UI shows "No Data"
-    # if Dhan + NSE + yfinance all fail.
+        try:
+            signals = query.order_by(DailyTradingSignal.signal_number.asc()).all()
+        except Exception as _e:
+            from flask import current_app
+            current_app.logger.error(f"daily_signals query failed: {_e}")
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            signals = []
+
+        date_range = [_today_ist() - timedelta(days=i) for i in range(30)]
+        try:
+            summary_stats = calculate_daily_summary(selected_date)
+        except Exception as _e:
+            from flask import current_app
+            current_app.logger.error(f"daily_signals summary failed: {_e}")
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            summary_stats = {
+                'total_signals': 0, 'active': 0, 'target_1_hit': 0, 'target_2_hit': 0,
+                'sl_hit': 0, 'early_exit': 0, 'total_profit_points': 0,
+                'total_loss_points': 0, 'net_points': 0, 'success_rate': 0,
+                'by_asset_type': {}, 'by_duration': {},
+            }
+
+    # ── Market data ───────────────────────────────────────────────────────────
     market_indices = {
         'nifty_50':   {'label': 'NIFTY 50',   'value': None, 'change_percent': None, 'live': False},
         'nifty_bank': {'label': 'BANK NIFTY', 'value': None, 'change_percent': None, 'live': False},
@@ -497,7 +504,7 @@ def dashboard_daily_signals_content():
     nifty50_data = []
 
     def _fetch_dhan_indices():
-        """Fetch index prices: Dhan → NSE allIndices → yfinance. 60-second cache."""
+        """Fetch index prices: Dhan → NSE allIndices → yfinance. Cached 5 min."""
         cached = _market_cache_get('indices', ttl=_CACHE_TTL_INDICES)
         if cached is not None:
             return cached
@@ -538,8 +545,8 @@ def dashboard_daily_signals_content():
                     'Accept': 'application/json',
                     'Referer': 'https://www.nseindia.com/',
                 })
-                sess.get('https://www.nseindia.com', timeout=5)
-                r = sess.get('https://www.nseindia.com/api/allIndices', timeout=8)
+                sess.get('https://www.nseindia.com', timeout=3)
+                r = sess.get('https://www.nseindia.com/api/allIndices', timeout=4)
                 if r.status_code == 200:
                     nse_lookup = {row['index']: row for row in r.json().get('data', [])}
                     NSE_KEY_MAP = {
@@ -590,22 +597,30 @@ def dashboard_daily_signals_content():
         _captured_uid = None
 
     # ── Stale-while-revalidate ───────────────────────────────────────────────
-    # Page must render fast. Strategy:
-    #   1. If we have ANY cached indices + stocks (even expired), use them now.
-    #   2. If cache is stale, kick a background thread to refresh — non-blocking.
-    #   3. Only on a totally cold cache do we block, and cap that at 3s.
-    # Net effect: warm cache → page renders in ~50ms, cold cache → ≤3s ceiling.
+    # mi=1 (Market Intelligence): NEVER block — serve stale/empty instantly,
+    #   fire background refresh so next load gets fresh data.
+    # Daily-signals page: block up to 1.5s on cold cache for first-ever load.
     import concurrent.futures as _cf
     nifty50_source = 'unavailable'
 
     cached_indices, indices_stale = _market_cache_get_stale('indices', fresh_ttl=_CACHE_TTL_INDICES)
-    cached_nse,     nse_stale     = _market_cache_get_stale('nse_nifty50_stocks', fresh_ttl=120)
+    cached_nse,     nse_stale     = _market_cache_get_stale('nse_nifty50_stocks', fresh_ttl=_CACHE_TTL)
 
     dhan_result = cached_indices or {}
     nse_stocks  = cached_nse or {}
 
-    # Cold cache → block briefly so first-ever load isn't empty
-    if cached_indices is None or cached_nse is None:
+    if _is_mi:
+        # Market Intelligence fast-path: always non-blocking
+        if cached_indices is None:
+            _refresh_in_background('indices', _fetch_dhan_indices)
+        elif indices_stale:
+            _refresh_in_background('indices', _fetch_dhan_indices)
+        if cached_nse is None:
+            _refresh_in_background('nse_nifty50_stocks', _fetch_nse_nifty50_stocks)
+        elif nse_stale:
+            _refresh_in_background('nse_nifty50_stocks', _fetch_nse_nifty50_stocks)
+    elif cached_indices is None or cached_nse is None:
+        # Daily-signals cold cache → block briefly (cap 1.5s)
         try:
             pool = _cf.ThreadPoolExecutor(max_workers=2)
             futs = []
@@ -614,7 +629,7 @@ def dashboard_daily_signals_content():
             if cached_nse is None:
                 futs.append(('nse',  pool.submit(_fetch_nse_nifty50_stocks)))
 
-            done, _pending = _cf.wait([f for _, f in futs], timeout=3)
+            done, _pending = _cf.wait([f for _, f in futs], timeout=1.5)
             pool.shutdown(wait=False)
 
             for tag, f in futs:
@@ -629,7 +644,7 @@ def dashboard_daily_signals_content():
                         logger.warning(f"Cold-fetch {tag} error: {e}")
         except Exception as e:
             logger.warning(f"Cold market fetch error: {e}")
-    elif indices_stale or nse_stale:
+    else:
         # Warm but stale → refresh in background, return stale immediately
         if indices_stale:
             _refresh_in_background('indices', _fetch_dhan_indices)
@@ -647,8 +662,17 @@ def dashboard_daily_signals_content():
                 market_indices[key]['change_percent'] = float(c)
             market_indices[key]['live'] = True
 
-    # Build Nifty50 treemap from real NSE data (uses its own 'nifty50_v2' cache)
-    nifty50_data, nifty50_source = _get_live_nifty50_data(nse_stocks)
+    # Build Nifty50 treemap from real NSE data (uses its own 'nifty50_v2' cache).
+    # mi=1 fast-path: if NSE stocks aren't in cache yet, skip the slow yfinance
+    # batch fallback — show empty treemap and let the auto-retry pick up data.
+    if _is_mi and not nse_stocks:
+        cached_n50 = _market_cache_get('nifty50_v2')
+        if cached_n50 is not None:
+            nifty50_data, nifty50_source = cached_n50
+        else:
+            nifty50_data, nifty50_source = [], 'unavailable'
+    else:
+        nifty50_data, nifty50_source = _get_live_nifty50_data(nse_stocks)
 
     # Derive top gainers / losers / most active from NSE live data (accurate, no AI)
     if nse_stocks:

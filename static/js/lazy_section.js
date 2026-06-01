@@ -47,7 +47,7 @@
         }, Promise.resolve());
     }
 
-    window.loadLazySection = function (containerId, url) {
+    window.loadLazySection = function (containerId, url, onComplete) {
         var container = document.getElementById(containerId);
         if (!container) return;
 
@@ -84,9 +84,13 @@
 
                 return runScripts(scripts);
             })
+            .then(function () {
+                if (typeof onComplete === 'function') onComplete();
+            })
             .catch(function (err) {
                 console.error('lazy_section load failed:', err);
                 container.innerHTML = errorMarkup();
+                if (typeof onComplete === 'function') onComplete();
             });
     };
 })();
