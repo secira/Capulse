@@ -238,6 +238,7 @@ function _istStr(ts, timeOnly) {
         }
     }
 
+    window.toggleMarketIntelMenu = function() { _toggleSubmenu('marketIntelMenu', 'marketIntelMenuToggle'); };
     window.toggleFnoMenu       = function() { _toggleSubmenu('fnoMenu', 'fnoMenuToggle'); };
     window.toggleBehaviourMenu = function() { _toggleSubmenu('behaviourMenu', 'behaviourToggle'); };
     window.togglePortfolioHub  = function() { _toggleSubmenu('portfolioHubMenu', 'portfolioHubToggle'); };
@@ -246,6 +247,7 @@ function _istStr(ts, timeOnly) {
     // Auto-expand the active submenu on page load
     document.addEventListener('DOMContentLoaded', function() {
         var submenus = [
+            { menu: 'marketIntelMenu',  icon: 'marketIntelMenuToggle' },
             { menu: 'fnoMenu',          icon: 'fnoMenuToggle' },
             { menu: 'behaviourMenu',    icon: 'behaviourToggle' },
             { menu: 'portfolioHubMenu', icon: 'portfolioHubToggle' },

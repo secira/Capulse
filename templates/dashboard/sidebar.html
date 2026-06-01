@@ -13,6 +13,7 @@
         var icon = document.getElementById(iconId);
         if (icon) icon.style.transform = isOpen ? '' : 'rotate(180deg)';
     }
+    window.toggleMarketIntelMenu = window.toggleMarketIntelMenu || function () { _earlyToggle('marketIntelMenu', 'marketIntelMenuToggle'); };
     window.toggleFnoMenu       = window.toggleFnoMenu       || function () { _earlyToggle('fnoMenu',          'fnoMenuToggle'); };
     window.toggleBehaviourMenu = window.toggleBehaviourMenu || function () { _earlyToggle('behaviourMenu',    'behaviourToggle'); };
     window.togglePortfolioHub  = window.togglePortfolioHub  || function () { _earlyToggle('portfolioHubMenu', 'portfolioHubToggle'); };
@@ -95,12 +96,29 @@
 
                 {% if current_user.is_authenticated %}
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if request.endpoint in ['dashboard_daily_signals', 'daily_signals_analysis'] else '' }}"
-                       href="{{ url_for('dashboard_daily_signals') }}">
+                    <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['live_market', 'fno.fno_premarket'] else '' }}"
+                         onclick="toggleMarketIntelMenu()">
                         <i class="nav-icon fas fa-wave-square"></i>
                         <span class="nav-text">Market Intelligence</span>
                         <span class="nav-badge-new">NEW</span>
-                    </a>
+                        <i class="fas fa-chevron-down toggle-icon" id="marketIntelMenuToggle"></i>
+                    </div>
+                    <ul class="nav-list submenu-list" id="marketIntelMenu" style="display: none;">
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'live_market' else '' }}"
+                               href="{{ url_for('live_market') }}">
+                                <i class="nav-icon fas fa-chart-line"></i>
+                                <span class="nav-text">Market Intelligence</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'fno.fno_premarket' else '' }}"
+                               href="{{ url_for('fno.fno_premarket') }}">
+                                <i class="nav-icon fas fa-sun"></i>
+                                <span class="nav-text">Pre-Market</span>
+                            </a>
+                        </li>
+                    </ul>
                 </li>
                 {% endif %}
 
@@ -170,6 +188,13 @@
                                href="{{ url_for('fno.fno_pnl_analysis') }}">
                                 <i class="nav-icon fas fa-chart-pie"></i>
                                 <span class="nav-text">P&amp;L Analysis</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['dashboard_daily_signals', 'daily_signals_analysis'] else '' }}"
+                               href="{{ url_for('dashboard_daily_signals') }}">
+                                <i class="nav-icon fas fa-signal"></i>
+                                <span class="nav-text">Our Signals</span>
                             </a>
                         </li>
                     </ul>

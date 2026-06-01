@@ -17,6 +17,7 @@
         menu.style.display = isOpen ? 'none' : 'block';
         if (icon) icon.style.transform = isOpen ? '' : 'rotate(180deg)';
     }
+    window.toggleMarketIntelMenu = function() { _sidebarToggle('marketIntelMenu', 'marketIntelMenuToggle'); };
     window.toggleFnoMenu       = function() { _sidebarToggle('fnoMenu',          'fnoMenuToggle'); };
     window.toggleBehaviourMenu = function() { _sidebarToggle('behaviourMenu',    'behaviourToggle'); };
     window.togglePortfolioHub  = function() { _sidebarToggle('portfolioHubMenu', 'portfolioHubToggle'); };
