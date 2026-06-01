@@ -791,9 +791,9 @@ class NiftyOptionsEngine:
         current_time = now.time()
         if now.weekday() >= 5:
             return {'pass': False, 'reason': 'Weekend — market closed', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
-        # No trades before 9:25 AM
-        if current_time < dtime(9, 25):
-            return {'pass': False, 'reason': 'No trades before 9:25 AM — opening noise window', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
+        # No trades before 9:30 AM
+        if current_time < dtime(9, 30):
+            return {'pass': False, 'reason': 'No trades before 9:30 AM — opening noise window', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
         # No trades after 2:59 PM
         if current_time >= dtime(15, 0):
             return {'pass': False, 'reason': 'No trades after 2:59 PM — market closing', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
