@@ -27,20 +27,44 @@ class MarketDataService:
         
     def get_stock_quote(self, symbol: str, exchange: str = 'US') -> Optional[Dict[str, Any]]:
         """
-        Get real-time stock quote with fallback to multiple sources
+        Get real-time stock quote with fallback to multiple sources.
+        For Indian (NSE/BSE) symbols the Market Data Gateway is tried first so
+        the canonical Admin Broker → TrueData → System Dhan → NSE → yfinance
+        chain applies consistently.
         """
         try:
+            # Gateway P0: Indian equity symbols only
+            if exchange.upper() in ['NSE', 'BSE', 'IN', 'INDIA']:
+                try:
+                    from services.market_data_gateway import get_price as _gw_price
+                    gw = _gw_price(symbol)
+                    if gw.get('success') and gw.get('value', 0) > 0:
+                        px = float(gw['value'])
+                        src = gw.get('source', 'admin_broker')
+                        return {
+                            'symbol': symbol, 'company_name': symbol,
+                            'current_price': px, 'change': 0.0,
+                            'change_percent': '0.00', 'open': px,
+                            'high': px, 'low': px, 'previous_close': 0.0,
+                            'volume': 0, 'source': src,
+                            'currency': 'INR', 'exchange': exchange.upper(),
+                            'last_updated': __import__('datetime').datetime.now(
+                                __import__('datetime').timezone.utc).isoformat(),
+                        }
+                except Exception:
+                    pass
+
             # Try Alpha Vantage first for US stocks
             if exchange.upper() == 'US' and self.alpha_vantage_key:
                 quote = self._get_alpha_vantage_quote(symbol)
                 if quote:
                     return quote
-            
+
             # Try Yahoo Finance as fallback for all markets
             quote = self._get_yahoo_finance_quote(symbol, exchange)
             if quote:
                 return quote
-                
+
             # Try NSE for Indian stocks
             if exchange.upper() in ['NSE', 'BSE', 'IN', 'INDIA']:
                 quote = self._get_nse_quote(symbol)

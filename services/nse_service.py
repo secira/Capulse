@@ -57,6 +57,31 @@ class NSEService:
         Returns:
             Dictionary with stock data - ALWAYS includes a price
         """
+        # PRIORITY -1: Market Data Gateway (single canonical fallback chain)
+        # Admin Broker Pool → TrueData → System Dhan → NSEPython → yfinance
+        if not skip_dhan:
+            try:
+                from services.market_data_gateway import get_price
+                gw = get_price(symbol)
+                if gw.get('success') and gw.get('value', 0) > 0:
+                    px = float(gw['value'])
+                    src = gw.get('source', 'admin_broker')
+                    self.logger.debug(f"{symbol}: Gateway price ₹{px} [{src}]")
+                    return {
+                        "symbol": symbol, "company_name": symbol,
+                        "current_price": px, "previous_close": 0.0,
+                        "change_amount": 0.0, "change_percent": 0.0,
+                        "volume": 0, "day_high": px, "day_low": px,
+                        "week_52_high": 0.0, "week_52_low": 0.0,
+                        "market_cap": None, "pe_ratio": None,
+                        "timestamp": __import__('datetime').datetime.now(__import__('datetime').timezone.utc),
+                        "data_delay_minutes": 0,
+                        "real_timestamp": __import__('datetime').datetime.now(__import__('datetime').timezone.utc),
+                        "data_source": src,
+                    }
+            except Exception as e:
+                self.logger.debug(f"{symbol}: Gateway skipped: {e}")
+
         # PRIORITY 0: Try Dhan OHLC (most reliable, direct exchange data)
         # skip_dhan=True when get_multiple_quotes already attempted a batch
         # call for this symbol so we avoid a redundant per-symbol Dhan round-trip.

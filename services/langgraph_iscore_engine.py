@@ -788,28 +788,51 @@ class LangGraphIScoreEngine:
         confidence = 0.30
         data_sources = []
 
-        # ---- 1. Try Dhan for VIX + NIFTY (primary — paid, reliable) ----
+        # ---- 0. Market Data Gateway (single canonical fallback chain) ----
         try:
-            from services.dhan_service import get_index_quotes
-            idx_data = get_index_quotes()   # returns {NIFTY:{ltp,open,...}, INDIA VIX:{...}, ...}
-            if idx_data:
-                # VIX
-                vix_raw = idx_data.get("INDIA VIX", {}).get("ltp", 0)
-                if vix_raw and float(vix_raw) > 0:
-                    vix = float(vix_raw)
+            from services.market_data_gateway import get_index_prices as _gw_idx
+            _gw_data = _gw_idx(['NIFTY', 'INDIA VIX'])
+            if _gw_data.get('_success'):
+                _nifty = _gw_data.get('NIFTY', {})
+                _vix_d = _gw_data.get('INDIA VIX', {})
+                if _vix_d.get('ltp', 0) > 0:
+                    vix = float(_vix_d['ltp'])
                     vix_score, vix_regime = _vix_score_regime(vix)
-                    data_sources.append('Dhan-VIX')
+                    data_sources.append(f"gateway-VIX[{_vix_d.get('source','?')}]")
                     confidence = max(confidence, 0.70)
-                # NIFTY day change %
-                nifty_d = idx_data.get("NIFTY", {})
-                pct = nifty_d.get("pct_change", 0)
-                if pct is not None:
-                    mkt_chg = round(float(pct), 2)
+                if _nifty.get('pct_change') is not None:
+                    mkt_chg = round(float(_nifty['pct_change']), 2)
                     mkt_score_val = _mkt_score(mkt_chg)
-                    data_sources.append('Dhan-NIFTY')
+                    data_sources.append(f"gateway-NIFTY[{_nifty.get('source','?')}]")
                     confidence = max(confidence, 0.70)
         except Exception as e:
-            logger.debug(f"Dhan VIX/NIFTY fetch failed: {e}")
+            logger.debug(f"Gateway index prices failed: {e}")
+
+        # ---- 1. Try Dhan for VIX + NIFTY if gateway didn't deliver ----
+        _need_vix   = not any('VIX'   in s for s in data_sources)
+        _need_nifty = not any('NIFTY' in s for s in data_sources)
+        if _need_vix or _need_nifty:
+            try:
+                from services.dhan_service import get_index_quotes
+                idx_data = get_index_quotes()   # {NIFTY:{ltp,open,...}, INDIA VIX:{...}, ...}
+                if idx_data:
+                    if _need_vix:
+                        vix_raw = idx_data.get("INDIA VIX", {}).get("ltp", 0)
+                        if vix_raw and float(vix_raw) > 0:
+                            vix = float(vix_raw)
+                            vix_score, vix_regime = _vix_score_regime(vix)
+                            data_sources.append('Dhan-VIX')
+                            confidence = max(confidence, 0.70)
+                    if _need_nifty:
+                        nifty_d = idx_data.get("NIFTY", {})
+                        pct = nifty_d.get("pct_change", 0)
+                        if pct is not None:
+                            mkt_chg = round(float(pct), 2)
+                            mkt_score_val = _mkt_score(mkt_chg)
+                            data_sources.append('Dhan-NIFTY')
+                            confidence = max(confidence, 0.70)
+            except Exception as e:
+                logger.debug(f"Dhan VIX/NIFTY fetch failed: {e}")
 
         # ---- 2. yfinance fallback for VIX (if Dhan didn't supply it) ----
         if 'Dhan-VIX' not in data_sources:
