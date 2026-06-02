@@ -80,6 +80,7 @@ _last_active_alert    = _make_per_index(None)   # Timestamp of last TRADE_ACTIVE
 _active_trade_code    = _make_per_index(None)   # Current trade code (e.g. NIFTYT01)
 
 _scheduler_started = False
+_fno_app = None          # set by start_scheduler; used inside alert helpers that lack app context
 
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
@@ -482,10 +483,30 @@ def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
 
 def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
     try:
+        # Helper: push a Flask app context if one isn't already active.
+        # _send_telegram_alert is called outside the engine's app_context block,
+        # so DB queries (fno_config, schedule table) would fail without this.
+        def _with_ctx(fn):
+            """Run fn() inside an app context; return None on error."""
+            try:
+                if _fno_app is None:
+                    return fn()
+                try:
+                    from flask import current_app
+                    current_app._get_current_object()   # raises if no active ctx
+                    return fn()                         # already inside a context
+                except RuntimeError:
+                    with _fno_app.app_context():
+                        return fn()
+            except Exception as _ctx_err:
+                logger.warning(f"[{index_id}] _with_ctx error: {_ctx_err}")
+                return None
+
         # ── Gate 1: per-index toggle (Admin → F&O Settings) ──────────────────
         try:
             from services.fno_config import is_index_telegram_enabled
-            if not is_index_telegram_enabled(index_id):
+            enabled = _with_ctx(lambda: is_index_telegram_enabled(index_id))
+            if enabled is False:
                 logger.info(f"[{index_id}] Telegram alert skipped — index de-selected in F&O Settings")
                 return False
         except Exception as _gate_err:
@@ -495,7 +516,8 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         # Admin → Alert Schedules → "F&O Trade Signals" enabled toggle.
         try:
             from services.iscore_alert_dispatcher import _is_schedule_enabled
-            if not _is_schedule_enabled('fno_signals', default=True):
+            sched_on = _with_ctx(lambda: _is_schedule_enabled('fno_signals', default=True))
+            if sched_on is False:
                 logger.info(f"[{index_id}] Telegram alert skipped — 'fno_signals' disabled in Alert Schedules")
                 return False
         except Exception as _sched_err:
@@ -514,10 +536,12 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         # ── Build message (teaser vs full) ────────────────────────────────────
         try:
             from services.fno_config import get_fno_config, DEFAULT_TELEGRAM_FIELDS
-            cfg  = get_fno_config()
-            mode = cfg.get('telegram_mode', 'teaser')
-        except Exception:
-            mode = 'teaser'
+            cfg  = _with_ctx(get_fno_config) or {}
+            mode = cfg.get('telegram_mode', 'full')
+            logger.info(f"[{index_id}] Telegram mode from config: {mode!r}")
+        except Exception as _cfg_err:
+            logger.warning(f"[{index_id}] get_fno_config failed: {_cfg_err} — using full mode")
+            mode = 'full'
             cfg  = {}
 
         signal_type = signal_data.get('signal_type', 'TRADE')
@@ -904,7 +928,8 @@ def _try_acquire_scheduler_lock(app, lock_id: int) -> bool:
 
 
 def start_scheduler(app):
-    global _scheduler_started
+    global _scheduler_started, _fno_app
+    _fno_app = app          # store so alert helpers can push an app context
     if _scheduler_started:
         return
     if not _try_acquire_scheduler_lock(app, _FNO_ADVISORY_LOCK_ID):
