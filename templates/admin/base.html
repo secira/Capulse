@@ -176,6 +176,9 @@
                         <a href="{{ url_for('admin.partner_api_playground') }}" class="nav-link admin-nav-link {{ 'active' if 'partner_api_playground' in request.endpoint else '' }}">
                             <i class="fas fa-flask me-2"></i>API Test Console
                         </a>
+                        <a href="{{ url_for('admin.fno_signal_history') }}" class="nav-link admin-nav-link {{ 'active' if 'fno_signal_history' in request.endpoint else '' }}">
+                            <i class="fas fa-history me-2"></i>F&amp;O Signal History
+                        </a>
                         <a href="{{ url_for('admin.alert_schedules') }}" class="nav-link admin-nav-link {{ 'active' if 'alert_schedule' in request.endpoint else '' }}">
                             <i class="fas fa-clock me-2"></i>Alert Schedules
                         </a>
