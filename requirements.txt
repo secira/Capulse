@@ -63,3 +63,4 @@ apscheduler>=3.11.2
 pyotp>=2.9.0
 pytz>=2025.2
 logzero>=1.7.0
+tzdata>=2024.1

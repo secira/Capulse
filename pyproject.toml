@@ -68,4 +68,5 @@ dependencies = [
     "apscheduler>=3.11.2",
     "pyotp>=2.9.0",
     "pytz>=2025.2",
+    "tzdata>=2024.1",
 ]

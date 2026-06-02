@@ -2,11 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies (libpq-dev for psycopg2, curl for health checks)
+# Install system dependencies
+# tzdata: provides /usr/share/zoneinfo so Python's zoneinfo module works on slim images
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
     curl \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies before copying app code
