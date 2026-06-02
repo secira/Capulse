@@ -5,8 +5,8 @@ Optimized Gunicorn Configuration for Production Performance
 import multiprocessing
 import os
 
-# Server socket
-bind = f"0.0.0.0:{os.environ.get('PORT', '5000')}"
+# Server socket — PORT is set by Railway automatically; default 8080 matches Dockerfile EXPOSE
+bind = f"0.0.0.0:{os.environ.get('PORT', '8080')}"
 backlog = 2048
 
 # Worker processes

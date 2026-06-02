@@ -1,5 +1,9 @@
+# Version control
 .git
 .gitignore
+.gitattributes
+
+# Replit-specific files
 .agents
 .cache
 .canvas
@@ -7,8 +11,12 @@
 .local
 .replit
 replit.nix
+replit.md
 .upm
 .breakpoints
+.pythonlibs
+
+# Python bytecode
 __pycache__
 *.pyc
 *.pyo
@@ -20,32 +28,41 @@ dist
 build
 *.egg
 
+# Local databases / exports
 instance/
 *.db
 *.sqlite
 *.sqlite3
-
-attached_assets/
 database_export.sql
-DATABASE_STRUCTURE_REPORT.md
-design_guidelines.md
-email_setup_guide.md
 
-pt-app/
-
+# Documentation (not needed in the container)
+*.md
+!README.md
+attached_assets/
 docs/
 deployment/
+design_guidelines.md
+email_setup_guide.md
+DATABASE_STRUCTURE_REPORT.md
 
-.pythonlibs/
+# pt-app mini-server (separate service, not deployed with main app)
+pt-app/
 
+# Test artefacts
+tests/
+test_*.py
 pytest_cache/
 .pytest_cache/
 *.log
 logs/
 
+# Node (not used at runtime)
 node_modules/
+
+# Secrets / env files (never in the image)
 .env
 .env.*
 !.env.example
 
+# Alembic migration history (migrations run via entrypoint, not baked in)
 alembic/versions/

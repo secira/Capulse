@@ -132,17 +132,9 @@ PYEOF
 fi
 
 # ─── Start the app ───────────────────────────────────────────────────────
-# --preload loads app.py ONCE in the master process.  Workers are then
-# forked (copy-on-write, <1 s) and ready to serve /health immediately.
+# gunicorn.conf.py drives all tuning (workers, threads, timeouts, logging).
+# PORT is read inside gunicorn.conf.py from the environment — Railway always
+# sets it; the default there is 8080 to match the Dockerfile EXPOSE.
 echo ""
-echo "Starting gunicorn..."
-exec gunicorn \
-    --bind "0.0.0.0:${PORT:-8080}" \
-    --workers 2 \
-    --threads 4 \
-    --worker-class gthread \
-    --timeout 120 \
-    --preload \
-    --access-logfile - \
-    --error-logfile - \
-    main:app
+echo "Starting gunicorn (config: gunicorn.conf.py)..."
+exec gunicorn -c gunicorn.conf.py main:app
