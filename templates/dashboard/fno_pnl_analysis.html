@@ -73,10 +73,12 @@ select.filter-select:focus{outline:none;border-color:#3b82f6}
 <!-- ── Filter bar ── -->
 <div class="filter-bar">
     <span class="filter-label"><i class="fas fa-filter me-1"></i>Period:</span>
-    <button class="filter-btn" data-months="3"  onclick="setMonths(3)">3 Months</button>
-    <button class="filter-btn active" data-months="6" onclick="setMonths(6)">6 Months</button>
-    <button class="filter-btn" data-months="12" onclick="setMonths(12)">12 Months</button>
-    <button class="filter-btn" data-months="24" onclick="setMonths(24)">All Time</button>
+    <button class="filter-btn" data-period="week"  onclick="setPeriod('week')">This Week</button>
+    <button class="filter-btn" data-period="month" onclick="setPeriod('month')">This Month</button>
+    <button class="filter-btn" data-period="months" data-months="3"  onclick="setPeriod('months',3)">3 Months</button>
+    <button class="filter-btn active" data-period="months" data-months="6" onclick="setPeriod('months',6)">6 Months</button>
+    <button class="filter-btn" data-period="months" data-months="12" onclick="setPeriod('months',12)">12 Months</button>
+    <button class="filter-btn" data-period="months" data-months="24" onclick="setPeriod('months',24)">All Time</button>
 
     <span class="filter-label ms-3"><i class="fas fa-exchange-alt me-1"></i>Index:</span>
     <select class="filter-select" id="indexFilter" onchange="loadPnL()">
@@ -98,12 +100,16 @@ select.filter-select:focus{outline:none;border-color:#3b82f6}
 </div>
 
 <script>
+var _period       = 'months';
 var _selectedMonths = 6;
 
-function setMonths(m) {
-    _selectedMonths = m;
-    document.querySelectorAll('.filter-btn[data-months]').forEach(function(b) {
-        b.classList.toggle('active', parseInt(b.dataset.months) === m);
+function setPeriod(p, months) {
+    _period = p;
+    if (months !== undefined) _selectedMonths = months;
+    document.querySelectorAll('.filter-btn[data-period]').forEach(function(b) {
+        var match = b.dataset.period === p &&
+                    (p !== 'months' || parseInt(b.dataset.months || 0) === _selectedMonths);
+        b.classList.toggle('active', match);
     });
     loadPnL();
 }
@@ -120,13 +126,15 @@ function indexChip(idx) {
 }
 
 function outcomeClass(o) {
-    if (o === 'TARGET HIT') return 'ob-target';
-    if (o === 'SL HIT')     return 'ob-sl';
+    if (!o) return 'ob-time';
+    if (o.indexOf('TARGET') === 0) return 'ob-target';
+    if (o === 'SL HIT')            return 'ob-sl';
     return 'ob-time';
 }
 function outcomeIcon(o) {
-    if (o === 'TARGET HIT') return '✅';
-    if (o === 'SL HIT')     return '❌';
+    if (!o) return '⏱';
+    if (o.indexOf('TARGET') === 0) return '✅';
+    if (o === 'SL HIT')            return '❌';
     return '⏱';
 }
 
@@ -231,7 +239,7 @@ function toggleMonth(idx) {
 
 function loadPnL() {
     var idx = document.getElementById('indexFilter').value;
-    var url = '/dashboard/fno/api/pnl-history?months=' + _selectedMonths + '&index_id=' + idx;
+    var url = '/dashboard/fno/api/pnl-history?period=' + _period + '&months=' + _selectedMonths + '&index_id=' + idx;
     var cont = document.getElementById('pnlContainer');
     cont.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><br>Loading…</div>';
 

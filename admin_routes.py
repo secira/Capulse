@@ -2785,6 +2785,155 @@ def partner_api_playground_run():
         return jsonify({'success': False, 'error': str(e), 'code': 'ENGINE_ERROR'}), 500
 
 
+# ───────────────────────── F&O Signal History ───────────────────────────
+
+@admin_bp.route('/fno-signal-history', methods=['GET'])
+@admin_required
+def fno_signal_history():
+    try:
+        page      = max(1, int(request.args.get('page', 1)))
+        per_page  = 50
+        offset    = (page - 1) * per_page
+
+        sig_type  = request.args.get('sig_type', '').strip().upper()
+        index_id  = request.args.get('index_id', '').strip().upper()
+        outcome   = request.args.get('outcome', '').strip()
+        date_from = request.args.get('date_from', '').strip()
+        date_to   = request.args.get('date_to', '').strip()
+
+        where = ["1=1"]
+        params: dict = {}
+
+        if sig_type:
+            where.append("signal_type = :sig_type")
+            params['sig_type'] = sig_type
+        if index_id:
+            where.append("COALESCE(index_id,'NIFTY') = :index_id")
+            params['index_id'] = index_id
+        if outcome:
+            where.append("outcome = :outcome")
+            params['outcome'] = outcome
+        if date_from:
+            where.append("created_at >= :date_from")
+            params['date_from'] = date_from
+        if date_to:
+            where.append("created_at <= :date_to")
+            params['date_to'] = date_to
+
+        w_clause = " AND ".join(where)
+
+        total = db.session.execute(
+            db.text(f"SELECT COUNT(*) FROM fno_signal_history WHERE {w_clause}"),
+            params
+        ).scalar() or 0
+
+        rows = db.session.execute(db.text(f"""
+            SELECT id, trade_code, index_id, signal_type, direction,
+                   confidence, outcome, created_at, exit_time, exit_spot
+            FROM   fno_signal_history
+            WHERE  {w_clause}
+            ORDER  BY created_at DESC
+            LIMIT  :lim OFFSET :off
+        """), {**params, 'lim': per_page, 'off': offset}).fetchall()
+
+        signals = []
+        for r in rows:
+            signals.append({
+                'id':          r[0],
+                'trade_code':  r[1] or '—',
+                'index_id':    r[2] or 'NIFTY',
+                'signal_type': r[3] or '—',
+                'direction':   r[4] or '—',
+                'confidence':  r[5],
+                'outcome':     r[6] or '—',
+                'created_at':  r[7],
+                'exit_time':   r[8],
+                'exit_spot':   r[9],
+            })
+
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        return render_template(
+            'admin/fno_signal_history.html',
+            signals=signals,
+            page=page,
+            total_pages=total_pages,
+            total=total,
+            filters={
+                'sig_type': sig_type, 'index_id': index_id,
+                'outcome': outcome, 'date_from': date_from, 'date_to': date_to,
+            },
+        )
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error loading signal history: {e}', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+
+@admin_bp.route('/fno-signal-history/<int:signal_id>/delete', methods=['POST'])
+@admin_required
+def fno_signal_delete(signal_id):
+    try:
+        db.session.execute(
+            db.text("DELETE FROM fno_signal_history WHERE id = :id"),
+            {'id': signal_id}
+        )
+        db.session.commit()
+        flash('Signal deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Delete failed: {e}', 'danger')
+    return redirect(request.referrer or url_for('admin.fno_signal_history'))
+
+
+@admin_bp.route('/fno-signal-history/bulk-delete', methods=['POST'])
+@admin_required
+def fno_signal_bulk_delete():
+    try:
+        ids_raw = request.form.getlist('signal_ids')
+        if not ids_raw:
+            flash('No signals selected.', 'warning')
+            return redirect(url_for('admin.fno_signal_history'))
+        ids = [int(i) for i in ids_raw if str(i).isdigit()]
+        if ids:
+            db.session.execute(
+                db.text("DELETE FROM fno_signal_history WHERE id = ANY(:ids)"),
+                {'ids': ids}
+            )
+            db.session.commit()
+            flash(f'{len(ids)} signal(s) deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Bulk delete failed: {e}', 'danger')
+    return redirect(url_for('admin.fno_signal_history'))
+
+
+@admin_bp.route('/fno-signal-history/delete-all', methods=['POST'])
+@admin_required
+def fno_signal_delete_all():
+    try:
+        index_id  = request.form.get('index_id', '').strip().upper()
+        sig_type  = request.form.get('sig_type', '').strip().upper()
+        where = ["1=1"]
+        params: dict = {}
+        if index_id:
+            where.append("COALESCE(index_id,'NIFTY') = :index_id")
+            params['index_id'] = index_id
+        if sig_type:
+            where.append("signal_type = :sig_type")
+            params['sig_type'] = sig_type
+        w_clause = " AND ".join(where)
+        deleted = db.session.execute(
+            db.text(f"DELETE FROM fno_signal_history WHERE {w_clause} RETURNING id"),
+            params
+        ).rowcount
+        db.session.commit()
+        flash(f'Deleted all matching signals ({deleted} rows).', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Delete-all failed: {e}', 'danger')
+    return redirect(url_for('admin.fno_signal_history'))
+
+
 # ───────────────────────── Alert Schedules ─────────────────────────────
 # Admin-managed timings for the automatic Telegram alerts (Top-10 stock
 # digest, Market Intelligence snapshots). Lives in the alert_schedule

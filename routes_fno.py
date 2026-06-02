@@ -166,24 +166,30 @@ def _parse_atm_trade(trades_json_str):
 def _calc_trade_pnl(atm_trade, outcome):
     """
     Return (entry_premium, exit_premium, pnl_pct) for a closed trade.
-    - TARGET HIT → exit at the ATM target price
-    - SL HIT     → exit at the ATM SL price
-    - TIME EXIT  → exit price unknown; returns None for pnl_pct
+    - TARGET 1/2/3 HIT  → exit at the respective target price
+    - SL HIT            → exit at the SL price
+    - 3PM SQUARE OFF    → exit price unknown; returns None for pnl_pct
     """
     if not atm_trade:
         return None, None, None
     entry_premium = atm_trade.get('entry_price') or 0
-    sl            = atm_trade.get('sl')           or 0
-    target        = atm_trade.get('target')       or 0
+    sl      = atm_trade.get('sl')       or 0
+    target  = atm_trade.get('target')   or 0
+    target2 = atm_trade.get('target_2') or 0
+    target3 = atm_trade.get('target_3') or 0
     if not entry_premium:
         return None, None, None
 
-    if outcome == 'TARGET HIT' and target:
+    if outcome in ('TARGET HIT', 'TARGET 1 HIT') and target:
         exit_premium = target
+    elif outcome == 'TARGET 2 HIT' and target2:
+        exit_premium = target2
+    elif outcome == 'TARGET 3 HIT' and target3:
+        exit_premium = target3
     elif outcome == 'SL HIT' and sl:
         exit_premium = sl
     else:
-        return round(entry_premium, 1), None, None   # TIME EXIT — no exact exit price
+        return round(entry_premium, 1), None, None   # 3PM Square Off / unknown
 
     pnl_pct = round((exit_premium - entry_premium) / entry_premium * 100, 1)
     return round(entry_premium, 1), round(exit_premium, 1), pnl_pct
@@ -299,28 +305,35 @@ def fno_pnl_history():
         from datetime import datetime, timedelta
         from collections import OrderedDict
 
+        period       = request.args.get('period', 'months')   # 'week' | 'month' | 'months'
         months_back  = min(int(request.args.get('months', 6)), 24)
         index_filter = request.args.get('index_id', 'ALL').upper()
 
-        ist_now        = datetime.utcnow() + timedelta(hours=5, minutes=30)
-        # Start of the first day of (months_back) months ago
-        m              = ist_now.month - months_back
-        y              = ist_now.year + (m - 1) // 12
-        m              = ((m - 1) % 12) + 1
-        from_ist       = ist_now.replace(year=y, month=m, day=1,
-                                         hour=0, minute=0, second=0, microsecond=0)
-        utc_from       = from_ist - timedelta(hours=5, minutes=30)
+        ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+
+        week_start_ist = week_end_ist = None
+        if period == 'week':
+            days_since_mon = ist_now.weekday()          # 0 = Monday
+            week_start_ist = (ist_now - timedelta(days=days_since_mon)).replace(
+                hour=0, minute=0, second=0, microsecond=0)
+            week_end_ist   = week_start_ist + timedelta(days=6)
+            utc_from       = week_start_ist - timedelta(hours=5, minutes=30)
+        elif period == 'month':
+            month_start_ist = ist_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            utc_from        = month_start_ist - timedelta(hours=5, minutes=30)
+        else:
+            m        = ist_now.month - months_back
+            y        = ist_now.year + (m - 1) // 12
+            m        = ((m - 1) % 12) + 1
+            from_ist = ist_now.replace(year=y, month=m, day=1,
+                                       hour=0, minute=0, second=0, microsecond=0)
+            utc_from = from_ist - timedelta(hours=5, minutes=30)
 
         index_clause = "AND COALESCE(index_id,'NIFTY') = :index_id" if index_filter != 'ALL' else ""
-        params = {'from_date': utc_from}
+        params: dict = {'from_date': utc_from}
         if index_filter != 'ALL':
             params['index_id'] = index_filter
 
-        # Show ALL closed F&O signals (auto-monitor + user trades). The
-        # is_user_trade flag is preserved for attribution but no longer
-        # filters this view — users want to see how every triggered trade
-        # performed (Target Hit, SL Hit, Time Exit), not just the ones
-        # they personally clicked Buy on from the F&O page.
         rows = db.session.execute(db.text(f"""
             SELECT index_id, direction, confidence, atm_strike, trades_json,
                    created_at, trade_code, outcome, exit_spot, exit_time
@@ -334,64 +347,91 @@ def fno_pnl_history():
 
         trades = []
         for r in rows:
-            atm = _parse_atm_trade(getattr(r, 'trades_json', None))
+            atm     = _parse_atm_trade(getattr(r, 'trades_json', None))
             outcome = r.outcome or ''
             entry_p, exit_p, pnl_pct = _calc_trade_pnl(atm, outcome)
-            points = round(exit_p - entry_p, 1) if (exit_p is not None and entry_p) else None
-
+            points   = round(exit_p - entry_p, 1) if (exit_p is not None and entry_p) else None
             opt_type = 'CE' if r.direction == 'BULLISH' else ('PE' if r.direction == 'BEARISH' else '—')
-
             entry_ist = r.created_at.replace(tzinfo=timezone.utc).astimezone(IST) if r.created_at else None
             exit_ist  = r.exit_time.replace(tzinfo=timezone.utc).astimezone(IST)  if r.exit_time  else None
 
+            # Week-in-month label (1-indexed by calendar week number within month)
+            week_of_month      = ((entry_ist.day - 1) // 7 + 1) if entry_ist else 0
+            month_key          = entry_ist.strftime('%Y-%m')  if entry_ist else '0000-00'
+            month_label        = entry_ist.strftime('%B %Y')  if entry_ist else 'Unknown'
+            week_in_month_key  = f"{month_key}-W{week_of_month}"
+            week_in_month_lbl  = f"Week {week_of_month} — {month_label}"
+
             trades.append({
-                'trade_code':    r.trade_code or '—',
-                'index_id':      (r.index_id or 'NIFTY'),
-                'direction':     r.direction or '—',
-                'option_type':   opt_type,
-                'strike':        r.atm_strike,
-                'confidence':    r.confidence,
-                'outcome':       outcome,
-                'entry_premium': entry_p,
-                'exit_premium':  exit_p,
-                'points':        points,
-                'pnl_pct':       pnl_pct,
-                'exit_spot':     r.exit_spot,
-                'date':          entry_ist.strftime('%d %b %Y') if entry_ist else '—',
-                'entry_time':    entry_ist.strftime('%I:%M %p')  if entry_ist else '—',
-                'exit_time':     exit_ist.strftime('%I:%M %p')   if exit_ist  else '—',
-                'month_key':     entry_ist.strftime('%Y-%m')     if entry_ist else '0000-00',
-                'month_label':   entry_ist.strftime('%B %Y')     if entry_ist else 'Unknown',
+                'trade_code':         r.trade_code or '—',
+                'index_id':           (r.index_id or 'NIFTY'),
+                'direction':          r.direction or '—',
+                'option_type':        opt_type,
+                'strike':             r.atm_strike,
+                'confidence':         r.confidence,
+                'outcome':            outcome,
+                'entry_premium':      entry_p,
+                'exit_premium':       exit_p,
+                'points':             points,
+                'pnl_pct':            pnl_pct,
+                'exit_spot':          r.exit_spot,
+                'date':               entry_ist.strftime('%d %b %Y') if entry_ist else '—',
+                'entry_time':         entry_ist.strftime('%I:%M %p')  if entry_ist else '—',
+                'exit_time':          exit_ist.strftime('%I:%M %p')   if exit_ist  else '—',
+                'month_key':          month_key,
+                'month_label':        month_label,
+                'week_in_month_key':  week_in_month_key,
+                'week_in_month_lbl':  week_in_month_lbl,
             })
 
-        # Group by month (most-recent first)
-        by_month: OrderedDict = OrderedDict()
-        for t in trades:
-            mk = t['month_key']
-            if mk not in by_month:
-                by_month[mk] = {'month_label': t['month_label'], 'month_key': mk, 'trades': []}
-            by_month[mk]['trades'].append(t)
-
-        result_months = []
-        for mk, data in by_month.items():
-            mt = data['trades']
-            with_pnl  = [t for t in mt if t['pnl_pct'] is not None]
-            wins      = [t for t in with_pnl if t['pnl_pct'] > 0]
-            losses    = [t for t in with_pnl if t['pnl_pct'] <= 0]
-            tot_pts   = round(sum(t['points'] for t in with_pnl if t['points']), 1)
-            cum_pnl   = round(sum(t['pnl_pct'] for t in with_pnl), 1) if with_pnl else None
-            data['summary'] = {
-                'total_trades': len(mt),
+        def _summarise(tlist):
+            with_pnl = [t for t in tlist if t['pnl_pct'] is not None]
+            wins     = [t for t in with_pnl if t['pnl_pct'] > 0]
+            losses   = [t for t in with_pnl if t['pnl_pct'] <= 0]
+            tot_pts  = round(sum(t['points'] for t in with_pnl if t['points']), 1)
+            cum_pnl  = round(sum(t['pnl_pct'] for t in with_pnl), 1) if with_pnl else None
+            return {
+                'total_trades': len(tlist),
                 'wins':         len(wins),
                 'losses':       len(losses),
-                'time_exits':   len(mt) - len(with_pnl),
+                'square_offs':  len(tlist) - len(with_pnl),
                 'win_rate':     round(len(wins) / len(with_pnl) * 100, 1) if with_pnl else None,
                 'total_points': tot_pts,
                 'cum_pnl_pct':  cum_pnl,
             }
-            result_months.append(data)
 
-        return jsonify({'success': True, 'months': result_months, 'total_trades': len(trades)})
+        groups = []
+        if period == 'week':
+            mon_lbl = week_start_ist.strftime('%d %b')
+            sun_lbl = week_end_ist.strftime('%d %b %Y')
+            groups  = [{'month_label': f'This Week  ({mon_lbl} – {sun_lbl})',
+                        'month_key': 'this_week',
+                        'trades': trades,
+                        'summary': _summarise(trades)}]
+        elif period == 'month':
+            by_week: OrderedDict = OrderedDict()
+            for t in trades:
+                k = t['week_in_month_key']
+                if k not in by_week:
+                    by_week[k] = {'month_label': t['week_in_month_lbl'],
+                                  'month_key': k, 'trades': []}
+                by_week[k]['trades'].append(t)
+            for k, data in by_week.items():
+                data['summary'] = _summarise(data['trades'])
+                groups.append(data)
+        else:
+            by_month: OrderedDict = OrderedDict()
+            for t in trades:
+                mk = t['month_key']
+                if mk not in by_month:
+                    by_month[mk] = {'month_label': t['month_label'],
+                                    'month_key': mk, 'trades': []}
+                by_month[mk]['trades'].append(t)
+            for mk, data in by_month.items():
+                data['summary'] = _summarise(data['trades'])
+                groups.append(data)
+
+        return jsonify({'success': True, 'months': groups, 'total_trades': len(trades)})
     except Exception as e:
         logger.error(f"P&L history error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500

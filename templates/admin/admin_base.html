@@ -284,6 +284,9 @@
                 <a href="{{ url_for('admin.partner_api') }}" class="admin-nav-item {{ 'active' if 'partner_api' in request.endpoint }}">
                     <i class="fas fa-code me-2"></i>Partner API
                 </a>
+                <a href="{{ url_for('admin.fno_signal_history') }}" class="admin-nav-item {{ 'active' if 'fno_signal_history' in request.endpoint }}">
+                    <i class="fas fa-history me-2"></i>F&amp;O Signal History
+                </a>
                 <a href="{{ url_for('admin.alert_schedules') }}" class="admin-nav-item {{ 'active' if 'alert_schedule' in request.endpoint }}">
                     <i class="fas fa-clock me-2"></i>Alert Schedules
                 </a>
