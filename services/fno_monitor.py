@@ -514,14 +514,19 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
 
         # ── Gate 2: master on/off from Alert Schedules page ──────────────────
         # Admin → Alert Schedules → "F&O Trade Signals" enabled toggle.
+        # sched_on == False  → explicitly disabled by admin → block
+        # sched_on == None   → DB read failed → treat as disabled (fail-safe)
+        # sched_on == True   → enabled → allow
         try:
             from services.iscore_alert_dispatcher import _is_schedule_enabled
             sched_on = _with_ctx(lambda: _is_schedule_enabled('fno_signals', default=True))
-            if sched_on is False:
+            logger.debug(f"[{index_id}] fno_signals schedule enabled={sched_on!r}")
+            if not sched_on:
                 logger.info(f"[{index_id}] Telegram alert skipped — 'fno_signals' disabled in Alert Schedules")
                 return False
         except Exception as _sched_err:
-            logger.warning(f"[{index_id}] schedule gate check failed (continuing): {_sched_err}")
+            logger.warning(f"[{index_id}] schedule gate check failed (skipping alert): {_sched_err}")
+            return False
 
         # ── Resolve credentials ───────────────────────────────────────────────
         from services.messaging_service import _get_telegram_config

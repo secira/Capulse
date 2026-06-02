@@ -606,8 +606,9 @@ with app.app_context():
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_3_points FLOAT DEFAULT 70.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_2_points FLOAT DEFAULT 100.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_3_points FLOAT DEFAULT 140.0',
-        '''INSERT INTO fno_config (telegram_fields)
-            SELECT 'header,direction,confidence,entry_mode,spot_atm,trades_list,active_trade,exit_reason,timestamp,dashboard_link'
+        '''INSERT INTO fno_config (telegram_fields, telegram_mode, banknifty_telegram, finnifty_telegram, sensex_telegram)
+            SELECT 'header,direction,confidence,entry_mode,spot_atm,trades_list,active_trade,exit_reason,timestamp,dashboard_link',
+                   'full', FALSE, FALSE, FALSE
             WHERE NOT EXISTS (SELECT 1 FROM fno_config)''',
         '''CREATE TABLE IF NOT EXISTS fno_signal_history (
             id SERIAL PRIMARY KEY,
@@ -802,6 +803,16 @@ with app.app_context():
            VALUES ('fno_signals', 'F&O Trade Signals', 'Master on/off switch for all F&O trade signals sent to Telegram (TRADE_TRIGGER + TRADE_EXIT). Per-index toggles are in Admin → F&O Settings. The hour/minute fields are not used — F&O signals are event-driven.', 9, 15, 1, TRUE)
            ON CONFLICT (schedule_key) DO NOTHING''',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS telegram_mode VARCHAR(10) DEFAULT \'teaser\'',
+        # One-time data migration: upgrade existing installs from the old teaser default to full mode
+        # and disable non-NIFTY Telegram alerts.  Conditional on telegram_mode still being 'teaser'
+        # so admin-configured rows (where someone explicitly chose teaser) are left untouched.
+        """UPDATE fno_config
+           SET telegram_mode       = 'full',
+               banknifty_telegram  = FALSE,
+               finnifty_telegram   = FALSE,
+               sensex_telegram     = FALSE
+           WHERE telegram_mode = 'teaser'
+             AND id = (SELECT id FROM fno_config ORDER BY id ASC LIMIT 1)""",
         # ── NSE/BSE Trading Holiday Calendar ──────────────────────────────
         '''CREATE TABLE IF NOT EXISTS market_holiday (
             id SERIAL PRIMARY KEY,
