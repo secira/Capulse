@@ -383,93 +383,99 @@ def _build_teaser_message(signal_data: dict, index_id: str) -> str:
 
 def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
     """
-    Full message — includes all fields selected in Admin → F&O Settings → Field Selector.
-    Preserves the original format exactly.
+    Full call message — entry + T1/T2/T3 + SL + trailing stop advice.
+    Format matches the Target Capital Telegram channel standard.
     """
     display     = _INDEX_DISPLAY.get(index_id, index_id)
+    page_path   = _INDEX_PAGE_PATH.get(index_id, 'nifty')
     direction   = signal_data.get('trade_direction', 'NEUTRAL')
     confidence  = signal_data.get('confidence', 0)
-    entry_mode  = signal_data.get('entry_mode', 'NO TRADE')
-    spot        = signal_data.get('spot_price', 0)
-    atm         = signal_data.get('atm_strike', 0)
     signal_type = signal_data.get('signal_type', 'TRADE')
+    trade_code  = signal_data.get('trade_code', '')
 
-    dir_label  = 'CALL + PUT' if direction == 'BOTH' else direction
-    dir_emoji  = '🟢' if direction == 'BULLISH' else '🔴' if direction == 'BEARISH' else '🟣' if direction == 'BOTH' else '🟡'
+    if confidence >= 85:
+        conviction = 'Very High'
+    elif confidence >= 75:
+        conviction = 'High'
+    elif confidence >= 65:
+        conviction = 'Moderate'
+    else:
+        conviction = 'Developing'
+
+    dir_emoji = '🟢' if direction == 'BULLISH' else '🔴' if direction == 'BEARISH' else '🟣' if direction == 'BOTH' else '🟡'
+    dir_label = 'BULLISH' if direction == 'BULLISH' else 'BEARISH' if direction == 'BEARISH' else 'CALL + PUT' if direction == 'BOTH' else direction
+    code_tag  = f" · <code>{trade_code}</code>" if trade_code else ''
+    ts        = _now_ist().strftime('%d %b %Y, %I:%M %p')
+
     if signal_type == 'TRADE_TRIGGER':
-        type_emoji = '🔒'
+        trades    = signal_data.get('trades', [])
+        atm_trade = next((t for t in trades if t.get('moneyness') == 'ATM'), trades[0] if trades else None)
+
+        if atm_trade:
+            t_emoji  = '📗' if atm_trade.get('type') == 'CE' else '📕'
+            symbol   = atm_trade.get('symbol', '')
+            entry_px = atm_trade.get('entry_price', 0)
+            t1_px    = atm_trade.get('target',   0)
+            t2_px    = atm_trade.get('target_2', 0)
+            t3_px    = atm_trade.get('target_3', 0)
+            sl_px    = atm_trade.get('sl', 0)
+
+            trade_block = (
+                f"\n{t_emoji} <b>{symbol}</b>\n"
+                f"Entry      ₹{entry_px:,.0f}\n"
+                f"Target 1   ₹{t1_px:,.0f}\n"
+            )
+            if t2_px:
+                trade_block += f"Target 2   ₹{t2_px:,.0f}\n"
+            if t3_px:
+                trade_block += f"Target 3   ₹{t3_px:,.0f}\n"
+            trade_block += f"Stop Loss  ₹{sl_px:,.0f}\n"
+            trailing = f"\n⚠️ <i>Once Target 1 is hit, trail your Stop Loss to ₹{t1_px:,.0f}</i>\n"
+        else:
+            trade_block = ''
+            trailing    = ''
+
+        msg = (
+            f"🔒 <b>{display} — New Trade Signal{code_tag}</b>\n\n"
+            f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
+            f"⏰ <i>{ts} IST</i>\n"
+            f"{trade_block}"
+            f"{trailing}\n"
+            f"⭐ <b>Conviction:</b> {conviction}\n\n"
+            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View Signal on Target Capital →</a>\n"
+            f"🚀 <a href='https://www.targetcapital.ai/pricing'>Start Free Trial — targetcapital.ai</a>"
+        )
+
     elif signal_type == 'TRADE_EXIT':
-        type_emoji = '🚪'
-    elif signal_type == 'TRADE_ACTIVE':
-        type_emoji = '📍'
+        outcome     = signal_data.get('outcome', signal_data.get('exit_reason', 'Closed'))
+        outcome_map = {
+            'TARGET 1 HIT':   ('🎯',  'Target 1 Hit'),
+            'TARGET 2 HIT':   ('🎯🎯', 'Target 2 Hit'),
+            'TARGET 3 HIT':   ('🏆',  'Target 3 Hit'),
+            'SL HIT':         ('🛑',  'Stop-Loss Hit'),
+            '3PM SQUARE OFF': ('🕒',  '3PM Square Off'),
+            'TARGET HIT':     ('🎯',  'Target Hit'),
+            'EOD CLOSE':      ('🕒',  '3PM Square Off'),
+        }
+        out_emoji, out_label = outcome_map.get(outcome, ('🚪', outcome or 'Trade Closed'))
+
+        msg = (
+            f"🚪 <b>{display} — Trade Closed{code_tag}</b>\n\n"
+            f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
+            f"{out_emoji} <b>Result:</b> {out_label}\n"
+            f"⏰ <i>{ts} IST</i>\n\n"
+            f"📊 <i>Full trade history &amp; P&amp;L analytics on Target Capital.</i>\n\n"
+            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>Track Your Trades →</a>\n"
+            f"🚀 <a href='https://www.targetcapital.ai/pricing'>Start Free Trial — targetcapital.ai</a>"
+        )
+
     else:
-        type_emoji = '📡'
-
-    trade_code = signal_data.get('trade_code', '')
-    code_tag   = f" <code>{trade_code}</code>" if trade_code else ''
-
-    msg = ''
-    if 'header' in enabled:
-        msg += f"{type_emoji} <b>{display} F&amp;O — {signal_type.replace('_', ' ')}</b>{code_tag}\n\n"
-    if 'direction' in enabled:
-        msg += f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
-    if 'confidence' in enabled:
-        msg += f"📊 <b>Confidence:</b> {confidence}/100 ({signal_data.get('confidence_grade', '')})\n"
-    if 'entry_mode' in enabled:
-        msg += f"🎯 <b>Entry Mode:</b> {entry_mode}\n"
-    if 'spot_atm' in enabled:
-        msg += f"💰 <b>Spot:</b> ₹{spot:,.2f} | ATM: {atm}\n"
-    msg += "\n"
-
-    if signal_type == 'TRADE_ACTIVE':
-        if 'active_trade' in enabled:
-            active = signal_data.get('active_trade', {})
-            if active:
-                elapsed   = active.get('elapsed_min', 0)
-                remaining = active.get('remaining_min', 0)
-                entry_px  = active.get('entry_price', 0)
-                sl_px     = active.get('sl', 0)
-                tgt_px    = active.get('target', 0)
-                ltp       = active.get('ltp', 0)
-                pnl_pts   = round(ltp - entry_px, 2) if ltp and entry_px else 0
-                pnl_emoji = '📈' if pnl_pts >= 0 else '📉'
-                opt_type  = active.get('type', '')
-                t2_px     = active.get('target_2', 0)
-                t3_px     = active.get('target_3', 0)
-                msg += f"<b>Active Trade ({opt_type}):</b>\n"
-                msg += f"  ⏱ Running: {elapsed} min | {remaining} min until 3PM\n"
-                msg += f"  🏷 Entry: ₹{entry_px:,.0f}\n"
-                if ltp:
-                    msg += f"  {pnl_emoji} LTP: ₹{ltp:,.0f} ({'+' if pnl_pts >= 0 else ''}{pnl_pts:.0f} pts)\n"
-                msg += f"  🛑 SL: ₹{sl_px:,.0f}  |  🎯 T1: ₹{tgt_px:,.0f}\n"
-                if t2_px:
-                    msg += f"  🎯 T2: ₹{t2_px:,.0f}\n"
-                if t3_px:
-                    msg += f"  🎯 T3: ₹{t3_px:,.0f}\n"
-    else:
-        if 'trades_list' in enabled:
-            trades = signal_data.get('trades', [])
-            if trades:
-                msg += f"<b>Trades ({len(trades)}):</b>\n"
-                for t in trades[:3]:
-                    t_emoji = '📗' if t.get('type') == 'CE' else '📕'
-                    t2_str  = f", T2 ₹{t.get('target_2', 0):,.0f}" if t.get('target_2') else ''
-                    t3_str  = f", T3 ₹{t.get('target_3', 0):,.0f}" if t.get('target_3') else ''
-                    msg += (
-                        f"{t_emoji} {t.get('symbol', '')} — "
-                        f"Entry ₹{t.get('entry_price', 0):,.0f}, "
-                        f"T1 ₹{t.get('target', 0):,.0f}{t2_str}{t3_str}, "
-                        f"SL ₹{t.get('sl', 0):,.0f}\n"
-                    )
-
-    if signal_type == 'TRADE_EXIT' and 'exit_reason' in enabled:
-        msg += f"\n🚪 <b>Exit Reason:</b> {signal_data.get('exit_reason', 'Unknown')}\n"
-
-    if 'timestamp' in enabled:
-        msg += f"\n⏰ <i>{_now_ist().strftime('%d/%m/%Y %I:%M %p')} IST</i>"
-    if 'dashboard_link' in enabled:
-        page_path = _INDEX_PAGE_PATH.get(index_id, 'nifty')
-        msg += f"\n\n<a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital</a>"
+        msg = (
+            f"📍 <b>{display} — Active Signal{code_tag}</b>\n\n"
+            f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
+            f"⏰ <i>{ts} IST</i>\n\n"
+            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital →</a>"
+        )
 
     return msg
 
