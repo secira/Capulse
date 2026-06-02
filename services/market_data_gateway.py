@@ -42,6 +42,20 @@ SRC_YFINANCE  = "yfinance"
 SRC_ESTIMATED = "estimated"
 
 
+def _is_market_open() -> bool:
+    """True if NSE is currently live — weekday 09:15–15:30 IST."""
+    try:
+        from datetime import time as _t, datetime as _dt
+        from zoneinfo import ZoneInfo as _ZI
+        now = _dt.now(_ZI('Asia/Kolkata'))
+        if now.weekday() >= 5:
+            return False
+        t = now.time()
+        return _t(9, 15) <= t <= _t(15, 30)
+    except Exception:
+        return True  # assume open on error
+
+
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _cache_get(cache: dict, key: str, ttl: int):
@@ -441,23 +455,38 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
         except Exception as e:
             logger.debug(f"gateway: NSEPython batch quotes: {e}")
 
-    # ── 5. yfinance batch for any remaining symbols ───────────────────────────
+    # ── 5. yfinance batch — history(period='2d') for reliable closing data ──────
+    # Works both during live market hours and after close when fast_info may return 0.
     remaining = [s for s in symbols if s not in result]
     if remaining:
         try:
             import yfinance as yf
             tickers_str = ' '.join(f"{s}.NS" for s in remaining)
-            tickers = yf.Tickers(tickers_str)
-            for sym in remaining:
-                try:
-                    fi   = tickers.tickers[f"{sym}.NS"].fast_info
-                    ltp  = float(getattr(fi, 'last_price', 0) or 0)
-                    prev = float(getattr(fi, 'previous_close', 0) or 0)
-                    if ltp > 0 and prev > 0:
-                        pchg = round((ltp - prev) / prev * 100, 2)
-                        result[sym] = {'price': ltp, 'change_percent': pchg, 'source': SRC_YFINANCE}
-                except Exception:
-                    pass
+            hist = yf.download(tickers_str, period='2d', auto_adjust=True,
+                               progress=False, threads=True)
+            if hist is not None and not hist.empty:
+                close_df = hist.get('Close', hist)
+                for sym in remaining:
+                    try:
+                        sym_ns = f"{sym}.NS"
+                        if hasattr(close_df, 'columns') and sym_ns in close_df.columns:
+                            closes = close_df[sym_ns].dropna()
+                        else:
+                            closes = close_df.dropna()
+                        if len(closes) >= 2:
+                            ltp  = float(closes.iloc[-1])
+                            prev = float(closes.iloc[-2])
+                            if ltp > 0 and prev > 0:
+                                pchg = round((ltp - prev) / prev * 100, 2)
+                                result[sym] = {'price': ltp, 'change_percent': pchg,
+                                               'source': SRC_YFINANCE}
+                        elif len(closes) == 1:
+                            ltp = float(closes.iloc[0])
+                            if ltp > 0:
+                                result[sym] = {'price': ltp, 'change_percent': 0.0,
+                                               'source': SRC_YFINANCE}
+                    except Exception:
+                        pass
         except Exception as e:
             logger.debug(f"gateway: yfinance batch quotes: {e}")
 
@@ -583,15 +612,26 @@ def get_index_prices(
                 if not yf_sym:
                     continue
                 try:
-                    fi   = yf.Ticker(yf_sym).fast_info
-                    ltp  = float(getattr(fi, 'last_price', 0) or 0)
-                    prev = float(getattr(fi, 'previous_close', 0) or 0)
-                    if ltp > 0:
-                        chg = round(ltp - prev, 2) if prev else 0.0
-                        pct = round(chg / prev * 100, 2) if prev else 0.0
-                        result[sym] = {
-                            'ltp': ltp, 'change': chg, 'pct_change': pct, 'source': SRC_YFINANCE,
-                        }
+                    # history() returns actual OHLCV bars — gives correct closing data
+                    # after market hours where fast_info.last_price can be zero.
+                    h = yf.Ticker(yf_sym).history(period='2d', auto_adjust=True)
+                    if h is not None and not h.empty:
+                        closes = h['Close'].dropna()
+                        if len(closes) >= 2:
+                            ltp  = float(closes.iloc[-1])
+                            prev = float(closes.iloc[-2])
+                            chg  = round(ltp - prev, 2)
+                            pct  = round(chg / prev * 100, 2) if prev else 0.0
+                            result[sym] = {
+                                'ltp': ltp, 'change': chg, 'pct_change': pct,
+                                'source': SRC_YFINANCE,
+                            }
+                        elif len(closes) == 1:
+                            ltp = float(closes.iloc[0])
+                            result[sym] = {
+                                'ltp': ltp, 'change': 0.0, 'pct_change': 0.0,
+                                'source': SRC_YFINANCE,
+                            }
                 except Exception:
                     pass
         except Exception as e:

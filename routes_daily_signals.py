@@ -18,6 +18,15 @@ def _today_ist() -> date:
     """Return today's date in Indian Standard Time (UTC+5:30)."""
     return datetime.now(_IST).date()
 
+def _is_market_open() -> bool:
+    """True if NSE is currently live — weekday between 09:15 and 15:30 IST."""
+    from datetime import time as _t
+    now = datetime.now(_IST)
+    if now.weekday() >= 5:          # Saturday / Sunday
+        return False
+    t = now.time()
+    return _t(9, 15) <= t <= _t(15, 30)
+
 logger = logging.getLogger(__name__)
 
 LANG_NAMES = {
@@ -249,7 +258,9 @@ def _fetch_nse_nifty50_stocks() -> dict:
       { "RELIANCE": {"change_percent": 1.2, "price": 2500.0, "volume": 1234567}, ... }
     Cached 2 minutes.
     """
-    cached = _market_cache_get('nse_nifty50_stocks', ttl=120)
+    # After market close the data is final — no need to re-fetch every 2 min.
+    _n50_ttl = 120 if _is_market_open() else 3600
+    cached = _market_cache_get('nse_nifty50_stocks', ttl=_n50_ttl)
     if cached is not None:
         return cached
 
@@ -323,27 +334,43 @@ def _fetch_nse_nifty50_stocks() -> dict:
     except Exception as e:
         logger.warning(f"Perplexity Nifty50 fallback failed: {e}")
 
-    # Priority 3: yfinance batch
+    # Priority 3: yfinance batch via download() — history(period='2d') returns the
+    # actual day's OHLCV bar, so closing prices are shown correctly after market hours.
     try:
         import yfinance as _yf
         result = {}
         symbols_ns = [s['symbol'] + '.NS' for s in NIFTY50_STOCKS]
-        tickers = _yf.Tickers(' '.join(symbols_ns))
-        for stock in NIFTY50_STOCKS:
-            key = stock['symbol'] + '.NS'
-            try:
-                fi   = tickers.tickers[key].fast_info
-                ltp  = float(getattr(fi, 'last_price', 0) or 0)
-                prev = float(getattr(fi, 'previous_close', 0) or 0)
-                if ltp > 0 and prev > 0:
-                    pchg = round((ltp - prev) / prev * 100, 2)
-                    result[stock['symbol']] = {'change_percent': pchg, 'price': ltp, 'volume': 0}
-            except Exception:
-                continue
+        hist = _yf.download(
+            ' '.join(symbols_ns), period='2d', auto_adjust=True,
+            progress=False, threads=True
+        )
+        if hist is not None and not hist.empty:
+            close_df = hist.get('Close', hist)  # multi-symbol → 'Close' is a sub-DataFrame
+            for stock in NIFTY50_STOCKS:
+                try:
+                    sym_ns = stock['symbol'] + '.NS'
+                    if hasattr(close_df, 'columns') and sym_ns in close_df.columns:
+                        closes = close_df[sym_ns].dropna()
+                    else:
+                        closes = close_df.dropna()
+                    if len(closes) >= 2:
+                        ltp  = float(closes.iloc[-1])
+                        prev = float(closes.iloc[-2])
+                        if ltp > 0 and prev > 0:
+                            pchg = round((ltp - prev) / prev * 100, 2)
+                            result[stock['symbol']] = {
+                                'change_percent': pchg, 'price': ltp, 'volume': 0}
+                    elif len(closes) == 1:
+                        ltp = float(closes.iloc[0])
+                        if ltp > 0:
+                            result[stock['symbol']] = {
+                                'change_percent': 0.0, 'price': ltp, 'volume': 0}
+                except Exception:
+                    continue
         if result:
             result['_source_'] = 'yfinance'
             _market_cache_set('nse_nifty50_stocks', result)
-            logger.info(f"yfinance Nifty50 stocks: {len(result)} symbols")
+            logger.info(f"yfinance Nifty50 stocks (history): {len(result)} symbols")
             return result
     except Exception as e:
         logger.warning(f"yfinance Nifty50 fallback failed: {e}")
@@ -603,7 +630,8 @@ def dashboard_daily_signals_content():
         except Exception as e:
             logger.warning(f"Dhan index fetch failed: {e}")
 
-        # Priority 2: yfinance for missing
+        # Priority 2: yfinance for missing — use history(period='2d') so we get the
+        # actual closing bar after market hours instead of a potentially-stale fast_info.
         missing = ALL_KEYS - set(result.keys())
         if missing:
             try:
@@ -613,13 +641,23 @@ def dashboard_daily_signals_content():
                     'sensex': '^BSESN', 'nifty_it': '^CNXIT', 'india_vix': '^INDIAVIX',
                 }
                 for key in list(missing):
+                    yf_sym = YF_MAP.get(key)
+                    if not yf_sym:
+                        continue
                     try:
-                        fi = yf.Ticker(YF_MAP[key]).fast_info
-                        ltp  = float(getattr(fi, 'last_price', 0) or 0)
-                        prev = float(getattr(fi, 'previous_close', 0) or 0)
-                        if ltp > 0:
-                            chg = round((ltp - prev) / prev * 100, 2) if prev else 0
-                            result[key] = {'value': round(ltp, 2), 'change_percent': chg, 'live': True, 'source': 'yfinance'}
+                        h = yf.Ticker(yf_sym).history(period='2d', auto_adjust=True)
+                        if h is not None and not h.empty:
+                            closes = h['Close'].dropna()
+                            if len(closes) >= 2:
+                                ltp  = float(closes.iloc[-1])
+                                prev = float(closes.iloc[-2])
+                                chg  = round((ltp - prev) / prev * 100, 2) if prev else 0.0
+                                result[key] = {'value': round(ltp, 2), 'change_percent': chg,
+                                               'live': True, 'source': 'yfinance'}
+                            elif len(closes) == 1:
+                                ltp = float(closes.iloc[0])
+                                result[key] = {'value': round(ltp, 2), 'change_percent': 0.0,
+                                               'live': True, 'source': 'yfinance'}
                     except Exception:
                         continue
             except Exception as e:
