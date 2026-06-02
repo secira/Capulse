@@ -153,7 +153,15 @@ def get_price(symbol: str, user_id: Optional[int] = None) -> Dict:
             # Index symbol — delegate to the battle-tested index price helper
             px, lbl = get_index_price_with_fallback(sym, user_id)
             if px > 0:
-                src = SRC_ADMIN if lbl.startswith('admin:') else lbl
+                # Normalise to canonical 5-label set
+                if lbl.startswith('admin:') or lbl.startswith('user:'):
+                    src = SRC_ADMIN
+                elif lbl in (SRC_TRUEDATA, SRC_NSE, SRC_YFINANCE, SRC_ESTIMATED):
+                    src = lbl
+                elif lbl in ('unavailable', 'none', ''):
+                    src = SRC_ESTIMATED
+                else:
+                    src = SRC_ADMIN  # unknown broker label → admin tier
                 _cache_set(_PRICE_CACHE, cache_key, px, src)
                 return {"value": px, "source": src, "source_detail": lbl, "success": True, "cached": False}
         else:

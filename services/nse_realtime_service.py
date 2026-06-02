@@ -147,22 +147,28 @@ class NSERealTimeService:
         """
 
         # ── Priority 0: Market Data Gateway ───────────────────────────────
+        # Use get_quotes() so we also receive change_percent and volume,
+        # avoiding the regression of returning zeroes for those fields.
         try:
-            from services.market_data_gateway import get_price
-            gw = get_price(symbol, user_id)
-            if gw.get('success') and gw.get('value', 0) > 0:
-                px = float(gw['value'])
-                src = gw.get('source', 'gateway')
-                logger.debug(f"gateway: {symbol}=₹{px} via {src}")
-                return {
-                    "success": True, "symbol": symbol,
-                    "price": px, "current_price": px,
-                    "change": 0.0, "change_percent": 0.0, "volume": 0,
-                    "source": src,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
+            from services.market_data_gateway import get_quotes
+            gw = get_quotes([symbol], user_id)
+            if gw.get('success') and symbol in gw.get('quotes', {}):
+                q = gw['quotes'][symbol]
+                px = float(q.get('price', 0))
+                if px > 0:
+                    src = q.get('source', gw.get('source', 'admin_broker'))
+                    logger.debug(f"gateway: {symbol}=₹{px} chg={q.get('change_percent',0):.2f}% via {src}")
+                    return {
+                        "success": True, "symbol": symbol,
+                        "price": px, "current_price": px,
+                        "change": 0.0,
+                        "change_percent": round(float(q.get('change_percent', 0)), 2),
+                        "volume": int(q.get('volume', 0)),
+                        "source": src,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
         except Exception as e:
-            logger.debug(f"{symbol}: gateway get_price failed: {e}")
+            logger.debug(f"{symbol}: gateway get_quotes failed: {e}")
 
         # ── Priority 1: User's configured Data API broker ─────────────────
         if user_id:

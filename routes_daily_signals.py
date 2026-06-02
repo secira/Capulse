@@ -267,6 +267,7 @@ def _fetch_nse_nifty50_stocks() -> dict:
                     'price':          round(float(q.get('price', 0)), 2),
                     'volume':         int(q.get('volume', 0)),
                 }
+            result['_source_'] = gw.get('source', 'nse')
             _market_cache_set('nse_nifty50_stocks', result)
             logger.info(f"Gateway Nifty50 stocks: {len(result)} symbols [{gw.get('source','?')}]")
             return result
@@ -369,6 +370,9 @@ def _get_live_nifty50_data(nse_data: dict = None) -> tuple:
 
     result = []
     if nse_data:
+        # Extract the source label injected by _fetch_nse_nifty50_stocks()
+        # (reserved '_source_' key; not a stock symbol so it won't match any lookup)
+        nse_src = nse_data.get('_source_', 'nse')
         for stock in NIFTY50_STOCKS:
             d = nse_data.get(stock['symbol'], {})
             result.append({
@@ -380,8 +384,8 @@ def _get_live_nifty50_data(nse_data: dict = None) -> tuple:
                 'price':           d.get('price', 0.0),
                 'data_available':  bool(d),
             })
-        _market_cache_set('nifty50_v2', (result, 'nse'))
-        return result, 'nse'
+        _market_cache_set('nifty50_v2', (result, nse_src))
+        return result, nse_src
 
     # Priority 2: yfinance individual fetches
     try:

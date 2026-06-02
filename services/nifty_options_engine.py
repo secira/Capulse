@@ -1959,6 +1959,24 @@ class NiftyOptionsEngine:
 
         admin_plan = self._get_admin_data_plan()
 
+        # ── Step 0: Market Data Gateway (single unified entry point) ─────────
+        # The gateway encapsulates the canonical fallback chain in one place.
+        # The internal engine methods below (_get_admin_broker_data etc.) remain
+        # as engine-level fallbacks when the gateway itself cannot deliver data.
+        try:
+            from services.market_data_gateway import get_option_chain as _gw_oc
+            _gw = _gw_oc(self.nse_symbol, user_id=self.user_id)
+            if _gw.get('success') and _gw.get('option_chain') and float(_gw.get('spot_price', 0)) > 0:
+                spot = float(_gw['spot_price'])
+                current_chain = _gw['option_chain']
+                data_source = _gw.get('source', 'admin_broker')
+                logger.info(
+                    f"generate_analysis({self.index}): gateway spot=₹{spot:.2f} "
+                    f"strikes={len(current_chain)} src={data_source}"
+                )
+        except Exception as _gw_err:
+            logger.warning(f"generate_analysis({self.index}): gateway step failed: {_gw_err}")
+
         # ── Step 1: Admin-managed broker data sources (primary → secondary) ──
         # Admin-connected Dhan/Zerodha is the authoritative data source for
         # every user. Personal broker data is only consulted if the admin
