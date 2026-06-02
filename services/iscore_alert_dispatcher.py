@@ -77,22 +77,53 @@ def _fire_premarket_report():
 
 
 def _fire_fno_signals_test():
-    """Send a sample F&O teaser message so admin can verify the channel works.
-    Uses the same teaser builder as the live monitor — no real signal data."""
+    """Send a sample F&O signal message respecting the current telegram_mode.
+
+    Full mode  → shows Entry / Target 1‑3 / SL block with sample prices.
+    Teaser mode → shows direction + conviction only (no prices).
+    Reads telegram_mode from fno_config — same value used by the live monitor.
+    """
     from services.messaging_service import send_telegram_message
     from datetime import datetime, timedelta
     ist = datetime.utcnow() + timedelta(hours=5, minutes=30)
     ts  = ist.strftime('%d %b %Y, %I:%M %p')
-    msg = (
-        "🔒 <b>NIFTY 50 — New Trade Signal</b> · <code>NIFTYT01</code>\n\n"
-        "🟢 <b>Direction:</b> BULLISH\n"
-        "⭐ <b>Conviction:</b> High\n"
-        f"⏰ <i>{ts} IST</i>\n\n"
-        "🔐 <i>Full entry, Stop-Loss &amp; Targets are exclusive to Target Capital members.</i>\n\n"
-        "👉 <a href='https://www.targetcapital.ai/dashboard/fno/nifty'>View Signal on Target Capital →</a>\n"
-        "🚀 <a href='https://www.targetcapital.ai/pricing'>Start Free Trial — targetcapital.ai</a>\n\n"
-        "<i>— This is a test message from Admin → Alert Schedules</i>"
-    )
+
+    # Read admin-configured mode (runs inside request context so DB is available)
+    try:
+        from services.fno_config import get_fno_config
+        cfg  = get_fno_config()
+        mode = cfg.get('telegram_mode', 'full')
+    except Exception:
+        mode = 'full'
+
+    if mode == 'full':
+        msg = (
+            "🔒 <b>NIFTY 50 — New Trade Signal · <code>NIFTYT01</code></b>\n\n"
+            "🟢 <b>Direction:</b> BULLISH\n"
+            f"⏰ <i>{ts} IST</i>\n\n"
+            "📗 <b>NIFTY 23500 CE</b>\n"
+            "Entry      ₹120\n"
+            "Target 1   ₹150\n"
+            "Target 2   ₹170\n"
+            "Target 3   ₹190\n"
+            "Stop Loss  ₹100\n\n"
+            "⚠️ <i>Once Target 1 is hit, trail your Stop Loss to ₹150</i>\n\n"
+            "⭐ <b>Conviction:</b> High\n\n"
+            "👉 <a href='https://www.targetcapital.ai/dashboard/fno/nifty'>View Signal on Target Capital →</a>\n"
+            "🚀 <a href='https://www.targetcapital.ai/pricing'>Start Free Trial — targetcapital.ai</a>\n\n"
+            "<i>— Sample test (Full mode) from Admin → Alert Schedules</i>"
+        )
+    else:
+        msg = (
+            "🔒 <b>NIFTY 50 — New Trade Signal</b> · <code>NIFTYT01</code>\n\n"
+            "🟢 <b>Direction:</b> BULLISH\n"
+            "⭐ <b>Conviction:</b> High\n"
+            f"⏰ <i>{ts} IST</i>\n\n"
+            "🔐 <i>Full entry, Stop-Loss &amp; Targets are exclusive to Target Capital members.</i>\n\n"
+            "👉 <a href='https://www.targetcapital.ai/dashboard/fno/nifty'>View Signal on Target Capital →</a>\n"
+            "🚀 <a href='https://www.targetcapital.ai/pricing'>Start Free Trial — targetcapital.ai</a>\n\n"
+            "<i>— Sample test (Teaser mode) from Admin → Alert Schedules</i>"
+        )
     return send_telegram_message(msg, parse_mode='HTML')
 
 
