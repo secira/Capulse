@@ -100,8 +100,8 @@ def _is_market_hours():
             return False
     except Exception:
         pass
-    open_  = now.replace(hour=9,  minute=25, second=0, microsecond=0)
-    close_ = now.replace(hour=14, minute=59, second=0, microsecond=0)
+    open_  = now.replace(hour=9,  minute=30, second=0, microsecond=0)
+    close_ = now.replace(hour=15, minute=0,  second=0, microsecond=0)
     return open_ <= now <= close_
 
 
