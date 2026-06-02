@@ -263,6 +263,25 @@ class BrokerDataQuality:
             checks.append({'check': 'Margin Check', 'pass': True,
                            'detail': 'Broker will verify funds at order entry'})
 
+        # Live price check via Market Data Gateway — validates limit price is
+        # in the right ballpark before the order reaches the broker.
+        if symbol and price and float(price) > 0:
+            try:
+                from services.market_data_gateway import get_price
+                gw = get_price(symbol)
+                market_px = float(gw.get('value', 0))
+                src = gw.get('source', 'estimated')
+                if market_px > 0:
+                    deviation = abs(float(price) - market_px) / market_px * 100
+                    if deviation > 10:
+                        checks.append({'check': 'Live Price Check', 'pass': False,
+                                       'detail': f'Limit ₹{float(price):.2f} is {deviation:.1f}% away from market ₹{market_px:.2f} [{src}]'})
+                    else:
+                        checks.append({'check': 'Live Price Check', 'pass': True,
+                                       'detail': f'Market ₹{market_px:.2f} [{src}] — within {deviation:.1f}%'})
+            except Exception:
+                pass  # Non-critical check — never block the trade on gateway error
+
         if symbol and qty and qty > 0:
             cutoff = datetime.utcnow() - DUPLICATE_ORDER_WINDOW
             recent_dupe = BrokerOrder.query.filter(

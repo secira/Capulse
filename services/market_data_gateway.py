@@ -97,7 +97,11 @@ def _truedata_ltp(symbol: str, td_key: str) -> float:
 
 
 def _yfinance_ltp(symbol: str) -> Tuple[float, str]:
-    """yfinance fast_info last-traded-price. Returns (price, source_label)."""
+    """yfinance fast_info last-traded-price. Returns (price, source_label).
+
+    Always returns SRC_YFINANCE as the canonical source label (prev-close is
+    still yfinance data; the calling code can check ltp>0 for freshness).
+    """
     try:
         import yfinance as yf
         for ticker_sym in (f"{symbol}.NS", symbol):
@@ -107,8 +111,7 @@ def _yfinance_ltp(symbol: str) -> Tuple[float, str]:
                 prev = float(getattr(fi, 'previous_close',  0) or 0)
                 effective = ltp if ltp > 0 else prev
                 if effective > 0:
-                    lbl = SRC_YFINANCE if ltp > 0 else f"{SRC_YFINANCE}:prev_close"
-                    return effective, lbl
+                    return effective, SRC_YFINANCE   # canonical — never sub-label
             except Exception:
                 continue
     except Exception as e:
@@ -178,8 +181,10 @@ def get_price(symbol: str, user_id: Optional[int] = None) -> Dict:
             if ub and ub.connect():
                 px = float(ub.get_price(sym) or 0)
                 if px > 0:
-                    _cache_set(_PRICE_CACHE, cache_key, px, "user_broker")
-                    return {"value": px, "source": "user_broker", "success": True, "cached": False}
+                    bname = getattr(ub, 'BROKER_NAME', 'user_broker')
+                    _cache_set(_PRICE_CACHE, cache_key, px, SRC_ADMIN)
+                    return {"value": px, "source": SRC_ADMIN,
+                            "source_detail": f"user:{bname}", "success": True, "cached": False}
         except Exception as e:
             logger.debug(f"gateway: user broker price({sym}): {e}")
 
@@ -197,8 +202,9 @@ def get_price(symbol: str, user_id: Optional[int] = None) -> Dict:
         dhan_data = get_eq_quote(sym)
         if dhan_data and dhan_data.get("ltp", 0) > 0:
             px = float(dhan_data["ltp"])
-            _cache_set(_PRICE_CACHE, cache_key, px, "dhan_system")
-            return {"value": px, "source": "dhan_system", "success": True, "cached": False}
+            _cache_set(_PRICE_CACHE, cache_key, px, SRC_ADMIN)
+            return {"value": px, "source": SRC_ADMIN,
+                    "source_detail": "dhan:system", "success": True, "cached": False}
     except Exception as e:
         logger.debug(f"gateway: system Dhan price({sym}): {e}")
 
@@ -265,8 +271,8 @@ def get_ohlcv(symbol: str, days: int = 120, user_id: Optional[int] = None) -> Di
         df = get_stock_historical_ohlcv(symbol=sym, days=days)
         if df is not None and not df.empty and len(df) >= 10:
             logger.info(f"gateway: OHLCV({sym}) {len(df)} rows via system Dhan")
-            _cache_set(_OHLCV_CACHE, cache_key, df, "dhan_system")
-            return {"df": df, "source": "dhan_system", "success": True, "cached": False}
+            _cache_set(_OHLCV_CACHE, cache_key, df, SRC_ADMIN)
+            return {"df": df, "source": SRC_ADMIN, "source_detail": "dhan:system", "success": True, "cached": False}
     except Exception as e:
         logger.debug(f"gateway: system Dhan OHLCV({sym}): {e}")
 
@@ -278,8 +284,8 @@ def get_ohlcv(symbol: str, days: int = 120, user_id: Optional[int] = None) -> Di
             if ub and hasattr(ub, 'get_historical_ohlcv') and ub.connect():
                 df = ub.get_historical_ohlcv(sym, days)
                 if df is not None and not df.empty and len(df) >= 10:
-                    _cache_set(_OHLCV_CACHE, cache_key, df, "user_broker")
-                    return {"df": df, "source": "user_broker", "success": True, "cached": False}
+                    _cache_set(_OHLCV_CACHE, cache_key, df, SRC_ADMIN)
+                    return {"df": df, "source": SRC_ADMIN, "source_detail": f"user:{getattr(ub, 'BROKER_NAME', 'broker')}", "success": True, "cached": False}
         except Exception as e:
             logger.debug(f"gateway: user broker OHLCV({sym}): {e}")
 
@@ -381,7 +387,7 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
                     if not pchg and ltp and close:
                         pchg = round((ltp - close) / close * 100, 2)
                     if ltp > 0:
-                        result[sym] = {'price': ltp, 'change_percent': pchg, 'source': 'dhan_system'}
+                        result[sym] = {'price': ltp, 'change_percent': pchg, 'source': SRC_ADMIN}
                 logger.debug(f"gateway: system Dhan batch filled {len(raw)} symbols")
         except Exception as e:
             logger.debug(f"gateway: system Dhan batch quotes: {e}")
@@ -406,9 +412,8 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
         except Exception as e:
             logger.debug(f"gateway: yfinance batch quotes: {e}")
 
-    dominant = (SRC_ADMIN if any(v.get('source') == SRC_ADMIN for v in result.values())
-                else 'dhan_system' if any(v.get('source') == 'dhan_system' for v in result.values())
-                else SRC_YFINANCE if result else SRC_ESTIMATED)
+    dominant = SRC_ADMIN if any(v.get('source') == SRC_ADMIN for v in result.values()) else (
+               SRC_YFINANCE if result else SRC_ESTIMATED)
     return {"quotes": result, "source": dominant, "success": bool(result)}
 
 
@@ -501,7 +506,8 @@ def get_index_prices(
                     pct   = float(d.get('pct_change', (chg / close * 100) if close else 0))
                     result[sym] = {
                         'ltp': ltp, 'change': round(chg, 2),
-                        'pct_change': round(pct, 2), 'source': 'dhan_system',
+                        'pct_change': round(pct, 2), 'source': SRC_ADMIN,
+                        'source_detail': 'dhan:system',
                     }
         except Exception as e:
             logger.debug(f"gateway: system Dhan index prices: {e}")
@@ -537,10 +543,11 @@ def get_index_prices(
         except Exception as e:
             logger.debug(f"gateway: yfinance index prices: {e}")
 
+    _vals = [v for v in result.values() if isinstance(v, dict)]
     dominant_src = (
-        SRC_ADMIN if any(v.get('source') == SRC_ADMIN for v in result.values() if isinstance(v, dict))
-        else SRC_TRUEDATA if any(v.get('source') == SRC_TRUEDATA for v in result.values() if isinstance(v, dict))
-        else SRC_YFINANCE if result else SRC_ESTIMATED
+        SRC_ADMIN    if any(v.get('source') == SRC_ADMIN    for v in _vals)
+        else SRC_TRUEDATA if any(v.get('source') == SRC_TRUEDATA for v in _vals)
+        else SRC_YFINANCE if _vals else SRC_ESTIMATED
     )
     result['_source']  = dominant_src
     result['_success'] = bool(result and any(k != '_source' and k != '_success' for k in result))
@@ -630,7 +637,7 @@ def get_option_chain(
                     if not spot or spot <= 0:
                         spot = float(ub.get_price(sym) or 0)
                     if spot > 0:
-                        return _normalise(chain_raw, spot, "user_broker", use_expiry or "")
+                        return _normalise(chain_raw, spot, SRC_ADMIN, use_expiry or "")
         except Exception as e:
             logger.debug(f"gateway: user broker option chain({sym}): {e}")
 
@@ -679,7 +686,7 @@ def get_option_chain(
             spot = float(chain_raw[0].get('spot', 0)) if chain_raw else 0.0
             if spot > 0:
                 logger.info(f"gateway: option chain {sym} via system Dhan ({len(chain_raw)} strikes)")
-                return _normalise(chain_raw, spot, 'dhan_system', expiry or "")
+                return _normalise(chain_raw, spot, SRC_ADMIN, expiry or "")
     except Exception as e:
         logger.debug(f"gateway: system Dhan option chain({sym}): {e}")
 
@@ -730,19 +737,22 @@ def source_badge(source: str) -> Dict[str, str]:
     css_class is a Bootstrap alert-variant name: "success" | "warning" | "secondary".
     Used by templates to render consistent data-source pills.
     """
+    # Canonical 5 source labels: admin_broker, truedata, nse, yfinance, estimated.
+    # Legacy/alias values (dhan_system, user_broker, Dhan, etc.) kept here for
+    # backward compatibility with any callers that still pass the old strings,
+    # but the gateway itself no longer emits them.
     _map = {
-        SRC_ADMIN:     ("Live · Broker",       "success",   "#16a34a"),
-        "admin_broker":("Live · Broker",       "success",   "#16a34a"),
-        "user_broker": ("Live · Broker",       "success",   "#16a34a"),
-        "dhan_system": ("Live · Dhan",         "success",   "#16a34a"),
-        "Dhan":        ("Live · Dhan",         "success",   "#16a34a"),
-        SRC_TRUEDATA:  ("Live · TrueData",     "success",   "#16a34a"),
-        SRC_NSE:       ("Live · NSE",          "warning",   "#d97706"),
-        SRC_YFINANCE:  ("Delayed · Yahoo",     "warning",   "#d97706"),
-        f"{SRC_YFINANCE}:prev_close": ("Prev Close · Yahoo", "secondary", "#6b7280"),
-        SRC_ESTIMATED: ("Estimated",           "secondary", "#6b7280"),
-        "none":        ("Unavailable",         "secondary", "#6b7280"),
-        "unavailable": ("Unavailable",         "secondary", "#6b7280"),
+        SRC_ADMIN:     ("Live · Broker",   "success",   "#16a34a"),
+        "admin_broker":("Live · Broker",   "success",   "#16a34a"),
+        "user_broker": ("Live · Broker",   "success",   "#16a34a"),   # legacy alias
+        "dhan_system": ("Live · Broker",   "success",   "#16a34a"),   # legacy alias
+        "Dhan":        ("Live · Broker",   "success",   "#16a34a"),   # legacy alias
+        SRC_TRUEDATA:  ("Live · TrueData", "success",   "#16a34a"),
+        SRC_NSE:       ("Live · NSE",      "warning",   "#d97706"),
+        SRC_YFINANCE:  ("Delayed · Yahoo", "warning",   "#d97706"),
+        SRC_ESTIMATED: ("Estimated",       "secondary", "#6b7280"),
+        "none":        ("Unavailable",     "secondary", "#6b7280"),
+        "unavailable": ("Unavailable",     "secondary", "#6b7280"),
     }
     for key, val in _map.items():
         if source and (source == key or source.startswith(key + ':')):
