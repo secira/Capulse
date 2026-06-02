@@ -625,34 +625,31 @@
             <h6 class="lmp-card-title">
                 <i class="fas fa-th-large" style="font-size:12px; color:#666666;"></i>
                 Nifty 50 Heat Map
-                <span class="lmp-card-sub">· sized by market cap, coloured by day change</span>
+                <span class="lmp-card-sub">· sized by weight, coloured by day change</span>
                 <span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#15803d;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:6px;">
-                    <span style="width:6px;height:6px;background:#16a34a;border-radius:50%;display:inline-block;"></span>Live · TradingView
+                    <span style="width:6px;height:6px;background:#16a34a;border-radius:50%;display:inline-block;"></span>Live · NSE Data
                 </span>
             </h6>
-        </div>
-        <div style="background:#ffffff; border-radius:0 0 8px 8px; overflow:hidden;">
-            <div class="tradingview-widget-container" style="height:550px;">
-                <div class="tradingview-widget-container__widget" style="height:100%;"></div>
-                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js" async>
-                {
-                  "exchanges": [],
-                  "dataSource": "NIFTY50",
-                  "grouping": "sector",
-                  "blockSize": "market_cap_basic",
-                  "blockColor": "change",
-                  "locale": "en",
-                  "colorTheme": "light",
-                  "hasTopBar": false,
-                  "isDataSetEnabled": false,
-                  "isZoomEnabled": true,
-                  "hasSymbolTooltip": true,
-                  "isMonoSize": false,
-                  "width": "100%",
-                  "height": "100%"
-                }
-                </script>
+            <div style="display:flex;gap:10px;align-items:center;flex-shrink:0;">
+                <div style="display:flex;gap:6px;align-items:center;font-size:11px;color:#666666;">
+                    <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:10px;height:10px;background:#14532d;border-radius:2px;display:inline-block;"></span>&gt;2.5%</span>
+                    <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:10px;height:10px;background:#16a34a;border-radius:2px;display:inline-block;"></span>&gt;1.2%</span>
+                    <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:10px;height:10px;background:#94a3b8;border-radius:2px;display:inline-block;"></span>Flat</span>
+                    <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:10px;height:10px;background:#ef4444;border-radius:2px;display:inline-block;"></span>&lt;-1.2%</span>
+                    <span style="display:inline-flex;align-items:center;gap:3px;"><span style="width:10px;height:10px;background:#7f1d1d;border-radius:2px;display:inline-block;"></span>&lt;-2.5%</span>
+                </div>
             </div>
+        </div>
+        <div style="background:#ffffff; border-radius:0 0 8px 8px; padding:12px;">
+            {% if nifty50_data %}
+            <div id="treemapWrap" style="width:100%;min-height:500px;"></div>
+            {% else %}
+            <div style="text-align:center;padding:60px 16px;color:#999999;">
+                <i class="fas fa-chart-treemap fa-2x mb-2" style="opacity:.3;display:block;"></i>
+                <div style="font-size:13px;font-weight:500;">Heat map data loading…</div>
+                <div style="font-size:12px;margin-top:4px;">NSE data is being fetched. Refresh in a few seconds.</div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -673,31 +670,8 @@
             </h6>
         </div>
         <div style="background:#ffffff; border-radius:0 0 8px 8px; overflow:hidden;">
-            <div class="tradingview-widget-container" style="height:550px;">
-                <div class="tradingview-widget-container__widget" style="height:100%;"></div>
-                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-hotlists.js" async>
-                {
-                  "colorTheme": "light",
-                  "dateRange": "1D",
-                  "exchange": "NSE",
-                  "showChart": true,
-                  "locale": "en",
-                  "width": "100%",
-                  "height": "100%",
-                  "isTransparent": false,
-                  "showSymbolLogo": true,
-                  "showFloatingTooltip": true,
-                  "plotLineColorGrowing": "rgba(22,163,74,1)",
-                  "plotLineColorFalling": "rgba(220,38,38,1)",
-                  "gridLineColor": "rgba(240,243,250,0)",
-                  "scaleFontColor": "rgba(19,23,34,1)",
-                  "belowLineFillColorGrowing": "rgba(22,163,74,0.10)",
-                  "belowLineFillColorFalling": "rgba(220,38,38,0.10)",
-                  "belowLineFillColorGrowingBottom": "rgba(22,163,74,0)",
-                  "belowLineFillColorFallingBottom": "rgba(220,38,38,0)",
-                  "symbolActiveColor": "rgba(22,163,74,0.12)"
-                }
-                </script>
+            <div id="tvMoversWrap" style="height:550px;display:flex;align-items:center;justify-content:center;">
+                <span style="color:#999;font-size:13px;"><i class="fas fa-circle-notch fa-spin me-2"></i>Loading live data…</span>
             </div>
         </div>
     </div>
@@ -719,50 +693,8 @@
             </h6>
         </div>
         <div style="background:#ffffff; border-radius:0 0 8px 8px; overflow:hidden;">
-            <div class="tradingview-widget-container" style="height:550px;">
-                <div class="tradingview-widget-container__widget" style="height:100%;"></div>
-                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
-                {
-                  "colorTheme": "light",
-                  "dateRange": "1D",
-                  "showChart": true,
-                  "locale": "en",
-                  "width": "100%",
-                  "height": "100%",
-                  "isTransparent": false,
-                  "showSymbolLogo": true,
-                  "showFloatingTooltip": true,
-                  "plotLineColorGrowing": "rgba(22,163,74,1)",
-                  "plotLineColorFalling": "rgba(220,38,38,1)",
-                  "gridLineColor": "rgba(240,243,250,0)",
-                  "scaleFontColor": "rgba(19,23,34,1)",
-                  "belowLineFillColorGrowing": "rgba(22,163,74,0.10)",
-                  "belowLineFillColorFalling": "rgba(220,38,38,0.10)",
-                  "belowLineFillColorGrowingBottom": "rgba(22,163,74,0)",
-                  "belowLineFillColorFallingBottom": "rgba(220,38,38,0)",
-                  "symbolActiveColor": "rgba(22,163,74,0.12)",
-                  "tabs": [
-                    {
-                      "title": "Sectors",
-                      "symbols": [
-                        {"s": "NSE:NIFTYIT", "d": "IT"},
-                        {"s": "NSE:NIFTYBANK", "d": "Banking"},
-                        {"s": "NSE:NIFTYPHARMA", "d": "Pharma"},
-                        {"s": "NSE:NIFTYAUTO", "d": "Auto"},
-                        {"s": "NSE:NIFTYFMCG", "d": "FMCG"},
-                        {"s": "NSE:NIFTYMETAL", "d": "Metal"},
-                        {"s": "NSE:NIFTYREALTY", "d": "Realty"},
-                        {"s": "NSE:NIFTYENERGY", "d": "Energy"},
-                        {"s": "NSE:NIFTYMEDIA", "d": "Media"},
-                        {"s": "NSE:NIFTYINFRA", "d": "Infra"},
-                        {"s": "NSE:NIFTYFINSERVICE", "d": "Fin Services"},
-                        {"s": "NSE:NIFTYHEALTHCARE", "d": "Healthcare"}
-                      ],
-                      "originalTitle": "Sectors"
-                    }
-                  ]
-                }
-                </script>
+            <div id="tvSectorsWrap" style="height:550px;display:flex;align-items:center;justify-content:center;">
+                <span style="color:#999;font-size:13px;"><i class="fas fa-circle-notch fa-spin me-2"></i>Loading live data…</span>
             </div>
         </div>
     </div>
@@ -921,6 +853,30 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script>
+/* ── TradingView lazy loader ──
+ * TradingView widgets MUST be created while their container is visible
+ * (needs real pixel dimensions). We inject the script tag dynamically on
+ * the first tab-click so the widget always initialises with a rendered div.
+ */
+var _tvLoaded = {};
+function loadTVWidget(wrapId, scriptSrc, config) {
+    if (_tvLoaded[wrapId]) return;
+    _tvLoaded[wrapId] = true;
+    var wrap = document.getElementById(wrapId);
+    if (!wrap) return;
+    wrap.style.display = 'block';   // clear the flex spinner layout
+    wrap.innerHTML = '';
+    var inner = document.createElement('div');
+    inner.className = 'tradingview-widget-container__widget';
+    inner.style.cssText = 'height:100%;width:100%;';
+    wrap.appendChild(inner);
+    var s = document.createElement('script');
+    s.type = 'text/javascript';
+    s.src = scriptSrc;
+    s.textContent = JSON.stringify(config);
+    wrap.appendChild(s);
+}
+
 /* ── Tab switching ── */
 window.treemapBuilt = window.treemapBuilt || false;
 function lmpTab(id, el) {
@@ -928,7 +884,46 @@ function lmpTab(id, el) {
     document.querySelectorAll('.lmp-tab-btn').forEach(t => t.classList.remove('active'));
     document.getElementById('pane-' + id).classList.add('active');
     el.classList.add('active');
-    if (id === 'heatmap' && !treemapBuilt) { buildMap(); treemapBuilt = true; }
+
+    if (id === 'heatmap' && !treemapBuilt) {
+        buildMap();
+        treemapBuilt = true;
+    }
+
+    if (id === 'movers') {
+        loadTVWidget('tvMoversWrap',
+            'https://s3.tradingview.com/external-embedding/embed-widget-hotlists.js',
+            { colorTheme:'light', dateRange:'1D', exchange:'NSE', showChart:true, locale:'en',
+              width:'100%', height:'550', isTransparent:false, showSymbolLogo:true,
+              showFloatingTooltip:true,
+              plotLineColorGrowing:'rgba(22,163,74,1)', plotLineColorFalling:'rgba(220,38,38,1)',
+              gridLineColor:'rgba(240,243,250,0)', scaleFontColor:'rgba(19,23,34,1)',
+              belowLineFillColorGrowing:'rgba(22,163,74,0.10)', belowLineFillColorFalling:'rgba(220,38,38,0.10)',
+              belowLineFillColorGrowingBottom:'rgba(22,163,74,0)', belowLineFillColorFallingBottom:'rgba(220,38,38,0)',
+              symbolActiveColor:'rgba(22,163,74,0.12)' });
+    }
+
+    if (id === 'sectors') {
+        loadTVWidget('tvSectorsWrap',
+            'https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js',
+            { colorTheme:'light', dateRange:'1D', showChart:true, locale:'en',
+              width:'100%', height:'550', isTransparent:false, showSymbolLogo:true,
+              showFloatingTooltip:true,
+              plotLineColorGrowing:'rgba(22,163,74,1)', plotLineColorFalling:'rgba(220,38,38,1)',
+              gridLineColor:'rgba(240,243,250,0)', scaleFontColor:'rgba(19,23,34,1)',
+              belowLineFillColorGrowing:'rgba(22,163,74,0.10)', belowLineFillColorFalling:'rgba(220,38,38,0.10)',
+              belowLineFillColorGrowingBottom:'rgba(22,163,74,0)', belowLineFillColorFallingBottom:'rgba(220,38,38,0)',
+              symbolActiveColor:'rgba(22,163,74,0.12)',
+              tabs: [{ title:'Sectors', originalTitle:'Sectors', symbols:[
+                {s:'NSE:NIFTYIT',d:'IT'},{s:'NSE:NIFTYBANK',d:'Banking'},
+                {s:'NSE:NIFTYPHARMA',d:'Pharma'},{s:'NSE:NIFTYAUTO',d:'Auto'},
+                {s:'NSE:NIFTYFMCG',d:'FMCG'},{s:'NSE:NIFTYMETAL',d:'Metal'},
+                {s:'NSE:NIFTYREALTY',d:'Realty'},{s:'NSE:NIFTYENERGY',d:'Energy'},
+                {s:'NSE:NIFTYMEDIA',d:'Media'},{s:'NSE:NIFTYINFRA',d:'Infra'},
+                {s:'NSE:NIFTYFINSERVICE',d:'Fin Services'},{s:'NSE:NIFTYHEALTHCARE',d:'Healthcare'}
+              ]}]
+            });
+    }
 }
 
 /* ── Mover sub-tabs ── */
@@ -1109,20 +1104,32 @@ function cleanForTTS(text) {
 /* ── AI Commentary ── */
 async function loadAI() {
     const el=document.getElementById('aiText');
-    if (!el) return;  /* Page rendered without AI block (e.g. holiday/no-data) */
+    if (!el) return;
     const btn=document.getElementById('speakBriefBtn');
     const badge=document.getElementById('briefLangBadge');
     if (btn) btn.style.display='none';
     if (badge) badge.style.display='none';
     stopSpeech();
-    el.innerHTML='<span style="color:#999999;"><i class="fas fa-circle-notch fa-spin me-2"></i>Analysing…</span>';
+    el.innerHTML='<span style="color:#999999;"><i class="fas fa-circle-notch fa-spin me-2"></i>Analysing market… <small style="font-size:10px;">(may take ~10s on first load)</small></span>';
     try {
-        const r=await fetch('{{ url_for("market_pulse_commentary") }}');
-        const d=await r.json();
+        /* 25-second client timeout so user sees an error instead of waiting 60s */
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 25000);
+        let r;
+        try {
+            r = await fetch('{{ url_for("market_pulse_commentary") }}', { signal: ctrl.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        if (d.is_holiday && d.commentary) {
+            el.innerHTML = fmtDisplay(d.commentary);
+            return;
+        }
         if (d.success && d.commentary) {
             el.innerHTML = fmtDisplay(d.commentary);
             if (btn) btn.style.display='';
-            /* Show language badge when non-English */
             if (badge) {
                 const lc = d.lang || 'en';
                 if (lc !== 'en' && LANG_LABEL[lc]) {
@@ -1133,10 +1140,14 @@ async function loadAI() {
                 }
             }
         } else {
-            el.innerHTML='<span style="color:#999999;">Commentary unavailable — try refreshing.</span>';
+            el.innerHTML='<span style="color:#999999;">Market brief unavailable right now. '
+                +'<a href="#" onclick="loadAI();return false;" style="color:#666;text-decoration:underline;">Try again</a></span>';
         }
     } catch(e){
-        el.innerHTML='<span style="color:#999999;">Could not load commentary.</span>';
+        const isTimeout = e && e.name === 'AbortError';
+        el.innerHTML='<span style="color:#999999;">'
+            +(isTimeout ? 'Analysis timed out — server is busy.' : 'Could not load market brief.')
+            +' <a href="#" onclick="loadAI();return false;" style="color:#666;text-decoration:underline;">Retry</a></span>';
     }
 }
 
