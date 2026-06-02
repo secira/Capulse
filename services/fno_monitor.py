@@ -24,7 +24,6 @@ MAX_SIGNALS_PER_DAY        = 3          # per index
 # forming 5-min candle. Two-candle confirmation was adding 5–10 min lag and
 # causing breakouts (e.g. 2:18) to be signalled only after consolidation (2:28).
 CONFIRMATION_CANDLES    = 1
-TRADE_MAX_DURATION_MIN  = 30
 ENTRY_COOLDOWN_MINUTES  = 15
 TRADE_MIN_CONFIDENCE    = 80
 TRADE_MIN_ADX           = 25
@@ -195,14 +194,16 @@ def _exit_reason_to_outcome(exit_reason: str) -> str:
     if not exit_reason:
         return 'EXITED'
     r = exit_reason.lower()
+    if 'target 3' in r or 't3=' in r:
+        return 'TARGET 3 HIT'
+    if 'target 2' in r or 't2=' in r:
+        return 'TARGET 2 HIT'
     if 'target' in r:
-        return 'TARGET HIT'
+        return 'TARGET 1 HIT'
     if 'stop' in r or 'sl' in r:
         return 'SL HIT'
-    if 'eod' in r or '3:00 pm' in r:
-        return 'EOD CLOSE'
-    if 'time limit' in r or 'time' in r:
-        return 'TIME EXIT'
+    if '3pm' in r or 'eod' in r or '3:00 pm' in r or 'square' in r:
+        return '3PM SQUARE OFF'
     if 'closed' in r:
         return 'MARKET CLOSED'
     return exit_reason[:50]
@@ -351,10 +352,14 @@ def _build_teaser_message(signal_data: dict, index_id: str) -> str:
     elif signal_type == 'TRADE_EXIT':
         outcome     = signal_data.get('outcome', signal_data.get('exit_reason', 'Closed'))
         outcome_map = {
+            'TARGET 1 HIT':   ('🎯',  'Target 1 Hit'),
+            'TARGET 2 HIT':   ('🎯🎯', 'Target 2 Hit'),
+            'TARGET 3 HIT':   ('🏆',  'Target 3 Hit'),
+            'SL HIT':         ('🛑',  'Stop-Loss Hit'),
+            '3PM SQUARE OFF': ('🕒',  '3PM Square Off'),
+            # legacy labels kept for older history records
             'TARGET HIT': ('🎯', 'Target Hit'),
-            'SL HIT':     ('🛑', 'Stop-Loss Hit'),
-            'EOD CLOSE':  ('🌙', 'EOD Close'),
-            'TIME EXIT':  ('⏱', 'Time Exit'),
+            'EOD CLOSE':  ('🕒', '3PM Square Off'),
         }
         out_emoji, out_label = outcome_map.get(outcome, ('🚪', outcome or 'Trade Closed'))
         header = f"🚪 <b>{display} — Trade Closed</b>{code_tag}"
@@ -421,7 +426,7 @@ def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
             active = signal_data.get('active_trade', {})
             if active:
                 elapsed   = active.get('elapsed_min', 0)
-                remaining = active.get('remaining_min', TRADE_MAX_DURATION_MIN)
+                remaining = active.get('remaining_min', 0)
                 entry_px  = active.get('entry_price', 0)
                 sl_px     = active.get('sl', 0)
                 tgt_px    = active.get('target', 0)
@@ -432,7 +437,7 @@ def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
                 t2_px     = active.get('target_2', 0)
                 t3_px     = active.get('target_3', 0)
                 msg += f"<b>Active Trade ({opt_type}):</b>\n"
-                msg += f"  ⏱ Running: {elapsed} min | {remaining} min left\n"
+                msg += f"  ⏱ Running: {elapsed} min | {remaining} min until 3PM\n"
                 msg += f"  🏷 Entry: ₹{entry_px:,.0f}\n"
                 if ltp:
                     msg += f"  {pnl_emoji} LTP: ₹{ltp:,.0f} ({'+' if pnl_pts >= 0 else ''}{pnl_pts:.0f} pts)\n"
@@ -583,29 +588,31 @@ def _check_active_trade_exit(analysis: dict, idx: str):
     now        = _now_ist()
     entry_time = trade.get('entry_time')
 
-    # Hard EOD close — every open signal closes at 3:00 PM IST so the day's
-    # P&L is fully realised before the cash market close. Runs BEFORE the
-    # SL/Target/duration checks so EOD always wins.
+    # Hard 3PM square-off — every open intraday trade closes at 3:00 PM IST
+    # so daily P&L is fully realised before cash market close.
     eod = now.replace(hour=EOD_FORCE_EXIT_HOUR, minute=EOD_FORCE_EXIT_MINUTE,
                       second=0, microsecond=0)
     if now >= eod:
-        return True, 'EOD auto-close (3:00 PM IST)'
-
-    if entry_time and (now - entry_time).total_seconds() >= TRADE_MAX_DURATION_MIN * 60:
-        return True, f'Time limit reached ({TRADE_MAX_DURATION_MIN} min)'
+        return True, '3PM Square Off'
 
     trades  = analysis.get('trades', [])
     atm_key = trade.get('atm_key', '')
     if trades and atm_key:
         for t in trades:
             if t.get('symbol') == atm_key:
-                ltp    = t.get('ltp', 0)
-                sl     = trade.get('sl', 0)
-                target = trade.get('target', 0)
+                ltp = t.get('ltp', 0)
+                sl  = trade.get('sl', 0)
+                t1  = trade.get('target',   0)
+                t2  = trade.get('target_2', 0)
+                t3  = trade.get('target_3', 0)
                 if ltp > 0 and sl > 0 and ltp <= sl:
                     return True, f'Stop-loss hit (SL={sl:.0f}, LTP={ltp:.0f})'
-                if ltp > 0 and target > 0 and ltp >= target:
-                    return True, f'Target reached (Target={target:.0f}, LTP={ltp:.0f})'
+                if ltp > 0 and t3 > 0 and ltp >= t3:
+                    return True, f'Target 3 reached (T3={t3:.0f}, LTP={ltp:.0f})'
+                if ltp > 0 and t2 > 0 and ltp >= t2:
+                    return True, f'Target 2 reached (T2={t2:.0f}, LTP={ltp:.0f})'
+                if ltp > 0 and t1 > 0 and ltp >= t1:
+                    return True, f'Target 1 reached (T1={t1:.0f}, LTP={ltp:.0f})'
 
     if not _is_market_hours():
         return True, 'Market closed'
@@ -751,7 +758,8 @@ def _scan_index(app, idx: str, data_broker_user_id):
                     now  = _now_ist()
                     entry_time = at.get('entry_time')
                     elapsed    = int((now - entry_time).total_seconds() / 60) if entry_time else 0
-                    remaining  = max(0, TRADE_MAX_DURATION_MIN - elapsed)
+                    eod_today  = now.replace(hour=EOD_FORCE_EXIT_HOUR, minute=EOD_FORCE_EXIT_MINUTE, second=0, microsecond=0)
+                    remaining  = max(0, int((eod_today - now).total_seconds() / 60))
                     logger.info(
                         f"[{idx}] Trade ACTIVE: {at.get('direction')} "
                         f"since {entry_time.strftime('%H:%M')} IST "
@@ -927,7 +935,8 @@ def get_monitor_status(index_id: str = 'NIFTY') -> dict:
         now        = _now_ist()
         entry_time = trade.get('entry_time')
         elapsed    = int((now - entry_time).total_seconds() / 60) if entry_time else 0
-        remaining  = max(0, TRADE_MAX_DURATION_MIN - elapsed)
+        eod_today  = now.replace(hour=EOD_FORCE_EXIT_HOUR, minute=EOD_FORCE_EXIT_MINUTE, second=0, microsecond=0)
+        remaining  = max(0, int((eod_today - now).total_seconds() / 60))
         active = {
             'direction':   trade.get('direction'),
             'type':        trade.get('type'),
