@@ -25,10 +25,49 @@ class NSERealTimeService:
         })
         
     def get_nse_indices(self) -> Dict:
-        """Fetch real-time NSE indices data — tries Dhan → NSE API → yfinance."""
+        """Fetch real-time NSE indices data.
+
+        Priority chain (via Market Data Gateway):
+          0. Admin Broker Pool  — admin-configured Dhan/Zerodha/etc.
+          1. System Dhan        — any connected DataApiBroker
+          2. yfinance           — universal fallback
+        """
         current_time = datetime.now(timezone.utc)
 
-        # ── Priority 1: Dhan DataApiBroker ──────────────────────────────────
+        # ── Priority 0: Admin Broker Pool (via gateway) ──────────────────────
+        try:
+            from services.market_data_gateway import get_index_prices, SRC_ADMIN
+            gw = get_index_prices()
+            if gw.get('_success') and gw.get('NIFTY', {}).get('ltp', 0) > 0:
+                _sym_map = {
+                    'NIFTY':     'NIFTY 50',
+                    'BANKNIFTY': 'NIFTY BANK',
+                    'FINNIFTY':  'NIFTY FIN SERVICE',
+                    'SENSEX':    'SENSEX',
+                    'INDIA VIX': 'INDIA VIX',
+                }
+                indices_data = {}
+                for gw_key, display_name in _sym_map.items():
+                    entry = gw.get(gw_key, {})
+                    if isinstance(entry, dict) and entry.get('ltp', 0) > 0:
+                        indices_data[display_name] = {
+                            'value':          entry['ltp'],
+                            'change':         entry.get('change', 0),
+                            'change_percent': entry.get('pct_change', 0),
+                            'timestamp':      current_time.isoformat(),
+                            'source':         entry.get('source', SRC_ADMIN),
+                        }
+                if indices_data:
+                    src_label = gw.get('_source', SRC_ADMIN)
+                    logger.info(f"Live Market Pulse: gateway returned {list(indices_data.keys())} via {src_label}")
+                    return {
+                        'success': True, 'data': indices_data,
+                        'timestamp': current_time.isoformat(), 'source': src_label,
+                    }
+        except Exception as e:
+            logger.warning(f"Live Market Pulse gateway indices failed: {e}")
+
+        # ── Priority 1: System Dhan DataApiBroker ────────────────────────────
         try:
             from services.dhan_service import get_index_quotes
             dhan_data = get_index_quotes()

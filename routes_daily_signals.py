@@ -238,7 +238,13 @@ def _fetch_perplexity_market_data() -> dict:
 def _fetch_nse_nifty50_stocks() -> dict:
     """
     Fetch live Nifty 50 stock data.
-    Priority: Dhan batch API → Perplexity web search → yfinance
+
+    Priority chain (via Market Data Gateway):
+      0. Admin Broker Pool (gateway) — admin-configured Dhan/Zerodha/etc.
+      1. System Dhan batch API       — any connected DataApiBroker
+      2. Perplexity web search       — real-time AI fallback (change_percent only)
+      3. yfinance batch              — universal last resort
+
     Returns dict keyed by symbol:
       { "RELIANCE": {"change_percent": 1.2, "price": 2500.0, "volume": 1234567}, ... }
     Cached 2 minutes.
@@ -247,7 +253,27 @@ def _fetch_nse_nifty50_stocks() -> dict:
     if cached is not None:
         return cached
 
-    # Priority 1: Dhan batch equity OHLC
+    all_symbols = [s['symbol'] for s in NIFTY50_STOCKS]
+
+    # Priority 0: Market Data Gateway (Admin Broker Pool first)
+    try:
+        from services.market_data_gateway import get_quotes
+        gw = get_quotes(all_symbols)
+        if gw.get('success') and len(gw.get('quotes', {})) >= 30:
+            result = {}
+            for sym, q in gw['quotes'].items():
+                result[sym] = {
+                    'change_percent': round(float(q.get('change_percent', 0)), 2),
+                    'price':          round(float(q.get('price', 0)), 2),
+                    'volume':         int(q.get('volume', 0)),
+                }
+            _market_cache_set('nse_nifty50_stocks', result)
+            logger.info(f"Gateway Nifty50 stocks: {len(result)} symbols [{gw.get('source','?')}]")
+            return result
+    except Exception as e:
+        logger.warning(f"Gateway Nifty50 stocks failed: {e}")
+
+    # Priority 1: System Dhan batch equity OHLC
     try:
         from services.dhan_service import get_security_id, get_nifty50_stock_quotes
         sec_id_map = {}

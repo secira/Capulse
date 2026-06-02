@@ -1,0 +1,569 @@
+"""
+Market Data Gateway — single authoritative source for all real-time market data.
+
+Uniform fallback chain applied by every area of the platform
+(Market Intelligence, Stock Research, F&O Analysis, Trade Execution):
+
+  1. Admin Broker Pool  — admin-configured broker (Dhan/Zerodha/etc.)
+  2. TrueData          — if data_api_plan.plan_type == 'nse_truedata'
+  3. System Dhan       — any connected DataApiBroker on the platform
+  4. NSEPython         — direct NSE India scrape
+  5. yfinance          — universal final fallback
+
+Every function returns a standardised dict with a 'source' key so UI
+banners can reflect exactly where the data came from.
+
+AI routing (complementary — not data):
+  • Perplexity  → real-time commentary / market search (search_recency='day')
+  • OpenAI      → RAG embeddings and research report generation
+  • Claude      → portfolio analysis, workflow hub, deep structured reports
+"""
+
+import logging
+import time
+from typing import Dict, List, Optional, Tuple
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+# ── Module-level caches ────────────────────────────────────────────────────────
+_PRICE_CACHE: Dict[str, tuple] = {}   # key → (value, source, ts)
+_OHLCV_CACHE: Dict[str, tuple] = {}   # key → (df, source, ts)
+
+PRICE_TTL = 60    # seconds — live LTP
+OHLCV_TTL = 300   # seconds — historical bars
+
+# Canonical source-label constants used by source_badge() and templates
+SRC_ADMIN     = "admin_broker"
+SRC_TRUEDATA  = "truedata"
+SRC_NSE       = "nse"
+SRC_YFINANCE  = "yfinance"
+SRC_ESTIMATED = "estimated"
+
+
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+def _cache_get(cache: dict, key: str, ttl: int):
+    entry = cache.get(key)
+    if entry and (time.time() - entry[2]) < ttl:
+        return entry[0], entry[1]
+    return None, None
+
+
+def _cache_set(cache: dict, key: str, value, source: str):
+    cache[key] = (value, source, time.time())
+
+
+def _get_admin_plan() -> Tuple[str, Optional[str], Optional[str]]:
+    """Return (plan_type, truedata_api_key, truedata_api_secret) from DB."""
+    try:
+        from app import db
+        row = db.session.execute(
+            db.text(
+                "SELECT plan_type, truedata_api_key, truedata_api_secret "
+                "FROM data_api_plan WHERE is_active = true LIMIT 1"
+            )
+        ).fetchone()
+        if row:
+            return row[0] or 'user_data', row[1], row[2]
+    except Exception as e:
+        logger.debug(f"gateway._get_admin_plan: {e}")
+    return 'user_data', None, None
+
+
+def _truedata_ltp(symbol: str, td_key: str) -> float:
+    """Fetch a single LTP from TrueData REST API. Returns 0.0 on failure."""
+    try:
+        import requests
+        resp = requests.get(
+            'https://api.truedata.in/v1/getltp',
+            params={'symbol': symbol},
+            headers={'Authorization': f'Bearer {td_key}'},
+            timeout=8,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            ltp = float(
+                data.get('ltp') or
+                (data.get('data') or {}).get('ltp', 0) or
+                0
+            )
+            if ltp > 0:
+                return ltp
+    except Exception as e:
+        logger.debug(f"gateway._truedata_ltp({symbol}): {e}")
+    return 0.0
+
+
+def _yfinance_ltp(symbol: str) -> Tuple[float, str]:
+    """yfinance fast_info last-traded-price. Returns (price, source_label)."""
+    try:
+        import yfinance as yf
+        for ticker_sym in (f"{symbol}.NS", symbol):
+            try:
+                fi = yf.Ticker(ticker_sym).fast_info
+                ltp  = float(getattr(fi, 'last_price',      0) or 0)
+                prev = float(getattr(fi, 'previous_close',  0) or 0)
+                effective = ltp if ltp > 0 else prev
+                if effective > 0:
+                    lbl = SRC_YFINANCE if ltp > 0 else f"{SRC_YFINANCE}:prev_close"
+                    return effective, lbl
+            except Exception:
+                continue
+    except Exception as e:
+        logger.debug(f"gateway._yfinance_ltp({symbol}): {e}")
+    return 0.0, SRC_ESTIMATED
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def get_price(symbol: str, user_id: Optional[int] = None) -> Dict:
+    """
+    Fetch the last traded price for an NSE symbol.
+
+    Returns::
+
+        {
+            "value":         float,    # 0.0 when unavailable
+            "source":        str,      # see SRC_* constants
+            "source_detail": str,      # optional extra detail (broker name, etc.)
+            "success":       bool,
+            "cached":        bool,     # True when served from TTL cache
+        }
+    """
+    sym = symbol.upper().strip()
+    cache_key = f"price:{sym}:{user_id or 0}"
+    cv, cs = _cache_get(_PRICE_CACHE, cache_key, PRICE_TTL)
+    if cv is not None:
+        return {"value": cv, "source": cs, "success": True, "cached": True}
+
+    # ── 1. Admin Broker Pool ─────────────────────────────────────────────────
+    try:
+        from services.broker_factory import (
+            get_admin_data_brokers,
+            get_index_price_with_fallback,
+            _underlying_from_symbol,
+        )
+        underlying = _underlying_from_symbol(sym)
+        if underlying:
+            # Index symbol — delegate to the battle-tested index price helper
+            px, lbl = get_index_price_with_fallback(sym, user_id)
+            if px > 0:
+                src = SRC_ADMIN if lbl.startswith('admin:') else lbl
+                _cache_set(_PRICE_CACHE, cache_key, px, src)
+                return {"value": px, "source": src, "source_detail": lbl, "success": True, "cached": False}
+        else:
+            # Equity symbol — iterate the admin pool
+            for _prio, _btype, bname, broker in get_admin_data_brokers():
+                try:
+                    if not broker.connect():
+                        continue
+                    px = float(broker.get_price(sym) or 0)
+                    if px > 0:
+                        logger.debug(f"gateway: {sym}=₹{px} via admin:{bname}")
+                        _cache_set(_PRICE_CACHE, cache_key, px, SRC_ADMIN)
+                        return {"value": px, "source": SRC_ADMIN,
+                                "source_detail": f"admin:{bname}", "success": True, "cached": False}
+                except Exception as _e:
+                    logger.debug(f"gateway: admin broker {bname} get_price({sym}): {_e}")
+    except Exception as e:
+        logger.debug(f"gateway: admin pool error for {sym}: {e}")
+
+    # ── 2. User's own data broker ────────────────────────────────────────────
+    if user_id:
+        try:
+            from services.broker_factory import get_data_broker_for_user
+            ub = get_data_broker_for_user(user_id)
+            if ub and ub.connect():
+                px = float(ub.get_price(sym) or 0)
+                if px > 0:
+                    _cache_set(_PRICE_CACHE, cache_key, px, "user_broker")
+                    return {"value": px, "source": "user_broker", "success": True, "cached": False}
+        except Exception as e:
+            logger.debug(f"gateway: user broker price({sym}): {e}")
+
+    # ── 3. TrueData (when admin configured plan_type='nse_truedata') ──────────
+    plan_type, td_key, _td_secret = _get_admin_plan()
+    if plan_type == 'nse_truedata' and td_key:
+        px = _truedata_ltp(sym, td_key)
+        if px > 0:
+            _cache_set(_PRICE_CACHE, cache_key, px, SRC_TRUEDATA)
+            return {"value": px, "source": SRC_TRUEDATA, "success": True, "cached": False}
+
+    # ── 4. System Dhan (any connected DataApiBroker) ─────────────────────────
+    try:
+        from services.dhan_service import get_eq_quote
+        dhan_data = get_eq_quote(sym)
+        if dhan_data and dhan_data.get("ltp", 0) > 0:
+            px = float(dhan_data["ltp"])
+            _cache_set(_PRICE_CACHE, cache_key, px, "dhan_system")
+            return {"value": px, "source": "dhan_system", "success": True, "cached": False}
+    except Exception as e:
+        logger.debug(f"gateway: system Dhan price({sym}): {e}")
+
+    # ── 5. NSEPython ─────────────────────────────────────────────────────────
+    try:
+        from nsepython import nse_quote
+        q = nse_quote(sym)
+        if q:
+            lp = float(q.get('lastPrice') or 0)
+            if lp > 0:
+                _cache_set(_PRICE_CACHE, cache_key, lp, SRC_NSE)
+                return {"value": lp, "source": SRC_NSE, "success": True, "cached": False}
+    except Exception as e:
+        logger.debug(f"gateway: NSEPython price({sym}): {e}")
+
+    # ── 6. yfinance ──────────────────────────────────────────────────────────
+    px, src = _yfinance_ltp(sym)
+    if px > 0:
+        _cache_set(_PRICE_CACHE, cache_key, px, src)
+        return {"value": px, "source": src, "success": True, "cached": False}
+
+    return {"value": 0.0, "source": SRC_ESTIMATED, "source_detail": "", "success": False, "cached": False}
+
+
+def get_ohlcv(symbol: str, days: int = 120, user_id: Optional[int] = None) -> Dict:
+    """
+    Fetch historical OHLCV bars for an NSE equity or index symbol.
+
+    Returns::
+
+        {
+            "df":      pd.DataFrame,   # columns: open high low close volume
+            "source":  str,
+            "success": bool,
+        }
+    """
+    sym = symbol.upper().strip()
+    cache_key = f"ohlcv:{sym}:{days}"
+    cv, cs = _cache_get(_OHLCV_CACHE, cache_key, OHLCV_TTL)
+    if cv is not None:
+        return {"df": cv, "source": cs, "success": True, "cached": True}
+
+    # ── 1. Admin Broker Pool (prefer any Dhan entry for equity OHLCV) ────────
+    try:
+        from services.broker_factory import get_admin_data_brokers
+        for _prio, btype, bname, _broker in get_admin_data_brokers():
+            if btype.lower() == 'dhan':
+                try:
+                    from services.dhan_service import get_stock_historical_ohlcv
+                    df = get_stock_historical_ohlcv(symbol=sym, days=days)
+                    if df is not None and not df.empty and len(df) >= 10:
+                        logger.info(f"gateway: OHLCV({sym}) {len(df)} rows via admin:{bname}")
+                        _cache_set(_OHLCV_CACHE, cache_key, df, SRC_ADMIN)
+                        return {"df": df, "source": SRC_ADMIN, "success": True, "cached": False}
+                except Exception as _e:
+                    logger.debug(f"gateway: admin Dhan OHLCV({sym}): {_e}")
+                break  # only try first Dhan admin broker
+    except Exception as e:
+        logger.debug(f"gateway: admin pool OHLCV error: {e}")
+
+    # ── 2. System Dhan ────────────────────────────────────────────────────────
+    try:
+        from services.dhan_service import get_stock_historical_ohlcv
+        df = get_stock_historical_ohlcv(symbol=sym, days=days)
+        if df is not None and not df.empty and len(df) >= 10:
+            logger.info(f"gateway: OHLCV({sym}) {len(df)} rows via system Dhan")
+            _cache_set(_OHLCV_CACHE, cache_key, df, "dhan_system")
+            return {"df": df, "source": "dhan_system", "success": True, "cached": False}
+    except Exception as e:
+        logger.debug(f"gateway: system Dhan OHLCV({sym}): {e}")
+
+    # ── 3. User's own data broker ─────────────────────────────────────────────
+    if user_id:
+        try:
+            from services.broker_factory import get_data_broker_for_user
+            ub = get_data_broker_for_user(user_id)
+            if ub and hasattr(ub, 'get_historical_ohlcv') and ub.connect():
+                df = ub.get_historical_ohlcv(sym, days)
+                if df is not None and not df.empty and len(df) >= 10:
+                    _cache_set(_OHLCV_CACHE, cache_key, df, "user_broker")
+                    return {"df": df, "source": "user_broker", "success": True, "cached": False}
+        except Exception as e:
+            logger.debug(f"gateway: user broker OHLCV({sym}): {e}")
+
+    # ── 4. yfinance ───────────────────────────────────────────────────────────
+    try:
+        import yfinance as yf
+        period = '6mo' if days <= 120 else '1y'
+        for ticker_sym in (f"{sym}.NS", f"{sym}.BO"):
+            try:
+                df = yf.Ticker(ticker_sym).history(period=period)
+                if df is None or df.empty:
+                    continue
+                df = df.rename(columns={
+                    'Open': 'open', 'High': 'high', 'Low': 'low',
+                    'Close': 'close', 'Volume': 'volume',
+                })
+                df = df[['open', 'high', 'low', 'close', 'volume']].copy()
+                df = df.dropna(subset=['close']).tail(days).reset_index(drop=True)
+                if len(df) >= 5:
+                    logger.info(f"gateway: OHLCV({sym}) {len(df)} rows via yfinance")
+                    _cache_set(_OHLCV_CACHE, cache_key, df, SRC_YFINANCE)
+                    return {"df": df, "source": SRC_YFINANCE, "success": True, "cached": False}
+            except Exception:
+                continue
+    except Exception as e:
+        logger.debug(f"gateway: yfinance OHLCV({sym}): {e}")
+
+    return {"df": pd.DataFrame(), "source": SRC_ESTIMATED, "success": False, "cached": False}
+
+
+def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
+    """
+    Batch fetch LTP + change_percent for a list of NSE equity symbols.
+
+    Returns::
+
+        {
+            "quotes": {
+                "RELIANCE": {"price": float, "change_percent": float, "source": str},
+                ...
+            },
+            "source":  str,    # dominant source across all quotes
+            "success": bool,
+        }
+    """
+    if not symbols:
+        return {"quotes": {}, "source": SRC_ESTIMATED, "success": False}
+
+    result: Dict[str, Dict] = {}
+    remaining = list(symbols)
+
+    # ── 1. Admin Pool — prefer Dhan for batch equity quotes ──────────────────
+    try:
+        from services.broker_factory import get_admin_data_brokers
+        for _prio, btype, bname, _broker in get_admin_data_brokers():
+            if btype.lower() == 'dhan':
+                try:
+                    from services.dhan_service import get_security_id, get_nifty50_stock_quotes
+                    sec_id_map = {}
+                    for s in symbols:
+                        sid = get_security_id(s)
+                        if sid:
+                            sec_id_map[s] = sid
+                    if sec_id_map:
+                        raw = get_nifty50_stock_quotes(sec_id_map, timeout=5.0)
+                        for sym, d in raw.items():
+                            ltp   = float(d.get('ltp', 0) or 0)
+                            close = float(d.get('close', 0) or ltp)
+                            pchg  = float(d.get('pct_change', 0) or 0)
+                            if not pchg and ltp and close:
+                                pchg = round((ltp - close) / close * 100, 2)
+                            if ltp > 0:
+                                result[sym] = {
+                                    'price': ltp, 'change_percent': pchg, 'source': SRC_ADMIN,
+                                }
+                        remaining = [s for s in remaining if s not in result]
+                        if result:
+                            logger.info(f"gateway: batch quotes {len(result)}/{len(symbols)} via admin:{bname}")
+                except Exception as _e:
+                    logger.debug(f"gateway: admin Dhan batch quotes: {_e}")
+                break  # only try first Dhan admin broker
+    except Exception as e:
+        logger.debug(f"gateway: admin pool quotes error: {e}")
+
+    # ── 2. yfinance batch for remainder ──────────────────────────────────────
+    if remaining:
+        try:
+            import yfinance as yf
+            tickers_str = ' '.join(f"{s}.NS" for s in remaining)
+            tickers = yf.Tickers(tickers_str)
+            for sym in remaining:
+                try:
+                    fi   = tickers.tickers[f"{sym}.NS"].fast_info
+                    ltp  = float(getattr(fi, 'last_price', 0) or 0)
+                    prev = float(getattr(fi, 'previous_close', 0) or 0)
+                    if ltp > 0 and prev > 0:
+                        pchg = round((ltp - prev) / prev * 100, 2)
+                        result[sym] = {'price': ltp, 'change_percent': pchg, 'source': SRC_YFINANCE}
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"gateway: yfinance batch quotes: {e}")
+
+    dominant = (SRC_ADMIN if any(v.get('source') == SRC_ADMIN for v in result.values())
+                else SRC_YFINANCE if result else SRC_ESTIMATED)
+    return {"quotes": result, "source": dominant, "success": bool(result)}
+
+
+def get_index_prices(
+    symbols: Optional[List[str]] = None,
+    user_id: Optional[int] = None,
+) -> Dict:
+    """
+    Fetch live prices for NSE index symbols (NIFTY, BANKNIFTY, FINNIFTY, SENSEX, INDIA VIX).
+
+    Returns::
+
+        {
+            "NIFTY":     {"ltp": float, "change": float, "pct_change": float, "source": str},
+            "BANKNIFTY": {...},
+            ...
+            "_source":   str,   # dominant source
+            "_success":  bool,
+        }
+    """
+    _DEFAULT = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX', 'INDIA VIX']
+    want = [s.upper().strip() for s in (symbols or _DEFAULT)]
+    result: Dict = {}
+
+    # ── 1. Admin Broker Pool ──────────────────────────────────────────────────
+    try:
+        from services.broker_factory import get_admin_data_brokers
+        for _prio, btype, bname, broker in get_admin_data_brokers():
+            if btype.lower() == 'dhan':
+                try:
+                    from services.dhan_service import get_index_quotes
+                    dhan_data = get_index_quotes(user_id)
+                    if dhan_data.get('NIFTY', {}).get('ltp', 0) > 0:
+                        for sym in want:
+                            d = dhan_data.get(sym, {})
+                            if d.get('ltp', 0) > 0:
+                                ltp   = float(d['ltp'])
+                                close = float(d.get('close', 0))
+                                chg   = float(d.get('change', (ltp - close) if close else 0))
+                                pct   = float(d.get('pct_change', (chg / close * 100) if close else 0))
+                                result[sym] = {
+                                    'ltp': ltp, 'change': round(chg, 2),
+                                    'pct_change': round(pct, 2), 'source': SRC_ADMIN,
+                                }
+                        if result:
+                            logger.info(f"gateway: index prices {list(result.keys())} via admin:{bname}")
+                            result['_source']  = SRC_ADMIN
+                            result['_success'] = True
+                            return result
+                except Exception as _e:
+                    logger.debug(f"gateway: admin Dhan index prices: {_e}")
+            else:
+                # Non-Dhan admin broker — per-symbol get_price()
+                try:
+                    if broker.connect():
+                        for sym in want:
+                            if sym in result:
+                                continue
+                            px = float(broker.get_price(sym) or 0)
+                            if px > 0:
+                                result[sym] = {'ltp': px, 'change': 0.0, 'pct_change': 0.0, 'source': SRC_ADMIN}
+                except Exception as _e:
+                    logger.debug(f"gateway: admin broker {bname} index prices: {_e}")
+
+    except Exception as e:
+        logger.debug(f"gateway: admin pool index prices: {e}")
+
+    # ── 2. TrueData (if configured) ───────────────────────────────────────────
+    plan_type, td_key, _td_secret = _get_admin_plan()
+    if plan_type == 'nse_truedata' and td_key:
+        for sym in want:
+            if sym in result:
+                continue
+            px = _truedata_ltp(sym, td_key)
+            if px > 0:
+                result[sym] = {'ltp': px, 'change': 0.0, 'pct_change': 0.0, 'source': SRC_TRUEDATA}
+
+    # ── 3. System Dhan ────────────────────────────────────────────────────────
+    missing = [s for s in want if s not in result]
+    if missing:
+        try:
+            from services.dhan_service import get_index_quotes
+            dhan_data = get_index_quotes(user_id)
+            for sym in missing:
+                d = dhan_data.get(sym, {})
+                if d.get('ltp', 0) > 0:
+                    ltp   = float(d['ltp'])
+                    close = float(d.get('close', 0))
+                    chg   = float(d.get('change', (ltp - close) if close else 0))
+                    pct   = float(d.get('pct_change', (chg / close * 100) if close else 0))
+                    result[sym] = {
+                        'ltp': ltp, 'change': round(chg, 2),
+                        'pct_change': round(pct, 2), 'source': 'dhan_system',
+                    }
+        except Exception as e:
+            logger.debug(f"gateway: system Dhan index prices: {e}")
+
+    # ── 4. yfinance ───────────────────────────────────────────────────────────
+    _yf_map = {
+        'NIFTY':     '^NSEI',
+        'BANKNIFTY': '^NSEBANK',
+        'FINNIFTY':  '^NSEI',   # no direct yfinance ticker; NIFTY as proxy
+        'SENSEX':    '^BSESN',
+        'INDIA VIX': '^INDIAVIX',
+    }
+    missing = [s for s in want if s not in result]
+    if missing:
+        try:
+            import yfinance as yf
+            for sym in missing:
+                yf_sym = _yf_map.get(sym)
+                if not yf_sym:
+                    continue
+                try:
+                    fi   = yf.Ticker(yf_sym).fast_info
+                    ltp  = float(getattr(fi, 'last_price', 0) or 0)
+                    prev = float(getattr(fi, 'previous_close', 0) or 0)
+                    if ltp > 0:
+                        chg = round(ltp - prev, 2) if prev else 0.0
+                        pct = round(chg / prev * 100, 2) if prev else 0.0
+                        result[sym] = {
+                            'ltp': ltp, 'change': chg, 'pct_change': pct, 'source': SRC_YFINANCE,
+                        }
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"gateway: yfinance index prices: {e}")
+
+    dominant_src = (
+        SRC_ADMIN if any(v.get('source') == SRC_ADMIN for v in result.values() if isinstance(v, dict))
+        else SRC_TRUEDATA if any(v.get('source') == SRC_TRUEDATA for v in result.values() if isinstance(v, dict))
+        else SRC_YFINANCE if result else SRC_ESTIMATED
+    )
+    result['_source']  = dominant_src
+    result['_success'] = bool(result and any(k != '_source' and k != '_success' for k in result))
+    return result
+
+
+def invalidate_cache(symbol: Optional[str] = None):
+    """Evict cache entries. Pass symbol=None to clear everything."""
+    if symbol is None:
+        _PRICE_CACHE.clear()
+        _OHLCV_CACHE.clear()
+    else:
+        sym = symbol.upper().strip()
+        for key in list(_PRICE_CACHE.keys()):
+            if f"price:{sym}:" in key:
+                del _PRICE_CACHE[key]
+        for key in list(_OHLCV_CACHE.keys()):
+            if f"ohlcv:{sym}:" in key:
+                del _OHLCV_CACHE[key]
+
+
+def source_badge(source: str) -> Dict[str, str]:
+    """
+    Map a source string to a UI badge spec.
+
+    Returns::
+
+        {"label": str, "css_class": str, "color": str}
+
+    css_class is a Bootstrap alert-variant name: "success" | "warning" | "secondary".
+    Used by templates to render consistent data-source pills.
+    """
+    _map = {
+        SRC_ADMIN:     ("Live · Broker",       "success",   "#16a34a"),
+        "admin_broker":("Live · Broker",       "success",   "#16a34a"),
+        "user_broker": ("Live · Broker",       "success",   "#16a34a"),
+        "dhan_system": ("Live · Dhan",         "success",   "#16a34a"),
+        "Dhan":        ("Live · Dhan",         "success",   "#16a34a"),
+        SRC_TRUEDATA:  ("Live · TrueData",     "success",   "#16a34a"),
+        SRC_NSE:       ("Live · NSE",          "warning",   "#d97706"),
+        SRC_YFINANCE:  ("Delayed · Yahoo",     "warning",   "#d97706"),
+        f"{SRC_YFINANCE}:prev_close": ("Prev Close · Yahoo", "secondary", "#6b7280"),
+        SRC_ESTIMATED: ("Estimated",           "secondary", "#6b7280"),
+        "none":        ("Unavailable",         "secondary", "#6b7280"),
+        "unavailable": ("Unavailable",         "secondary", "#6b7280"),
+    }
+    for key, val in _map.items():
+        if source and (source == key or source.startswith(key + ':')):
+            return {"label": val[0], "css_class": val[1], "color": val[2]}
+    return {"label": "Live", "css_class": "success", "color": "#16a34a"}

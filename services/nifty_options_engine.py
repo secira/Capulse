@@ -344,38 +344,79 @@ class NiftyOptionsEngine:
         sensex_pct = 0.0
         vix_price = 0.0
 
-        # ── Priority 1: Dhan DataApiBroker — fetch ALL indices in one call ──
+        # ── Priority 0: Market Data Gateway (Admin Pool first) ────────────────
         try:
-            from services.dhan_service import get_index_quotes
-            dhan_data = get_index_quotes(self.user_id)
-            if dhan_data.get('NIFTY', {}).get('ltp', 0) > 0:
-                d = dhan_data['NIFTY']
-                nifty_price  = float(d['ltp'])
-                nifty_change = float(d.get('change', 0))
-                nifty_pct    = float(d.get('pct_change', 0))
-            if dhan_data.get('BANKNIFTY', {}).get('ltp', 0) > 0:
-                d = dhan_data['BANKNIFTY']
-                bn_price  = float(d['ltp'])
-                bn_change = float(d.get('change', 0))
-                bn_pct    = float(d.get('pct_change', 0))
-            if dhan_data.get('FINNIFTY', {}).get('ltp', 0) > 0:
-                d = dhan_data['FINNIFTY']
-                finnifty_price  = float(d['ltp'])
-                finnifty_change = float(d.get('change', 0))
-                finnifty_pct    = float(d.get('pct_change', 0))
-            if dhan_data.get('SENSEX', {}).get('ltp', 0) > 0:
-                d = dhan_data['SENSEX']
-                sensex_price  = float(d['ltp'])
-                sensex_change = float(d.get('change', 0))
-                sensex_pct    = float(d.get('pct_change', 0))
-            if dhan_data.get('INDIA VIX', {}).get('ltp', 0) > 0:
-                vix_price = float(dhan_data['INDIA VIX']['ltp'])
-            logger.info(f"Dhan market indices: NIFTY={nifty_price}, BankNIFTY={bn_price}, "
-                        f"FinNIFTY={finnifty_price}, SENSEX={sensex_price}, VIX={vix_price}")
+            from services.market_data_gateway import get_index_prices
+            gw = get_index_prices(user_id=self.user_id)
+            if gw.get('_success'):
+                def _gw(sym):
+                    d = gw.get(sym, {})
+                    return (isinstance(d, dict) and d.get('ltp', 0) > 0, d)
+                ok, d = _gw('NIFTY')
+                if ok:
+                    nifty_price  = float(d['ltp'])
+                    nifty_change = float(d.get('change', 0))
+                    nifty_pct    = float(d.get('pct_change', 0))
+                ok, d = _gw('BANKNIFTY')
+                if ok:
+                    bn_price  = float(d['ltp'])
+                    bn_change = float(d.get('change', 0))
+                    bn_pct    = float(d.get('pct_change', 0))
+                ok, d = _gw('FINNIFTY')
+                if ok:
+                    finnifty_price  = float(d['ltp'])
+                    finnifty_change = float(d.get('change', 0))
+                    finnifty_pct    = float(d.get('pct_change', 0))
+                ok, d = _gw('SENSEX')
+                if ok:
+                    sensex_price  = float(d['ltp'])
+                    sensex_change = float(d.get('change', 0))
+                    sensex_pct    = float(d.get('pct_change', 0))
+                ok, d = _gw('INDIA VIX')
+                if ok:
+                    vix_price = float(d['ltp'])
+                if nifty_price > 0:
+                    logger.info(
+                        f"Gateway market indices [{gw.get('_source','?')}]: "
+                        f"NIFTY={nifty_price}, BankNIFTY={bn_price}, "
+                        f"FinNIFTY={finnifty_price}, SENSEX={sensex_price}, VIX={vix_price}"
+                    )
         except Exception as e:
-            logger.warning(f"Dhan market indices error: {e}")
+            logger.warning(f"Gateway market indices error: {e}")
 
-        # ── Priority 2: yfinance (fallback) ─────────────────────────────────
+        # ── Priority 1: System Dhan — fill any gaps left by gateway ──────────
+        if not nifty_price or not bn_price or not sensex_price or not vix_price:
+            try:
+                from services.dhan_service import get_index_quotes
+                dhan_data = get_index_quotes(self.user_id)
+                if not nifty_price and dhan_data.get('NIFTY', {}).get('ltp', 0) > 0:
+                    d = dhan_data['NIFTY']
+                    nifty_price  = float(d['ltp'])
+                    nifty_change = float(d.get('change', 0))
+                    nifty_pct    = float(d.get('pct_change', 0))
+                if not bn_price and dhan_data.get('BANKNIFTY', {}).get('ltp', 0) > 0:
+                    d = dhan_data['BANKNIFTY']
+                    bn_price  = float(d['ltp'])
+                    bn_change = float(d.get('change', 0))
+                    bn_pct    = float(d.get('pct_change', 0))
+                if not finnifty_price and dhan_data.get('FINNIFTY', {}).get('ltp', 0) > 0:
+                    d = dhan_data['FINNIFTY']
+                    finnifty_price  = float(d['ltp'])
+                    finnifty_change = float(d.get('change', 0))
+                    finnifty_pct    = float(d.get('pct_change', 0))
+                if not sensex_price and dhan_data.get('SENSEX', {}).get('ltp', 0) > 0:
+                    d = dhan_data['SENSEX']
+                    sensex_price  = float(d['ltp'])
+                    sensex_change = float(d.get('change', 0))
+                    sensex_pct    = float(d.get('pct_change', 0))
+                if not vix_price and dhan_data.get('INDIA VIX', {}).get('ltp', 0) > 0:
+                    vix_price = float(dhan_data['INDIA VIX']['ltp'])
+                logger.info(f"Dhan market indices fill: NIFTY={nifty_price}, BankNIFTY={bn_price}, "
+                            f"FinNIFTY={finnifty_price}, SENSEX={sensex_price}, VIX={vix_price}")
+            except Exception as e:
+                logger.warning(f"Dhan market indices error: {e}")
+
+        # ── Priority 2: yfinance (final fallback) ────────────────────────────
         if not nifty_price or not bn_price or not sensex_price or not vix_price:
             try:
                 import yfinance as yf
