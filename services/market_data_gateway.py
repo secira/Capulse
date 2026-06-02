@@ -284,6 +284,13 @@ def get_ohlcv(symbol: str, days: int = 120, user_id: Optional[int] = None) -> Di
     except Exception as e:
         logger.debug(f"gateway: system Dhan OHLCV({sym}): {e}")
 
+    # NOTE — TrueData and NSEPython are intentionally absent from the OHLCV chain.
+    # Policy: TrueData exposes only LTP + option chain endpoints (no historical bars).
+    # NSEPython provides only current-day quote data, not multi-day OHLCV series.
+    # The canonical OHLCV chain is therefore:
+    #   Admin Dhan → System Dhan → User Broker → yfinance
+    # This is explicitly policy-driven, not an oversight.
+
     # ── 3. User's own data broker ─────────────────────────────────────────────
     if user_id:
         try:
@@ -400,7 +407,41 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
         except Exception as e:
             logger.debug(f"gateway: system Dhan batch quotes: {e}")
 
-    # ── 3. yfinance batch for any remaining symbols ───────────────────────────
+    # ── 3. TrueData (per-symbol LTP, when admin plan = nse_truedata) ────────────
+    # TrueData has no batch equity endpoint, so we iterate per-symbol.
+    remaining = [s for s in symbols if s not in result]
+    if remaining:
+        plan_type, td_key, _td_secret = _get_admin_plan()
+        if plan_type == 'nse_truedata' and td_key:
+            for sym in remaining:
+                try:
+                    px = _truedata_ltp(sym, td_key)
+                    if px > 0:
+                        result[sym] = {'price': px, 'change_percent': 0.0, 'source': SRC_TRUEDATA}
+                except Exception:
+                    pass
+            logger.debug(f"gateway: TrueData LTP filled {sum(1 for s in remaining if s in result)} / {len(remaining)} remaining")
+
+    # ── 4. NSEPython (per-symbol, for remaining after TrueData) ──────────────
+    # NSEPython is per-symbol only — impractical for 50+ symbols but fills gaps.
+    remaining = [s for s in symbols if s not in result]
+    if remaining:
+        try:
+            from nsepython import nse_quote
+            for sym in remaining:
+                try:
+                    q = nse_quote(sym)
+                    if q:
+                        lp = float(q.get('lastPrice') or 0)
+                        if lp > 0:
+                            result[sym] = {'price': lp, 'change_percent': 0.0, 'source': SRC_NSE}
+                except Exception:
+                    pass
+            logger.debug(f"gateway: NSEPython filled {sum(1 for s in remaining if s in result)} / {len(remaining)} remaining")
+        except Exception as e:
+            logger.debug(f"gateway: NSEPython batch quotes: {e}")
+
+    # ── 5. yfinance batch for any remaining symbols ───────────────────────────
     remaining = [s for s in symbols if s not in result]
     if remaining:
         try:
@@ -420,8 +461,13 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
         except Exception as e:
             logger.debug(f"gateway: yfinance batch quotes: {e}")
 
-    dominant = SRC_ADMIN if any(v.get('source') == SRC_ADMIN for v in result.values()) else (
-               SRC_YFINANCE if result else SRC_ESTIMATED)
+    # Dominant source: admin_broker > truedata > nse > yfinance > estimated
+    _src_priority = {SRC_ADMIN: 4, SRC_TRUEDATA: 3, SRC_NSE: 2, SRC_YFINANCE: 1, SRC_ESTIMATED: 0}
+    dominant = max(
+        (v.get('source', SRC_ESTIMATED) for v in result.values()),
+        key=lambda s: _src_priority.get(s, 0),
+        default=SRC_ESTIMATED,
+    ) if result else SRC_ESTIMATED
     return {"quotes": result, "source": dominant, "success": bool(result)}
 
 
