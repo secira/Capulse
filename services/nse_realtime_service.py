@@ -139,13 +139,30 @@ class NSERealTimeService:
     def get_stock_data(self, symbol: str, user_id: Optional[int] = None) -> Dict:
         """Fetch real-time stock data for a given symbol.
 
-        Priority chain (per user directive — data must come from a broker, not NSE):
-          1. User's configured Data API broker:
-               - Dhan     → dedicated NSE_EQ OHLC API (full OHLC + LTP)
-               - Others   → broker.get_price(symbol) for LTP
+        Priority chain (Market Data Gateway → per-source fallback):
+          0. Market Data Gateway (Admin Broker Pool → TrueData → System Dhan → NSEPython → yfinance)
+          1. User's configured Data API broker (Dhan OHLC API or broker.get_price)
           2. System-level Dhan DataApiBroker (any connected account)
           3. yfinance fast_info (last resort — no API key required)
         """
+
+        # ── Priority 0: Market Data Gateway ───────────────────────────────
+        try:
+            from services.market_data_gateway import get_price
+            gw = get_price(symbol, user_id)
+            if gw.get('success') and gw.get('value', 0) > 0:
+                px = float(gw['value'])
+                src = gw.get('source', 'gateway')
+                logger.debug(f"gateway: {symbol}=₹{px} via {src}")
+                return {
+                    "success": True, "symbol": symbol,
+                    "price": px, "current_price": px,
+                    "change": 0.0, "change_percent": 0.0, "volume": 0,
+                    "source": src,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+        except Exception as e:
+            logger.debug(f"{symbol}: gateway get_price failed: {e}")
 
         # ── Priority 1: User's configured Data API broker ─────────────────
         if user_id:

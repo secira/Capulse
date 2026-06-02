@@ -364,7 +364,30 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
     except Exception as e:
         logger.debug(f"gateway: admin pool quotes error: {e}")
 
-    # ── 2. yfinance batch for remainder ──────────────────────────────────────
+    # ── 2. System Dhan batch for remainder ───────────────────────────────────
+    # (TrueData has no batch equity LTP endpoint; NSEPython is per-symbol only —
+    #  both are impractical for 50+ symbols; system Dhan fills the gap.)
+    remaining = [s for s in symbols if s not in result]
+    if remaining:
+        try:
+            from services.dhan_service import get_security_id, get_nifty50_stock_quotes
+            sec_id_map = {s: sid for s in remaining if (sid := get_security_id(s))}
+            if sec_id_map:
+                raw = get_nifty50_stock_quotes(sec_id_map, timeout=5.0)
+                for sym, d in raw.items():
+                    ltp   = float(d.get('ltp', 0) or 0)
+                    close = float(d.get('close', 0) or ltp)
+                    pchg  = float(d.get('pct_change', 0) or 0)
+                    if not pchg and ltp and close:
+                        pchg = round((ltp - close) / close * 100, 2)
+                    if ltp > 0:
+                        result[sym] = {'price': ltp, 'change_percent': pchg, 'source': 'dhan_system'}
+                logger.debug(f"gateway: system Dhan batch filled {len(raw)} symbols")
+        except Exception as e:
+            logger.debug(f"gateway: system Dhan batch quotes: {e}")
+
+    # ── 3. yfinance batch for any remaining symbols ───────────────────────────
+    remaining = [s for s in symbols if s not in result]
     if remaining:
         try:
             import yfinance as yf
@@ -384,6 +407,7 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
             logger.debug(f"gateway: yfinance batch quotes: {e}")
 
     dominant = (SRC_ADMIN if any(v.get('source') == SRC_ADMIN for v in result.values())
+                else 'dhan_system' if any(v.get('source') == 'dhan_system' for v in result.values())
                 else SRC_YFINANCE if result else SRC_ESTIMATED)
     return {"quotes": result, "source": dominant, "success": bool(result)}
 
@@ -521,6 +545,163 @@ def get_index_prices(
     result['_source']  = dominant_src
     result['_success'] = bool(result and any(k != '_source' and k != '_success' for k in result))
     return result
+
+
+def get_option_chain(
+    symbol: str,
+    expiry: Optional[str] = None,
+    user_id: Optional[int] = None,
+) -> Dict:
+    """
+    Fetch a full option chain for an NSE F&O index or equity.
+
+    Fallback chain:
+      1. Admin Broker Pool  — admin-configured broker get_option_chain()
+      2. User's own broker  — user's DataApiBroker get_option_chain()
+      3. TrueData           — if plan_type='nse_truedata' and key set
+      4. System Dhan        — dhan_service.get_option_chain()
+      5. NSEPython OI chain — nse_service.get_option_chain_oi()
+
+    Returns::
+
+        {
+            "option_chain": dict,   # {strikeKey: {call_ltp, call_oi, put_ltp, put_oi, iv, …}}
+            "spot_price":   float,
+            "expiry":       str,
+            "source":       str,
+            "success":      bool,
+        }
+    """
+    sym = symbol.upper().strip()
+
+    def _normalise(chain_list: list, spot: float, src: str, expiry_str: str) -> Dict:
+        """Convert a list of raw chain dicts into the canonical gateway return format."""
+        try:
+            from services.option_chain_builder import chain_to_engine_format
+            engine = chain_to_engine_format(chain_list, spot)
+        except Exception:
+            engine = {}
+        return {
+            "option_chain": engine,
+            "spot_price":   spot,
+            "expiry":       expiry_str or "",
+            "source":       src,
+            "success":      bool(engine),
+        }
+
+    # ── 1. Admin Broker Pool ─────────────────────────────────────────────────
+    try:
+        from services.broker_factory import get_admin_data_brokers
+        for _prio, _btype, bname, broker in get_admin_data_brokers():
+            try:
+                if not broker.connect():
+                    continue
+                expiry_list = []
+                if hasattr(broker, 'get_expiry_list'):
+                    expiry_list = broker.get_expiry_list(sym) or []
+                use_expiry = expiry or (expiry_list[0] if expiry_list else None)
+                chain_raw  = broker.get_option_chain(sym, use_expiry)
+                if not chain_raw:
+                    continue
+                spot = float(chain_raw[0].get('spot', 0)) if chain_raw else 0.0
+                if not spot or spot <= 0:
+                    spot = float(broker.get_price(sym) or 0)
+                if chain_raw and spot > 0:
+                    logger.info(f"gateway: option chain {sym} via admin:{bname} ({len(chain_raw)} strikes)")
+                    return _normalise(chain_raw, spot, SRC_ADMIN, use_expiry or "")
+            except Exception as _e:
+                logger.debug(f"gateway: admin broker {bname} option chain({sym}): {_e}")
+    except Exception as e:
+        logger.debug(f"gateway: admin pool option chain error: {e}")
+
+    # ── 2. User's own broker ─────────────────────────────────────────────────
+    if user_id:
+        try:
+            from services.broker_factory import get_data_broker_for_user
+            ub = get_data_broker_for_user(user_id)
+            if ub and ub.connect():
+                expiry_list = []
+                if hasattr(ub, 'get_expiry_list'):
+                    expiry_list = ub.get_expiry_list(sym) or []
+                use_expiry = expiry or (expiry_list[0] if expiry_list else None)
+                chain_raw  = ub.get_option_chain(sym, use_expiry)
+                if chain_raw:
+                    spot = float(chain_raw[0].get('spot', 0)) if chain_raw else 0.0
+                    if not spot or spot <= 0:
+                        spot = float(ub.get_price(sym) or 0)
+                    if spot > 0:
+                        return _normalise(chain_raw, spot, "user_broker", use_expiry or "")
+        except Exception as e:
+            logger.debug(f"gateway: user broker option chain({sym}): {e}")
+
+    # ── 3. TrueData ───────────────────────────────────────────────────────────
+    plan_type, td_key, _td_secret = _get_admin_plan()
+    if plan_type == 'nse_truedata' and td_key:
+        try:
+            import requests as _req
+            headers = {'Authorization': f'Bearer {td_key}', 'Content-Type': 'application/json'}
+            spot_r = _req.get('https://api.truedata.in/v1/getltp',
+                              params={'symbol': sym}, headers=headers, timeout=10)
+            if spot_r.status_code == 200:
+                sd = spot_r.json()
+                spot = float(sd.get('ltp') or (sd.get('data') or {}).get('ltp', 0) or 0)
+                if spot > 0:
+                    chain_r = _req.get('https://api.truedata.in/v1/optionchain',
+                                       params={'symbol': sym}, headers=headers, timeout=15)
+                    if chain_r.status_code == 200:
+                        cd = chain_r.json()
+                        records = cd.get('data', cd.get('optionchain', []))
+                        if records:
+                            normalised_list = [
+                                {
+                                    'strike':       rec.get('strike', rec.get('strikePrice', 0)),
+                                    'call_ltp':     rec.get('call_ltp', (rec.get('CE') or {}).get('ltp', 0)),
+                                    'call_oi':      rec.get('call_oi',  (rec.get('CE') or {}).get('oi',  0)),
+                                    'call_iv':      rec.get('call_iv',  (rec.get('CE') or {}).get('iv',  0)),
+                                    'call_volume':  rec.get('call_volume', (rec.get('CE') or {}).get('volume', 0)),
+                                    'put_ltp':      rec.get('put_ltp',  (rec.get('PE') or {}).get('ltp', 0)),
+                                    'put_oi':       rec.get('put_oi',   (rec.get('PE') or {}).get('oi',  0)),
+                                    'put_iv':       rec.get('put_iv',   (rec.get('PE') or {}).get('iv',  0)),
+                                    'put_volume':   rec.get('put_volume',  (rec.get('PE') or {}).get('volume', 0)),
+                                }
+                                for rec in records
+                            ]
+                            logger.info(f"gateway: option chain {sym} via TrueData ({len(normalised_list)} strikes)")
+                            return _normalise(normalised_list, spot, SRC_TRUEDATA, "")
+        except Exception as e:
+            logger.debug(f"gateway: TrueData option chain({sym}): {e}")
+
+    # ── 4. System Dhan ────────────────────────────────────────────────────────
+    try:
+        from services.dhan_service import get_option_chain as dhan_oc
+        chain_raw = dhan_oc(symbol=sym, expiry=expiry)
+        if chain_raw:
+            spot = float(chain_raw[0].get('spot', 0)) if chain_raw else 0.0
+            if spot > 0:
+                logger.info(f"gateway: option chain {sym} via system Dhan ({len(chain_raw)} strikes)")
+                return _normalise(chain_raw, spot, 'dhan_system', expiry or "")
+    except Exception as e:
+        logger.debug(f"gateway: system Dhan option chain({sym}): {e}")
+
+    # ── 5. NSEPython OI chain ────────────────────────────────────────────────
+    try:
+        from services.nse_service import NSEService
+        nse_data = NSEService().get_option_chain_oi(sym)
+        if nse_data and nse_data.get('option_chain'):
+            spot = float(nse_data.get('spot_price', 0) or nse_data.get('underlyingValue', 0))
+            if spot > 0:
+                logger.info(f"gateway: option chain {sym} via NSEPython")
+                return {
+                    "option_chain": nse_data['option_chain'],
+                    "spot_price":   spot,
+                    "expiry":       nse_data.get('expiry', expiry or ""),
+                    "source":       SRC_NSE,
+                    "success":      True,
+                }
+    except Exception as e:
+        logger.debug(f"gateway: NSEPython option chain({sym}): {e}")
+
+    return {"option_chain": {}, "spot_price": 0.0, "expiry": expiry or "", "source": SRC_ESTIMATED, "success": False}
 
 
 def invalidate_cache(symbol: Optional[str] = None):

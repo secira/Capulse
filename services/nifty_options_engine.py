@@ -590,6 +590,22 @@ class NiftyOptionsEngine:
         return chain
 
     def _get_option_chain_data(self) -> Dict[str, Any]:
+        # ── Priority 0: Market Data Gateway (admin pool → TrueData → Dhan → NSE) ──
+        try:
+            from services.market_data_gateway import get_option_chain as gw_oc
+            gw = gw_oc(self.nse_symbol, user_id=self.user_id)
+            if gw.get('success') and gw.get('option_chain'):
+                logger.info(
+                    f"_get_option_chain_data({self.index}): gateway "
+                    f"spot={gw.get('spot_price', 0):.2f} "
+                    f"strikes={len(gw['option_chain'])} "
+                    f"src={gw.get('source','?')}"
+                )
+                return gw
+        except Exception as e:
+            logger.warning(f"_get_option_chain_data({self.index}): gateway failed: {e}")
+
+        # ── Priority 1: OptionsService (TrueData → Dhan → NSE internal chain) ──
         try:
             from services.options_service import OptionsService
             svc = OptionsService()
