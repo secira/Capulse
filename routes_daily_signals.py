@@ -299,6 +299,7 @@ def _fetch_nse_nifty50_stocks() -> dict:
                             'volume':         int(d.get('volume', 0) or 0),
                         }
                 if result:
+                    result['_source_'] = 'admin_broker'
                     _market_cache_set('nse_nifty50_stocks', result)
                     logger.info(f"Dhan Nifty50 stocks fetched: {len(result)} symbols")
                     return result
@@ -315,6 +316,7 @@ def _fetch_nse_nifty50_stocks() -> dict:
                 sym  = stock['symbol']
                 pchg = float(nifty50_pct.get(sym, 0) or 0)
                 result[sym] = {'change_percent': round(pchg, 2), 'price': 0.0, 'volume': 0}
+            result['_source_'] = 'estimated'  # Perplexity gives % only, no real prices
             _market_cache_set('nse_nifty50_stocks', result)
             logger.info(f"Perplexity Nifty50 stocks: {len(result)} symbols")
             return result
@@ -339,6 +341,7 @@ def _fetch_nse_nifty50_stocks() -> dict:
             except Exception:
                 continue
         if result:
+            result['_source_'] = 'yfinance'
             _market_cache_set('nse_nifty50_stocks', result)
             logger.info(f"yfinance Nifty50 stocks: {len(result)} symbols")
             return result

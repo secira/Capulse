@@ -192,7 +192,7 @@ class NSERealTimeService:
                                     "success": True, "symbol": symbol,
                                     "price": round(ltp, 2), "current_price": round(ltp, 2),
                                     "change": 0.0, "change_percent": 0.0, "volume": 0,
-                                    "source": broker_name,
+                                    "source": "admin_broker",  # canonical; detail = broker_name
                                     "timestamp": datetime.now(timezone.utc).isoformat(),
                                 }
             except Exception as e:
@@ -221,7 +221,7 @@ class NSERealTimeService:
             "success": True, "symbol": symbol,
             "price": ltp, "current_price": ltp,
             "change": change, "change_percent": change_pct, "volume": 0,
-            "source": "Dhan",
+            "source": "admin_broker",   # canonical label; detail = Dhan
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -244,7 +244,7 @@ class NSERealTimeService:
             if effective > 0:
                 change     = round(ltp - prev, 2) if (ltp > 0 and prev) else 0.0
                 change_pct = round(change / prev * 100, 2) if (ltp > 0 and prev) else 0.0
-                src = 'yfinance' if ltp > 0 else 'yfinance (prev close)'
+                src = 'yfinance'  # canonical label for both live and prev-close
                 logger.info(f"yfinance fast_info for {symbol}: ₹{effective:.2f} ({src})")
                 return {
                     'success': True,

@@ -385,9 +385,24 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
     except Exception as e:
         logger.debug(f"gateway: admin pool quotes error: {e}")
 
-    # ── 2. System Dhan batch for remainder ───────────────────────────────────
-    # (TrueData has no batch equity LTP endpoint; NSEPython is per-symbol only —
-    #  both are impractical for 50+ symbols; system Dhan fills the gap.)
+    # ── 2. TrueData (secondary — when admin plan = nse_truedata) ────────────────
+    # TrueData is the designated secondary source; it runs before system Dhan
+    # so that admin TrueData configuration takes effect everywhere uniformly.
+    # TrueData has no batch equity endpoint so we iterate per-symbol.
+    remaining = [s for s in symbols if s not in result]
+    if remaining:
+        plan_type, td_key, _td_secret = _get_admin_plan()
+        if plan_type == 'nse_truedata' and td_key:
+            for sym in remaining:
+                try:
+                    px = _truedata_ltp(sym, td_key)
+                    if px > 0:
+                        result[sym] = {'price': px, 'change_percent': 0.0, 'source': SRC_TRUEDATA}
+                except Exception:
+                    pass
+            logger.debug(f"gateway: TrueData LTP filled {sum(1 for s in remaining if s in result)} / {len(remaining)} remaining")
+
+    # ── 3. System Dhan batch for remainder ───────────────────────────────────
     remaining = [s for s in symbols if s not in result]
     if remaining:
         try:
@@ -406,21 +421,6 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
                 logger.debug(f"gateway: system Dhan batch filled {len(raw)} symbols")
         except Exception as e:
             logger.debug(f"gateway: system Dhan batch quotes: {e}")
-
-    # ── 3. TrueData (per-symbol LTP, when admin plan = nse_truedata) ────────────
-    # TrueData has no batch equity endpoint, so we iterate per-symbol.
-    remaining = [s for s in symbols if s not in result]
-    if remaining:
-        plan_type, td_key, _td_secret = _get_admin_plan()
-        if plan_type == 'nse_truedata' and td_key:
-            for sym in remaining:
-                try:
-                    px = _truedata_ltp(sym, td_key)
-                    if px > 0:
-                        result[sym] = {'price': px, 'change_percent': 0.0, 'source': SRC_TRUEDATA}
-                except Exception:
-                    pass
-            logger.debug(f"gateway: TrueData LTP filled {sum(1 for s in remaining if s in result)} / {len(remaining)} remaining")
 
     # ── 4. NSEPython (per-symbol, for remaining after TrueData) ──────────────
     # NSEPython is per-symbol only — impractical for 50+ symbols but fills gaps.
