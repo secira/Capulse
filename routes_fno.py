@@ -163,6 +163,48 @@ def _parse_atm_trade(trades_json_str):
     return None
 
 
+def _parse_all_trades(trades_json_str):
+    """
+    Parse and return all trade dicts (ATM/OTM/ITM) from a stored trades_json
+    string.  Returns a list with at most 3 items in moneyness order:
+    Recommended (ATM) → Aggressive (OTM) → Conservative (ITM).
+    """
+    if not trades_json_str:
+        return []
+    try:
+        import ast
+        trades = ast.literal_eval(trades_json_str)
+        if not isinstance(trades, list):
+            return []
+        valid = [t for t in trades if isinstance(t, dict)]
+        order = {'ATM': 0, 'OTM': 1, 'ITM': 2}
+        valid.sort(key=lambda t: order.get(str(t.get('moneyness', '')).upper(), 9))
+        return [
+            {
+                'symbol':       t.get('symbol', ''),
+                'moneyness':    t.get('moneyness', ''),
+                'type':         t.get('type', ''),
+                'label':        t.get('label', ''),
+                'ltp':          t.get('ltp', 0),
+                'entry_price':  t.get('entry_price', t.get('ltp', 0)),
+                'target':       t.get('target', 0),
+                'target_2':     t.get('target_2', 0),
+                'target_3':     t.get('target_3', 0),
+                'sl':           t.get('sl', 0),
+                'target_points':    t.get('target_points', 0),
+                'target_2_points':  t.get('target_2_points', 0),
+                'target_3_points':  t.get('target_3_points', 0),
+                'sl_points':        t.get('sl_points', 0),
+                'risk_reward':      t.get('risk_reward', ''),
+                'suggested_for':    t.get('suggested_for', ''),
+            }
+            for t in valid[:3]
+        ]
+    except Exception:
+        pass
+    return []
+
+
 def _calc_trade_pnl(atm_trade, outcome):
     """
     Return (entry_premium, exit_premium, pnl_pct) for a closed trade.
@@ -230,7 +272,9 @@ def fno_signal_history():
 
         signals = []
         for r in rows:
-            atm = _parse_atm_trade(getattr(r, 'atm_trades_json', None))
+            raw_trades_json = getattr(r, 'atm_trades_json', None)
+            atm = _parse_atm_trade(raw_trades_json)
+            all_trades = _parse_all_trades(raw_trades_json) if r.signal_type == 'TRADE_TRIGGER' else []
             outcome = r.outcome or ''
             entry_premium, exit_premium, pnl_pct = _calc_trade_pnl(atm, outcome)
 
@@ -255,6 +299,8 @@ def fno_signal_history():
                 'entry_premium':       entry_premium,
                 'exit_premium':        exit_premium,
                 'pnl_pct':             pnl_pct,
+                # All 3 trade options (ATM/OTM/ITM) for TRADE_TRIGGER rows
+                'all_trades':          all_trades,
             })
         return jsonify({'success': True, 'data': signals})
     except Exception as e:

@@ -483,6 +483,13 @@ def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
 
 def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
     try:
+        # ── Gate 0: NIFTY-only Telegram policy ───────────────────────────────
+        # Bank Nifty, Fin Nifty, and SENSEX signals are shown on the platform
+        # only. Only NIFTY 50 signals are broadcast to Telegram.
+        if index_id != 'NIFTY':
+            logger.info(f"[{index_id}] Telegram alert skipped — non-NIFTY index (platform-only)")
+            return False
+
         # Helper: push a Flask app context if one isn't already active.
         # _send_telegram_alert is called outside the engine's app_context block,
         # so DB queries (fno_config, schedule table) would fail without this.

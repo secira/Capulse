@@ -1326,6 +1326,48 @@ function loadSignalHistory() {
                 html +=   '</div>';
                 html += '</div>';
 
+                // ── All 3 trade options (ATM / OTM / ITM) ──────────────
+                if (s.all_trades && s.all_trades.length > 0) {
+                    var mLabels = {ATM: '⭐ Recommended', OTM: '⚠️ Aggressive', ITM: '🛡️ Conservative'};
+                    var mColors = {ATM: '#2563eb', OTM: '#d97706', ITM: '#16a34a'};
+                    var mBgs    = {ATM: '#dbeafe',  OTM: '#fef3c7', ITM: '#dcfce7'};
+                    html += '<div style="display:grid;grid-template-columns:repeat(' + s.all_trades.length + ',1fr);gap:10px;margin-top:12px">';
+                    s.all_trades.forEach(function(t) {
+                        var mn  = (t.moneyness || 'ATM').toUpperCase();
+                        var clr = mColors[mn] || '#2563eb';
+                        var bg  = mBgs[mn]    || '#dbeafe';
+                        var lbl = mLabels[mn] || mn;
+                        var isCE = (t.type || '').toUpperCase() === 'CE';
+                        var typBg = isCE ? '#dcfce7' : '#fee2e2';
+                        var typCl = isCE ? '#15803d' : '#dc2626';
+                        html += '<div style="background:#fff;border:2px solid ' + clr + ';border-radius:10px;overflow:hidden">';
+                        html +=   '<div style="background:' + bg + ';padding:8px 12px;display:flex;align-items:center;justify-content:space-between">';
+                        html +=     '<span style="font-size:11px;font-weight:800;color:' + clr + '">' + lbl + '</span>';
+                        html +=     '<span style="background:' + typBg + ';color:' + typCl + ';font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px">' + (t.label || t.type) + '</span>';
+                        html +=   '</div>';
+                        html +=   '<div style="padding:10px 12px">';
+                        html +=     '<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:8px">' + (t.symbol || '—') + '</div>';
+                        html +=     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px">';
+                        html +=       '<div style="color:#64748b">Entry</div><div style="font-weight:700;color:#1e293b">₹' + (t.entry_price || t.ltp || 0).toFixed(0) + '</div>';
+                        html +=       '<div style="color:#15803d">🎯 T1</div><div style="font-weight:700;color:#15803d">₹' + (t.target || 0).toFixed(0) + ' <span style="color:#94a3b8">(+' + (t.target_points || 0) + ')</span></div>';
+                        if (t.target_2) {
+                            html += '<div style="color:#15803d">🎯 T2</div><div style="font-weight:700;color:#15803d">₹' + (t.target_2 || 0).toFixed(0) + ' <span style="color:#94a3b8">(+' + (t.target_2_points || 0) + ')</span></div>';
+                        }
+                        if (t.target_3) {
+                            html += '<div style="color:#15803d">🎯 T3</div><div style="font-weight:700;color:#15803d">₹' + (t.target_3 || 0).toFixed(0) + ' <span style="color:#94a3b8">(+' + (t.target_3_points || 0) + ')</span></div>';
+                        }
+                        html +=       '<div style="color:#dc2626">🛑 SL</div><div style="font-weight:700;color:#dc2626">₹' + (t.sl || 0).toFixed(0) + ' <span style="color:#94a3b8">(−' + (t.sl_points || 0) + ')</span></div>';
+                        html +=       '<div style="color:#64748b">R:R</div><div style="font-weight:700;color:#1e293b">' + (t.risk_reward || '—') + '</div>';
+                        html +=     '</div>';
+                        if (t.suggested_for) {
+                            html += '<div style="margin-top:6px;font-size:10px;color:#94a3b8"><i class="fas fa-user-check me-1"></i>' + t.suggested_for + '</div>';
+                        }
+                        html +=   '</div>';
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                }
+
             } else if (s.signal_type === 'TRADE_EXIT') {
                 // ── Outcome card ──
                 var outcome = s.outcome || 'EXITED';
