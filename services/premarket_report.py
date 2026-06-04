@@ -22,7 +22,8 @@ pivot-only levels are produced and OI-derived rows show "—".
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+import threading
+from datetime import datetime, date
 from typing import Any
 
 import pytz
@@ -30,6 +31,12 @@ import pytz
 logger = logging.getLogger(__name__)
 
 IST = pytz.timezone('Asia/Kolkata')
+
+# ── once-per-day send guard ───────────────────────────────────────────────────
+# Prevents duplicate Telegram sends when multiple gunicorn workers or a manual
+# "Send Now" button trigger the report on the same calendar day (IST).
+_sent_guard_lock: threading.Lock = threading.Lock()
+_premarket_sent_date: date | None = None  # IST date of the last successful send
 
 # (engine_index_code, telegram_label, short_label)
 INDICES: list[tuple[str, str, str]] = [
@@ -342,14 +349,36 @@ def format_premarket_report_telegram(report: dict) -> str:
 
 # ───────────────────────── public entrypoint ───────────────────────────
 
-def send_premarket_report() -> bool:
-    """Build and broadcast the pre-market report to Telegram."""
+def send_premarket_report(force: bool = False) -> bool:
+    """Build and broadcast the pre-market report to Telegram.
+
+    ``force=True`` bypasses the once-per-day guard (use only for manual
+    admin re-sends when you genuinely want a second copy).
+    """
+    global _premarket_sent_date
     from services.messaging_service import send_telegram_message
     try:
+        today_ist = datetime.now(IST).date()
+
+        # ── once-per-day guard ────────────────────────────────────────────────
+        # Multiple gunicorn workers + APScheduler can fire this within seconds
+        # of each other. The lock + date flag ensures exactly one send per day.
+        if not force:
+            with _sent_guard_lock:
+                if _premarket_sent_date == today_ist:
+                    logger.info(
+                        "send_premarket_report: already sent today "
+                        f"({today_ist}) — skipping duplicate"
+                    )
+                    return False
+                # Claim the slot immediately (before the network call) so a
+                # concurrent worker that acquires the lock right after will see
+                # the date is already set and bail out.
+                _premarket_sent_date = today_ist
+
         # Skip on weekends & trading holidays — send holiday wish instead.
         try:
             from services.market_calendar import is_market_holiday, send_holiday_wish_once
-            today_ist = datetime.now(IST).date()
             if datetime.now(IST).weekday() >= 5:
                 logger.info("send_premarket_report: weekend — skipping")
                 return False
@@ -367,7 +396,17 @@ def send_premarket_report() -> bool:
             logger.info(f"📨 Pre-market report sent ({len(report.get('indices', []))} indices)")
         else:
             logger.warning("Pre-market report Telegram send returned False")
+            # On failure, reset the guard so it can retry (e.g. next scheduler tick)
+            if not force:
+                with _sent_guard_lock:
+                    if _premarket_sent_date == today_ist:
+                        _premarket_sent_date = None
         return bool(ok)
     except Exception as e:
         logger.error(f"send_premarket_report failed: {e}", exc_info=True)
+        # Reset guard on exception so a retry is possible
+        if not force:
+            with _sent_guard_lock:
+                if _premarket_sent_date == today_ist:
+                    _premarket_sent_date = None
         return False
