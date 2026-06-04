@@ -827,8 +827,6 @@ def market_pulse_commentary():
         except Exception:
             pass
 
-        from services.perplexity_api import PerplexityAPI
-
         # Reuse cached data to avoid hitting slow external APIs a second time
         idx_cache  = _market_cache_get('indices', ttl=_CACHE_TTL_INDICES) or {}
         plex_cache = _market_cache_get('perplexity_market', ttl=300) or {}
@@ -880,8 +878,7 @@ def market_pulse_commentary():
         if cached_resp is not None and stale:
             def _refresh_commentary():
                 try:
-                    px = PerplexityAPI()
-                    txt, _ = px.get_investment_advice(prompt)
+                    txt = _call_perplexity_structured(prompt, timeout=20)
                     if txt and txt.strip():
                         _market_cache_set(_commentary_cache_key,
                                           {'success': True, 'commentary': txt.strip(), 'lang': lang_code})
@@ -891,8 +888,7 @@ def market_pulse_commentary():
             return jsonify(cached_resp)
 
         # Cold cache: do the call inline (this is the only slow path)
-        perplexity = PerplexityAPI()
-        text, _ = perplexity.get_investment_advice(prompt)
+        text = _call_perplexity_structured(prompt, timeout=20)
         resp = {'success': True, 'commentary': (text or '').strip(), 'lang': lang_code}
         if resp['commentary']:
             _market_cache_set(_commentary_cache_key, resp)
@@ -1018,8 +1014,6 @@ def market_pulse_query():
         if len(query) > 2000:
             return jsonify({'error': 'Question is too long (max 2000 chars).'}), 400
 
-        from services.perplexity_api import PerplexityAPI
-
         # Use in-memory cache — avoids another slow NSE call on every query
         idx_cache  = _market_cache_get('indices', ttl=_CACHE_TTL_INDICES) or {}
         plex_cache = _market_cache_get('perplexity_market', ttl=300) or {}
@@ -1062,8 +1056,7 @@ def market_pulse_query():
             f"User question: {query}{lang_instr}"
         )
 
-        perplexity = PerplexityAPI()
-        text, _ = perplexity.get_investment_advice(market_ctx)
+        text = _call_perplexity_structured(market_ctx, timeout=20)
 
         if text and text.strip():
             return jsonify({'response': text.strip(), 'lang': lang_code})
