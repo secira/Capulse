@@ -3076,11 +3076,17 @@ def test_alert_schedule(key):
 
         ok = fire_schedule_now(key)
         if ok:
-            flash(f'Sample sent to Telegram for "{key}". Check the chat.',
-                  'success')
+            flash(f'Alert sent for "{key}". Check Telegram.', 'success')
+        elif key == 'fno_signals':
+            flash(
+                'Sample test blocked — the live Telegram group receives real signals only. '
+                'Real alerts fire automatically when the engine detects a high-confidence '
+                'NIFTY signal during market hours (9:30 AM–3:00 PM IST).',
+                'info'
+            )
         else:
             flash(f'Send returned no confirmation for "{key}". '
-                  'Check application logs.', 'error')
+                  'Check application logs.', 'warning')
     except Exception as e:
         flash(f'Error sending sample: {e}', 'error')
 
