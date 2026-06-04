@@ -161,8 +161,8 @@
                             </td>
                             <td>
                                 <div class="d-flex gap-1">
-                                    <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" class="btn btn-sm btn-outline-primary admin-btn" title="View Details">
-                                        <i class="fas fa-eye"></i>
+                                    <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" class="btn btn-sm btn-outline-primary admin-btn" title="View / Edit">
+                                        <i class="fas fa-edit"></i>
                                     </a>
                                     {% if not user.is_admin %}
                                     {% if user.active %}

@@ -94,6 +94,64 @@
             </div>
         </div>
 
+        <!-- Edit User Details -->
+        <div class="card admin-card mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0"><i class="fas fa-user-edit me-2"></i>Edit User Details</h6>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.edit_user', user_id=user.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold small mb-1">Username</label>
+                        <input type="text" name="username" class="form-control form-control-sm"
+                               value="{{ user.username or '' }}" placeholder="username">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold small mb-1">Email</label>
+                        <input type="email" name="email" class="form-control form-control-sm"
+                               value="{{ user.email or '' }}" placeholder="email@example.com">
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small mb-1">First Name</label>
+                            <input type="text" name="first_name" class="form-control form-control-sm"
+                                   value="{{ user.first_name or '' }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small mb-1">Last Name</label>
+                            <input type="text" name="last_name" class="form-control form-control-sm"
+                                   value="{{ user.last_name or '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small mb-1">Mobile Number</label>
+                        <input type="text" name="mobile_number" class="form-control form-control-sm"
+                               value="{{ user.mobile_number or '' }}" placeholder="+91XXXXXXXXXX">
+                    </div>
+
+                    <!-- Admin privilege toggle -->
+                    <div class="mb-3 p-2 rounded" style="background:#fff8f0;border:1px solid #fed7aa">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="adminToggle"
+                                   name="is_admin" value="1"
+                                   {% if user.is_admin %}checked{% endif %}
+                                   onchange="confirmAdminToggle(this, '{{ (user.username or user.email)|e }}')">
+                            <label class="form-check-label fw-semibold small" for="adminToggle">
+                                <i class="fas fa-shield-alt me-1 text-danger"></i>Admin Privilege
+                            </label>
+                        </div>
+                        <small class="text-muted" style="font-size:11px">Grants full access to the admin panel.</small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 admin-btn btn-sm">
+                        <i class="fas fa-save me-2"></i>Save Changes
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <!-- Brokers -->
         <div class="card admin-card mb-4">
             <div class="card-header"><h6 class="mb-0"><i class="fas fa-link me-2"></i>Connected Brokers</h6></div>
@@ -229,6 +287,16 @@ function confirmDelete(userId, username) {
     const form = document.getElementById('deleteForm');
     form.action = `/admin/user/${userId}/delete`;
     form.submit();
+}
+
+function confirmAdminToggle(checkbox, username) {
+    const granting = checkbox.checked;
+    const msg = granting
+        ? `Grant admin privilege to "${username}"?\n\nThis gives full access to the admin panel.`
+        : `Remove admin privilege from "${username}"?`;
+    if (!confirm(msg)) {
+        checkbox.checked = !granting;  // revert
+    }
 }
 </script>
 {% endblock %}

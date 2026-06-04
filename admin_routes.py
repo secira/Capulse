@@ -344,6 +344,56 @@ def update_user_plan(user_id):
     return redirect(url_for('admin.user_detail', user_id=user_id))
 
 
+@admin_bp.route('/user/<int:user_id>/edit', methods=['POST'])
+@admin_required
+def edit_user(user_id):
+    """Edit user profile details and admin privilege."""
+    user = User.query.get_or_404(user_id)
+
+    username     = request.form.get('username',     '').strip() or None
+    email        = request.form.get('email',        '').strip() or None
+    first_name   = request.form.get('first_name',   '').strip() or None
+    last_name    = request.form.get('last_name',    '').strip() or None
+    mobile_number = request.form.get('mobile_number', '').strip() or None
+    promote_admin = request.form.get('is_admin') == '1'
+
+    # Safety: don't allow demoting the currently-logged-in admin
+    if hasattr(current_user, 'id') and current_user.id == user.id and not promote_admin and user.is_admin:
+        flash('You cannot remove your own admin privilege.', 'danger')
+        return redirect(url_for('admin.user_detail', user_id=user_id))
+
+    try:
+        if username and username != user.username:
+            clash = User.query.filter(User.username == username, User.id != user_id).first()
+            if clash:
+                flash(f'Username "{username}" is already taken.', 'danger')
+                return redirect(url_for('admin.user_detail', user_id=user_id))
+        if email and email != user.email:
+            clash = User.query.filter(User.email == email, User.id != user_id).first()
+            if clash:
+                flash(f'Email "{email}" is already in use.', 'danger')
+                return redirect(url_for('admin.user_detail', user_id=user_id))
+        if mobile_number and mobile_number != user.mobile_number:
+            clash = User.query.filter(User.mobile_number == mobile_number, User.id != user_id).first()
+            if clash:
+                flash(f'Mobile number "{mobile_number}" is already registered.', 'danger')
+                return redirect(url_for('admin.user_detail', user_id=user_id))
+
+        user.username      = username
+        user.email         = email
+        user.first_name    = first_name
+        user.last_name     = last_name
+        user.mobile_number = mobile_number
+        user.is_admin      = promote_admin
+        db.session.commit()
+        flash(f'User "{username or email or user_id}" updated successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Could not update user: {str(e)}', 'danger')
+
+    return redirect(url_for('admin.user_detail', user_id=user_id))
+
+
 @admin_bp.route('/user/<int:user_id>/delete', methods=['POST'])
 @admin_required
 def delete_user(user_id):
