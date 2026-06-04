@@ -490,6 +490,18 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
             logger.info(f"[{index_id}] Telegram alert skipped — non-NIFTY index (platform-only)")
             return False
 
+        # ── Gate 0.5: 9:30 AM IST minimum time gate ──────────────────────────
+        # No Telegram signals before 9:30 AM IST — not even sample/test sends.
+        # The opening 9:15 candle is noisy; proper signals only form after 9:30.
+        _now = _now_ist()
+        _market_open = _now.replace(hour=9, minute=30, second=0, microsecond=0)
+        if _now < _market_open:
+            logger.info(
+                f"[{index_id}] Telegram alert skipped — before 9:30 AM IST "
+                f"(current time {_now.strftime('%H:%M IST')})"
+            )
+            return False
+
         # Helper: push a Flask app context if one isn't already active.
         # _send_telegram_alert is called outside the engine's app_context block,
         # so DB queries (fno_config, schedule table) would fail without this.
