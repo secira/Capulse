@@ -190,76 +190,88 @@ class NiftyOptionsEngine:
             return None, None, None
 
     def _get_broker_data(self) -> tuple:
-        """Returns (spot, engine_chain, broker_name, expiry_list) or (None, None, None, [])."""
+        """
+        Try every user data broker in preference order until one returns a valid
+        option chain. Falls back to the next broker on connection failure, empty
+        chain, or LTP sanity failure.
+
+        Returns (spot, engine_chain, broker_name, expiry_list) or (None, None, None, []).
+        """
         if not self.user_id:
             return None, None, None, []
+
         try:
-            from services.broker_factory import get_data_broker_for_user
-            broker = get_data_broker_for_user(self.user_id)
-            if not broker:
-                logger.info(f"No data broker configured for user {self.user_id}")
-                return None, None, None, []
+            from services.broker_factory import get_all_data_brokers_for_user
+            candidates = get_all_data_brokers_for_user(self.user_id)
+        except Exception as e:
+            logger.error(f"_get_broker_data: get_all_data_brokers_for_user failed: {e}")
+            return None, None, None, []
 
-            if not broker.connect():
-                logger.warning(f"Data broker {broker.BROKER_NAME} failed to connect")
-                return None, None, None, []
+        if not candidates:
+            logger.info(f"No data brokers configured for user {self.user_id}")
+            return None, None, None, []
 
-            self._broker_adapter = broker
+        import time as _time_retry
+        for bname, broker in candidates:
+            try:
+                if not broker.connect():
+                    logger.warning(f"User data broker '{bname}' failed to connect — trying next")
+                    continue
 
-            # Expiry list — only Dhan supports this directly; others return []
-            broker_expiries = []
-            if hasattr(broker, 'get_expiry_list'):
-                try:
-                    broker_expiries = broker.get_expiry_list(self.dhan_symbol) or []
-                except Exception as ex:
-                    logger.warning(f"get_expiry_list({self.dhan_symbol}) failed: {ex}")
+                broker_expiries: list = []
+                if hasattr(broker, 'get_expiry_list'):
+                    try:
+                        broker_expiries = broker.get_expiry_list(self.dhan_symbol) or []
+                    except Exception as ex:
+                        logger.warning(f"get_expiry_list({self.dhan_symbol}) via {bname} failed: {ex}")
 
-            import time as _time_retry
-            for attempt in range(2):
-                # For brokers that return a direct option chain (Dhan), we use the
-                # first available expiry so that spot+chain are always consistent.
-                if broker_expiries:
-                    nearest_expiry = broker_expiries[0]
-                    chain_raw = broker.get_option_chain(self.dhan_symbol, nearest_expiry)
-                    # Spot is embedded in each chain row
-                    spot = float(chain_raw[0].get("spot", 0)) if chain_raw else 0.0
-                    if not spot or spot <= 0:
-                        # Fall back to separate price call
-                        spot = broker.get_price(self.dhan_symbol)
-                else:
-                    spot = broker.get_price(self.dhan_symbol)
-                    chain_raw = broker.get_option_chain(self.dhan_symbol) if spot and spot > 0 else []
+                chain_raw: list = []
+                spot: float = 0.0
 
-                if chain_raw and spot and spot > 0:
-                    break  # success — no retry needed
+                for attempt in range(2):
+                    if broker_expiries:
+                        nearest_expiry = broker_expiries[0]
+                        chain_raw = broker.get_option_chain(self.dhan_symbol, nearest_expiry)
+                        spot = float(chain_raw[0].get("spot", 0)) if chain_raw else 0.0
+                        if not spot or spot <= 0:
+                            spot = float(broker.get_price(self.dhan_symbol) or 0)
+                    else:
+                        spot = float(broker.get_price(self.dhan_symbol) or 0)
+                        chain_raw = broker.get_option_chain(self.dhan_symbol) if spot > 0 else []
 
-                if attempt == 0:
-                    # Dhan sometimes returns a null-error when concurrent requests are
-                    # made with the same client ID. A brief pause resolves it.
-                    logger.warning(
-                        f"_get_broker_data({self.index}): Dhan returned empty/no-spot on attempt 1 "
-                        f"(spot={spot}, chain_len={len(chain_raw) if chain_raw else 0}) — retrying in 0.5s"
-                    )
-                    _time_retry.sleep(0.5)
+                    if chain_raw and spot > 0:
+                        break
+                    if attempt == 0:
+                        logger.warning(
+                            f"_get_broker_data({self.index}): '{bname}' returned "
+                            f"empty/no-spot on attempt 1 — retrying in 0.5s"
+                        )
+                        _time_retry.sleep(0.5)
 
-            if not spot or spot <= 0:
-                logger.warning(f"Data broker {broker.BROKER_NAME} returned no spot price after retry")
-                return None, None, None, []
+                if not spot or spot <= 0 or not chain_raw:
+                    logger.warning(f"User data broker '{bname}' returned no usable data — trying next")
+                    continue
 
-            if chain_raw:
                 from services.option_chain_builder import chain_to_engine_format
                 engine_chain = chain_to_engine_format(chain_raw, spot)
+
+                if not self._chain_ltp_sane(engine_chain, spot):
+                    logger.warning(f"User data broker '{bname}' LTP sanity failed — trying next")
+                    continue
+
+                self._broker_adapter = broker
                 logger.info(
-                    f"✅ Broker Data API ({broker.BROKER_NAME}): "
-                    f"spot={spot:.2f}, chain_strikes={len(chain_raw)}, expiries={len(broker_expiries)}"
+                    f"✅ User Data Broker ({bname}): "
+                    f"spot={spot:.2f}, strikes={len(chain_raw)}, expiries={len(broker_expiries)}"
                 )
-                return float(spot), engine_chain, broker.BROKER_NAME, broker_expiries
-            else:
-                logger.warning(f"Data broker {broker.BROKER_NAME} returned empty chain after retry")
-                return None, None, None, []
-        except Exception as e:
-            logger.error(f"Broker data API error: {e}")
-            return None, None, None, []
+                return float(spot), engine_chain, bname, broker_expiries
+
+            except Exception as e:
+                logger.error(f"User data broker '{bname}' error: {e} — trying next")
+                continue
+
+        logger.warning(f"_get_broker_data({self.index}): all user brokers exhausted — no chain")
+        return None, None, None, []
 
     def _get_admin_broker_data(self) -> tuple:
         """

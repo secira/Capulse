@@ -19,6 +19,29 @@ def _get_strike_interval(symbol: str) -> int:
     return SYMBOL_STRIKE_INTERVALS.get(symbol.upper(), 50)
 
 
+def _nearest_near_term_expiry(instruments: List[Dict], symbol: str) -> Optional[str]:
+    """
+    From a list of instruments pick the nearest expiry that is within 90 days.
+    Returns None when the list is empty. Falls back to the overall nearest expiry
+    if all available expiries are beyond the 90-day window (edge case).
+    """
+    from datetime import date, timedelta
+    today     = date.today()
+    max_date  = today + timedelta(days=90)
+    expiry_dates: set = set()
+    for inst in instruments:
+        if symbol.upper() not in (inst.get("symbol") or "").upper():
+            continue
+        exp = inst.get("expiry", "")
+        if exp and len(exp) >= 8:
+            expiry_dates.add(exp)
+    if not expiry_dates:
+        return None
+    sorted_dates = sorted(expiry_dates)
+    near_term = [d for d in sorted_dates if d <= max_date.strftime("%Y-%m-%d")]
+    return near_term[0] if near_term else sorted_dates[0]
+
+
 def build_option_chain(broker, instruments: List[Dict], spot_price: float,
                        symbol: str = "NIFTY", expiry: Optional[str] = None) -> List[Dict]:
     interval = _get_strike_interval(symbol)
@@ -26,6 +49,11 @@ def build_option_chain(broker, instruments: List[Dict], spot_price: float,
     strikes_needed = set()
     for i in range(-STRIKE_RANGE, STRIKE_RANGE + 1):
         strikes_needed.add(int(atm + i * interval))
+
+    # When no expiry is requested, pick the nearest near-term expiry (≤90 days)
+    # so we never accidentally fetch a long-dated option with inflated premiums.
+    if not expiry:
+        expiry = _nearest_near_term_expiry(instruments, symbol)
 
     filtered = []
     for inst in instruments:

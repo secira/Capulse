@@ -83,6 +83,75 @@ def get_data_broker_for_user(user_id: int) -> Optional[BrokerBase]:
         return None
 
 
+def get_all_data_brokers_for_user(user_id: int) -> list:
+    """
+    Return ALL data-capable broker instances for the given user, ordered by
+    preference so the caller can try each in sequence until one succeeds.
+
+    Ordering:
+      1. BrokerAccount rows with is_data_broker=True  (explicit user preference)
+      2. Remaining active BrokerAccount rows           (Zerodha, Angel, etc.)
+      3. Legacy DataApiBroker rows                     (backward-compat)
+
+    Returns a list of (broker_name, BrokerBase) tuples. Duplicates (same
+    broker_type) are deduplicated — the first occurrence wins.
+    """
+    results = []
+    seen_keys: set = set()
+
+    # ── 1 & 2. BrokerAccount entries ─────────────────────────────────────────
+    try:
+        from models_broker import BrokerAccount
+        accounts = (
+            BrokerAccount.query
+            .filter_by(user_id=user_id, is_active=True)
+            .order_by(
+                BrokerAccount.is_data_broker.desc(),  # is_data_broker=True first
+                BrokerAccount.id.asc(),
+            )
+            .all()
+        )
+        for acct in accounts:
+            try:
+                btype = acct.broker_type.value if hasattr(acct.broker_type, 'value') else str(acct.broker_type)
+                btype_key = btype.lower().strip()
+                if btype_key not in BROKER_REGISTRY or btype_key in seen_keys:
+                    continue
+                seen_keys.add(btype_key)
+                broker = get_broker(btype_key, acct.get_credentials())
+                if broker:
+                    results.append((acct.broker_name or btype_key, broker))
+            except Exception as _e:
+                logger.debug(f"get_all_data_brokers_for_user: account {acct.id} error: {_e}")
+    except Exception as e:
+        logger.error(f"get_all_data_brokers_for_user BrokerAccount query: {e}")
+
+    # ── 3. Legacy DataApiBroker ───────────────────────────────────────────────
+    try:
+        from models_broker import DataApiBroker
+        for row in DataApiBroker.query.filter_by(
+            user_id=user_id, is_active=True, connection_status='connected'
+        ).all():
+            try:
+                btype_key = (row.broker_type or '').lower().strip()
+                if btype_key not in BROKER_REGISTRY or btype_key in seen_keys:
+                    continue
+                seen_keys.add(btype_key)
+                broker = get_broker(btype_key, row.get_credentials())
+                if broker:
+                    results.append((row.broker_name or btype_key, broker))
+            except Exception as _e:
+                logger.debug(f"get_all_data_brokers_for_user: legacy row {row.id} error: {_e}")
+    except Exception as e:
+        logger.error(f"get_all_data_brokers_for_user DataApiBroker query: {e}")
+
+    logger.info(
+        f"get_all_data_brokers_for_user(user={user_id}): "
+        f"{len(results)} broker(s) — {[n for n, _ in results]}"
+    )
+    return results
+
+
 def get_admin_data_brokers() -> list:
     """
     Return admin-managed data-source brokers ordered by REMAINING RUNWAY

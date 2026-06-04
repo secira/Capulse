@@ -715,25 +715,32 @@ def get_option_chain(
     except Exception as e:
         logger.debug(f"gateway: admin pool option chain error: {e}")
 
-    # ── 2. User's own broker ─────────────────────────────────────────────────
+    # ── 2. User's own brokers (all connected, in preference order) ───────────
     if user_id:
         try:
-            from services.broker_factory import get_data_broker_for_user
-            ub = get_data_broker_for_user(user_id)
-            if ub and ub.connect():
-                expiry_list = []
-                if hasattr(ub, 'get_expiry_list'):
-                    expiry_list = ub.get_expiry_list(sym) or []
-                use_expiry = expiry or (expiry_list[0] if expiry_list else None)
-                chain_raw  = ub.get_option_chain(sym, use_expiry)
-                if chain_raw:
-                    spot = float(chain_raw[0].get('spot', 0)) if chain_raw else 0.0
-                    if not spot or spot <= 0:
-                        spot = float(ub.get_price(sym) or 0)
-                    if spot > 0:
-                        return _normalise(chain_raw, spot, SRC_ADMIN, use_expiry or "")
+            from services.broker_factory import get_all_data_brokers_for_user
+            for _ub_name, ub in get_all_data_brokers_for_user(user_id):
+                try:
+                    if not ub.connect():
+                        logger.debug(f"gateway: user broker '{_ub_name}' connect failed — trying next")
+                        continue
+                    expiry_list = []
+                    if hasattr(ub, 'get_expiry_list'):
+                        expiry_list = ub.get_expiry_list(sym) or []
+                    use_expiry = expiry or (expiry_list[0] if expiry_list else None)
+                    chain_raw  = ub.get_option_chain(sym, use_expiry)
+                    if chain_raw:
+                        spot = float(chain_raw[0].get('spot', 0)) if chain_raw else 0.0
+                        if not spot or spot <= 0:
+                            spot = float(ub.get_price(sym) or 0)
+                        if spot > 0:
+                            logger.info(f"gateway: option chain {sym} via user:{_ub_name} ({len(chain_raw)} strikes)")
+                            return _normalise(chain_raw, spot, SRC_ADMIN, use_expiry or "")
+                    logger.debug(f"gateway: user broker '{_ub_name}' returned no chain — trying next")
+                except Exception as _ube:
+                    logger.debug(f"gateway: user broker '{_ub_name}' option chain({sym}): {_ube} — trying next")
         except Exception as e:
-            logger.debug(f"gateway: user broker option chain({sym}): {e}")
+            logger.debug(f"gateway: user broker loop option chain({sym}): {e}")
 
     # ── 3. TrueData ───────────────────────────────────────────────────────────
     plan_type, td_key, _td_secret = _get_admin_plan()
