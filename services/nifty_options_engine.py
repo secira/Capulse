@@ -672,6 +672,37 @@ class NiftyOptionsEngine:
             }
         return chain
 
+    def _chain_ltp_sane(self, chain: dict, spot: float) -> bool:
+        """
+        Sanity-check: return False if the ATM call LTP looks like data from a
+        far-dated expiry (long-dated options have inflated premiums that would
+        produce completely wrong trade entries/SL/targets).
+
+        Threshold: ATM CE ltp must be ≤ 12 % of spot.
+          - Weekly  ATM CE at IV=25% ≈ ₹300   (1.3% of 23 000)  ✓
+          - Monthly ATM CE at IV=25% ≈ ₹700   (3.0%)             ✓
+          - Quarterly ATM CE at IV=25% ≈ ₹1200 (5.2%)            ✓
+          - 1.5-year ATM CE at IV=15% ≈ ₹3000 (13%)              ✗  ← reject
+        """
+        if not chain or not spot or spot <= 0:
+            return True
+        try:
+            atm = int(round(spot / self.strike_interval) * self.strike_interval)
+            ce_key = f"{atm}CE"
+            ltp = float((chain.get(ce_key) or {}).get('ltp', 0))
+            if ltp <= 0:
+                return True
+            max_sane_ltp = spot * 0.12
+            if ltp > max_sane_ltp:
+                logger.warning(
+                    f"LTP sanity FAIL ({self.index}): {ce_key} ltp=₹{ltp:.1f} "
+                    f"> 12%×spot=₹{max_sane_ltp:.0f} — likely far-expiry data, skipping"
+                )
+                return False
+            return True
+        except Exception:
+            return True
+
     def _get_sample_option_chain(self) -> Dict[str, Any]:
         spot = float(self.default_spot)
         try:
@@ -1967,13 +1998,16 @@ class NiftyOptionsEngine:
             from services.market_data_gateway import get_option_chain as _gw_oc
             _gw = _gw_oc(self.nse_symbol, user_id=self.user_id)
             if _gw.get('success') and _gw.get('option_chain') and float(_gw.get('spot_price', 0)) > 0:
-                spot = float(_gw['spot_price'])
-                current_chain = _gw['option_chain']
-                data_source = _gw.get('source', 'admin_broker')
-                logger.info(
-                    f"generate_analysis({self.index}): gateway spot=₹{spot:.2f} "
-                    f"strikes={len(current_chain)} src={data_source}"
-                )
+                _gw_spot  = float(_gw['spot_price'])
+                _gw_chain = _gw['option_chain']
+                if self._chain_ltp_sane(_gw_chain, _gw_spot):
+                    spot = _gw_spot
+                    current_chain = _gw_chain
+                    data_source = _gw.get('source', 'admin_broker')
+                    logger.info(
+                        f"generate_analysis({self.index}): gateway spot=₹{spot:.2f} "
+                        f"strikes={len(current_chain)} src={data_source}"
+                    )
         except Exception as _gw_err:
             logger.warning(f"generate_analysis({self.index}): gateway step failed: {_gw_err}")
 
@@ -1983,7 +2017,7 @@ class NiftyOptionsEngine:
         # pool is empty or all admin brokers failed to deliver an option chain.
         if not current_chain:
             adm_spot, adm_chain, adm_name, adm_expiry_list = self._get_admin_broker_data()
-            if adm_spot and adm_chain:
+            if adm_spot and adm_chain and self._chain_ltp_sane(adm_chain, adm_spot):
                 data_source = f'broker:{adm_name}'
                 spot = adm_spot
                 current_chain = adm_chain
@@ -1995,7 +2029,7 @@ class NiftyOptionsEngine:
         # ── Step 2: User's own Data API broker (fallback only) ───────────────
         if not current_chain and self.user_id:
             broker_spot, broker_chain, broker_name, broker_expiry_list = self._get_broker_data()
-            if broker_spot and broker_chain:
+            if broker_spot and broker_chain and self._chain_ltp_sane(broker_chain, broker_spot):
                 data_source = f'broker:{broker_name}'
                 spot = broker_spot
                 current_chain = broker_chain
@@ -2008,7 +2042,7 @@ class NiftyOptionsEngine:
         # API key is configured, regardless of the legacy plan_type flag.
         if not current_chain:
             td_spot, td_chain, td_name = self._get_truedata()
-            if td_spot and td_chain:
+            if td_spot and td_chain and self._chain_ltp_sane(td_chain, td_spot):
                 data_source = f'broker:{td_name}'
                 spot = td_spot
                 current_chain = td_chain

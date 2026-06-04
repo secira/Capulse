@@ -251,7 +251,20 @@ class DhanBroker(BrokerBase):
                     else:
                         dates = []
                 logger.info(f"Dhan expiry_list for {symbol}: {dates[:5]}...")
-                return sorted([d for d in dates if isinstance(d, str) and len(d) >= 8])
+                all_dates = sorted([d for d in dates if isinstance(d, str) and len(d) >= 8])
+                # Keep only near-term expiries (≤90 days out) so the engine never
+                # accidentally picks a long-dated option with inflated premiums.
+                try:
+                    from datetime import date as _date, timedelta as _td
+                    _today_str    = _date.today().strftime("%Y-%m-%d")
+                    _max_date_str = (_date.today() + _td(days=90)).strftime("%Y-%m-%d")
+                    near_term = [d for d in all_dates if _today_str <= d <= _max_date_str]
+                    if near_term:
+                        logger.info(f"Dhan expiry_list {symbol}: {len(near_term)}/{len(all_dates)} near-term ≤90d: {near_term[:3]}")
+                        return near_term
+                except Exception:
+                    pass
+                return all_dates
             logger.warning(f"Dhan expiry_list failed: {resp.get('remarks', '')}")
             return []
         except Exception as e:
