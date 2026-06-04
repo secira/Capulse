@@ -143,20 +143,20 @@
                             </small>
                         </td>
                         <td>
-                            <span class="price-pill entry">₹{{ signal.buy_above }}</span>
+                            <span class="price-pill entry">₹{{ signal.buy_above | int }}</span>
                         </td>
                         <td>
                             {% if signal.target_1 %}
-                            <span class="price-pill target">₹{{ signal.target_1 }}</span>
+                            <span class="price-pill target">₹{{ signal.target_1 | int }}</span>
                             {% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
                         <td>
                             {% if signal.target_2 %}
-                            <span class="price-pill target">₹{{ signal.target_2 }}</span>
+                            <span class="price-pill target">₹{{ signal.target_2 | int }}</span>
                             {% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
                         <td>
-                            <span class="price-pill sl">₹{{ signal.stop_loss }}</span>
+                            <span class="price-pill sl">₹{{ signal.stop_loss | int }}</span>
                         </td>
                         <td>
                             {% set dur = signal.trade_duration | lower %}
@@ -273,7 +273,7 @@ function viewSignalDetail(signalId) {
     const actionBg = s.action === 'BUY' ? 'bg-success' : 'bg-danger';
     const targets = [s.target_1, s.target_2, s.target_3]
         .filter(Boolean)
-        .map((t, i) => `<span class="price-pill target me-1">T${i+1}: ₹${t}</span>`)
+        .map((t, i) => `<span class="price-pill target me-1">T${i+1}: ₹${Math.round(t)}</span>`)
         .join('');
 
     document.getElementById('signalDetailTitle').textContent = s.script;
@@ -312,11 +312,11 @@ function viewSignalDetail(signalId) {
                         <h6 class="text-muted mb-3">Price Levels</h6>
                         <div class="mb-2">
                             <small class="text-muted d-block">Entry</small>
-                            <span class="price-pill entry"><i class="fas fa-arrow-right me-1"></i>₹${s.buy_above}</span>
+                            <span class="price-pill entry"><i class="fas fa-arrow-right me-1"></i>₹${Math.round(s.buy_above)}</span>
                         </div>
                         <div class="mb-2">
                             <small class="text-muted d-block">Stop Loss</small>
-                            <span class="price-pill sl"><i class="fas fa-shield-alt me-1"></i>₹${s.stop_loss}</span>
+                            <span class="price-pill sl"><i class="fas fa-shield-alt me-1"></i>₹${Math.round(s.stop_loss)}</span>
                         </div>
                         <div>
                             <small class="text-muted d-block">Targets</small>

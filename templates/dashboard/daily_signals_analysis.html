@@ -409,9 +409,9 @@
                         <span class="duration-badge duration-{{ signal.trade_duration|lower }}">{{ signal.duration_display }}</span>
                     </div>
                     <div class="col-md-3">
-                        <small class="text-muted">Entry:</small> <span class="fw-bold">{{ signal.buy_above }}</span>
+                        <small class="text-muted">Entry:</small> <span class="fw-bold">{{ signal.buy_above | int }}</span>
                         <span class="mx-2">|</span>
-                        <small class="text-muted">SL:</small> <span class="text-danger">{{ signal.stop_loss }}</span>
+                        <small class="text-muted">SL:</small> <span class="text-danger">{{ signal.stop_loss | int }}</span>
                     </div>
                     <div class="col-md-2">
                         {% if signal.final_points %}

@@ -699,10 +699,10 @@
                         </td>
                         <td><span style="font-size:11px;color:#999999;">{{ s.expiry_date.strftime('%d %b %y') if s.expiry_date else '—' }}</span></td>
                         <td><strong style="color:#000000;">₹{{ s.current_price or '—' }}</strong></td>
-                        <td><span class="price-pill entry">₹{{ s.buy_above }}</span></td>
-                        <td>{% if s.target_1 %}<span class="price-pill tgt">₹{{ s.target_1 }}</span>{% else %}<span style="color:#e5e5e5;">—</span>{% endif %}</td>
-                        <td>{% if s.target_2 %}<span class="price-pill tgt">₹{{ s.target_2 }}</span>{% else %}<span style="color:#e5e5e5;">—</span>{% endif %}</td>
-                        <td><span class="price-pill sl">₹{{ s.stop_loss }}</span></td>
+                        <td><span class="price-pill entry">₹{{ s.buy_above | int }}</span></td>
+                        <td>{% if s.target_1 %}<span class="price-pill tgt">₹{{ s.target_1 | int }}</span>{% else %}<span style="color:#e5e5e5;">—</span>{% endif %}</td>
+                        <td>{% if s.target_2 %}<span class="price-pill tgt">₹{{ s.target_2 | int }}</span>{% else %}<span style="color:#e5e5e5;">—</span>{% endif %}</td>
+                        <td><span class="price-pill sl">₹{{ s.stop_loss | int }}</span></td>
                         <td>
                             {% set dur = (s.trade_duration or '')|lower %}
                             <span style="border-radius:6px;padding:2px 8px;font-size:10px;font-weight:600;border:1px solid;
@@ -810,7 +810,7 @@ function showDetail(id) {
     const rr=(parseFloat(ret)>0&&parseFloat(rsk)>0)?(parseFloat(ret)/parseFloat(rsk)).toFixed(2):'—';
     const ab=s.action==='BUY'?'#16a34a':'#dc2626';
     const tg=[s.target_1,s.target_2,s.target_3].filter(Boolean)
-              .map((t,i)=>`<span class="price-pill tgt me-1">T${i+1}: ₹${t}</span>`).join('');
+              .map((t,i)=>`<span class="price-pill tgt me-1">T${i+1}: ₹${Math.round(t)}</span>`).join('');
     document.getElementById('detailTitle').textContent=s.script+' · Signal Details';
     document.getElementById('detailBody').innerHTML=`
         <div class="row g-3">
@@ -831,8 +831,8 @@ function showDetail(id) {
                     <div style="font-size:10px;font-weight:600;color:#999999;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Price Levels</div>
                     <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Current</small>
                         <span style="font-size:22px;font-weight:700;color:#000000;">₹${s.current_price.toFixed(2)}</span></div>
-                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Entry</small><span class="price-pill entry">₹${s.buy_above}</span></div>
-                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Stop Loss</small><span class="price-pill sl">₹${s.stop_loss}</span></div>
+                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Entry</small><span class="price-pill entry">₹${Math.round(s.buy_above)}</span></div>
+                    <div class="mb-2"><small style="color:#999999;display:block;margin-bottom:2px;">Stop Loss</small><span class="price-pill sl">₹${Math.round(s.stop_loss)}</span></div>
                     <div><small style="color:#999999;display:block;margin-bottom:2px;">Targets</small><div class="mt-1">${tg||'—'}</div></div>
                 </div>
             </div>
