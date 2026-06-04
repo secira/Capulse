@@ -70,6 +70,17 @@ select.filter-select:focus{outline:none;border-color:#3b82f6}
     <a href="/dashboard/fno/pnl-analysis" class="fno-tab {% if fno_active_tab=='pnl' %}active{% endif %}"><i class="fas fa-chart-pie me-1"></i>P&amp;L Analysis</a>
 </div>
 
+<!-- ── Source toggle ── -->
+<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+    <span style="font-size:13px;font-weight:600;color:#64748b;white-space:nowrap"><i class="fas fa-database me-1"></i>Source:</span>
+    <button class="filter-btn active" id="srcAnalyst" onclick="setSource('analyst')">
+        <i class="fas fa-user-tie me-1"></i>Our Analyst Signals
+    </button>
+    <button class="filter-btn" id="srcFno" onclick="setSource('fno')">
+        <i class="fas fa-robot me-1"></i>F&amp;O Engine Signals
+    </button>
+</div>
+
 <!-- ── Filter bar ── -->
 <div class="filter-bar">
     <span class="filter-label"><i class="fas fa-filter me-1"></i>Period:</span>
@@ -80,13 +91,25 @@ select.filter-select:focus{outline:none;border-color:#3b82f6}
     <button class="filter-btn" data-period="months" data-months="12" onclick="setPeriod('months',12)">12 Months</button>
     <button class="filter-btn" data-period="months" data-months="24" onclick="setPeriod('months',24)">All Time</button>
 
-    <span class="filter-label ms-3"><i class="fas fa-exchange-alt me-1"></i>Index:</span>
+    <!-- F&O Engine: filter by index -->
+    <span class="filter-label ms-3" id="idxLabel"><i class="fas fa-exchange-alt me-1"></i>Index:</span>
     <select class="filter-select" id="indexFilter" onchange="loadPnL()">
         <option value="ALL">All Indices</option>
         <option value="NIFTY">NIFTY 50</option>
         <option value="BANKNIFTY">Bank Nifty</option>
         <option value="FINNIFTY">Fin Nifty</option>
         <option value="SENSEX">SENSEX</option>
+    </select>
+
+    <!-- Analyst Signals: filter by asset type -->
+    <span class="filter-label ms-3" id="assetLabel" style="display:none"><i class="fas fa-layer-group me-1"></i>Asset:</span>
+    <select class="filter-select" id="assetFilter" onchange="loadPnL()" style="display:none">
+        <option value="ALL">All Assets</option>
+        <option value="NIFTY">NIFTY</option>
+        <option value="BANKNIFTY">Bank Nifty</option>
+        <option value="SENSEX">SENSEX</option>
+        <option value="FINNIFTY">Fin Nifty</option>
+        <option value="STOCK">Stocks</option>
     </select>
 
     <button class="filter-btn ms-auto" onclick="loadPnL()" style="border-color:#3b82f6;color:#3b82f6">
@@ -102,6 +125,19 @@ select.filter-select:focus{outline:none;border-color:#3b82f6}
 <script>
 var _period       = 'months';
 var _selectedMonths = 6;
+var _source       = 'analyst';   // 'analyst' | 'fno'
+
+function setSource(src) {
+    _source = src;
+    document.getElementById('srcAnalyst').classList.toggle('active', src === 'analyst');
+    document.getElementById('srcFno').classList.toggle('active', src === 'fno');
+    // toggle which filter is visible
+    document.getElementById('idxLabel').style.display    = src === 'fno' ? '' : 'none';
+    document.getElementById('indexFilter').style.display  = src === 'fno' ? '' : 'none';
+    document.getElementById('assetLabel').style.display   = src === 'analyst' ? '' : 'none';
+    document.getElementById('assetFilter').style.display  = src === 'analyst' ? '' : 'none';
+    loadPnL();
+}
 
 function setPeriod(p, months) {
     _period = p;
@@ -124,6 +160,10 @@ function indexChip(idx) {
     var lbl = {NIFTY:'NIFTY 50', BANKNIFTY:'BANK NIFTY', FINNIFTY:'FIN NIFTY', SENSEX:'SENSEX'}[idx] || idx;
     return '<span class="idx-chip ' + cls + '">' + lbl + '</span>';
 }
+function assetChip(at) {
+    var cls = {NIFTY:'chip-nifty', BANKNIFTY:'chip-banknifty', FINNIFTY:'chip-finnifty', SENSEX:'chip-sensex', STOCK:'chip-nifty'}[at] || 'chip-nifty';
+    return '<span class="idx-chip ' + cls + '">' + (at || '—') + '</span>';
+}
 
 function outcomeClass(o) {
     if (!o) return 'ob-time';
@@ -138,16 +178,15 @@ function outcomeIcon(o) {
     return '⏱';
 }
 
+/* ── F&O engine trade row ── */
 function renderTrade(t) {
     var pnlClass = (t.pnl_pct === null || t.pnl_pct === undefined) ? 'pnl-na'
                  : (t.pnl_pct >= 0 ? 'pnl-pos' : 'pnl-neg');
     var pnlSign  = (t.pnl_pct !== null && t.pnl_pct !== undefined && t.pnl_pct >= 0) ? '+' : '';
     var ptsSign  = (t.points !== null && t.points !== undefined && t.points >= 0) ? '+' : '';
-
     var optBadgeBg = t.option_type === 'CE' ? '#dbeafe' : '#fce7f3';
     var optBadgeFg = t.option_type === 'CE' ? '#1d4ed8' : '#be185d';
     var optBadge   = '<span style="background:' + optBadgeBg + ';color:' + optBadgeFg + ';padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800">' + t.option_type + '</span>';
-
     return '<tr>' +
         '<td style="font-weight:700;color:#1e293b">' + t.date + '</td>' +
         '<td>' + indexChip(t.index_id) + '</td>' +
@@ -164,6 +203,43 @@ function renderTrade(t) {
     '</tr>';
 }
 
+/* ── Analyst signal trade row ── */
+function renderAnalystTrade(t) {
+    var pnlClass = (t.pnl_pct === null || t.pnl_pct === undefined) ? 'pnl-na'
+                 : (t.pnl_pct >= 0 ? 'pnl-pos' : 'pnl-neg');
+    var pnlSign  = (t.pnl_pct !== null && t.pnl_pct !== undefined && t.pnl_pct >= 0) ? '+' : '';
+    var ptsSign  = (t.points !== null && t.points !== undefined && t.points >= 0) ? '+' : '';
+
+    var subBg = t.sub_type === 'CE' ? '#dbeafe' : t.sub_type === 'PE' ? '#fce7f3' : t.sub_type === 'FUT' ? '#fef3c7' : '#f1f5f9';
+    var subFg = t.sub_type === 'CE' ? '#1d4ed8' : t.sub_type === 'PE' ? '#be185d' : t.sub_type === 'FUT' ? '#92400e' : '#64748b';
+    var typeBadge = t.sub_type ? '<span style="background:' + subBg + ';color:' + subFg + ';padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800">' + t.sub_type + '</span>' : '';
+
+    var actBg = t.action === 'BUY' ? '#dcfce7' : '#fee2e2';
+    var actFg = t.action === 'BUY' ? '#15803d' : '#dc2626';
+    var actBadge = '<span style="background:' + actBg + ';color:' + actFg + ';padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800">' + (t.action||'—') + '</span>';
+
+    return '<tr>' +
+        '<td style="font-weight:700;color:#1e293b">' + t.date + '</td>' +
+        '<td>' + assetChip(t.asset_type) + '</td>' +
+        '<td style="font-weight:700;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (t.script||'—') + ' ' + typeBadge + '</td>' +
+        '<td>' + actBadge + '</td>' +
+        '<td style="color:#64748b;font-size:11px">' + (t.duration||'—') + '</td>' +
+        '<td style="font-weight:700">₹' + (t.entry_premium !== null ? fmt(t.entry_premium,2) : '—') + '</td>' +
+        '<td style="font-weight:700">₹' + (t.exit_premium  !== null ? fmt(t.exit_premium,  2) : '—') + '</td>' +
+        '<td class="' + pnlClass + '">' + (t.points !== null && t.points !== undefined ? ptsSign + fmt(t.points,2) + ' pts' : 'N/A') + '</td>' +
+        '<td class="' + pnlClass + '">' + (t.pnl_pct !== null && t.pnl_pct !== undefined ? pnlSign + fmt(t.pnl_pct,1) + '%' : 'N/A') + '</td>' +
+        '<td><span class="outcome-badge ' + outcomeClass(t.outcome) + '">' + outcomeIcon(t.outcome) + ' ' + (t.outcome||'—') + '</span></td>' +
+        '<td style="font-size:11px;color:#64748b">' + (t.trade_code||'—') + '</td>' +
+    '</tr>';
+}
+
+function colsForSource() {
+    if (_source === 'analyst') {
+        return ['Date','Asset','Script / Type','Action','Duration','Entry ₹','Exit ₹','Points','P&L %','Outcome','Signal #'];
+    }
+    return ['Date','Index','Strike / Type','Entry Time','Exit Time','Entry ₹','Exit ₹','Points','P&L %','Confidence','Outcome','Trade Code'];
+}
+
 function renderMonth(m, idx) {
     var s = m.summary;
     var isPos = s.cum_pnl_pct !== null && s.cum_pnl_pct >= 0;
@@ -171,15 +247,13 @@ function renderMonth(m, idx) {
     var monthBdr = isPos ? '#16a34a' : isNeg ? '#dc2626' : '#e2e8f0';
 
     var html = '<div class="month-card" style="border-left:4px solid ' + monthBdr + '">';
-
-    // Header (collapsible)
     html += '<div class="month-header" onclick="toggleMonth(' + idx + ')" id="mhdr-' + idx + '">';
     html +=   '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">';
     html +=     '<div class="month-title"><i class="fas fa-calendar-alt me-2" style="color:#64748b"></i>' + m.month_label + '</div>';
     html +=     '<div class="month-pills">';
     html +=       '<span class="pill pill-blue">' + s.total_trades + ' trade' + (s.total_trades !== 1 ? 's' : '') + '</span>';
-    if (s.wins > 0)   html += '<span class="pill pill-green">✅ ' + s.wins + ' win' + (s.wins !== 1 ? 's' : '') + '</span>';
-    if (s.losses > 0) html += '<span class="pill pill-red">❌ ' + s.losses + ' loss' + (s.losses !== 1 ? 'es' : '') + '</span>';
+    if (s.wins > 0)       html += '<span class="pill pill-green">✅ ' + s.wins + ' win'  + (s.wins !== 1 ? 's' : '') + '</span>';
+    if (s.losses > 0)     html += '<span class="pill pill-red">❌ ' + s.losses + ' loss' + (s.losses !== 1 ? 'es' : '') + '</span>';
     if (s.time_exits > 0) html += '<span class="pill pill-amber">⏱ ' + s.time_exits + ' time</span>';
     if (s.win_rate !== null) html += '<span class="pill ' + (s.win_rate >= 50 ? 'pill-green' : 'pill-red') + '">' + s.win_rate + '% win rate</span>';
     html +=     '</div>';
@@ -194,7 +268,6 @@ function renderMonth(m, idx) {
     html +=   '</div>';
     html += '</div>';
 
-    // Summary strip
     html += '<div id="mbody-' + idx + '">';
     html += '<div class="summary-strip">';
     html += summaryBox('Total Trades', s.total_trades, 'blue');
@@ -205,21 +278,18 @@ function renderMonth(m, idx) {
     html += summaryBox('Cumulative P&L', s.cum_pnl_pct !== null ? (s.cum_pnl_pct >= 0 ? '+' : '') + s.cum_pnl_pct.toFixed(1) + '%' : '—', s.cum_pnl_pct !== null && s.cum_pnl_pct >= 0 ? 'green' : 'red');
     html += '</div>';
 
-    // Trade table
     if (m.trades.length === 0) {
         html += '<div class="empty-state" style="padding:30px"><i class="fas fa-inbox"></i><br>No closed trades this month.</div>';
     } else {
-        html += '<div style="overflow-x:auto">';
-        html += '<table class="trades-table">';
-        html += '<thead><tr>';
-        var cols = ['Date','Index','Strike / Type','Entry Time','Exit Time','Entry ₹','Exit ₹','Points','P&L %','Confidence','Outcome','Trade Code'];
-        cols.forEach(function(c) { html += '<th>' + c + '</th>'; });
+        html += '<div style="overflow-x:auto"><table class="trades-table"><thead><tr>';
+        colsForSource().forEach(function(c) { html += '<th>' + c + '</th>'; });
         html += '</tr></thead><tbody>';
-        m.trades.forEach(function(t) { html += renderTrade(t); });
+        m.trades.forEach(function(t) {
+            html += (_source === 'analyst') ? renderAnalystTrade(t) : renderTrade(t);
+        });
         html += '</tbody></table></div>';
     }
-    html += '</div>';  // mbody
-    html += '</div>';  // month-card
+    html += '</div></div>';
     return html;
 }
 
@@ -229,38 +299,46 @@ function summaryBox(lbl, val, cls) {
 }
 
 function toggleMonth(idx) {
-    var body  = document.getElementById('mbody-' + idx);
-    var icon  = document.getElementById('ticon-' + idx);
-    var hdr   = document.getElementById('mhdr-' + idx);
-    var open  = body.style.display !== 'none';
+    var body = document.getElementById('mbody-' + idx);
+    var icon = document.getElementById('ticon-' + idx);
+    var open = body.style.display !== 'none';
     body.style.display = open ? 'none' : '';
     icon.style.transform = open ? 'rotate(-90deg)' : '';
 }
 
 function loadPnL() {
-    var idx = document.getElementById('indexFilter').value;
-    var url = '/dashboard/fno/api/pnl-history?period=' + _period + '&months=' + _selectedMonths + '&index_id=' + idx;
     var cont = document.getElementById('pnlContainer');
     cont.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><br>Loading…</div>';
 
+    var url;
+    if (_source === 'analyst') {
+        var asset = document.getElementById('assetFilter').value;
+        url = '/dashboard/our-signals/api/pnl?period=' + _period + '&months=' + _selectedMonths + '&asset_type=' + asset;
+    } else {
+        var idx = document.getElementById('indexFilter').value;
+        url = '/dashboard/fno/api/pnl-history?period=' + _period + '&months=' + _selectedMonths + '&index_id=' + idx;
+    }
+
     fetch(url).then(function(r){ return r.json(); }).then(function(res) {
         if (!res.success) {
-            cont.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><br>Error loading data: ' + (res.error || 'Unknown') + '</div>';
+            cont.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><br>Error: ' + (res.error || 'Unknown') + '</div>';
             return;
         }
         if (!res.months || res.months.length === 0) {
-            cont.innerHTML = '<div class="empty-state"><i class="fas fa-chart-pie"></i><br><strong>No closed trades yet</strong><br><span style="font-size:13px">Completed trades will appear here after the monitor closes them (Target Hit, SL Hit, or Time Exit).</span></div>';
+            var msg = _source === 'analyst'
+                ? '<strong>No closed analyst signals yet</strong><br><span style="font-size:13px">Outcomes are recorded when an admin updates the signal status (Target Hit, SL Hit, etc.) via Admin → Daily Signals.</span>'
+                : '<strong>No closed F&O engine trades yet</strong><br><span style="font-size:13px">Completed trades appear here after the monitor closes them.</span>';
+            cont.innerHTML = '<div class="empty-state"><i class="fas fa-chart-pie"></i><br>' + msg + '</div>';
             return;
         }
 
-        // Overall header
         var totalTrades = res.total_trades || 0;
         var allWithPnl  = [];
         res.months.forEach(function(m){ m.trades.forEach(function(t){ if(t.pnl_pct !== null) allWithPnl.push(t); }); });
-        var allWins = allWithPnl.filter(function(t){ return t.pnl_pct > 0; }).length;
-        var overallWr = allWithPnl.length ? Math.round(allWins / allWithPnl.length * 100) : null;
+        var allWins    = allWithPnl.filter(function(t){ return t.pnl_pct > 0; }).length;
+        var overallWr  = allWithPnl.length ? Math.round(allWins / allWithPnl.length * 100) : null;
         var overallCum = allWithPnl.length ? allWithPnl.reduce(function(a,t){ return a + t.pnl_pct; }, 0).toFixed(1) : null;
-        var cumColor = overallCum !== null && parseFloat(overallCum) >= 0 ? '#15803d' : '#dc2626';
+        var cumColor   = overallCum !== null && parseFloat(overallCum) >= 0 ? '#15803d' : '#dc2626';
 
         var html = '<div style="background:#0f172a;border-radius:14px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">';
         html += '<div style="color:#fff"><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Total Closed Trades</div><div style="font-size:28px;font-weight:800">' + totalTrades + '</div></div>';
@@ -270,10 +348,8 @@ function loadPnL() {
         html += '</div>';
 
         res.months.forEach(function(m, i) { html += renderMonth(m, i); });
-
         cont.innerHTML = html;
 
-        // Collapse all except most recent by default
         res.months.forEach(function(m, i) {
             if (i > 0) {
                 var body = document.getElementById('mbody-' + i);
@@ -282,12 +358,14 @@ function loadPnL() {
                 if (icon) icon.style.transform = 'rotate(-90deg)';
             }
         });
-
     }).catch(function(e) {
         cont.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><br>Could not load P&L data.</div>';
     });
 }
 
-document.addEventListener('DOMContentLoaded', function() { loadPnL(); });
+document.addEventListener('DOMContentLoaded', function() {
+    // initialise filter visibility for default source (analyst)
+    setSource('analyst');
+});
 </script>
 {% endblock %}

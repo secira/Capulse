@@ -150,7 +150,7 @@
                 </button>
             </div>
             <div class="col-md-3">
-                <a href="{{ url_for('dashboard_daily_signals') }}" class="btn btn-outline-secondary w-100">
+                <a href="{{ url_for('our_signals') }}" class="btn btn-outline-secondary w-100">
                     <i class="fas fa-arrow-left me-2"></i>Back to Signals
                 </a>
             </div>
@@ -362,7 +362,7 @@
                         {% for day in daily_breakdown %}
                         <tr>
                             <td>
-                                <a href="{{ url_for('dashboard_daily_signals', date=day.date.strftime('%Y-%m-%d')) }}">
+                                <a href="{{ url_for('our_signals', date=day.date.strftime('%Y-%m-%d')) }}">
                                     {{ day.date.strftime('%d %b %Y') }}
                                 </a>
                             </td>

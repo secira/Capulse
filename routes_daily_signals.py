@@ -1182,6 +1182,149 @@ def daily_signal_detail(signal_id):
     return render_template('dashboard/daily_signal_detail.html', signal=signal)
 
 
+@app.route('/dashboard/our-signals')
+@login_required
+def our_signals():
+    """Our Signals — analyst-curated manual trading signals, filterable by date."""
+    selected_date_str = request.args.get('date')
+    asset_type_filter = request.args.get('asset_type', 'all')
+    duration_filter   = request.args.get('duration', 'all')
+
+    selected_date = _today_ist()
+    if selected_date_str:
+        try:
+            selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    query = DailyTradingSignal.query.filter(DailyTradingSignal.signal_date == selected_date)
+    if asset_type_filter != 'all':
+        query = query.filter(DailyTradingSignal.asset_type == asset_type_filter)
+    if duration_filter != 'all':
+        query = query.filter(DailyTradingSignal.trade_duration == duration_filter)
+
+    signals     = query.order_by(DailyTradingSignal.signal_number.asc()).all()
+    date_range  = [_today_ist() - timedelta(days=i) for i in range(30)]
+
+    return render_template(
+        'dashboard/daily_signals.html',
+        signals=signals,
+        selected_date=selected_date,
+        asset_type_filter=asset_type_filter,
+        duration_filter=duration_filter,
+        date_range=date_range,
+    )
+
+
+@app.route('/dashboard/our-signals/api/pnl')
+@login_required
+def our_signals_pnl_api():
+    """Return monthly P&L summary for analyst-curated DailyTradingSignal entries."""
+    from collections import OrderedDict
+
+    period       = request.args.get('period', 'months')
+    months_back  = min(int(request.args.get('months', 6)), 24)
+    asset_filter = request.args.get('asset_type', 'ALL').upper()
+
+    ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+
+    if period == 'week':
+        days_since_mon = ist_now.weekday()
+        from_date = (ist_now - timedelta(days=days_since_mon)).date()
+    elif period == 'month':
+        from_date = ist_now.replace(day=1).date()
+    else:
+        m = ist_now.month - months_back
+        y = ist_now.year + (m - 1) // 12
+        m = ((m - 1) % 12) + 1
+        from_date = date(y, m, 1)
+
+    query = DailyTradingSignal.query.filter(
+        DailyTradingSignal.signal_date >= from_date,
+        DailyTradingSignal.trade_outcome.isnot(None),
+        DailyTradingSignal.final_points.isnot(None),
+    )
+    if asset_filter != 'ALL':
+        query = query.filter(DailyTradingSignal.asset_type == asset_filter)
+
+    signals = query.order_by(DailyTradingSignal.signal_date.desc()).all()
+
+    months_dict: dict = OrderedDict()
+    for s in signals:
+        key = s.signal_date.strftime('%b %Y')
+        months_dict.setdefault(key, []).append(s)
+
+    months_out = []
+    for month_label, msigs in months_dict.items():
+        fp_list = [float(s.final_points) for s in msigs if s.final_points is not None]
+        wins      = sum(1 for p in fp_list if p > 0)
+        losses    = sum(1 for p in fp_list if p < 0)
+        total_pts = round(sum(fp_list), 2)
+        win_rate  = round(wins / len(fp_list) * 100, 1) if fp_list else None
+
+        entries   = [float(s.buy_above) for s in msigs if s.buy_above and float(s.buy_above) > 0]
+        avg_entry = sum(entries) / len(entries) if entries else None
+        cum_pnl_pct = round(total_pts / avg_entry * 100, 1) if avg_entry else None
+
+        trades = []
+        for s in msigs:
+            fp    = float(s.final_points) if s.final_points is not None else None
+            entry = float(s.buy_above)    if s.buy_above else None
+            pnl_pct = round(fp / entry * 100, 1) if (fp is not None and entry and entry > 0) else None
+            exit_val = round(entry + fp, 2) if (entry and fp is not None) else None
+
+            oc = s.trade_outcome or ''
+            if '1st' in oc or 'Target 1' in oc:   outcome = 'TARGET 1'
+            elif '2nd' in oc or 'Target 2' in oc:  outcome = 'TARGET 2'
+            elif '3rd' in oc or 'Target 3' in oc:  outcome = 'TARGET 3'
+            elif 'Stop Loss' in oc:                 outcome = 'SL HIT'
+            elif 'Early Exit' in oc:                outcome = 'EARLY EXIT'
+            else:                                    outcome = oc
+
+            entry_ist = (
+                (s.created_at + timedelta(hours=5, minutes=30)).strftime('%H:%M')
+                if s.created_at else '—'
+            )
+            exit_ist = (
+                (s.closed_at + timedelta(hours=5, minutes=30)).strftime('%H:%M')
+                if s.closed_at else None
+            )
+
+            trades.append({
+                'date':          s.signal_date.strftime('%d %b'),
+                'script':        s.script,
+                'asset_type':    s.asset_type,
+                'sub_type':      s.sub_type or '',
+                'action':        s.action,
+                'duration':      s.duration_display,
+                'entry_time':    entry_ist,
+                'exit_time':     exit_ist,
+                'entry_premium': entry,
+                'exit_premium':  exit_val,
+                'points':        fp,
+                'pnl_pct':       pnl_pct,
+                'outcome':       outcome,
+                'trade_code':    f'S{s.signal_number}',
+                'risk_level':    s.risk_level,
+            })
+
+        months_out.append({
+            'month_label': month_label,
+            'summary': {
+                'total_trades': len(msigs),
+                'wins':         wins,
+                'losses':       losses,
+                'time_exits':   0,
+                'win_rate':     win_rate,
+                'total_points': total_pts,
+                'cum_pnl_pct':  cum_pnl_pct,
+            },
+            'trades': trades,
+        })
+
+    return jsonify({'success': True, 'months': months_out, 'total_trades': len(signals)})
+
+
 @app.route('/dashboard/daily-signals/analysis')
 @login_required
 def daily_signals_analysis():

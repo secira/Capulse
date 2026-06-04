@@ -191,8 +191,8 @@
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['dashboard_daily_signals', 'daily_signals_analysis'] else '' }}"
-                               href="{{ url_for('daily_signals_analysis') }}">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['our_signals', 'daily_signals_analysis'] else '' }}"
+                               href="{{ url_for('our_signals') }}">
                                 <i class="nav-icon fas fa-signal"></i>
                                 <span class="nav-text">Our Signals</span>
                             </a>

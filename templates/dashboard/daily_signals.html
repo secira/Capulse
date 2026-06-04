@@ -88,8 +88,8 @@
                 </button>
             </div>
             <div class="col-md-1 text-end">
-                <a href="{{ url_for('daily_signals_analysis') }}" class="btn btn-outline-primary btn-sm">
-                    <i class="fas fa-chart-bar me-1"></i>Analysis
+                <a href="{{ url_for('daily_signals_analysis') }}" class="btn btn-outline-primary btn-sm" title="P&amp;L Analysis">
+                    <i class="fas fa-chart-bar me-1"></i>P&amp;L
                 </a>
             </div>
         </div>
@@ -247,7 +247,7 @@ function applyFilters() {
     const date      = document.getElementById('signalDate').value;
     const assetType = document.getElementById('assetTypeFilter').value;
     const duration  = document.getElementById('durationFilter').value;
-    let url = `{{ url_for('dashboard_daily_signals') }}?date=${date}`;
+    let url = `{{ url_for('our_signals') }}?date=${date}`;
     if (assetType !== 'all') url += `&asset_type=${assetType}`;
     if (duration  !== 'all') url += `&duration=${duration}`;
     window.location.href = url;
