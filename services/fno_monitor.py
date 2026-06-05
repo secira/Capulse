@@ -222,6 +222,58 @@ def _restore_active_trade_state(app) -> None:
         logger.warning(f"_restore_active_trade_state failed: {e}")
 
 
+def _close_stale_open_trades(app) -> None:
+    """
+    On startup, auto-close any TRADE_TRIGGER rows that have no outcome:
+    - Past IST days → app was restarted during the session, 3PM exit never fired.
+    - Today, after 3PM IST → same issue but same day.
+    All are marked '3PM SQUARE OFF' so they appear correctly in P&L Analysis.
+    """
+    try:
+        from app import db
+        with app.app_context():
+            now_ist        = datetime.utcnow() + IST_OFFSET
+            today_start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start_utc = today_start_ist - IST_OFFSET
+            eod_ist         = today_start_ist.replace(
+                hour=EOD_FORCE_EXIT_HOUR, minute=EOD_FORCE_EXIT_MINUTE)
+
+            # 1. Past days — any trigger with no outcome before today
+            closed_past = db.session.execute(db.text("""
+                UPDATE fno_signal_history
+                   SET outcome   = '3PM SQUARE OFF',
+                       exit_time = NOW()
+                 WHERE signal_type = 'TRADE_TRIGGER'
+                   AND outcome     IS NULL
+                   AND created_at  < :today_start
+                RETURNING id, index_id, trade_code
+            """), {'today_start': today_start_utc}).fetchall()
+            for r in closed_past:
+                logger.info(
+                    f"[{r[1]}] ⏱ Stale trade auto-closed (past day): {r[2]} → 3PM SQUARE OFF"
+                )
+
+            # 2. Today, if market is already past 3PM IST
+            if now_ist >= eod_ist:
+                closed_today = db.session.execute(db.text("""
+                    UPDATE fno_signal_history
+                       SET outcome   = '3PM SQUARE OFF',
+                           exit_time = NOW()
+                     WHERE signal_type = 'TRADE_TRIGGER'
+                       AND outcome     IS NULL
+                       AND created_at >= :today_start
+                    RETURNING id, index_id, trade_code
+                """), {'today_start': today_start_utc}).fetchall()
+                for r in closed_today:
+                    logger.info(
+                        f"[{r[1]}] ⏱ Stale trade auto-closed (after 3PM today): {r[2]} → 3PM SQUARE OFF"
+                    )
+
+            db.session.commit()
+    except Exception as e:
+        logger.warning(f"_close_stale_open_trades failed: {e}")
+
+
 def _reset_daily_if_needed(idx: str):
     today = _now_ist().date()
     if _daily_date[idx] != today:
@@ -1039,6 +1091,9 @@ def start_scheduler(app):
         # Restore in-progress trade state from DB so a restart doesn't
         # re-fire a TRADE_TRIGGER alert for an already-active trade.
         _restore_active_trade_state(app)
+        # Auto-close any orphaned TRIGGER rows from past sessions that
+        # were never marked with an outcome (app was restarted mid-trade).
+        _close_stale_open_trades(app)
         from apscheduler.schedulers.background import BackgroundScheduler
         scheduler = BackgroundScheduler(daemon=True)
         scheduler.add_job(

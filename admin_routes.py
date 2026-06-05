@@ -2919,6 +2919,164 @@ def fno_signal_history():
         return redirect(url_for('admin.dashboard'))
 
 
+@admin_bp.route('/fno-signal-history/<int:signal_id>/update-outcome', methods=['POST'])
+@admin_required
+def fno_signal_update_outcome(signal_id):
+    """Admin manually sets the outcome for a TRADE_TRIGGER signal and optionally sends Telegram."""
+    try:
+        outcome  = request.form.get('outcome', '').strip()
+        send_tg  = request.form.get('send_telegram') == '1'
+
+        if not outcome:
+            flash('Please select an outcome.', 'warning')
+            return redirect(request.referrer or url_for('admin.fno_signal_history'))
+
+        row = db.session.execute(db.text("""
+            SELECT id, index_id, direction, confidence, trade_code
+            FROM   fno_signal_history
+            WHERE  id = :id AND signal_type = 'TRADE_TRIGGER'
+        """), {'id': signal_id}).fetchone()
+
+        if not row:
+            flash('Signal not found or not a TRADE_TRIGGER.', 'danger')
+            return redirect(request.referrer or url_for('admin.fno_signal_history'))
+
+        db.session.execute(db.text("""
+            UPDATE fno_signal_history
+               SET outcome   = :outcome,
+                   exit_time = NOW()
+             WHERE id = :id
+        """), {'outcome': outcome, 'id': signal_id})
+        db.session.commit()
+
+        if send_tg:
+            try:
+                from services.fno_monitor import _send_telegram_alert
+                signal_data = {
+                    'signal_type':     'TRADE_EXIT',
+                    'trade_direction': row.direction or 'NEUTRAL',
+                    'confidence':      row.confidence or 0,
+                    'outcome':         outcome,
+                    'trade_code':      row.trade_code or '',
+                }
+                _send_telegram_alert(signal_data, row.index_id or 'NIFTY')
+            except Exception as te:
+                flash(f'Outcome saved but Telegram failed: {te}', 'warning')
+                return redirect(url_for('admin.fno_signal_history'))
+
+        flash(f'Outcome updated to "{outcome}".', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Update failed: {e}', 'danger')
+    return redirect(url_for('admin.fno_signal_history'))
+
+
+@admin_bp.route('/fno-signal-history/add-manual', methods=['POST'])
+@admin_required
+def fno_signal_add_manual():
+    """Admin creates a manual F&O TRIGGER signal with a MAN trade code."""
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+        index_id   = request.form.get('index_id', 'NIFTY').strip().upper()
+        direction  = request.form.get('direction', 'BULLISH').strip().upper()
+        confidence = max(1, min(100, int(request.form.get('confidence', 80) or 80)))
+        entry_px   = float(request.form.get('entry_price', 0) or 0)
+        t1_px      = float(request.form.get('target_1', 0) or 0)
+        t2_px      = float(request.form.get('target_2', 0) or 0)
+        t3_px      = float(request.form.get('target_3', 0) or 0)
+        sl_px      = float(request.form.get('stop_loss', 0) or 0)
+        spot_px    = float(request.form.get('spot_price', 0) or 0)
+        atm_strike = int(request.form.get('atm_strike', 0) or 0)
+        symbol     = request.form.get('symbol', '').strip()
+        send_tg    = request.form.get('send_telegram') == '1'
+
+        now_ist     = _dt.utcnow() + _td(hours=5, minutes=30)
+        today_start = now_ist.replace(hour=0, minute=0, second=0, microsecond=0) - _td(hours=5, minutes=30)
+        man_count   = db.session.execute(db.text("""
+            SELECT COUNT(*) FROM fno_signal_history
+            WHERE  trade_code LIKE 'MANT%'
+              AND  signal_type = 'TRADE_TRIGGER'
+              AND  created_at >= :today
+        """), {'today': today_start}).scalar() or 0
+        trade_code = f"MANT{man_count + 1:02d}"
+
+        opt_type = 'CE' if direction == 'BULLISH' else 'PE'
+        if not symbol:
+            symbol = f"{index_id} ATM {opt_type}"
+        grade = ('Very High' if confidence >= 85 else
+                 'High'      if confidence >= 75 else
+                 'Moderate'  if confidence >= 65 else 'Developing')
+
+        trades_json = str([{
+            'symbol':      symbol,
+            'moneyness':   'ATM',
+            'type':        opt_type,
+            'label':       'Recommended',
+            'ltp':         entry_px,
+            'entry_price': entry_px,
+            'target':      t1_px,
+            'target_2':    t2_px,
+            'target_3':    t3_px,
+            'sl':          sl_px,
+        }])
+
+        db.session.execute(db.text("""
+            INSERT INTO fno_signal_history
+                (index_id, signal_type, direction, confidence, confidence_grade,
+                 entry_mode, spot_price, atm_strike, trades_json,
+                 alert_sent, data_source, trade_code, outcome)
+            VALUES
+                (:index_id, 'TRADE_TRIGGER', :direction, :confidence, :grade,
+                 'CONFIRMED', :spot, :strike, :trades_json,
+                 :alert_sent, 'manual', :trade_code, NULL)
+        """), {
+            'index_id':    index_id,
+            'direction':   direction,
+            'confidence':  confidence,
+            'grade':       grade,
+            'spot':        spot_px,
+            'strike':      atm_strike,
+            'trades_json': trades_json,
+            'alert_sent':  send_tg,
+            'trade_code':  trade_code,
+        })
+        db.session.commit()
+
+        if send_tg:
+            try:
+                from services.fno_monitor import _send_telegram_alert
+                signal_data = {
+                    'signal_type':      'TRADE_TRIGGER',
+                    'trade_direction':  direction,
+                    'confidence':       confidence,
+                    'confidence_grade': grade,
+                    'trade_code':       trade_code,
+                    'spot_price':       spot_px,
+                    'atm_strike':       atm_strike,
+                    'entry_mode':       'CONFIRMED',
+                    'trades': [{
+                        'symbol':      symbol,
+                        'moneyness':   'ATM',
+                        'type':        opt_type,
+                        'entry_price': entry_px,
+                        'target':      t1_px,
+                        'target_2':    t2_px,
+                        'target_3':    t3_px,
+                        'sl':          sl_px,
+                    }],
+                }
+                _send_telegram_alert(signal_data, index_id)
+            except Exception as te:
+                flash(f'Signal {trade_code} created but Telegram failed: {te}', 'warning')
+                return redirect(url_for('admin.fno_signal_history'))
+
+        flash(f'Manual signal {trade_code} created successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Create failed: {e}', 'danger')
+    return redirect(url_for('admin.fno_signal_history'))
+
+
 @admin_bp.route('/fno-signal-history/<int:signal_id>/delete', methods=['POST'])
 @admin_required
 def fno_signal_delete(signal_id):

@@ -12,6 +12,9 @@
         </p>
     </div>
     <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addManualModal">
+            <i class="fas fa-plus me-1"></i>Add Manual Signal
+        </button>
         <a href="{{ url_for('admin.fno_settings') }}" class="btn btn-sm btn-outline-secondary">
             <i class="fas fa-sliders-h me-1"></i>F&amp;O Settings
         </a>
@@ -191,6 +194,15 @@
                     {% else %}<span class="text-muted">—</span>{% endif %}
                 </td>
                 <td style="padding:10px 16px">
+                    <div class="d-flex gap-1">
+                    {% if is_trigger and (s.outcome == '—' or not s.outcome) %}
+                    <button class="btn btn-sm btn-outline-primary"
+                            style="padding:2px 8px;font-size:11px"
+                            onclick="openOutcomeModal({{ s.id }}, '{{ s.trade_code }}', '{{ s.index_id }}')"
+                            title="Set Outcome">
+                        <i class="fas fa-check-circle"></i> Outcome
+                    </button>
+                    {% endif %}
                     <form method="POST"
                           action="{{ url_for('admin.fno_signal_delete', signal_id=s.id) }}"
                           onsubmit="return confirm('Delete signal #{{ s.id }}?')">
@@ -198,6 +210,7 @@
                             <i class="fas fa-trash"></i>
                         </button>
                     </form>
+                    </div>
                 </td>
             </tr>
             {% endfor %}
@@ -229,6 +242,137 @@
     </ul>
 </nav>
 {% endif %}
+
+<!-- ── Set Outcome Modal ── -->
+<div class="modal fade" id="outcomeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-check-circle me-2 text-primary"></i>Set Trade Outcome
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="outcomeForm" action="">
+                <div class="modal-body">
+                    <p class="text-muted mb-3" id="outcomeModalLabel" style="font-size:13px"></p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold" style="font-size:12px">Outcome</label>
+                        <select name="outcome" class="form-select" required>
+                            <option value="">— Select outcome —</option>
+                            <option value="TARGET 1 HIT">🎯 Target 1 Hit</option>
+                            <option value="TARGET 2 HIT">🎯🎯 Target 2 Hit</option>
+                            <option value="TARGET 3 HIT">🏆 Target 3 Hit</option>
+                            <option value="SL HIT">🛑 Stop-Loss Hit</option>
+                            <option value="3PM SQUARE OFF">⏱ 3PM Square Off</option>
+                        </select>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="send_telegram" value="1" id="outcomeTg" checked>
+                        <label class="form-check-label" for="outcomeTg" style="font-size:13px">
+                            Send Telegram alert for this exit
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-save me-1"></i>Save Outcome
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ── Add Manual Signal Modal ── -->
+<div class="modal fade" id="addManualModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-plus-circle me-2 text-success"></i>Add Manual F&amp;O Signal
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.fno_signal_add_manual') }}">
+                <div class="modal-body">
+                    <p class="text-muted mb-3" style="font-size:13px">
+                        Creates a <strong>MANT01, MANT02…</strong> trade code in fno_signal_history. Set the outcome later using the <em>Outcome</em> button.
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" style="font-size:12px">Index</label>
+                            <select name="index_id" class="form-select form-select-sm">
+                                <option value="NIFTY">NIFTY 50</option>
+                                <option value="BANKNIFTY">Bank Nifty</option>
+                                <option value="FINNIFTY">Fin Nifty</option>
+                                <option value="SENSEX">SENSEX</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" style="font-size:12px">Direction</label>
+                            <select name="direction" class="form-select form-select-sm">
+                                <option value="BULLISH">🟢 BULLISH (CE)</option>
+                                <option value="BEARISH">🔴 BEARISH (PE)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" style="font-size:12px">Confidence (1–100)</label>
+                            <input type="number" name="confidence" class="form-control form-control-sm" value="85" min="1" max="100">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" style="font-size:12px">Option Symbol (e.g. NIFTY24JUN23300PE)</label>
+                            <input type="text" name="symbol" class="form-control form-control-sm" placeholder="Auto-filled if blank">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" style="font-size:12px">Spot Price</label>
+                            <input type="number" step="0.01" name="spot_price" class="form-control form-control-sm" placeholder="e.g. 23302">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" style="font-size:12px">ATM Strike</label>
+                            <input type="number" name="atm_strike" class="form-control form-control-sm" placeholder="e.g. 23300">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold" style="font-size:12px">Entry Price ₹</label>
+                            <input type="number" step="0.01" name="entry_price" class="form-control form-control-sm" placeholder="e.g. 134" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold" style="font-size:12px">Target 1 ₹</label>
+                            <input type="number" step="0.01" name="target_1" class="form-control form-control-sm" placeholder="e.g. 164" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold" style="font-size:12px">Target 2 ₹</label>
+                            <input type="number" step="0.01" name="target_2" class="form-control form-control-sm" placeholder="e.g. 174">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold" style="font-size:12px">Target 3 ₹</label>
+                            <input type="number" step="0.01" name="target_3" class="form-control form-control-sm" placeholder="e.g. 184">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" style="font-size:12px">Stop Loss ₹</label>
+                            <input type="number" step="0.01" name="stop_loss" class="form-control form-control-sm" placeholder="e.g. 104" required>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="send_telegram" value="1" id="manualTg" checked>
+                                <label class="form-check-label" for="manualTg" style="font-size:13px">
+                                    Send Telegram alert on creation
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success btn-sm">
+                        <i class="fas fa-plus me-1"></i>Create Signal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- ── Delete-All Modal ── -->
 <div class="modal fade" id="deleteAllModal" tabindex="-1">
@@ -285,6 +429,16 @@ function toggleAll() {
     document.querySelectorAll('.row-cb').forEach(function(cb) {
         cb.checked = master.checked;
     });
+}
+
+function openOutcomeModal(signalId, tradeCode, indexId) {
+    var form  = document.getElementById('outcomeForm');
+    var label = document.getElementById('outcomeModalLabel');
+    form.action = '/admin/fno-signal-history/' + signalId + '/update-outcome';
+    label.textContent = 'Signal: ' + tradeCode + ' (' + indexId + ') — ID #' + signalId;
+    form.querySelector('select[name="outcome"]').value = '';
+    var modal = new bootstrap.Modal(document.getElementById('outcomeModal'));
+    modal.show();
 }
 </script>
 {% endblock %}
