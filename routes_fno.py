@@ -385,7 +385,6 @@ def fno_pnl_history():
                    created_at, trade_code, outcome, exit_spot, exit_time
             FROM   fno_signal_history
             WHERE  signal_type = 'TRADE_TRIGGER'
-              AND  outcome IS NOT NULL
               AND  created_at >= :from_date
               {index_clause}
             ORDER  BY created_at DESC
@@ -394,7 +393,7 @@ def fno_pnl_history():
         trades = []
         for r in rows:
             atm     = _parse_atm_trade(getattr(r, 'trades_json', None))
-            outcome = r.outcome or ''
+            outcome = r.outcome if r.outcome else ('ACTIVE' if r.exit_time is None else '')
             entry_p, exit_p, pnl_pct = _calc_trade_pnl(atm, outcome)
             points   = round(exit_p - entry_p, 1) if (exit_p is not None and entry_p) else None
             opt_type = 'CE' if r.direction == 'BULLISH' else ('PE' if r.direction == 'BEARISH' else '—')
@@ -431,16 +430,17 @@ def fno_pnl_history():
             })
 
         def _summarise(tlist):
-            with_pnl = [t for t in tlist if t['pnl_pct'] is not None]
+            closed   = [t for t in tlist if t['outcome'] != 'ACTIVE']
+            with_pnl = [t for t in closed if t['pnl_pct'] is not None]
             wins     = [t for t in with_pnl if t['pnl_pct'] > 0]
             losses   = [t for t in with_pnl if t['pnl_pct'] <= 0]
             tot_pts  = round(sum(t['points'] for t in with_pnl if t['points']), 1)
             cum_pnl  = round(sum(t['pnl_pct'] for t in with_pnl), 1) if with_pnl else None
             return {
-                'total_trades': len(tlist),
+                'total_trades': len(closed),
                 'wins':         len(wins),
                 'losses':       len(losses),
-                'square_offs':  len(tlist) - len(with_pnl),
+                'square_offs':  len(closed) - len(with_pnl),
                 'win_rate':     round(len(wins) / len(with_pnl) * 100, 1) if with_pnl else None,
                 'total_points': tot_pts,
                 'cum_pnl_pct':  cum_pnl,

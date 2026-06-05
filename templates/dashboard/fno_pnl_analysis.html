@@ -37,6 +37,8 @@
 .ob-target{background:#dcfce7;color:#15803d}
 .ob-sl{background:#fee2e2;color:#dc2626}
 .ob-time{background:#fef3c7;color:#d97706}
+.ob-active{background:#dbeafe;color:#1d4ed8;animation:pulse-active 1.5s infinite}
+@keyframes pulse-active{0%,100%{opacity:1}50%{opacity:.6}}
 
 .pnl-pos{color:#15803d;font-weight:800}
 .pnl-neg{color:#dc2626;font-weight:800}
@@ -167,12 +169,14 @@ function assetChip(at) {
 
 function outcomeClass(o) {
     if (!o) return 'ob-time';
+    if (o === 'ACTIVE')            return 'ob-active';
     if (o.indexOf('TARGET') === 0) return 'ob-target';
     if (o === 'SL HIT')            return 'ob-sl';
     return 'ob-time';
 }
 function outcomeIcon(o) {
     if (!o) return '⏱';
+    if (o === 'ACTIVE')            return '🔵';
     if (o.indexOf('TARGET') === 0) return '✅';
     if (o === 'SL HIT')            return '❌';
     return '⏱';

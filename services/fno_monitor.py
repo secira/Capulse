@@ -149,6 +149,79 @@ def _restore_alert_state() -> None:
             logger.warning(f"[{idx}] failed to restore alert state: {e}")
 
 
+def _restore_active_trade_state(app) -> None:
+    """
+    On startup, re-hydrate in-memory trade lifecycle state from the DB.
+    Prevents a restart from clearing an in-progress trade and re-sending
+    a TRADE_TRIGGER Telegram alert for the same signal.
+    """
+    try:
+        import ast
+        from app import db
+        with app.app_context():
+            now_ist     = datetime.utcnow() + IST_OFFSET
+            day_start_utc = (now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+                             - IST_OFFSET)
+            rows = db.session.execute(db.text("""
+                SELECT index_id, direction, confidence, entry_mode,
+                       spot_price, atm_strike, trades_json, data_source,
+                       trade_code, created_at
+                FROM   fno_signal_history
+                WHERE  signal_type = 'TRADE_TRIGGER'
+                  AND  outcome     IS NULL
+                  AND  created_at >= :day_start
+                ORDER  BY created_at DESC
+            """), {'day_start': day_start_utc}).fetchall()
+
+        for r in rows:
+            idx = (r.index_id or 'NIFTY').upper()
+            if idx not in SCAN_INDICES:
+                continue
+            if _trade_state[idx] == 'ACTIVE':
+                continue  # already restored (earlier row for same index)
+
+            # Parse ATM trade from trades_json
+            atm_trade = {}
+            try:
+                trades_list = ast.literal_eval(r.trades_json or '[]')
+                if isinstance(trades_list, list):
+                    atm_trade = next(
+                        (t for t in trades_list
+                         if isinstance(t, dict) and str(t.get('moneyness', '')).upper() == 'ATM'),
+                        trades_list[0] if trades_list else {}
+                    )
+            except Exception:
+                pass
+
+            entry_time = r.created_at + IST_OFFSET if r.created_at else datetime.utcnow() + IST_OFFSET
+            _active_trade[idx] = {
+                'direction':   r.direction or 'NEUTRAL',
+                'entry_time':  entry_time,
+                'entry_mode':  r.entry_mode or 'EARLY',
+                'confidence':  r.confidence or 0,
+                'spot':        r.spot_price or 0,
+                'atm_strike':  r.atm_strike or 0,
+                'atm_key':     atm_trade.get('symbol', ''),
+                'entry_price': atm_trade.get('entry_price', atm_trade.get('ltp', 0)),
+                'sl':          atm_trade.get('sl', 0),
+                'target':      atm_trade.get('target', 0),
+                'target_2':    atm_trade.get('target_2', 0),
+                'target_3':    atm_trade.get('target_3', 0),
+                'type':        atm_trade.get('type', ''),
+                'data_source': r.data_source or '',
+                'index_id':    idx,
+                'trade_code':  r.trade_code or '',
+            }
+            _active_trade_code[idx] = r.trade_code
+            _trade_state[idx]       = 'ACTIVE'
+            logger.info(
+                f"[{idx}] ♻️  Restored active trade from DB: "
+                f"{r.direction} {r.trade_code} @ entry={atm_trade.get('entry_price', 0):.0f}"
+            )
+    except Exception as e:
+        logger.warning(f"_restore_active_trade_state failed: {e}")
+
+
 def _reset_daily_if_needed(idx: str):
     today = _now_ist().date()
     if _daily_date[idx] != today:
@@ -963,6 +1036,9 @@ def start_scheduler(app):
         # Restore alert dedup state from Redis so a restart doesn't blow
         # away the daily-cap counter (would otherwise allow re-spamming).
         _restore_alert_state()
+        # Restore in-progress trade state from DB so a restart doesn't
+        # re-fire a TRADE_TRIGGER alert for an already-active trade.
+        _restore_active_trade_state(app)
         from apscheduler.schedulers.background import BackgroundScheduler
         scheduler = BackgroundScheduler(daemon=True)
         scheduler.add_job(
