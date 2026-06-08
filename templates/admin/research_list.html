@@ -432,7 +432,9 @@ function refreshNightlyStatus() {
                 : 'Last run: never';
             const next = d.next_run ? `Next run: ${_fmtIst(d.next_run)}` : 'Next run: —';
             statusEl.innerHTML = `${badge} &nbsp; ${next}`;
-            metaEl.textContent = last + '  •  Runs daily at 02:00 IST';
+            const cap   = d.batch_limit  || 300;
+            const stale = d.stale_days   || 7;
+            metaEl.textContent = last + `  •  Runs daily at 02:00 IST  •  ${cap} stocks/night  •  refresh every ${stale} days`;
             btnEl.disabled = running;
         })
         .catch(() => { if (statusEl) statusEl.textContent = 'Status check failed'; });

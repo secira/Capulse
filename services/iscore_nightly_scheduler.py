@@ -46,7 +46,23 @@ _IST = timezone(timedelta(hours=5, minutes=30))
 
 def get_status() -> dict:
     """Snapshot of scheduler state for the admin UI."""
-    return dict(_state)
+    return {
+        **_state,
+        "batch_limit":    NIGHTLY_BATCH_LIMIT,
+        "stale_days":     STALE_DAYS_THRESHOLD,
+    }
+
+
+# ── Nightly batch limits (env-configurable) ───────────────────────────────
+# How many stocks to score per nightly run.  With ~2 167 NSE stocks and the
+# default of 300/night the full catalogue refreshes every ~7 nights.
+# Override with ISCORE_NIGHTLY_BATCH_LIMIT env var.
+NIGHTLY_BATCH_LIMIT  = int(os.environ.get("ISCORE_NIGHTLY_BATCH_LIMIT", "300"))
+
+# Stocks scored more recently than this threshold are considered "fresh" and
+# are skipped during a stale-refresh run.
+# Override with ISCORE_STALE_DAYS env var.
+STALE_DAYS_THRESHOLD = int(os.environ.get("ISCORE_STALE_DAYS", "7"))
 
 
 # ── The actual batch runner (shared with the manual button) ───────────────
@@ -54,7 +70,16 @@ def run_pending_iscore_batch(app, batch_jobs: dict, mode: str = "pending",
                              job_id: str | None = None,
                              polite_sleep: float = 1.5) -> str:
     """
-    Run the I-Score engine over every Research List stock.
+    Run the I-Score engine over Research List stocks.
+
+    mode values:
+      "pending" — only stocks where i_score IS NULL  (original behaviour,
+                  used by the manual Admin button when explicitly chosen)
+      "stale"   — unscored stocks first, then oldest-scored stocks next,
+                  capped at NIGHTLY_BATCH_LIMIT per run.  This is what the
+                  nightly cron uses so ALL stocks are refreshed on a rolling
+                  ~7-night cycle instead of only the initial pass.
+      "all"     — every active stock, no cap (manual force-refresh)
 
     Writes progress into `batch_jobs[job_id]` using the SAME shape the
     manual admin endpoint uses, so the existing /batch-iscore/status
@@ -69,9 +94,34 @@ def run_pending_iscore_batch(app, batch_jobs: dict, mode: str = "pending",
     jid = job_id or str(uuid.uuid4())[:8]
 
     with app.app_context():
-        stocks = ResearchList.query.filter_by(is_active=True).all()
-        if mode == "pending":
-            stocks = [s for s in stocks if s.i_score is None]
+        if mode == "stale":
+            # Unscored stocks come first (NULLS FIRST), then by age of last
+            # computation ascending so the stalest are always refreshed next.
+            # Cap to NIGHTLY_BATCH_LIMIT so the job finishes well before market
+            # open even if the catalogue grows.
+            stale_cutoff = datetime.utcnow() - timedelta(days=STALE_DAYS_THRESHOLD)
+            stocks = (
+                ResearchList.query
+                .filter_by(is_active=True)
+                .filter(
+                    db.or_(
+                        ResearchList.i_score.is_(None),
+                        ResearchList.last_computed_at < stale_cutoff,
+                    )
+                )
+                .order_by(ResearchList.last_computed_at.asc().nullsfirst())
+                .limit(NIGHTLY_BATCH_LIMIT)
+                .all()
+            )
+        elif mode == "pending":
+            stocks = [
+                s for s in ResearchList.query.filter_by(is_active=True).all()
+                if s.i_score is None
+            ]
+        else:
+            # mode == "all" — no filter, no cap
+            stocks = ResearchList.query.filter_by(is_active=True).all()
+
         stock_ids = [s.id for s in stocks]
 
         batch_jobs[jid] = {
@@ -91,7 +141,12 @@ def run_pending_iscore_batch(app, batch_jobs: dict, mode: str = "pending",
         if not stock_ids:
             batch_jobs[jid]["status"] = "completed"
             batch_jobs[jid]["finished_at"] = datetime.utcnow().isoformat()
-            batch_jobs[jid]["log"].append("No pending stocks — nothing to do.")
+            if mode == "stale":
+                batch_jobs[jid]["log"].append(
+                    f"All stocks are fresh (scored within last {STALE_DAYS_THRESHOLD} days) — nothing to do."
+                )
+            else:
+                batch_jobs[jid]["log"].append("No pending stocks — nothing to do.")
             return jid
 
         try:
@@ -161,7 +216,7 @@ def run_pending_iscore_batch(app, batch_jobs: dict, mode: str = "pending",
 
 # ── Wrapper used by APScheduler ───────────────────────────────────────────
 def _nightly_job(app):
-    """Cron entry point — runs the pending batch and updates _state."""
+    """Cron entry point — runs the stale-refresh batch and updates _state."""
     if _state["currently_running"]:
         logger.warning("Nightly I-Score job tick fired while previous run still active — skipping.")
         _state["last_run_status"] = "skipped"
@@ -173,10 +228,18 @@ def _nightly_job(app):
 
     jid = f"nightly-{datetime.now(_IST).strftime('%Y%m%d')}"
 
+    logger.info(
+        f"Nightly I-Score batch starting — stale mode "
+        f"(threshold={STALE_DAYS_THRESHOLD}d, cap={NIGHTLY_BATCH_LIMIT} stocks/night)"
+    )
+
     try:
         # Import here to get the SAME _batch_jobs dict the manual UI polls.
         from admin_routes import _batch_jobs
-        run_pending_iscore_batch(app, _batch_jobs, mode="pending", job_id=jid)
+        # "stale" mode: unscored first, then oldest-scored, capped at
+        # NIGHTLY_BATCH_LIMIT. This ensures ALL ~2167 stocks are refreshed
+        # on a rolling ~7-night cycle instead of only the first pass ever.
+        run_pending_iscore_batch(app, _batch_jobs, mode="stale", job_id=jid)
         job = _batch_jobs.get(jid, {})
         _state["last_run_status"]  = job.get("status", "completed")
         _state["last_run_total"]   = job.get("total", 0)
@@ -185,7 +248,8 @@ def _nightly_job(app):
         _state["last_run_job_id"]  = jid
         logger.info(
             f"Nightly I-Score batch finished: "
-            f"{job.get('success', 0)}✓ / {job.get('errors', 0)}✗ of {job.get('total', 0)} stocks"
+            f"{job.get('success', 0)}✓ / {job.get('errors', 0)}✗ of {job.get('total', 0)} stocks "
+            f"(stale>{STALE_DAYS_THRESHOLD}d, cap={NIGHTLY_BATCH_LIMIT})"
         )
     except Exception as e:
         _state["last_run_status"] = "failed"
