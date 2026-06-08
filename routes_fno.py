@@ -205,12 +205,13 @@ def _parse_all_trades(trades_json_str):
     return []
 
 
-def _calc_trade_pnl(atm_trade, outcome):
+def _calc_trade_pnl(atm_trade, outcome, exit_spot=None):
     """
     Return (entry_premium, exit_premium, pnl_pct) for a closed trade.
     - TARGET 1/2/3 HIT  → exit at the respective target price
     - SL HIT            → exit at the SL price
-    - 3PM SQUARE OFF    → exit price unknown; returns None for pnl_pct
+    - 3PM SQUARE OFF    → exit at the captured option LTP (exit_spot from DB)
+                          if available; otherwise returns None for pnl_pct
     """
     if not atm_trade:
         return None, None, None
@@ -230,8 +231,11 @@ def _calc_trade_pnl(atm_trade, outcome):
         exit_premium = target3
     elif outcome == 'SL HIT' and sl:
         exit_premium = sl
+    elif ('3PM' in outcome or 'SQUARE' in outcome) and exit_spot and float(exit_spot) > 0:
+        # exit_spot now stores the ATM option LTP at the time of 3PM square-off
+        exit_premium = float(exit_spot)
     else:
-        return round(entry_premium, 1), None, None   # 3PM Square Off / unknown
+        return round(entry_premium, 1), None, None   # unknown / no price data
 
     pnl_pct = round((exit_premium - entry_premium) / entry_premium * 100, 1)
     return round(entry_premium, 1), round(exit_premium, 1), pnl_pct
@@ -276,7 +280,7 @@ def fno_signal_history():
             atm = _parse_atm_trade(raw_trades_json)
             all_trades = _parse_all_trades(raw_trades_json) if r.signal_type == 'TRADE_TRIGGER' else []
             outcome = r.outcome or ''
-            entry_premium, exit_premium, pnl_pct = _calc_trade_pnl(atm, outcome)
+            entry_premium, exit_premium, pnl_pct = _calc_trade_pnl(atm, outcome, exit_spot=r.exit_spot)
 
             signals.append({
                 'id':                  r.id,
@@ -394,7 +398,7 @@ def fno_pnl_history():
         for r in rows:
             atm     = _parse_atm_trade(getattr(r, 'trades_json', None))
             outcome = r.outcome if r.outcome else ('ACTIVE' if r.exit_time is None else '')
-            entry_p, exit_p, pnl_pct = _calc_trade_pnl(atm, outcome)
+            entry_p, exit_p, pnl_pct = _calc_trade_pnl(atm, outcome, exit_spot=r.exit_spot)
             points   = round(exit_p - entry_p, 1) if (exit_p is not None and entry_p) else None
             opt_type = 'CE' if r.direction == 'BULLISH' else ('PE' if r.direction == 'BEARISH' else '—')
             entry_ist = r.created_at.replace(tzinfo=timezone.utc).astimezone(IST) if r.created_at else None

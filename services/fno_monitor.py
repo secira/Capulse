@@ -20,10 +20,10 @@ SIGNAL_COOLDOWN_MINUTES    = 10
 MAX_SIGNALS_PER_DAY        = 3          # per index
 
 # Trade Lifecycle constants (shared across indices)
-# CONFIRMATION_CANDLES dropped from 2 → 1 so the trigger fires on the CURRENT
-# forming 5-min candle. Two-candle confirmation was adding 5–10 min lag and
-# causing breakouts (e.g. 2:18) to be signalled only after consolidation (2:28).
-CONFIRMATION_CANDLES    = 1
+# CONFIRMATION_CANDLES = 2: require two consecutive strong 60-second scans
+# before locking a trade. Adds ~60s entry delay but significantly reduces
+# false triggers in choppy/reversing markets (high SL-hit rate cause).
+CONFIRMATION_CANDLES    = 2
 ENTRY_COOLDOWN_MINUTES  = 15
 TRADE_MIN_CONFIDENCE    = 80
 TRADE_MIN_ADX           = 25
@@ -371,8 +371,12 @@ def _save_signal_to_db(app, signal_data: dict, index_id: str,
                 'outcome':     outcome,
             })
 
-            # On exit: also update the TRIGGER record with the outcome
+            # On exit: also update the TRIGGER record with the outcome.
+            # exit_spot stores the ATM *option* LTP at exit time (not the index
+            # spot) so P&L Analysis can calculate real profit/loss for 3PM exits.
             if signal_data.get('signal_type') == 'TRADE_EXIT' and trade_code and outcome:
+                # Use captured option LTP if available; fall back to index spot.
+                _exit_s = signal_data.get('exit_option_ltp') or signal_data.get('spot_price', 0)
                 db.session.execute(db.text("""
                     UPDATE fno_signal_history
                        SET outcome   = :outcome,
@@ -383,7 +387,7 @@ def _save_signal_to_db(app, signal_data: dict, index_id: str,
                        AND index_id    = :index_id
                 """), {
                     'outcome':    outcome,
-                    'exit_spot':  signal_data.get('spot_price', 0),
+                    'exit_spot':  _exit_s,
                     'trade_code': trade_code,
                     'index_id':   index_id,
                 })
@@ -924,6 +928,17 @@ def _scan_index(app, idx: str, data_broker_user_id):
                     analysis['trade_code']     = trade_code
                     analysis['trade_direction'] = _active_trade[idx].get('direction', analysis.get('trade_direction'))
                     analysis['confidence']      = _active_trade[idx].get('confidence', analysis.get('confidence'))
+                    # Capture the ATM option LTP at the moment of exit so P&L
+                    # can be calculated for 3PM Square-Off (previously stored as
+                    # index spot which made the exit price unusable).
+                    _atm_key_at_exit = _active_trade[idx].get('atm_key', '')
+                    _exit_ltp = 0.0
+                    if _atm_key_at_exit:
+                        for _t in analysis.get('trades', []):
+                            if _t.get('symbol') == _atm_key_at_exit:
+                                _exit_ltp = float(_t.get('ltp', 0) or 0)
+                                break
+                    analysis['exit_option_ltp'] = _exit_ltp
                     _last_exit_time[idx]    = _now_ist()
                     _active_trade[idx]      = None
                     _active_trade_code[idx] = None
