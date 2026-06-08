@@ -66,6 +66,42 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 |----------|-------------|
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google sign-in |
 
+### TC Execution Engine (EC2)
+
+Target Capital routes live trade execution to a dedicated stateless TC-Engine
+running on EC2.  Three variables control the integration:
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `EXECUTION_ENGINE_URL` | `http://54.225.202.78:8080` | Base URL of the TC-Engine on EC2 |
+| `EXECUTION_HMAC_SECRET` | *(shared secret — see below)* | HMAC-SHA256 signing key — **must match** the value set on the EC2 engine |
+| `USE_REMOTE_EXEC` | `true` | Enables engine routing at the env level. Per-user opt-in (`User.use_remote_execution`) is a second gate |
+
+**Generate a shared HMAC secret (do this once):**
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+Set the **same value** in:
+- Railway → Variables → `EXECUTION_HMAC_SECRET`
+- EC2 instance → environment / `.env` → `EXECUTION_HMAC_SECRET`
+
+**EC2 Security Group — allow Railway's outbound IPs on port 8080:**
+
+Railway's static egress IPs (add all as `/32` inbound rules for TCP port 8080):
+```
+52.15.224.211
+18.218.184.132
+18.222.27.208
+```
+> If you are on Railway Hobby (no static IPs), temporarily open `0.0.0.0/0` on port 8080.
+> The HMAC signature on every request means only requests signed with the correct
+> `EXECUTION_HMAC_SECRET` will be accepted by the engine — random internet traffic is rejected.
+
+**Verify after deploy:**
+Go to **Admin → Execution Engine** (`/admin/execution-engine`).
+The page shows a live `/healthz` ping, engine version, halt state, and which users
+have the per-user opt-in enabled.
+
 ### Tuning
 | Variable | Default | Description |
 |----------|---------|-------------|

@@ -58,8 +58,19 @@ if [ "${ENVIRONMENT}" = "production" ]; then
     _warn_if_missing "Razorpay (billing)"     RAZORPAY_KEY_ID RAZORPAY_KEY_SECRET
     _warn_if_missing "Twilio (SMS/WhatsApp)"  TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER
     _warn_if_missing "Google OAuth"           GOOGLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET
+    # ─── TC Execution Engine ─────────────────────────────────────────────
     if [ -n "${EXECUTION_ENGINE_URL}" ]; then
-        echo "  ✓ TC Execution Engine: ${EXECUTION_ENGINE_URL}"
+        echo "  ✓ TC Execution Engine URL   : ${EXECUTION_ENGINE_URL}"
+        if [ -n "${EXECUTION_HMAC_SECRET}" ]; then
+            echo "  ✓ EXECUTION_HMAC_SECRET     : SET"
+        else
+            echo "  ⚠️  EXECUTION_HMAC_SECRET NOT SET — engine calls will be rejected (401)"
+        fi
+        if [ "${USE_REMOTE_EXEC}" = "true" ] || [ "${USE_REMOTE_EXEC}" = "1" ]; then
+            echo "  ✓ USE_REMOTE_EXEC           : ON — trades route to engine"
+        else
+            echo "  ℹ️  USE_REMOTE_EXEC          : OFF — trades use in-process path"
+        fi
     else
         echo "  ℹ️  TC Execution Engine routing OFF — set EXECUTION_ENGINE_URL to enable."
     fi
