@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class AnthropicService:
     PRIMARY_MODEL = "claude-sonnet-4-20250514"
-    FALLBACK_MODEL = "claude-3-5-haiku-20241022"
+    FALLBACK_MODEL = "claude-haiku-4-5"
     MAX_RETRIES = 3
     RETRY_BACKOFF_BASE = 2.0
 

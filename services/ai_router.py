@@ -18,7 +18,7 @@ Each provider is used for what it does best:
                 reasoning: portfolio narratives, workflow hub reports, risk
                 heat-map narration, trade plan generation.
                 Model: claude-sonnet-4-20250514 (primary),
-                       claude-3-5-haiku-20241022 (fallback for speed).
+                       claude-haiku-4-5 (fallback for speed).
                 Used by: Workflow Hub (Chief Portfolio Strategist),
                          Portfolio analysis pages, Risk Engine narration.
 
