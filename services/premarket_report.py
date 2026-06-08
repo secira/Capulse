@@ -349,6 +349,67 @@ def format_premarket_report_telegram(report: dict) -> str:
 
 # ───────────────────────── public entrypoint ───────────────────────────
 
+def _db_check_sent_today(today_ist: date) -> bool:
+    """Return True if alert_schedule records a successful send for today (IST).
+
+    Uses the DB so the guard survives gunicorn worker restarts — an in-memory
+    flag on the old worker is lost when it dies; this one is not.
+    """
+    try:
+        from app import db
+        row = db.session.execute(db.text(
+            "SELECT last_sent_date FROM alert_schedule "
+            "WHERE schedule_key = 'premarket_report'"
+        )).first()
+        if row and row[0] == today_ist:
+            return True
+        return False
+    except Exception as e:
+        logger.warning(f"_db_check_sent_today: DB read failed, allowing send: {e}")
+        try:
+            from app import db
+            db.session.rollback()
+        except Exception:
+            pass
+        return False  # On DB error, allow send (better a duplicate than a miss)
+
+
+def _db_mark_sent_today(today_ist: date) -> None:
+    """Stamp alert_schedule.last_sent_date = today so other workers skip."""
+    try:
+        from app import db
+        db.session.execute(db.text(
+            "UPDATE alert_schedule SET last_sent_date = :d "
+            "WHERE schedule_key = 'premarket_report'"
+        ), {"d": today_ist})
+        db.session.commit()
+    except Exception as e:
+        logger.warning(f"_db_mark_sent_today: DB write failed: {e}")
+        try:
+            from app import db
+            db.session.rollback()
+        except Exception:
+            pass
+
+
+def _db_clear_sent_today() -> None:
+    """Reset last_sent_date so a retry is possible after a send failure."""
+    try:
+        from app import db
+        db.session.execute(db.text(
+            "UPDATE alert_schedule SET last_sent_date = NULL "
+            "WHERE schedule_key = 'premarket_report'"
+        ))
+        db.session.commit()
+    except Exception as e:
+        logger.warning(f"_db_clear_sent_today: DB write failed: {e}")
+        try:
+            from app import db
+            db.session.rollback()
+        except Exception:
+            pass
+
+
 def send_premarket_report(force: bool = False) -> bool:
     """Build and broadcast the pre-market report to Telegram.
 
@@ -360,16 +421,28 @@ def send_premarket_report(force: bool = False) -> bool:
     try:
         today_ist = datetime.now(IST).date()
 
-        # ── once-per-day guard ────────────────────────────────────────────────
-        # Multiple gunicorn workers + APScheduler can fire this within seconds
-        # of each other. The lock + date flag ensures exactly one send per day.
+        # ── once-per-day guard — two layers ──────────────────────────────────
+        # Layer 1 (in-process): threading lock + module-level date flag.
+        #   Fast path — prevents two threads in the same worker racing each other.
+        # Layer 2 (cross-process): DB date in alert_schedule.last_sent_date.
+        #   Survives gunicorn worker restarts; a new worker will see the DB flag
+        #   even if its own _premarket_sent_date was just reset to None.
         if not force:
             with _sent_guard_lock:
+                # Check in-memory flag first (fast, no DB round-trip)
                 if _premarket_sent_date == today_ist:
                     logger.info(
                         "send_premarket_report: already sent today "
-                        f"({today_ist}) — skipping duplicate"
+                        f"({today_ist}) — skipping duplicate (in-memory guard)"
                     )
+                    return False
+                # Check DB flag — catches the "new worker, old report" case
+                if _db_check_sent_today(today_ist):
+                    logger.info(
+                        "send_premarket_report: already sent today "
+                        f"({today_ist}) — skipping duplicate (DB guard)"
+                    )
+                    _premarket_sent_date = today_ist  # sync in-memory with DB
                     return False
                 # Claim the slot immediately (before the network call) so a
                 # concurrent worker that acquires the lock right after will see
@@ -393,20 +466,24 @@ def send_premarket_report(force: bool = False) -> bool:
         body = format_premarket_report_telegram(report)
         ok = send_telegram_message(body, parse_mode='Markdown')
         if ok:
+            # Stamp the DB so other workers (or future restarts today) won't re-send.
+            _db_mark_sent_today(today_ist)
             logger.info(f"📨 Pre-market report sent ({len(report.get('indices', []))} indices)")
         else:
             logger.warning("Pre-market report Telegram send returned False")
-            # On failure, reset the guard so it can retry (e.g. next scheduler tick)
+            # On failure, reset both guards so a retry is possible
             if not force:
                 with _sent_guard_lock:
                     if _premarket_sent_date == today_ist:
                         _premarket_sent_date = None
+                _db_clear_sent_today()
         return bool(ok)
     except Exception as e:
         logger.error(f"send_premarket_report failed: {e}", exc_info=True)
-        # Reset guard on exception so a retry is possible
+        # Reset both guards on exception so a retry is possible
         if not force:
             with _sent_guard_lock:
                 if _premarket_sent_date == today_ist:
                     _premarket_sent_date = None
+            _db_clear_sent_today()
         return False

@@ -767,6 +767,8 @@ with app.app_context():
         'CREATE INDEX IF NOT EXISTS ix_fno_signal_history_created ON fno_signal_history (created_at DESC)',
         # Active broker lookups: user_id + is_active is the hot path.
         'CREATE INDEX IF NOT EXISTS ix_user_brokers_user_active ON user_brokers (user_id, is_active)',
+        # alert_schedule: DB-backed last_sent_date prevents duplicate sends across gunicorn worker restarts.
+        'ALTER TABLE alert_schedule ADD COLUMN IF NOT EXISTS last_sent_date DATE',
         # ── Admin-managed alert schedule (Telegram timings) ───────────────
         '''CREATE TABLE IF NOT EXISTS alert_schedule (
             id SERIAL PRIMARY KEY,
