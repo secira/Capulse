@@ -151,50 +151,12 @@ SECTOR_COLORS = {
 
 def _call_perplexity_structured(prompt: str, timeout: int = 15) -> str:
     """
-    Tries Perplexity sonar-pro first; falls back to Anthropic Claude on any
-    failure (quota exhausted, timeout, network error, etc.).
-    Returns raw response text, or '' if both fail.
+    Routes all AI calls to Anthropic Claude (claude-sonnet-4-20250514).
+    Perplexity is no longer used — Claude handles all market commentary
+    and Scentric AI queries.
+    Returns raw response text, or '' on failure.
     """
-    import os as _os, requests as _req
-
-    # ── Attempt 1: Perplexity ──────────────────────────────────────────────
-    api_key = _os.environ.get('PERPLEXITY_API_KEY', '')
-    if api_key:
-        try:
-            payload = {
-                "model": "sonar-pro",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a financial data API that returns only valid JSON. "
-                            "Never add markdown fences, explanations, or extra text."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                "max_tokens": 2000,
-                "temperature": 0.1,
-                "search_recency_filter": "day",
-                "stream": False,
-            }
-            resp = _req.post(
-                "https://api.perplexity.ai/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-                timeout=timeout,
-            )
-            if resp.status_code == 200:
-                return resp.json()["choices"][0]["message"]["content"]
-            logger.warning(f"Perplexity structured call HTTP {resp.status_code} — trying Anthropic fallback")
-        except Exception as e:
-            logger.warning(f"Perplexity structured call error: {e} — trying Anthropic fallback")
-
-    # ── Attempt 2: Anthropic Claude fallback ──────────────────────────────
-    return _call_anthropic_text(prompt, timeout=timeout)
+    return _call_anthropic_text(prompt, timeout=max(timeout, 20))
 
 
 def _call_anthropic_text(prompt: str, timeout: int = 20) -> str:

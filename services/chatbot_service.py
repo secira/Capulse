@@ -15,78 +15,71 @@ from middleware.tenant_middleware import get_current_tenant_id, TenantQuery, cre
 logger = logging.getLogger(__name__)
 
 class InvestmentChatbot:
-    """AI-Powered Investment Explanation Chatbot using Perplexity Sonar"""
-    
+    """AI-Powered Investment Chatbot using Claude (Anthropic)"""
+
     def __init__(self):
         self._perplexity_api_key = None
+        self._anthropic_api_key = None
         self._initialized = False
-        self.base_url = "https://api.perplexity.ai/chat/completions"
         self._system_prompt = None
-    
+
     @property
     def perplexity_api_key(self):
-        """Lazy-load the API key"""
+        """Lazy-load Perplexity key (kept for backward compat; Claude is now primary)."""
         if self._perplexity_api_key is None:
             self._perplexity_api_key = os.environ.get('PERPLEXITY_API_KEY')
-            if not self._perplexity_api_key:
-                logger.warning("PERPLEXITY_API_KEY not found - chatbot features will be limited")
         return self._perplexity_api_key
-    
+
+    @property
+    def anthropic_api_key(self):
+        """Lazy-load Anthropic API key."""
+        if self._anthropic_api_key is None:
+            self._anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY')
+            if not self._anthropic_api_key:
+                logger.warning("ANTHROPIC_API_KEY not found - chatbot features will be limited")
+        return self._anthropic_api_key
+
     @property
     def system_prompt(self):
         """Lazy-load the system prompt"""
         if self._system_prompt is None:
             self._system_prompt = self._get_system_prompt()
         return self._system_prompt
-        
+
     def _initialize_perplexity_api(self):
-        """Initialize Perplexity API (lazy initialization)"""
-        if self._initialized:
-            return
-        
-        if not self.perplexity_api_key:
-            return
-            
-        try:
-            logger.info("Perplexity API initialized successfully")
-            self._initialized = True
-        except Exception as e:
-            logger.error(f"Failed to initialize Perplexity API: {e}")
+        """No-op — kept for backward compatibility."""
+        pass
             
     def _get_system_prompt(self) -> str:
         """Get the system prompt for the AI investment chatbot"""
-        return """You are an AI Investment Advisor powered by Perplexity for Target Capital, India's leading AI-powered trading platform.
+        return """You are an AI Investment Advisor for Target Capital, India's leading AI-powered trading platform.
 
 Your expertise includes:
-1. Real-time market analysis and current Indian stock market insights
+1. Indian stock market analysis and investment insights (NSE/BSE)
 2. Educational investment concepts explained in simple language
 3. Portfolio analysis and personalized investment guidance
-4. Current news, trends, and market developments affecting Indian stocks
-5. Live data from NSE, BSE, and global markets impacting Indian investments
+4. Market trends, sector analysis, and developments affecting Indian stocks
+5. F&O, equity, mutual funds, and other asset classes in India
 
 Core capabilities:
-- Provide current market data and real-time analysis
 - Explain complex financial concepts with practical examples
 - Offer personalized advice based on user portfolio context
-- Share latest market news, regulatory changes, and sector updates
-- Analyze current economic indicators affecting Indian markets
+- Discuss market trends, regulatory changes, and sector updates
+- Analyze economic indicators affecting Indian markets
 
 Guidelines:
-- Use real-time web data to provide current market insights
-- Reference recent news, earnings, and market developments
-- Focus on educational content while being aware of current market conditions
-- Provide context-aware advice using latest market information
-- Include current prices, trends, and market sentiment in responses
-- Cite sources when referencing specific market data or news
+- Focus on educational content with factual financial analysis
+- Provide context-aware advice grounded in Indian market fundamentals
+- Reference SEBI regulations and Indian tax implications where relevant
+- Use ₹ for currency, NSE/BSE for exchanges
 
 Response style:
 - Concise, informative, and data-driven
-- Include current market context and real-time insights
 - Use bullet points for clarity
 - End with engaging follow-up questions
 - Reference Indian market specifics (₹, NSE, BSE, SEBI, etc.)
 
-Remember: You provide educational insights with real-time market context, not guaranteed investment advice."""
+Remember: You provide educational insights, not guaranteed investment advice."""
 
     def get_or_create_conversation(self, user_id: int, session_id: str = None) -> ChatConversation:
         """Get existing conversation or create new one"""
@@ -198,102 +191,84 @@ Remember: You provide educational insights with real-time market context, not gu
         """Generate AI response using Perplexity Sonar"""
         return self.generate_response(user_message, conversation, user_context)
     
-    def generate_response(self, 
-                         user_message: str, 
+    def generate_response(self,
+                         user_message: str,
                          conversation: ChatConversation,
                          user_context: Optional[Dict] = None) -> Tuple[str, Dict]:
-        """Generate AI response using Perplexity Sonar"""
-        if not self.perplexity_api_key:
+        """Generate AI response using Claude (Anthropic)."""
+        if not self.anthropic_api_key:
             return "I'm sorry, the AI service is temporarily unavailable. Please try again later.", {}
-            
+
         start_time = time.time()
-        
+
         try:
-            # Build conversation history
-            messages = [{"role": "system", "content": self.system_prompt}]
-            
-            # Add user context if available
+            import anthropic as _ant
+
+            # Build conversation history for Claude
+            system_parts = [self.system_prompt]
             if user_context:
-                context_message = self._format_context_message(user_context)
-                if context_message:
-                    messages.append({"role": "system", "content": context_message})
-            
-            # Add recent conversation history (last 6 messages for better performance)
+                ctx_msg = self._format_context_message(user_context)
+                if ctx_msg:
+                    system_parts.append(ctx_msg)
+            system_text = "\n\n".join(system_parts)
+
+            # Collect recent messages
+            conversation_messages = []
             try:
                 recent_messages = conversation.get_recent_messages(6)
                 for msg in recent_messages:
-                    messages.append({
+                    conversation_messages.append({
                         "role": msg.message_type,
                         "content": msg.content
                     })
             except AttributeError:
-                # Fallback if conversation doesn't have get_recent_messages method
-                recent_messages = ChatMessage.query.filter_by(
+                recent_msgs = ChatMessage.query.filter_by(
                     conversation_id=conversation.id
                 ).order_by(ChatMessage.created_at.desc()).limit(6).all()
-                recent_messages.reverse()  # Show oldest first
-                for msg in recent_messages:
-                    messages.append({
+                recent_msgs.reverse()
+                for msg in recent_msgs:
+                    conversation_messages.append({
                         "role": msg.message_type,
                         "content": msg.content
                     })
-            
-            # Add current user message
-            messages.append({"role": "user", "content": user_message})
-            
-            # Search knowledge base for relevant context
+
+            # Append knowledge base context to the user message
+            final_user_msg = user_message
             relevant_knowledge = self.search_knowledge_base(user_message)
             if relevant_knowledge:
-                knowledge_context = "\n\nRelevant information from knowledge base:\n"
+                kb_context = "\n\nRelevant knowledge base context:\n"
                 for item in relevant_knowledge:
-                    knowledge_context += f"- {item.topic}: {item.content[:200]}...\n"
-                messages[-1]["content"] += knowledge_context
-            
-            # Generate response using Perplexity Sonar
-            headers = {
-                'Authorization': f'Bearer {self.perplexity_api_key}',
-                'Content-Type': 'application/json'
-            }
-            
-            payload = {
-                "model": "llama-3.1-sonar-small-128k-online",  # Using correct Perplexity model
-                "messages": messages,
-                "max_tokens": 1000,
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "stream": False,
-                "return_related_questions": False,
-                "search_recency_filter": "month"
-            }
-            
-            response = requests.post(
-                self.base_url, 
-                headers=headers, 
-                json=payload, 
-                timeout=15
+                    kb_context += f"- {item.topic}: {item.content[:200]}...\n"
+                final_user_msg += kb_context
+
+            conversation_messages.append({"role": "user", "content": final_user_msg})
+
+            # Ensure alternating roles required by Claude (no consecutive same-role messages)
+            cleaned_messages = []
+            for m in conversation_messages:
+                role = "user" if m["role"] == "user" else "assistant"
+                if cleaned_messages and cleaned_messages[-1]["role"] == role:
+                    cleaned_messages[-1]["content"] += "\n" + m["content"]
+                else:
+                    cleaned_messages.append({"role": role, "content": m["content"]})
+
+            client = _ant.Anthropic(api_key=self.anthropic_api_key)
+            response = client.messages.create(
+                model='claude-sonnet-4-20250514',
+                max_tokens=1000,
+                system=system_text,
+                messages=cleaned_messages,
             )
-            
-            if response.status_code == 200:
-                data = response.json()
-                ai_response = data['choices'][0]['message']['content']
-                processing_time = time.time() - start_time
-                
-                # Extract usage information
-                usage_info = {
-                    'tokens_used': data.get('usage', {}).get('total_tokens', 0),
-                    'processing_time': processing_time,
-                    'model': 'sonar-pro'
-                }
-                
-                logger.info(f"Generated Perplexity response in {processing_time:.2f}s using {usage_info['tokens_used']} tokens")
-                return ai_response, usage_info
-            else:
-                logger.error(f"Perplexity API error: {response.status_code} - {response.text}")
-                return "I'm sorry, I'm having trouble accessing current market data. Please try again in a moment.", {}
-            
-        except requests.exceptions.Timeout:
-            logger.error("Perplexity API timeout")
-            return "I'm sorry, the response took too long. Please try asking a simpler question.", {}
+            ai_response = response.content[0].text if response.content else ''
+            processing_time = time.time() - start_time
+            usage_info = {
+                'tokens_used': (response.usage.input_tokens or 0) + (response.usage.output_tokens or 0),
+                'processing_time': processing_time,
+                'model': 'claude-sonnet-4-20250514'
+            }
+            logger.info(f"Generated Claude response in {processing_time:.2f}s using {usage_info['tokens_used']} tokens")
+            return ai_response, usage_info
+
         except Exception as e:
             logger.error(f"Error generating AI response: {e}")
             return "I'm sorry, I encountered an error while processing your message. Please try again.", {}

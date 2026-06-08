@@ -10,123 +10,99 @@ from typing import Dict, Any, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 class PerplexityAPI:
-    """Clean Perplexity API integration for investment advice"""
-    
+    """Investment advice API — uses Claude (primary) with Perplexity as optional fallback."""
+
     def __init__(self):
         self.api_key = os.environ.get('PERPLEXITY_API_KEY')
-        if not self.api_key:
-            raise ValueError("PERPLEXITY_API_KEY environment variable is required")
-        
+        self.anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY')
         self.base_url = "https://api.perplexity.ai/chat/completions"
         self.headers = {
-            'Authorization': f'Bearer {self.api_key}',
+            'Authorization': f'Bearer {self.api_key or ""}',
             'Content-Type': 'application/json'
         }
-        
-        # Use correct model name (updated for 2025)
         self.model = "sonar-pro"
-        
-        logger.info("Perplexity API initialized successfully")
+        if not self.api_key and not self.anthropic_api_key:
+            logger.warning("Neither PERPLEXITY_API_KEY nor ANTHROPIC_API_KEY set — AI chat will be limited")
+        elif not self.api_key:
+            logger.info("PERPLEXITY_API_KEY not set — PerplexityAPI will use Claude (Anthropic)")
+        else:
+            logger.info("Perplexity API initialized successfully")
     
     def get_investment_advice(self, user_message: str, conversation_history: list = None) -> Tuple[str, Dict]:
         """
-        Get investment advice from Perplexity API
+        Get investment advice — uses Claude (primary) with Perplexity as optional override.
         Returns: (response_text, usage_info)
         """
-        try:
-            # Build conversation messages
-            messages = [
-                {
-                    "role": "system",
-                    "content": """You are an expert investment advisor specializing in Indian and global stock markets. 
-                    Provide accurate, real-time financial insights, market analysis, and investment recommendations.
-                    Focus on practical advice with current market data when possible.
-                    Always cite sources when providing specific stock prices or market data."""
-                }
-            ]
-            
-            # Add conversation history with proper alternating validation
-            if conversation_history:
-                valid_history = []
-                last_role = "system"  # Start after system message
-                
-                for msg in conversation_history[-6:]:
-                    msg_role = msg.get('role')
-                    if msg_role in ['user', 'assistant'] and msg_role != last_role:
-                        valid_history.append(msg)
-                        last_role = msg_role
-                
-                messages.extend(valid_history)
-            
-            # Add current user message
-            messages.append({
-                "role": "user",
-                "content": user_message
-            })
-            
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "max_tokens": 1000,
-                "temperature": 0.2,
-                "top_p": 0.9,
-                "return_images": False,
-                "return_related_questions": False,
-                "search_recency_filter": "month",
-                "stream": False
-            }
-            
-            response = requests.post(
-                self.base_url,
-                headers=self.headers,
-                json=payload,
-                timeout=60
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                content = data['choices'][0]['message']['content']
-                
-                usage_info = {
-                    'prompt_tokens': data.get('usage', {}).get('prompt_tokens', 0),
-                    'completion_tokens': data.get('usage', {}).get('completion_tokens', 0),
-                    'total_tokens': data.get('usage', {}).get('total_tokens', 0),
-                    'processing_time': response.elapsed.total_seconds()
-                }
-                
-                logger.info(f"Perplexity API call successful. Tokens used: {usage_info['total_tokens']}")
-                return content, usage_info
-                
-            else:
-                error_data = response.json() if response.content else {"error": "Unknown error"}
-                logger.error(f"Perplexity API error: {response.status_code} - {error_data}")
-                
-                # Return fallback response
-                fallback = """I'm experiencing technical difficulties accessing real-time market data. 
-                However, I can still provide general investment guidance based on fundamental principles:
+        system_content = (
+            "You are an expert investment advisor specializing in Indian and global stock markets. "
+            "Provide accurate financial insights, market analysis, and investment recommendations. "
+            "Focus on practical advice. Use ₹ for Indian currency, NSE/BSE for exchanges."
+        )
 
-                **General Investment Tips:**
-                1. **Diversification**: Spread investments across different sectors and asset classes
-                2. **Risk Management**: Never invest more than you can afford to lose
-                3. **Research**: Always research companies before investing
-                4. **Long-term Perspective**: Focus on long-term growth rather than short-term gains
-                5. **Regular Monitoring**: Review your portfolio periodically
+        # Build message list for whichever provider we'll use
+        messages = []
+        if conversation_history:
+            last_role = None
+            for msg in conversation_history[-6:]:
+                msg_role = msg.get('role')
+                if msg_role in ['user', 'assistant'] and msg_role != last_role:
+                    messages.append(msg)
+                    last_role = msg_role
+        messages.append({"role": "user", "content": user_message})
 
-                For real-time market data and specific stock recommendations, please try again in a moment."""
-                
-                return fallback, {"error": True, "status_code": response.status_code}
-                
-        except requests.exceptions.Timeout:
-            logger.error("Perplexity API timeout")
-            return "Request timed out. Please try again with a shorter question.", {"error": True, "type": "timeout"}
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Perplexity API request error: {e}")
-            return "Unable to connect to AI service. Please check your internet connection and try again.", {"error": True, "type": "connection"}
-            
-        except Exception as e:
-            logger.error(f"Unexpected error in Perplexity API: {e}")
-            return "An unexpected error occurred. Please try again.", {"error": True, "type": "unexpected"}
+        # ── Try Perplexity if key is available ────────────────────────────────
+        if self.api_key:
+            try:
+                payload = {
+                    "model": self.model,
+                    "messages": [{"role": "system", "content": system_content}] + messages,
+                    "max_tokens": 1000,
+                    "temperature": 0.2,
+                    "top_p": 0.9,
+                    "return_images": False,
+                    "return_related_questions": False,
+                    "search_recency_filter": "month",
+                    "stream": False
+                }
+                response = requests.post(self.base_url, headers=self.headers, json=payload, timeout=30)
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data['choices'][0]['message']['content']
+                    usage_info = {
+                        'prompt_tokens': data.get('usage', {}).get('prompt_tokens', 0),
+                        'completion_tokens': data.get('usage', {}).get('completion_tokens', 0),
+                        'total_tokens': data.get('usage', {}).get('total_tokens', 0),
+                        'processing_time': response.elapsed.total_seconds(),
+                        'model': 'sonar-pro'
+                    }
+                    logger.info(f"Perplexity API call successful. Tokens: {usage_info['total_tokens']}")
+                    return content, usage_info
+                logger.warning(f"Perplexity returned {response.status_code} — falling back to Claude")
+            except Exception as e:
+                logger.warning(f"Perplexity error: {e} — falling back to Claude")
+
+        # ── Claude fallback (primary when Perplexity unavailable) ─────────────
+        if self.anthropic_api_key:
+            try:
+                import anthropic as _ant
+                client = _ant.Anthropic(api_key=self.anthropic_api_key)
+                msg = client.messages.create(
+                    model='claude-sonnet-4-20250514',
+                    max_tokens=1000,
+                    system=system_content,
+                    messages=messages,
+                )
+                content = msg.content[0].text if msg.content else ''
+                tokens = (msg.usage.input_tokens or 0) + (msg.usage.output_tokens or 0)
+                logger.info(f"Claude API call successful. Tokens: {tokens}")
+                return content, {'total_tokens': tokens, 'model': 'claude-sonnet-4-20250514'}
+            except Exception as e:
+                logger.error(f"Claude API error: {e}")
+
+        return (
+            "I'm experiencing technical difficulties. Please try again shortly.",
+            {"error": True}
+        )
     
     def validate_connection(self) -> bool:
         """Test if Perplexity API is accessible"""

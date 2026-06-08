@@ -13,158 +13,207 @@ import json
 class PerplexityService:
     def __init__(self):
         self.api_key = os.environ.get('PERPLEXITY_API_KEY')
+        self.claude_key = os.environ.get('ANTHROPIC_API_KEY')
         self.base_url = "https://api.perplexity.ai/chat/completions"
         self.logger = logging.getLogger(__name__)
-        
+
         if not self.api_key:
-            self.logger.warning("PERPLEXITY_API_KEY not found. Service will use fallback data.")
+            self.logger.info("PERPLEXITY_API_KEY not set — using Claude (Anthropic) for all research calls.")
     
     def research_indian_stock(self, symbol: str, research_type: str = 'comprehensive') -> Dict[str, Any]:
         """
-        Conduct comprehensive research on Indian stock using Perplexity's online capabilities
+        Conduct comprehensive research on Indian stock using Claude (Anthropic).
+        Falls back to Perplexity if available, otherwise Claude is primary.
         """
         try:
-            if not self.api_key:
-                return self._get_fallback_research(symbol)
-            
-            # Construct research prompt for Indian market
             research_prompt = self._build_research_prompt(symbol, research_type)
-            
-            response = self._call_perplexity_api(research_prompt, model="sonar-pro")
-            
-            if response and 'choices' in response:
-                research_content = response['choices'][0]['message']['content']
-                citations = response.get('citations', [])
-                
+
+            # Try Perplexity first if key is available
+            if self.api_key:
+                response = self._call_perplexity_api(research_prompt, model="sonar-pro")
+                if response and 'choices' in response:
+                    return {
+                        'symbol': symbol,
+                        'research_type': research_type,
+                        'research_content': response['choices'][0]['message']['content'],
+                        'citations': response.get('citations', []),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                        'source': 'perplexity_ai',
+                        'model_used': 'sonar-pro',
+                        'success': True
+                    }
+
+            # Claude path (primary when Perplexity unavailable)
+            content = self._call_claude_api(research_prompt)
+            if content:
                 return {
                     'symbol': symbol,
                     'research_type': research_type,
-                    'research_content': research_content,
-                    'citations': citations,
+                    'research_content': content,
+                    'citations': [],
                     'timestamp': datetime.now(timezone.utc).isoformat(),
-                    'source': 'perplexity_ai',
-                    'model_used': 'sonar-pro',
+                    'source': 'claude_ai',
+                    'model_used': 'claude-sonnet-4-20250514',
                     'success': True
                 }
-            else:
-                return self._get_fallback_research(symbol)
-                
+
+            return self._get_fallback_research(symbol)
+
         except Exception as e:
-            self.logger.error(f"Perplexity research error for {symbol}: {str(e)}")
+            self.logger.error(f"Research error for {symbol}: {str(e)}")
             return self._get_fallback_research(symbol)
     
     def generate_ai_stock_picks(self, criteria: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Generate AI-powered stock picks for Indian market using Perplexity's real-time data
+        Generate AI-powered stock picks for Indian market using Claude (or Perplexity if available).
         """
         try:
-            if not self.api_key:
-                return self._get_fallback_picks()
-            
-            # Build criteria-based prompt
             picks_prompt = self._build_picks_prompt(criteria)
-            
-            response = self._call_perplexity_api(picks_prompt, model="sonar-pro")
-            
-            if response and 'choices' in response:
-                picks_content = response['choices'][0]['message']['content']
-                citations = response.get('citations', [])
-                
-                # Parse the structured response
-                parsed_picks = self._parse_ai_picks_response(picks_content)
-                
+
+            # Try Perplexity first if key is available
+            if self.api_key:
+                response = self._call_perplexity_api(picks_prompt, model="sonar-pro")
+                if response and 'choices' in response:
+                    picks_content = response['choices'][0]['message']['content']
+                    return {
+                        'picks': self._parse_ai_picks_response(picks_content),
+                        'analysis_summary': picks_content,
+                        'citations': response.get('citations', []),
+                        'criteria_used': criteria or self._get_default_criteria(),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                        'source': 'perplexity_ai',
+                        'model_used': 'sonar-pro',
+                        'success': True
+                    }
+
+            # Claude path
+            content = self._call_claude_api(picks_prompt)
+            if content:
                 return {
-                    'picks': parsed_picks,
-                    'analysis_summary': picks_content,
-                    'citations': citations,
+                    'picks': self._parse_ai_picks_response(content),
+                    'analysis_summary': content,
+                    'citations': [],
                     'criteria_used': criteria or self._get_default_criteria(),
                     'timestamp': datetime.now(timezone.utc).isoformat(),
-                    'source': 'perplexity_ai',
-                    'model_used': 'sonar-pro',
+                    'source': 'claude_ai',
+                    'model_used': 'claude-sonnet-4-20250514',
                     'success': True
                 }
-            else:
-                return self._get_fallback_picks()
-                
+
+            return self._get_fallback_picks()
+
         except Exception as e:
-            self.logger.error(f"Perplexity picks generation error: {str(e)}")
+            self.logger.error(f"Stock picks generation error: {str(e)}")
             return self._get_fallback_picks()
     
     def get_market_insights(self, focus_area: str = 'general') -> Dict[str, Any]:
         """
-        Get real-time market insights for Indian stock market
+        Get market insights for Indian stock market using Claude (or Perplexity if available).
         """
         try:
-            if not self.api_key:
-                return self._get_fallback_insights()
-            
             insights_prompt = self._build_insights_prompt(focus_area)
-            
-            response = self._call_perplexity_api(insights_prompt, model="sonar")
-            
-            if response and 'choices' in response:
-                insights_content = response['choices'][0]['message']['content']
-                citations = response.get('citations', [])
-                
+
+            # Try Perplexity first if key is available
+            if self.api_key:
+                response = self._call_perplexity_api(insights_prompt, model="sonar")
+                if response and 'choices' in response:
+                    return {
+                        'insights': response['choices'][0]['message']['content'],
+                        'focus_area': focus_area,
+                        'citations': response.get('citations', []),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                        'source': 'perplexity_ai',
+                        'success': True
+                    }
+
+            # Claude path
+            content = self._call_claude_api(insights_prompt)
+            if content:
                 return {
-                    'insights': insights_content,
+                    'insights': content,
                     'focus_area': focus_area,
-                    'citations': citations,
+                    'citations': [],
                     'timestamp': datetime.now(timezone.utc).isoformat(),
-                    'source': 'perplexity_ai',
+                    'source': 'claude_ai',
                     'success': True
                 }
-            else:
-                return self._get_fallback_insights()
-                
+
+            return self._get_fallback_insights()
+
         except Exception as e:
-            self.logger.error(f"Perplexity insights error: {str(e)}")
+            self.logger.error(f"Market insights error: {str(e)}")
             return self._get_fallback_insights()
     
-    def _call_perplexity_api(self, prompt: str, model: str = "sonar") -> Dict[str, Any]:
-        """
-        Make API call to Perplexity
-        """
-        headers = {
-            'Authorization': f'Bearer {self.api_key}',
-            'Content-Type': 'application/json'
-        }
-        
-        payload = {
-            "model": model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an expert financial analyst specializing in Indian stock markets. Provide comprehensive, data-driven analysis with current market information."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "max_tokens": 1500,
-            "temperature": 0.2,
-            "top_p": 0.9,
-            "search_recency_filter": "month",
-            "return_images": False,
-            "return_related_questions": False,
-            "stream": False
-        }
-        
+    def _call_claude_api(self, prompt: str) -> Optional[str]:
+        """Call Anthropic Claude as the primary AI provider."""
         try:
-            response = requests.post(self.base_url, headers=headers, json=payload, timeout=90)
-            
-            if response.status_code == 200:
-                return response.json()
-            else:
-                self.logger.error(f"Perplexity API error: {response.status_code} - {response.text}")
+            import anthropic
+            api_key = self.claude_key or os.environ.get('ANTHROPIC_API_KEY', '')
+            if not api_key:
+                self.logger.warning("ANTHROPIC_API_KEY not set")
                 return None
-        except requests.exceptions.Timeout:
-            self.logger.error("Perplexity API timeout - request took too long")
+            client = anthropic.Anthropic(api_key=api_key)
+            msg = client.messages.create(
+                model='claude-sonnet-4-20250514',
+                max_tokens=1500,
+                system=(
+                    "You are an expert financial analyst specializing in Indian stock markets (NSE/BSE). "
+                    "Provide comprehensive, data-driven analysis with specific numbers and ratios. "
+                    "Use ₹ for currency. Be concise and actionable."
+                ),
+                messages=[{'role': 'user', 'content': prompt}],
+            )
+            return msg.content[0].text if msg.content else None
+        except Exception as e:
+            self.logger.error(f"Claude API error: {e}")
             return None
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Perplexity API request failed: {str(e)}")
-            return None
+
+    def _call_perplexity_api(self, prompt: str, model: str = "sonar") -> Optional[Dict[str, Any]]:
+        """
+        Make API call to Perplexity, automatically falling back to Claude on any failure.
+        Returns a Perplexity-compatible dict (with a 'choices' key) so all existing callers
+        work without modification, whether the response came from Perplexity or Claude.
+        """
+        # ── Attempt Perplexity if key is present ──────────────────────────────
+        if self.api_key:
+            try:
+                headers = {
+                    'Authorization': f'Bearer {self.api_key}',
+                    'Content-Type': 'application/json'
+                }
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are an expert financial analyst specializing in Indian stock markets. Provide comprehensive, data-driven analysis with current market information."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": 1500,
+                    "temperature": 0.2,
+                    "top_p": 0.9,
+                    "search_recency_filter": "month",
+                    "return_images": False,
+                    "return_related_questions": False,
+                    "stream": False
+                }
+                response = requests.post(self.base_url, headers=headers, json=payload, timeout=60)
+                if response.status_code == 200:
+                    return response.json()
+                self.logger.warning(f"Perplexity API returned {response.status_code} — falling back to Claude")
+            except Exception as e:
+                self.logger.warning(f"Perplexity API error: {e} — falling back to Claude")
+
+        # ── Claude fallback — wrap in Perplexity-compatible dict ──────────────
+        content = self._call_claude_api(prompt)
+        if content:
+            return {
+                "choices": [{"message": {"content": content}}],
+                "citations": [],
+                "_source": "claude_ai"
+            }
+        return None
     
     def _build_research_prompt(self, symbol: str, research_type: str) -> str:
         """

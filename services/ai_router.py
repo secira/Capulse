@@ -3,9 +3,8 @@ AI Service Router — canonical assignment of AI providers across the platform.
 
 Each provider is used for what it does best:
 
-  Perplexity  → Real-time web-searched market commentary, sentiment, news.
-                Activated by search_recency='day' so responses always
-                reflect today's market.
+  Claude      → Market commentary, Scentric AI queries, sentiment analysis.
+                Also handles all areas previously routed to Perplexity.
                 Used by: Market Intelligence (AI commentary, Scentric query),
                          Stock Research (search sentiment sub-score in I-Score).
 
@@ -41,12 +40,12 @@ CLAUDE     = "claude"
 # This is the single source of truth for which AI handles which product area.
 AREA_AI_MAP: dict = {
     # Market Intelligence
-    "market_commentary":          PERPLEXITY,
-    "scentric_ai_query":          PERPLEXITY,
-    "market_movers_data":         PERPLEXITY,
-    "market_news_sentiment":      PERPLEXITY,
+    "market_commentary":          CLAUDE,
+    "scentric_ai_query":          CLAUDE,
+    "market_movers_data":         CLAUDE,
+    "market_news_sentiment":      CLAUDE,
     # Stock Research
-    "iscore_search_sentiment":    PERPLEXITY,
+    "iscore_search_sentiment":    CLAUDE,
     "iscore_research_phase":      OPENAI,
     # Research Assistant
     "research_assistant_rag":     OPENAI,
@@ -72,53 +71,10 @@ def call_perplexity(
     temperature: float = 0.2,
 ) -> Optional[str]:
     """
-    Make a Perplexity sonar-pro call with live web-search grounding.
-
-    Returns the response text, or None on failure.
-    Use for: real-time market commentary, sentiment, movers/news.
-
-    :param prompt:         User prompt (the question / instruction)
-    :param system:         Optional system message override
-    :param timeout:        HTTP timeout in seconds (default 25)
-    :param search_recency: Perplexity recency filter — 'day' | 'week' | 'month'
-    :param max_tokens:     Max tokens in the response
-    :param temperature:    Sampling temperature (low = more factual)
+    Previously called Perplexity sonar-pro. Now routes to Claude directly.
+    Signature kept unchanged so all existing callers work without modification.
     """
-    api_key = os.environ.get('PERPLEXITY_API_KEY', '')
-    if not api_key:
-        logger.warning("ai_router.call_perplexity: PERPLEXITY_API_KEY not set")
-        return None
-    try:
-        import requests
-        sys_msg = system or (
-            "You are a real-time Indian financial market analyst. "
-            "Be concise, factual, and use today's live data."
-        )
-        resp = requests.post(
-            "https://api.perplexity.ai/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "sonar-pro",
-                "messages": [
-                    {"role": "system", "content": sys_msg},
-                    {"role": "user",   "content": prompt},
-                ],
-                "max_tokens":            max_tokens,
-                "temperature":           temperature,
-                "search_recency_filter": search_recency,
-                "stream":                False,
-            },
-            timeout=timeout,
-        )
-        if resp.status_code == 200:
-            return resp.json()["choices"][0]["message"]["content"]
-        logger.warning(f"ai_router.call_perplexity: HTTP {resp.status_code}")
-    except Exception as e:
-        logger.warning(f"ai_router.call_perplexity: {e}")
-    return None
+    return call_claude(prompt, system=system, max_tokens=max_tokens, timeout=timeout)
 
 
 def call_claude(

@@ -1,2 +1,3 @@
 - [fno_config table bootstrap](fno-config-bootstrap.md) — the live fno_config schema is created by an inline SQL list in app.py, NOT by services/fno_config.bootstrap_fno_config() (which is dead/uncalled).
 - [Market Data Gateway](market-data-gateway.md) — uniform fallback chain for all market data: Admin Pool → TrueData → System Dhan → NSEPython → yfinance. One entry point at services/market_data_gateway.py.
+- [Perplexity replaced by Claude](perplexity-to-claude.md) — Perplexity key is 401 (no credits); Claude is now primary across all 7 AI service files.

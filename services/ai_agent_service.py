@@ -26,7 +26,6 @@ class AgenticAICoordinator:
     
     def __init__(self):
         self.openai_api_key = os.environ.get("OPENAI_API_KEY")
-        self.perplexity_api_key = os.environ.get("PERPLEXITY_API_KEY")
         # n8n is optional — enable only if explicitly configured. The previous
         # localhost default silently failed in production.
         self.n8n_webhook_url = os.environ.get("N8N_WEBHOOK_URL") or None
@@ -194,78 +193,43 @@ class AgenticAICoordinator:
             return self._fallback_reasoning(market_data, historical_patterns)
     
     def _act_with_perplexity_research(self, symbol: str) -> Dict[str, Any]:
-        """Use Perplexity for real-time research and current market insights"""
-        if not self.perplexity_api_key:
-            logger.warning("Perplexity API key not available, using fallback research")
-            return self._fallback_research(symbol)
-        
+        """Research stock using Claude (Anthropic) — previously used Perplexity."""
         try:
-            headers = {
-                "Authorization": f"Bearer {self.perplexity_api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            # Research query for current market conditions
-            query = f"Latest news, earnings, and market sentiment for {symbol} stock. Include recent price movements, analyst upgrades/downgrades, and any significant company developments in the last 30 days."
-            
-            payload = {
-                "model": "llama-3.1-sonar-small-128k-online",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a real-time market research specialist. Provide current, factual information about stocks and market conditions. Focus on recent developments that could impact trading decisions."
-                    },
-                    {
-                        "role": "user",
-                        "content": query
-                    }
-                ],
-                "max_tokens": 800,
-                "temperature": 0.2,
-                "search_recency_filter": "month",
-                "return_related_questions": False,
-                "stream": False
-            }
-            
-            # Retry logic with increased timeout for Perplexity
-            max_retries = 2
-            retry_count = 0
-            
-            while retry_count <= max_retries:
-                try:
-                    response = requests.post(
-                        "https://api.perplexity.ai/chat/completions",
-                        headers=headers,
-                        json=payload,
-                        timeout=120  # Increased from 30 to 120 seconds
-                    )
-                    break  # Success, exit retry loop
-                except requests.exceptions.Timeout:
-                    retry_count += 1
-                    logger.warning(f"Perplexity API timeout in AI Agent (attempt {retry_count}/{max_retries + 1})")
-                    if retry_count > max_retries:
-                        logger.error("Perplexity API timeout - max retries exceeded")
-                        return self._fallback_research(symbol)
-                    continue
-            
-            if response.status_code == 200:
-                result = response.json()
-                research_content = result['choices'][0]['message']['content']
-                citations = result.get('citations', [])
-                
+            import anthropic
+            api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+            if not api_key:
+                logger.warning("ANTHROPIC_API_KEY not available, using fallback research")
+                return self._fallback_research(symbol)
+
+            query = (
+                f"Provide a research summary for {symbol} (Indian stock, NSE). "
+                f"Cover: recent price movements, key financial metrics (P/E, ROE, revenue growth), "
+                f"business developments, analyst outlook, and main risks. "
+                f"Be concise and use ₹ for currency."
+            )
+            client = anthropic.Anthropic(api_key=api_key)
+            msg = client.messages.create(
+                model='claude-sonnet-4-20250514',
+                max_tokens=800,
+                system=(
+                    "You are a market research specialist covering Indian equities (NSE/BSE). "
+                    "Provide factual, data-driven analysis relevant to trading decisions."
+                ),
+                messages=[{'role': 'user', 'content': query}],
+            )
+            research_content = msg.content[0].text if msg.content else ''
+            if research_content:
                 return {
                     "research_summary": research_content,
-                    "citations": citations,
-                    "research_source": "perplexity_live",
+                    "citations": [],
+                    "research_source": "claude_ai",
                     "research_timestamp": datetime.now(timezone.utc).isoformat(),
                     "key_findings": self._extract_key_findings(research_content)
                 }
-            else:
-                logger.error(f"Perplexity API error: {response.status_code}")
-                return self._fallback_research(symbol)
-                
+            return self._fallback_research(symbol)
+
         except Exception as e:
-            logger.error(f"Perplexity research failed: {str(e)}")
+            logger.error(f"Claude research failed for {symbol}: {str(e)}")
             return self._fallback_research(symbol)
     
     def _adapt_strategy(self, symbol: str, reasoning_analysis: Dict[str, Any], current_research: Dict[str, Any]) -> Dict[str, Any]:
