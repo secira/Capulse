@@ -201,11 +201,27 @@ class AgenticAICoordinator:
                 logger.warning("ANTHROPIC_API_KEY not available, using fallback research")
                 return self._fallback_research(symbol)
 
+            # Inject live price from Dhan/NSE so Claude doesn't guess
+            live_price_str = ""
+            try:
+                from services.market_data_gateway import get_price as _gp
+                pr = _gp(symbol.upper())
+                if pr.get('success') and pr.get('value', 0) > 0:
+                    src = pr.get('source_detail') or pr.get('source', 'broker')
+                    live_price_str = (
+                        f"\n\n⚡ LIVE MARKET DATA (from {src}): "
+                        f"Current price of {symbol.upper()} = ₹{pr['value']:,.2f}. "
+                        f"Use this exact price — do NOT estimate."
+                    )
+            except Exception:
+                pass
+
             query = (
                 f"Provide a research summary for {symbol} (Indian stock, NSE). "
                 f"Cover: recent price movements, key financial metrics (P/E, ROE, revenue growth), "
                 f"business developments, analyst outlook, and main risks. "
                 f"Be concise and use ₹ for currency."
+                f"{live_price_str}"
             )
             client = anthropic.Anthropic(api_key=api_key)
             msg = client.messages.create(

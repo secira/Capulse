@@ -26,7 +26,8 @@ class PerplexityService:
         Falls back to Perplexity if available, otherwise Claude is primary.
         """
         try:
-            research_prompt = self._build_research_prompt(symbol, research_type)
+            live_price_ctx = self._get_live_price_context(symbol)
+            research_prompt = self._build_research_prompt(symbol, research_type) + live_price_ctx
 
             # Try Perplexity first if key is available
             if self.api_key:
@@ -144,6 +145,27 @@ class PerplexityService:
             self.logger.error(f"Market insights error: {str(e)}")
             return self._get_fallback_insights()
     
+    def _get_live_price_context(self, symbol: str) -> str:
+        """
+        Fetch the real current price from the market data gateway (Dhan/Zerodha/NSE)
+        and return it as a context string to inject into Claude prompts.
+        Returns '' if price is unavailable so the prompt still works gracefully.
+        """
+        try:
+            from services.market_data_gateway import get_price
+            result = get_price(symbol.upper())
+            if result.get('success') and result.get('value', 0) > 0:
+                price = result['value']
+                source = result.get('source_detail') or result.get('source', 'broker')
+                return (
+                    f"\n\n⚡ LIVE MARKET DATA (fetched from {source}):\n"
+                    f"  Current Price of {symbol.upper()}: ₹{price:,.2f}\n"
+                    f"  Use this exact price in your analysis — do NOT estimate or guess the current price."
+                )
+        except Exception as e:
+            self.logger.debug(f"Live price fetch failed for {symbol}: {e}")
+        return ""
+
     def _call_claude_api(self, prompt: str) -> Optional[str]:
         """Call Anthropic Claude as the primary AI provider."""
         try:

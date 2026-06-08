@@ -278,9 +278,40 @@ Remember: This is educational research - not guaranteed investment advice. Users
         """Perform research using Claude (primary) or Perplexity (if available)."""
         try:
             context_str = self._build_context_string(context)
+
+            # Extract stock symbols from context + query and inject live prices
+            live_price_lines = []
+            try:
+                from services.market_data_gateway import get_price as _gp
+                import re as _re
+                # Symbols from portfolio holdings
+                symbols_to_check = set()
+                for h in context.get('portfolio', {}).get('holdings', []):
+                    sym = h.get('symbol', '').upper()
+                    if sym:
+                        symbols_to_check.add(sym)
+                # Symbols mentioned in the query (2-15 uppercase letters)
+                for tok in _re.findall(r'\b([A-Z]{2,15})\b', query.upper()):
+                    symbols_to_check.add(tok)
+                for sym in list(symbols_to_check)[:10]:  # cap at 10 to avoid slow prompts
+                    pr = _gp(sym)
+                    if pr.get('success') and pr.get('value', 0) > 0:
+                        src = pr.get('source_detail') or pr.get('source', 'broker')
+                        live_price_lines.append(f"  {sym}: ₹{pr['value']:,.2f} (via {src})")
+            except Exception:
+                pass
+
+            live_price_section = ""
+            if live_price_lines:
+                live_price_section = (
+                    "\n\n⚡ LIVE MARKET DATA (fetched from Dhan/NSE — use these exact prices):\n"
+                    + "\n".join(live_price_lines)
+                    + "\nDo NOT estimate or guess current prices — use the values above."
+                )
+
             full_prompt = f"""{context_str}
 
-User Research Query: {query}
+User Research Query: {query}{live_price_section}
 
 Provide comprehensive research with:
 1. **Market Analysis** - Recent trends, volume, and technical indicators
