@@ -67,7 +67,7 @@ class LangGraphTradeExecutor:
         if self._llm is None:
             api_key = os.environ.get("OPENAI_API_KEY", "")
             self._llm = ChatOpenAI(
-                model="gpt-4-turbo-preview",
+                model="gpt-4o",
                 temperature=0.1,
                 api_key=api_key
             )

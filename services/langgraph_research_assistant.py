@@ -54,7 +54,7 @@ class LangGraphResearchAssistant:
         """Lazy-load the LLM"""
         if self._llm is None:
             self._llm = ChatOpenAI(
-                model="gpt-4-turbo-preview",
+                model="gpt-4o",
                 temperature=0.2,
                 api_key=os.environ.get("OPENAI_API_KEY")
             )

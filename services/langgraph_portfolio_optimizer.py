@@ -60,7 +60,7 @@ class LangGraphPortfolioOptimizer:
         """Lazy-load risk LLM"""
         if self._risk_llm is None:
             self._risk_llm = ChatOpenAI(
-                model="gpt-4-turbo-preview",
+                model="gpt-4o",
                 temperature=0.1,
                 api_key=self._get_api_key()
             )
@@ -71,7 +71,7 @@ class LangGraphPortfolioOptimizer:
         """Lazy-load creative LLM"""
         if self._creative_llm is None:
             self._creative_llm = ChatOpenAI(
-                model="gpt-4-turbo-preview",
+                model="gpt-4o",
                 temperature=0.7,
                 api_key=self._get_api_key()
             )
@@ -82,7 +82,7 @@ class LangGraphPortfolioOptimizer:
         """Lazy-load balanced LLM"""
         if self._balanced_llm is None:
             self._balanced_llm = ChatOpenAI(
-                model="gpt-4-turbo-preview",
+                model="gpt-4o",
                 temperature=0.4,
                 api_key=self._get_api_key()
             )

@@ -134,7 +134,7 @@ class LangGraphIScoreEngine:
             if not api_key:
                 logger.warning("OPENAI_API_KEY not set - LLM features will be limited")
             self._llm = ChatOpenAI(
-                model="gpt-4-turbo-preview",
+                model="gpt-4o",
                 temperature=0.1,
                 api_key=api_key
             )
