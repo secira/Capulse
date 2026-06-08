@@ -38,17 +38,17 @@
                             <option value="dhan">Dhan</option>
                             <option value="zerodha">Zerodha</option>
                             <option value="angel_broking">Angel One</option>
+                            <option value="alice_blue">Alice Blue (ANT API)</option>
                         </optgroup>
                         <optgroup label="🔒 Coming Soon">
                             <option value="upstox" disabled>Upstox (Coming Soon)</option>
                             <option value="icicidirect" disabled>ICICI Direct (Coming Soon)</option>
                             <option value="groww" disabled>Groww (Coming Soon)</option>
-                            <option value="alice_blue" disabled>Alice Blue (Coming Soon)</option>
                             <option value="5paisa" disabled>5 Paisa (Coming Soon)</option>
                         </optgroup>
                     </select>
                     <small class="form-text text-muted mt-1 d-block">
-                        <i class="fas fa-info-circle me-1"></i>Currently available: Dhan, Zerodha, and Angel One. Upstox, ICICI Direct, Groww, Alice Blue, and 5 Paisa coming soon.
+                        <i class="fas fa-info-circle me-1"></i>Currently available: Dhan, Zerodha, Angel One, and Alice Blue. Upstox, ICICI Direct, Groww, and 5 Paisa coming soon.
                     </small>
                 </div>
                 
@@ -538,6 +538,19 @@ var BROKER_FIELDS = {
     requestTokenPlaceholder: 'Paste the request_token after login redirect',
     requestTokenHint: 'Generated after OAuth login via Kite.',
     infoBanner: null
+  },
+  alice_blue: {
+    apiKeyLabel: 'Client ID <span class="text-danger">*</span>',
+    apiKeyPlaceholder: 'Your Alice Blue Client ID (e.g. 123456)',
+    apiKeyHint: 'Found at <strong>ant.aliceblueonline.com → My Account → API</strong>.',
+    apiSecretLabel: 'API Secret <span class="text-danger">*</span>',
+    apiSecretPlaceholder: 'Your Alice Blue API Secret',
+    apiSecretHint: 'Generated from the Alice Blue ANT API portal. Keep this private.',
+    requestTokenLabel: 'Session Token (optional)',
+    requestTokenPlaceholder: 'Leave blank — fetched automatically on connect',
+    requestTokenHint: 'Target Capital fetches the session token automatically using your Client ID and API Secret.',
+    infoBanner: 'Alice Blue uses <strong>Client ID</strong> + <strong>API Secret</strong> via the ANT API. ' +
+                'The session token is refreshed automatically each day.'
   }
 };
 

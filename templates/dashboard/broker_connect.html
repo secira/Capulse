@@ -218,8 +218,8 @@
       ('5paisa',        '5 Paisa',           '#e65100', '5P', 'modal-fivepaisa', 'direct'),
       ('dhan',          'Dhan',              '#0f766e', 'D',  'modal-dhan',      'token'),
     ] %}
-    {# Only Zerodha + Angel One + Dhan are fully supported today. The other 5 are coming soon. #}
-    {% set coming_soon_brokers = ['upstox', 'fyers', 'shoonya', 'alice_blue', '5paisa'] %}
+    {# Zerodha, Angel One, Dhan and Alice Blue are fully supported. The rest are coming soon. #}
+    {% set coming_soon_brokers = ['upstox', 'fyers', 'shoonya', '5paisa'] %}
 
     {% for slug, bname, bcolor, letter, modal_id, bauth in other_brokers %}
       {% set matched = broker_catalog | selectattr('type.value', 'equalto', slug) | first %}
