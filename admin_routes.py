@@ -2886,6 +2886,17 @@ def fno_signal_history():
             LIMIT  :lim OFFSET :off
         """), {**params, 'lim': per_page, 'off': offset}).fetchall()
 
+        import pytz as _pytz
+        _IST = _pytz.timezone('Asia/Kolkata')
+
+        def _to_ist(dt):
+            """Convert a naive UTC datetime (from DB) to IST-aware datetime."""
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                dt = _pytz.utc.localize(dt)
+            return dt.astimezone(_IST)
+
         signals = []
         for r in rows:
             signals.append({
@@ -2896,8 +2907,8 @@ def fno_signal_history():
                 'direction':   r[4] or '—',
                 'confidence':  r[5],
                 'outcome':     r[6] or '—',
-                'created_at':  r[7],
-                'exit_time':   r[8],
+                'created_at':  _to_ist(r[7]),
+                'exit_time':   _to_ist(r[8]),
                 'exit_spot':   r[9],
             })
 
