@@ -826,22 +826,36 @@ class NiftyOptionsEngine:
         current_time = now.time()
         if now.weekday() >= 5:
             return {'pass': False, 'reason': 'Weekend — market closed', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
-        # No trades before 9:30 AM
-        if current_time < dtime(9, 30):
-            return {'pass': False, 'reason': 'No trades before 9:30 AM — opening noise window', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
+        # No trades before 10:00 AM — opening 30 min is pure noise
+        # (9:30-10:00 AM: institutions settling overnight gaps, wide spreads,
+        # inflated premiums, high false-signal rate — all historical SL hits
+        # in this window justify blocking it entirely).
+        if current_time < dtime(10, 0):
+            return {'pass': False, 'reason': 'No trades before 10:00 AM — opening noise window', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
         # No trades after 2:59 PM
         if current_time >= dtime(15, 0):
             return {'pass': False, 'reason': 'No trades after 2:59 PM — market closing', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
+        # Opening caution: 10:00–10:15 AM — transition zone, still elevated volatility
+        opening_caution = dtime(10, 0) <= current_time <= dtime(10, 15)
         # Mid-session caution: 12:00–12:30 → index-aware penalty
         # NIFTY genuinely chops at lunch (-10). BANKNIFTY frequently active (-5).
         # FINNIFTY/SENSEX track NIFTY behaviour (-10).
-        caution = dtime(12, 0) <= current_time <= dtime(12, 30)
+        lunch_caution = dtime(12, 0) <= current_time <= dtime(12, 30)
+        caution = opening_caution or lunch_caution
         caution_weight = 0
-        if caution:
+        if opening_caution:
+            caution_weight = 10
+        elif lunch_caution:
             caution_weight = 5 if self.index == 'BANKNIFTY' else 10
+        if caution:
+            reason = ('Opening caution — 10:00–10:15 AM transition zone, confidence reduced'
+                      if opening_caution else
+                      'Mid-session caution — lunch hour, confidence reduced')
+        else:
+            reason = 'Trading window active'
         return {
             'pass': True,
-            'reason': 'Mid-session caution — lunch hour, confidence reduced' if caution else 'Trading window active',
+            'reason': reason,
             'status': 'caution' if caution else 'active',
             'caution': caution,
             'caution_weight': caution_weight,
@@ -1474,6 +1488,7 @@ class NiftyOptionsEngine:
         # (OI moves to advisory-only). Volume above 20-bar avg = participation
         # confirms the move; below = thin/uncommitted move.
         vol_above_avg = False
+        vol_ratio = 1.0  # cur_vol / avg_vol; default 1.0 (assume normal) if unavailable
         try:
             if df is not None and 'Volume' in df.columns and len(df) >= 5:
                 vols = df['Volume'].astype(float).values
@@ -1481,9 +1496,11 @@ class NiftyOptionsEngine:
                 avg_vol = float(sum(vols[-(lookback + 1):-1]) / lookback) if lookback > 0 else 0.0
                 cur_vol = float(vols[-1])
                 if avg_vol > 0:
-                    vol_above_avg = cur_vol >= avg_vol  # at-or-above the 20-bar avg
+                    vol_ratio = cur_vol / avg_vol
+                    vol_above_avg = vol_ratio >= 1.0  # at-or-above the 20-bar avg
         except Exception:
             vol_above_avg = False
+            vol_ratio = 1.0
 
         if df is not None and len(df) >= 10:
             vwap = self._calculate_vwap(df)
@@ -1570,6 +1587,7 @@ class NiftyOptionsEngine:
             'rsi_expanding_up': rsi_up,
             'rsi_expanding_down': rsi_down,
             'volume_above_avg': vol_above_avg,
+            'vol_ratio': round(vol_ratio, 2),
             'oi_role': oi_role,
             'oi_blocks_candidate': oi_block_dir,
             'indicators_aligned': bullish or bearish,
@@ -1745,6 +1763,12 @@ class NiftyOptionsEngine:
         if time_check and time_check.get('caution'):
             score -= int(time_check.get('caution_weight', 10))
 
+        # SENSEX proxy-data penalty — candles are scaled NIFTY data, not real
+        # SENSEX intraday feeds. All VWAP/SuperTrend/EMA values carry an
+        # approximation error that has historically caused consecutive SL hits.
+        if self.index == 'SENSEX':
+            score -= 20
+
         return max(0, min(score, 100))
 
     def _select_strikes(self, spot: float, direction: str) -> List[Dict[str, Any]]:
@@ -1874,6 +1898,14 @@ class NiftyOptionsEngine:
                 logger.warning(f"No option data for {key}, skipping")
                 continue
 
+            # ── Minimum premium filter — skip penny/OTM options ────────
+            # Options below ₹50 have disproportionate SL risk: a ₹15 move
+            # on a ₹30 premium is a -50% hit. The SL can't be set sensibly.
+            MIN_PREMIUM = 50
+            if ltp < MIN_PREMIUM:
+                logger.info(f"Skipping {key}: LTP ₹{ltp:.2f} below minimum premium ₹{MIN_PREMIUM}")
+                continue
+
             # ── Liquidity & execution-quality filters ─────────────────
             bid = float(opt_data.get('bid', 0) or 0)
             ask = float(opt_data.get('ask', 0) or 0)
@@ -1897,10 +1929,17 @@ class NiftyOptionsEngine:
                 sl_points, target_points, target_2_points, target_3_points = _compute_sl_tgt(ltp, self.index)
             except Exception as _cfg_err:
                 logger.warning(f"compute_sl_target_points failed, using legacy defaults: {_cfg_err}")
-                sl_points      = max(20, round(ltp * 0.10))
-                target_points  = max(30, round(ltp * 0.15))
-                target_2_points = max(50, round(ltp * 0.25))
-                target_3_points = max(70, round(ltp * 0.35))
+                sl_points      = max(30, round(ltp * 0.15))
+                target_points  = max(60, round(ltp * 0.30))
+                target_2_points = max(90, round(ltp * 0.45))
+                target_3_points = max(120, round(ltp * 0.60))
+
+            # ── Enforce minimum 1:2 risk-reward regardless of config ────
+            # At a 34% win rate you need ≥ 1:2 R:R just to break even.
+            # Never allow admin config to produce a target smaller than 2× SL.
+            target_points   = max(target_points,   int(round(2.0 * sl_points)))
+            target_2_points = max(target_2_points, int(round(3.0 * sl_points)))
+            target_3_points = max(target_3_points, int(round(4.0 * sl_points)))
 
             entry_price = ltp
             # Floor SL so it never crosses zero (cap at 0.05 minimum tick).
@@ -2172,6 +2211,16 @@ class NiftyOptionsEngine:
         if _estimated_data:
             entry_mode = 'NO TRADE'
 
+        # HARD BLOCK: extremely low volume (< 50% of 20-bar avg) means no participation.
+        # Signals in thin-volume conditions have high false-positive rates — market is
+        # in consolidation/chop. Only block when well below avg, not just below.
+        _vol_ratio = direction.get('vol_ratio', 1.0)
+        if entry_mode != 'NO TRADE' and _vol_ratio < 0.5 and not regime.get('vol_expansion', False):
+            entry_mode = 'NO TRADE'
+            block_reasons.append(
+                f"Volume critically low ({_vol_ratio:.0%} of 20-bar avg) — chop/thin market, no participation"
+            )
+
         # HalfTrend lifecycle hand-off — when HalfTrend has flipped against
         # the chosen direction, suppress new entries (existing positions move
         # to the EXIT_MANAGED_BY_HALFTREND state below).
@@ -2255,10 +2304,10 @@ class NiftyOptionsEngine:
 
         # Unified decision — confidence tiering (per product spec):
         #   ≥75 : Tier 1 — High conviction (Telegram alerts)
-        #   60-74: Tier 2 — Regular signals shown in app/UI
-        #   50-59: Tier 3 — Aggressive traders (shown with caution badge)
-        #   <50 : Blocked
-        TIER_3_FLOOR = 50
+        #   70-74: Tier 2 — Regular signals shown in app/UI
+        #   <70 : Blocked — floor raised from 50 to eliminate low-quality trades
+        #   (historical data: 50-69 "aggressive" signals had disproportionate SL hits)
+        TIER_3_FLOOR = 70
         if entry_mode != 'NO TRADE' and confidence < TIER_3_FLOOR:
             block_reasons.append(f"Confidence too low ({confidence}/100, need {TIER_3_FLOOR}+)")
         is_blocked = entry_mode == 'NO TRADE' or confidence < TIER_3_FLOOR
@@ -2267,10 +2316,8 @@ class NiftyOptionsEngine:
         # Confidence tier label for UI
         if confidence >= 75:
             confidence_tier = 'HIGH_CONVICTION'
-        elif confidence >= 60:
-            confidence_tier = 'REGULAR'
         elif confidence >= TIER_3_FLOOR:
-            confidence_tier = 'AGGRESSIVE'
+            confidence_tier = 'REGULAR'
         else:
             confidence_tier = 'BLOCKED'
         if is_blocked and not block_reasons:

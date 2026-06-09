@@ -612,6 +612,14 @@ with app.app_context():
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_3_points FLOAT DEFAULT 70.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_2_points FLOAT DEFAULT 100.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_3_points FLOAT DEFAULT 140.0',
+        # Widen SL to 15% / enforce 1:2 R:R — update existing rows where values are still at
+        # the old tight defaults. Rows already customised by admin are left untouched.
+        '''UPDATE fno_config SET
+            nifty_sl_points=30, nifty_target_points=60, nifty_target_2_points=90, nifty_target_3_points=120,
+            banknifty_sl_points=60, banknifty_target_points=120, banknifty_target_2_points=180, banknifty_target_3_points=240,
+            finnifty_sl_points=30, finnifty_target_points=60, finnifty_target_2_points=90, finnifty_target_3_points=120,
+            sensex_sl_points=60, sensex_target_points=120, sensex_target_2_points=180, sensex_target_3_points=240
+           WHERE nifty_sl_points <= 20 AND nifty_target_points <= 30''',
         '''INSERT INTO fno_config (telegram_fields, telegram_mode, banknifty_telegram, finnifty_telegram, sensex_telegram)
             SELECT 'header,direction,confidence,entry_mode,spot_atm,trades_list,active_trade,exit_reason,timestamp,dashboard_link',
                    'full', FALSE, FALSE, FALSE

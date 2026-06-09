@@ -31,13 +31,16 @@ FNO_INDICES: List[Tuple[str, str]] = [
 ]
 _INDEX_KEYS = [k for k, _ in FNO_INDICES]
 
-# Sensible per-index defaults (absolute points). Indices trade at very
-# different premium levels, so the defaults differ.
+# Per-index SL/Target defaults (absolute option premium points).
+# R:R is enforced at minimum 1:2 (SL : T1) in the engine regardless of
+# what is stored here. These defaults give 1:2 / 1:3 / 1:4 for T1/T2/T3.
+# Wider SL (15% of typical ATM premium) reduces premature stop-outs on
+# normal intraday noise that historically caused >60% of SL hits.
 _INDEX_DEFAULTS: Dict[str, Dict[str, Any]] = {
-    "NIFTY":     {"sl_points": 20.0, "target_points": 30.0, "target_2_points": 50.0, "target_3_points": 70.0, "telegram": True},
-    "BANKNIFTY": {"sl_points": 40.0, "target_points": 60.0, "target_2_points": 100.0, "target_3_points": 140.0, "telegram": True},
-    "FINNIFTY":  {"sl_points": 20.0, "target_points": 30.0, "target_2_points": 50.0, "target_3_points": 70.0, "telegram": True},
-    "SENSEX":    {"sl_points": 40.0, "target_points": 60.0, "target_2_points": 100.0, "target_3_points": 140.0, "telegram": True},
+    "NIFTY":     {"sl_points": 30.0,  "target_points": 60.0,  "target_2_points": 90.0,  "target_3_points": 120.0, "telegram": True},
+    "BANKNIFTY": {"sl_points": 60.0,  "target_points": 120.0, "target_2_points": 180.0, "target_3_points": 240.0, "telegram": True},
+    "FINNIFTY":  {"sl_points": 30.0,  "target_points": 60.0,  "target_2_points": 90.0,  "target_3_points": 120.0, "telegram": True},
+    "SENSEX":    {"sl_points": 60.0,  "target_points": 120.0, "target_2_points": 180.0, "target_3_points": 240.0, "telegram": True},
 }
 
 

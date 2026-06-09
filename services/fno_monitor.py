@@ -79,6 +79,13 @@ _recent_confidences   = _make_per_index([])
 _last_active_alert    = _make_per_index(None)   # Timestamp of last TRADE_ACTIVE Telegram update
 _active_trade_code    = _make_per_index(None)   # Current trade code (e.g. NIFTYT01)
 
+# ── Cross-index circuit breaker ────────────────────────────────────────────────
+# After 2 consecutive SL hits on ANY index, suppress ALL new trade entries for
+# the rest of the trading session. Prevents cascade losses on bad market days.
+_consecutive_losses  = _make_per_index(0)   # SL-hit streak per index (reset on any non-SL exit)
+_circuit_breaker_on  = False                # True = all indices blocked from new entries
+_circuit_breaker_date = None               # date the breaker was set (auto-resets next day)
+
 _scheduler_started = False
 _fno_app = None          # set by start_scheduler; used inside alert helpers that lack app context
 
@@ -275,11 +282,18 @@ def _close_stale_open_trades(app) -> None:
 
 
 def _reset_daily_if_needed(idx: str):
+    global _circuit_breaker_on, _circuit_breaker_date
     today = _now_ist().date()
     if _daily_date[idx] != today:
         _daily_date[idx]         = today
         _daily_signal_count[idx] = 0
+        _consecutive_losses[idx] = 0
         _persist_alert_state(idx)
+    # Auto-reset circuit breaker on a new calendar day
+    if _circuit_breaker_on and _circuit_breaker_date and _circuit_breaker_date < today:
+        _circuit_breaker_on   = False
+        _circuit_breaker_date = None
+        logger.info("Cross-index circuit breaker reset for new trading day")
 
 
 def _smoothed_confidence(idx: str, raw: int) -> int:
@@ -805,6 +819,12 @@ def _check_active_trade_exit(analysis: dict, idx: str):
 
 def _try_trigger_trade(analysis: dict, idx: str):
     """Returns 'TRADE_TRIGGER' if a new trade should be locked, else None."""
+    global _circuit_breaker_on
+    # Cross-index circuit breaker: 2 consecutive SL hits on any index blocks all.
+    if _circuit_breaker_on:
+        logger.info(f"[{idx}] Circuit breaker ACTIVE — skipping new entry (2+ consecutive losses today)")
+        return None
+
     direction  = analysis.get('trade_direction', 'NEUTRAL')
     confidence = analysis.get('smoothed_confidence', analysis.get('confidence', 0))
     entry_mode = analysis.get('entry_mode', 'NO TRADE')
@@ -938,6 +958,11 @@ def _scan_index(app, idx: str, data_broker_user_id):
                             if _t.get('symbol') == _atm_key_at_exit:
                                 _exit_ltp = float(_t.get('ltp', 0) or 0)
                                 break
+                    # If the current analysis doesn't have the old strike in its
+                    # trades list (e.g. strike shifted out of ATM range at 3PM),
+                    # fall back to the last polled LTP we stored while ACTIVE.
+                    if _exit_ltp <= 0:
+                        _exit_ltp = float(_active_trade[idx].get('last_known_ltp', 0) or 0)
                     analysis['exit_option_ltp'] = _exit_ltp
                     _last_exit_time[idx]    = _now_ist()
                     _active_trade[idx]      = None
@@ -970,6 +995,11 @@ def _scan_index(app, idx: str, data_broker_user_id):
                         if t.get('symbol') == atm_key:
                             ltp = float(t.get('ltp', 0))
                             break
+                    # Keep a rolling snapshot of the option LTP so 3PM square-off
+                    # exits have a real premium price even if the strike shifts
+                    # out of the current analysis's recommended trades list.
+                    if ltp > 0 and _active_trade[idx]:
+                        _active_trade[idx]['last_known_ltp'] = ltp
                     active_info = {
                         'direction':   at.get('direction'),
                         'type':        at.get('type', ''),
@@ -1032,6 +1062,30 @@ def _scan_index(app, idx: str, data_broker_user_id):
                 trade_code=analysis.get('trade_code'),
                 outcome=analysis.get('outcome'),
             )
+
+        # ── Circuit breaker: track consecutive SL hits across all indices ──
+        # After any TRADE_EXIT, update the per-index SL streak.
+        # Two consecutive SL hits on any single index trips the circuit breaker
+        # for ALL indices for the rest of the trading session.
+        if signal_type == 'TRADE_EXIT':
+            global _circuit_breaker_on, _circuit_breaker_date
+            outcome_now = analysis.get('outcome', '')
+            if outcome_now == 'SL HIT':
+                _consecutive_losses[idx] += 1
+                logger.info(
+                    f"[{idx}] SL hit streak: {_consecutive_losses[idx]} consecutive"
+                )
+                if _consecutive_losses[idx] >= 2 and not _circuit_breaker_on:
+                    _circuit_breaker_on   = True
+                    _circuit_breaker_date = _now_ist().date()
+                    logger.warning(
+                        f"[{idx}] ⚡ CIRCUIT BREAKER TRIPPED — "
+                        f"{_consecutive_losses[idx]} consecutive SL hits. "
+                        f"All new entries suppressed for today."
+                    )
+            else:
+                # Any non-SL exit (Target hit / 3PM square-off) resets the streak
+                _consecutive_losses[idx] = 0
 
     except Exception as e:
         logger.error(f"[{idx}] Scan error: {e}", exc_info=True)
