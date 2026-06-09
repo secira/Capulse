@@ -126,7 +126,7 @@
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
                             </div>
-                            <div class="form-text" id="livePriceHint">Fills automatically when you complete the asset details above.</div>
+                            <div class="form-text" id="livePriceHint">Optional — click ↻ for spot/index reference. Enter option premium below manually.</div>
                         </div>
 
                         <div class="col-md-4 mb-3">
@@ -227,7 +227,6 @@ function updateFormFields() {
         optionFields.style.display = 'none';
         strikePriceInput.required = false;
     }
-    maybeAutoFetch();
 }
 
 // ── Live price auto-fetch ─────────────────────────────────────────────
@@ -295,10 +294,6 @@ async function fetchLivePrice(silent) {
         if (data.success && data.price) {
             input.value = data.price;
             _lastFetchKey = _formKey();
-            // Also seed Buy Above with the live price if it's empty,
-            // so the admin only has to tweak it.
-            const buyAbove = document.querySelector('input[name="buy_above"]');
-            if (buyAbove && !buyAbove.value) buyAbove.value = data.price;
             hint.textContent = `Live: ₹${data.price} (${data.source}) — ${data.label}`;
             hint.className   = 'form-text text-success';
         } else if (data.soft) {
@@ -321,16 +316,8 @@ async function fetchLivePrice(silent) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    ['symbol', 'strikePrice'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('input', maybeAutoFetch);
-    });
-    const exp = document.getElementById('expiryDate');
-    if (exp) exp.addEventListener('change', maybeAutoFetch);
-    ['assetType', 'subType'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('change', maybeAutoFetch);
-    });
+    // No auto-fetch on field changes — admin enters all price values manually.
+    // Use the ↻ button next to Current Market Price to fetch spot price on demand.
 });
 </script>
 {% endblock %}
