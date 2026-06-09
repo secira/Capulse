@@ -3025,6 +3025,7 @@ class DailyTradingSignal(db.Model):
     profit_points = db.Column(db.Numeric(12, 2), nullable=True, default=0)
     loss_points = db.Column(db.Numeric(12, 2), nullable=True, default=0)
     final_points = db.Column(db.Numeric(12, 2), nullable=True, default=0)
+    exit_price = db.Column(db.Numeric(12, 2), nullable=True)  # Actual exit price (premium at close)
     trade_outcome = db.Column(db.String(50), nullable=True)  # '1st Target', '2nd Target', 'Stop Loss Hit', 'Early Exit'
     
     # Status

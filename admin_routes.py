@@ -1774,29 +1774,47 @@ def update_signal_status(signal_id):
     signal = DailyTradingSignal.query.get_or_404(signal_id)
     
     try:
-        new_status = request.form.get('status')
-        trade_outcome = request.form.get('trade_outcome')
-        profit_points = request.form.get('profit_points')
-        loss_points = request.form.get('loss_points')
-        
-        signal.status = new_status
+        new_status    = request.form.get('status', '').strip()
+        trade_outcome = request.form.get('trade_outcome', '').strip()
+        exit_price_raw = request.form.get('exit_price', '').strip()
+        final_pts_raw  = request.form.get('final_points', '').strip()
+
+        signal.status        = new_status
         signal.trade_outcome = trade_outcome
-        
-        if profit_points:
-            signal.profit_points = float(profit_points)
-        if loss_points:
-            signal.loss_points = float(loss_points)
-        
-        if new_status in ['TARGET_1_HIT', 'TARGET_2_HIT', 'SL_HIT', 'CLOSED', 'EXPIRED']:
-            signal.closed_at = datetime.utcnow()
-        
+
+        # Exit price (premium at which the trade was closed)
+        if exit_price_raw:
+            signal.exit_price = float(exit_price_raw)
+
+        # final_points: use direct input if provided, otherwise derive from entry vs exit
+        if final_pts_raw:
+            signal.final_points = float(final_pts_raw)
+        elif exit_price_raw and signal.buy_above:
+            signal.final_points = float(exit_price_raw) - float(signal.buy_above)
+        else:
+            # Legacy path: profit_points - loss_points
+            profit_p = request.form.get('profit_points', '').strip()
+            loss_p   = request.form.get('loss_points', '').strip()
+            if profit_p:
+                signal.profit_points = float(profit_p)
+            if loss_p:
+                signal.loss_points = float(loss_p)
+            p = float(signal.profit_points or 0)
+            l = float(signal.loss_points or 0)
+            if p or l:
+                signal.final_points = p - l
+
+        if new_status in ['TARGET_1_HIT', 'TARGET_2_HIT', 'TARGET_3_HIT', 'SL_HIT', 'CLOSED', 'EXPIRED']:
+            if not signal.closed_at:
+                signal.closed_at = datetime.utcnow()
+
         db.session.commit()
-        flash(f'Signal #{signal.signal_number} status updated to {new_status}!', 'success')
-        
+        flash(f'Signal #{signal.signal_number} updated — outcome: {trade_outcome or new_status}', 'success')
+
     except Exception as e:
         db.session.rollback()
         flash(f'Error updating status: {str(e)}', 'error')
-    
+
     return redirect(url_for('admin.daily_signals'))
 
 

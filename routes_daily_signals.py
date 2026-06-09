@@ -1225,7 +1225,10 @@ def our_signals_pnl_api():
     query = DailyTradingSignal.query.filter(
         DailyTradingSignal.signal_date >= from_date,
         DailyTradingSignal.trade_outcome.isnot(None),
-        DailyTradingSignal.final_points.isnot(None),
+        db.or_(
+            DailyTradingSignal.final_points.isnot(None),
+            DailyTradingSignal.exit_price.isnot(None),
+        ),
     )
     if asset_filter != 'ALL':
         query = query.filter(DailyTradingSignal.asset_type == asset_filter)
@@ -1253,16 +1256,24 @@ def our_signals_pnl_api():
         for s in msigs:
             fp    = float(s.final_points) if s.final_points is not None else None
             entry = float(s.buy_above)    if s.buy_above else None
+            # Prefer actual exit_price; fall back to entry + final_points
+            exit_price_val = float(s.exit_price) if getattr(s, 'exit_price', None) else None
+            exit_val = exit_price_val if exit_price_val is not None else (
+                round(entry + fp, 2) if (entry and fp is not None) else None
+            )
+            # Recalculate fp from exit_price if we have it and fp is missing
+            if fp is None and exit_price_val is not None and entry:
+                fp = round(exit_price_val - entry, 2)
             pnl_pct = round(fp / entry * 100, 1) if (fp is not None and entry and entry > 0) else None
-            exit_val = round(entry + fp, 2) if (entry and fp is not None) else None
 
             oc = s.trade_outcome or ''
-            if '1st' in oc or 'Target 1' in oc:   outcome = 'TARGET 1'
-            elif '2nd' in oc or 'Target 2' in oc:  outcome = 'TARGET 2'
-            elif '3rd' in oc or 'Target 3' in oc:  outcome = 'TARGET 3'
-            elif 'Stop Loss' in oc:                 outcome = 'SL HIT'
-            elif 'Early Exit' in oc:                outcome = 'EARLY EXIT'
-            else:                                    outcome = oc
+            oc_up = oc.upper()
+            if 'TARGET 1' in oc_up or '1ST' in oc_up:  outcome = 'TARGET 1 HIT'
+            elif 'TARGET 2' in oc_up or '2ND' in oc_up: outcome = 'TARGET 2 HIT'
+            elif 'TARGET 3' in oc_up or '3RD' in oc_up: outcome = 'TARGET 3 HIT'
+            elif 'STOP LOSS' in oc_up or 'SL HIT' in oc_up: outcome = 'SL HIT'
+            elif 'EARLY EXIT' in oc_up:                  outcome = 'EARLY EXIT'
+            else:                                          outcome = oc
 
             entry_ist = (
                 (s.created_at + timedelta(hours=5, minutes=30)).strftime('%H:%M')
