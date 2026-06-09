@@ -176,6 +176,30 @@
 .risk-live-lbl{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.3px}
 @keyframes fno-pulse-bg{0%,100%{background:#dc2626}50%{background:#b91c1c}}
 @keyframes fno-dot-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.6)}}
+
+/* ── Today's Trade Recommendations — P&L table style ── */
+.sh-pill{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.sh-pill-green{background:#dcfce7;color:#15803d}
+.sh-pill-red{background:#fee2e2;color:#dc2626}
+.sh-pill-blue{background:#dbeafe;color:#2563eb}
+.sh-pill-gray{background:#f1f5f9;color:#64748b}
+.sh-pill-amber{background:#fef3c7;color:#d97706}
+
+.sh-table{width:100%;border-collapse:collapse;font-size:12px}
+.sh-table th{background:#f8fafc;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:9px 12px;text-align:left;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+.sh-table td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle}
+.sh-table tr:last-child td{border-bottom:none}
+.sh-table tr:hover td{background:#fafbfc}
+
+.sh-ob{padding:3px 9px;border-radius:6px;font-size:10px;font-weight:700;white-space:nowrap}
+.sh-ob-target{background:#dcfce7;color:#15803d}
+.sh-ob-sl{background:#fee2e2;color:#dc2626}
+.sh-ob-time{background:#fef3c7;color:#d97706}
+.sh-ob-active{background:#dbeafe;color:#1d4ed8;animation:pulse-dot 1.5s infinite}
+
+.sh-pnl-pos{color:#15803d;font-weight:800}
+.sh-pnl-neg{color:#dc2626;font-weight:800}
+.sh-pnl-na{color:#94a3b8;font-weight:600}
 </style>
 
 <div class="spinner-overlay" id="loadingOverlay">
@@ -1245,8 +1269,6 @@ function loadSignalHistory() {
             html +=     '</div>';
             html +=     '<span style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;animation:pulse-dot 1.5s infinite">🔴 LIVE</span>';
             html +=   '</div>';
-            // Key trade details grid
-            html +=   '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">';
             var cells = [
                 {lbl:'Direction', val: dirEmoji + ' ' + at.direction, bg: dirBg, color: dirColor},
                 {lbl:'Option Type', val: optType, bg: '#f8fafc', color: '#1e293b'},
@@ -1259,6 +1281,7 @@ function loadSignalHistory() {
                 {lbl:'Time In Trade', val: elapsed + ' min', bg: '#f8fafc', color: '#1e293b'},
                 {lbl:'Time Remaining', val: remaining + ' min', bg: '#fefce8', color: '#a16207'},
             ];
+            html +=   '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">';
             cells.forEach(function(c) {
                 html += '<div style="background:' + c.bg + ';border-radius:8px;padding:8px 10px;text-align:center">';
                 html +=   '<div style="font-size:10px;color:#64748b;font-weight:600;margin-bottom:3px">' + c.lbl + '</div>';
@@ -1266,7 +1289,6 @@ function loadSignalHistory() {
                 html += '</div>';
             });
             html +=   '</div>';
-            // Progress bar (elapsed / 30 min max)
             html +=   '<div style="margin-top:4px">';
             html +=     '<div style="display:flex;justify-content:space-between;font-size:10px;color:#64748b;margin-bottom:4px">';
             html +=       '<span>Trade duration</span><span>' + elapsed + ' / 30 min</span>';
@@ -1286,151 +1308,127 @@ function loadSignalHistory() {
             return;
         }
 
-        // Track closed-trade P&L for cumulative summary
-        var cumPnl = [];   // array of {pnl_pct, pnl_sign} for trades with known P&L
-
+        // ── Build exit-signal map keyed by trade_code ──
+        var exitMap = {};
         res.data.forEach(function(s) {
-            if (s.signal_type === 'TRADE_TRIGGER') {
-                // ── Recommendation card ──
-                var dirColor  = s.direction === 'BULLISH' ? '#15803d' : '#dc2626';
-                var dirBg     = s.direction === 'BULLISH' ? '#dcfce7'  : '#fee2e2';
-                var dirEmoji  = s.direction === 'BULLISH' ? '▲' : '▼';
-                var isLive    = _activeTradeData && _activeTradeData.trade_code === s.trade_code;
-                var hasDone   = s.outcome ? true : false;
-                var cardBg    = hasDone ? '#f8fafc' : 'linear-gradient(135deg,#f0fdf4,#dcfce7)';
-                var cardBdr   = hasDone ? '#e2e8f0' : '#16a34a';
-                if (isLive) { cardBg = 'linear-gradient(135deg,#eff6ff,#dbeafe)'; cardBdr = '#2563eb'; }
-
-                html += '<div style="border:2px solid ' + cardBdr + ';border-radius:10px;padding:14px 16px;margin-bottom:10px;background:' + cardBg + '">';
-                html +=   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
-                html +=     '<div style="display:flex;align-items:center;gap:8px">';
-                html +=       '<span style="background:#1e293b;color:#fff;font-size:11px;font-weight:800;padding:3px 9px;border-radius:6px;letter-spacing:.5px">' + (s.trade_code || '—') + '</span>';
-                html +=       '<span style="background:' + dirBg + ';color:' + dirColor + ';font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">' + dirEmoji + ' ' + s.direction + '</span>';
-                if (isLive) html += '<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">🔴 LIVE</span>';
-                html +=     '</div>';
-                html +=     '<span style="color:#94a3b8;font-size:11px">🔒 Locked ' + s.created_at + '</span>';
-                html +=   '</div>';
-                // Detail row
-                html +=   '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">';
-                var entryPremLabel = s.entry_premium ? '₹' + s.entry_premium.toFixed(0) : '—';
-                var det = [
-                    {lbl:'Confidence', val: s.confidence + '/100'},
-                    {lbl:'Spot', val: '₹' + fmt(s.spot_price)},
-                    {lbl:'ATM Strike', val: s.atm_strike || '—'},
-                    {lbl:'Entry Mode', val: s.entry_mode || '—'},
-                    {lbl:'ATM Entry ₹', val: entryPremLabel},
-                ];
-                det.forEach(function(d) {
-                    html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;text-align:center">';
-                    html +=   '<div style="font-size:9px;color:#94a3b8;font-weight:600;margin-bottom:2px">' + d.lbl + '</div>';
-                    html +=   '<div style="font-size:12px;font-weight:700;color:#1e293b">' + d.val + '</div>';
-                    html += '</div>';
-                });
-                html +=   '</div>';
-                html += '</div>';
-
-                // ── All 3 trade options (ATM / OTM / ITM) ──────────────
-                if (s.all_trades && s.all_trades.length > 0) {
-                    var mLabels = {ATM: '⭐ Recommended', OTM: '⚠️ Aggressive', ITM: '🛡️ Conservative'};
-                    var mColors = {ATM: '#2563eb', OTM: '#d97706', ITM: '#16a34a'};
-                    var mBgs    = {ATM: '#dbeafe',  OTM: '#fef3c7', ITM: '#dcfce7'};
-                    html += '<div style="display:grid;grid-template-columns:repeat(' + s.all_trades.length + ',1fr);gap:10px;margin-top:12px">';
-                    s.all_trades.forEach(function(t) {
-                        var mn  = (t.moneyness || 'ATM').toUpperCase();
-                        var clr = mColors[mn] || '#2563eb';
-                        var bg  = mBgs[mn]    || '#dbeafe';
-                        var lbl = mLabels[mn] || mn;
-                        var isCE = (t.type || '').toUpperCase() === 'CE';
-                        var typBg = isCE ? '#dcfce7' : '#fee2e2';
-                        var typCl = isCE ? '#15803d' : '#dc2626';
-                        html += '<div style="background:#fff;border:2px solid ' + clr + ';border-radius:10px;overflow:hidden">';
-                        html +=   '<div style="background:' + bg + ';padding:8px 12px;display:flex;align-items:center;justify-content:space-between">';
-                        html +=     '<span style="font-size:11px;font-weight:800;color:' + clr + '">' + lbl + '</span>';
-                        html +=     '<span style="background:' + typBg + ';color:' + typCl + ';font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px">' + (t.label || t.type) + '</span>';
-                        html +=   '</div>';
-                        html +=   '<div style="padding:10px 12px">';
-                        html +=     '<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:8px">' + (t.symbol || '—') + '</div>';
-                        html +=     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px">';
-                        html +=       '<div style="color:#64748b">Entry</div><div style="font-weight:700;color:#1e293b">₹' + (t.entry_price || t.ltp || 0).toFixed(0) + '</div>';
-                        html +=       '<div style="color:#15803d">🎯 T1</div><div style="font-weight:700;color:#15803d">₹' + (t.target || 0).toFixed(0) + ' <span style="color:#94a3b8">(+' + (t.target_points || 0) + ')</span></div>';
-                        if (t.target_2) {
-                            html += '<div style="color:#15803d">🎯 T2</div><div style="font-weight:700;color:#15803d">₹' + (t.target_2 || 0).toFixed(0) + ' <span style="color:#94a3b8">(+' + (t.target_2_points || 0) + ')</span></div>';
-                        }
-                        if (t.target_3) {
-                            html += '<div style="color:#15803d">🎯 T3</div><div style="font-weight:700;color:#15803d">₹' + (t.target_3 || 0).toFixed(0) + ' <span style="color:#94a3b8">(+' + (t.target_3_points || 0) + ')</span></div>';
-                        }
-                        html +=       '<div style="color:#dc2626">🛑 SL</div><div style="font-weight:700;color:#dc2626">₹' + (t.sl || 0).toFixed(0) + ' <span style="color:#94a3b8">(−' + (t.sl_points || 0) + ')</span></div>';
-                        html +=       '<div style="color:#64748b">R:R</div><div style="font-weight:700;color:#1e293b">' + (t.risk_reward || '—') + '</div>';
-                        html +=     '</div>';
-                        if (t.suggested_for) {
-                            html += '<div style="margin-top:6px;font-size:10px;color:#94a3b8"><i class="fas fa-user-check me-1"></i>' + t.suggested_for + '</div>';
-                        }
-                        html +=   '</div>';
-                        html += '</div>';
-                    });
-                    html += '</div>';
-                }
-
-            } else if (s.signal_type === 'TRADE_EXIT') {
-                // ── Outcome card ──
-                var outcome = s.outcome || 'EXITED';
-                var isTarget = outcome === 'TARGET HIT';
-                var isSL     = outcome === 'SL HIT';
-                var outcomeColor = isTarget ? '#15803d' : isSL ? '#dc2626' : '#d97706';
-                var outcomeBg    = isTarget ? '#dcfce7' : isSL ? '#fee2e2' : '#fef3c7';
-                var outcomeBdr   = isTarget ? '#16a34a' : isSL ? '#dc2626' : '#f59e0b';
-                var outcomeIcon  = isTarget ? '✅' : isSL ? '❌' : '⏱';
-
-                // P&L badge
-                var pnlHtml = '';
-                if (s.pnl_pct !== null && s.pnl_pct !== undefined) {
-                    var pnlPos  = s.pnl_pct >= 0;
-                    var pnlSign = pnlPos ? '+' : '';
-                    var pnlBg   = pnlPos ? '#15803d' : '#dc2626';
-                    pnlHtml = '<span style="background:' + pnlBg + ';color:#fff;font-size:12px;font-weight:800;padding:3px 10px;border-radius:8px">'
-                            + pnlSign + s.pnl_pct.toFixed(1) + '% ATM</span>';
-                    cumPnl.push(s.pnl_pct);
-                } else if (outcome === 'TIME EXIT') {
-                    pnlHtml = '<span style="background:#6b7280;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px">P&L N/A (Time Exit)</span>';
-                }
-
-                html += '<div style="border:2px solid ' + outcomeBdr + ';border-radius:10px;padding:12px 16px;margin-bottom:10px;margin-left:20px;background:' + outcomeBg + '">';
-                // Top row: icon + trade info + P&L badge
-                html +=   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:' + (s.entry_premium ? '8' : '0') + 'px">';
-                html +=     '<div style="display:flex;align-items:center;gap:8px">';
-                html +=       '<span style="font-size:16px">' + outcomeIcon + '</span>';
-                html +=       '<div>';
-                html +=         '<div style="font-size:12px;font-weight:800;color:' + outcomeColor + '">' + (s.trade_code || '') + ' — ' + outcome + '</div>';
-                html +=         '<div style="font-size:10px;color:#64748b">Exited at ' + (s.exit_time || s.created_at);
-                if (s.exit_spot) html += ' · Spot ₹' + fmt(s.exit_spot);
-                html +=         '</div>';
-                html +=       '</div>';
-                html +=     '</div>';
-                html +=     '<div style="display:flex;align-items:center;gap:6px">';
-                if (pnlHtml) html += pnlHtml;
-                html +=     '</div>';
-                html +=   '</div>';
-                // Premium detail row (entry → exit)
-                if (s.entry_premium) {
-                    var exitLabel = s.exit_premium ? '₹' + s.exit_premium.toFixed(0) : 'N/A';
-                    var arrowColor = (s.exit_premium && s.exit_premium >= s.entry_premium) ? '#15803d' : '#dc2626';
-                    html += '<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:rgba(255,255,255,0.6);border-radius:6px;font-size:11px">';
-                    html +=   '<span style="color:#64748b">ATM Option Premium:</span>';
-                    html +=   '<span style="font-weight:700;color:#1e293b">₹' + s.entry_premium.toFixed(0) + '</span>';
-                    html +=   '<span style="color:#94a3b8">→</span>';
-                    html +=   '<span style="font-weight:700;color:' + arrowColor + '">' + exitLabel + '</span>';
-                    if (s.pnl_pct !== null && s.pnl_pct !== undefined) {
-                        var diff = s.exit_premium - s.entry_premium;
-                        var diffSign = diff >= 0 ? '+' : '';
-                        html += '<span style="color:' + arrowColor + ';font-weight:600">(' + diffSign + diff.toFixed(0) + ' pts)</span>';
-                    }
-                    html += '</div>';
-                }
-                html += '</div>';
+            if (s.signal_type === 'TRADE_EXIT' && s.trade_code) {
+                exitMap[s.trade_code] = s;
             }
         });
 
-        // ── Cumulative P&L summary ─────────────────────────────────
+        // ── Collect TRADE_TRIGGER entries ──
+        var triggers = res.data.filter(function(s) { return s.signal_type === 'TRADE_TRIGGER'; });
+
+        if (triggers.length === 0 && !_activeTradeData) {
+            container.innerHTML = html || '<p class="text-muted text-center py-3" style="font-size:13px">No trade recommendations today.</p>';
+            return;
+        }
+
+        // ── Day summary bar ──
+        var dayWins = 0, dayLosses = 0, dayActive = 0, dayTimeExit = 0;
+        triggers.forEach(function(s) {
+            var ex = exitMap[s.trade_code];
+            if (!ex) {
+                if (_activeTradeData && _activeTradeData.trade_code === s.trade_code) dayActive++;
+                return;
+            }
+            var oc = ex.outcome || '';
+            if (oc.indexOf('TARGET') === 0) dayWins++;
+            else if (oc === 'SL HIT') dayLosses++;
+            else dayTimeExit++;
+        });
+
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:10px 14px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">';
+        html +=   '<span style="font-size:12px;font-weight:700;color:#64748b"><i class="fas fa-calendar-day me-1"></i>Today:</span>';
+        html +=   '<span class="sh-pill sh-pill-blue">' + triggers.length + ' trade' + (triggers.length !== 1 ? 's' : '') + '</span>';
+        if (dayWins    > 0) html += '<span class="sh-pill sh-pill-green">✅ ' + dayWins + ' Target Hit</span>';
+        if (dayLosses  > 0) html += '<span class="sh-pill sh-pill-red">❌ ' + dayLosses + ' SL Hit</span>';
+        if (dayTimeExit > 0) html += '<span class="sh-pill sh-pill-amber">⏱ ' + dayTimeExit + ' Time Exit</span>';
+        if (dayActive  > 0) html += '<span class="sh-pill sh-pill-blue">🔵 ' + dayActive + ' Active</span>';
+        html += '</div>';
+
+        // ── Table ──
+        html += '<div style="overflow-x:auto">';
+        html += '<table class="sh-table"><thead><tr>';
+        ['Trade','Direction','Spot','ATM Strike','Entry Time','Entry ₹','Exit Time','Exit ₹','Points','P&L %','Status'].forEach(function(c) {
+            html += '<th>' + c + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+
+        var cumPnl = [];
+        triggers.forEach(function(s) {
+            var ex       = exitMap[s.trade_code] || null;
+            var isLive   = _activeTradeData && _activeTradeData.trade_code === s.trade_code;
+            var outcome  = ex ? (ex.outcome || 'EXITED') : (isLive ? 'ACTIVE' : null);
+
+            var isTarget    = outcome && outcome.indexOf('TARGET') === 0;
+            var isSLHit     = outcome === 'SL HIT';
+            var isActive    = outcome === 'ACTIVE';
+            var isTimeExit  = outcome === 'TIME EXIT' || outcome === 'EXITED';
+
+            var dirColor = s.direction === 'BULLISH' ? '#15803d' : '#dc2626';
+            var dirBg    = s.direction === 'BULLISH' ? '#dcfce7' : '#fee2e2';
+            var dirEmoji = s.direction === 'BULLISH' ? '▲' : '▼';
+
+            var entryPrem = (s.entry_premium !== null && s.entry_premium !== undefined)
+                          ? '₹' + parseFloat(s.entry_premium).toFixed(0) : '—';
+
+            var exitPremHtml, exitTimeHtml;
+            if (ex && ex.exit_premium !== null && ex.exit_premium !== undefined) {
+                var arrowClr = parseFloat(ex.exit_premium) >= parseFloat(s.entry_premium || 0) ? '#15803d' : '#dc2626';
+                exitPremHtml = '<span style="font-weight:700;color:' + arrowClr + '">₹' + parseFloat(ex.exit_premium).toFixed(0) + '</span>';
+                exitTimeHtml = '<span style="font-size:11px;color:#64748b">' + (ex.exit_time || ex.created_at || '—') + '</span>';
+            } else if (isLive) {
+                exitPremHtml = '<span style="color:#2563eb;font-weight:700">Live</span>';
+                exitTimeHtml = '<span style="color:#2563eb;font-size:11px">In progress</span>';
+            } else {
+                exitPremHtml = '<span style="color:#94a3b8">—</span>';
+                exitTimeHtml = '<span style="color:#94a3b8">—</span>';
+            }
+
+            var ptsHtml = '<span class="sh-pnl-na">—</span>';
+            var pnlHtml = '<span class="sh-pnl-na">—</span>';
+            if (ex && ex.exit_premium !== null && s.entry_premium !== null &&
+                ex.exit_premium !== undefined && s.entry_premium !== undefined) {
+                var diff = parseFloat(ex.exit_premium) - parseFloat(s.entry_premium);
+                var dSign = diff >= 0 ? '+' : '';
+                var ptsClass = diff >= 0 ? 'sh-pnl-pos' : 'sh-pnl-neg';
+                ptsHtml = '<span class="' + ptsClass + '">' + dSign + diff.toFixed(0) + ' pts</span>';
+            }
+            if (ex && ex.pnl_pct !== null && ex.pnl_pct !== undefined) {
+                var pSign = ex.pnl_pct >= 0 ? '+' : '';
+                var pClass = ex.pnl_pct >= 0 ? 'sh-pnl-pos' : 'sh-pnl-neg';
+                pnlHtml = '<span class="' + pClass + '">' + pSign + parseFloat(ex.pnl_pct).toFixed(1) + '%</span>';
+                cumPnl.push(ex.pnl_pct);
+            }
+
+            var statusHtml;
+            if (isTarget)   statusHtml = '<span class="sh-ob sh-ob-target">✅ Target Hit</span>';
+            else if (isSLHit)    statusHtml = '<span class="sh-ob sh-ob-sl">❌ SL Hit</span>';
+            else if (isActive)   statusHtml = '<span class="sh-ob sh-ob-active">🔵 Active</span>';
+            else if (isTimeExit) statusHtml = '<span class="sh-ob sh-ob-time">⏱ Time Exit</span>';
+            else                 statusHtml = '<span class="sh-ob sh-ob-time">⏳ Pending</span>';
+
+            var trStyle = isTarget ? 'background:#f0fdf4' : isSLHit ? 'background:#fff5f5' : isActive ? 'background:#eff6ff' : '';
+
+            html += '<tr style="' + trStyle + '">';
+            html +=   '<td><strong style="color:#1e293b">' + (s.trade_code || '—') + '</strong></td>';
+            html +=   '<td><span style="background:' + dirBg + ';color:' + dirColor + ';padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700">' + dirEmoji + ' ' + s.direction + '</span></td>';
+            html +=   '<td style="color:#64748b">₹' + fmt(s.spot_price) + '</td>';
+            html +=   '<td style="font-weight:700">' + (s.atm_strike || '—') + '</td>';
+            html +=   '<td style="font-size:11px;color:#64748b">' + (s.created_at || '—') + '</td>';
+            html +=   '<td style="font-weight:700">' + entryPrem + '</td>';
+            html +=   '<td>' + exitTimeHtml + '</td>';
+            html +=   '<td>' + exitPremHtml + '</td>';
+            html +=   '<td>' + ptsHtml + '</td>';
+            html +=   '<td>' + pnlHtml + '</td>';
+            html +=   '<td>' + statusHtml + '</td>';
+            html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+
+        // ── Cumulative P&L summary ──
         if (cumPnl.length > 0) {
             var totalPnl = cumPnl.reduce(function(a, b) { return a + b; }, 0);
             var wins     = cumPnl.filter(function(p) { return p > 0; }).length;
@@ -1441,13 +1439,12 @@ function loadSignalHistory() {
             var cumColor = totalPos ? '#15803d' : '#dc2626';
             var cumSign  = totalPos ? '+' : '';
             var winRate  = Math.round(wins / cumPnl.length * 100);
-
-            html += '<div style="border:2px solid ' + cumBdr + ';border-radius:10px;padding:12px 16px;margin-top:4px;background:' + cumBg + '">';
-            html +=   '<div style="display:flex;align-items:center;justify-content:space-between">';
-            html +=     '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Today\'s Cumulative P&L (ATM)</div>';
-            html +=     '<div style="display:flex;align-items:center;gap:10px">';
-            html +=       '<span style="font-size:16px;font-weight:800;color:' + cumColor + '">' + cumSign + totalPnl.toFixed(1) + '%</span>';
-            html +=       '<span style="font-size:11px;color:#64748b">' + wins + 'W / ' + losses + 'L · ' + winRate + '% Win Rate</span>';
+            html += '<div style="border:2px solid ' + cumBdr + ';border-radius:10px;padding:12px 16px;margin-top:12px;background:' + cumBg + '">';
+            html +=   '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
+            html +=     '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px"><i class="fas fa-chart-bar me-1"></i>Today\'s Cumulative P&amp;L (ATM)</div>';
+            html +=     '<div style="display:flex;align-items:center;gap:12px">';
+            html +=       '<span style="font-size:18px;font-weight:800;color:' + cumColor + '">' + cumSign + totalPnl.toFixed(1) + '%</span>';
+            html +=       '<span style="font-size:11px;color:#64748b">' + wins + 'W / ' + losses + 'L &nbsp;·&nbsp; ' + winRate + '% Win Rate</span>';
             html +=     '</div>';
             html +=   '</div>';
             html += '</div>';
