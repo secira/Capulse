@@ -257,6 +257,21 @@
         </div>
         <div id="priceNote" class="text-muted mt-1" style="font-size:11px;">Price will be at best available market price</div>
 
+        <!-- F&O Lot Suggestion Banner — shown only when arriving from F&O Research -->
+        <div id="fnoLotSuggestion" style="display:none;margin-top:8px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-1">
+                <div>
+                    <i class="fas fa-calculator me-1" style="color:#3b82f6;"></i>
+                    <strong>F&amp;O Research Suggestion:</strong>
+                    <span id="fnoLotSuggestionText"></span>
+                </div>
+                <span style="font-size:11px;color:#6b7280;font-style:italic;" id="fnoLotCapitalNote"></span>
+            </div>
+            <div style="margin-top:4px;font-size:11px;color:#374151;">
+                <i class="fas fa-info-circle me-1 text-primary"></i>Based on 1% capital risk rule. You can adjust the quantity above.
+            </div>
+        </div>
+
         <!-- More Options toggle -->
         <button type="button" class="tn-more" id="moreOptionsToggle" onclick="toggleMoreOptions()">
             <i class="fas fa-cog"></i> More Options
@@ -892,6 +907,23 @@ function prePopulateForm(urlParams) {
     if (quantity && parseInt(quantity) > 0) {
         var qEl = document.getElementById('quantityInput');
         if (qEl) qEl.value = parseInt(quantity);
+    }
+
+    // F&O lot suggestion banner
+    var suggestedLots = parseInt(urlParams.get('suggested_lots') || '0');
+    var lotSize       = parseInt(urlParams.get('lot_size')       || '0');
+    var capital       = parseInt(urlParams.get('capital')        || '0');
+    var banner = document.getElementById('fnoLotSuggestion');
+    if (banner && suggestedLots > 0 && lotSize > 0) {
+        var totalQty = suggestedLots * lotSize;
+        document.getElementById('fnoLotSuggestionText').textContent =
+            suggestedLots + (suggestedLots === 1 ? ' lot' : ' lots') +
+            ' × ' + lotSize + ' = ' + totalQty + ' qty';
+        if (capital > 0) {
+            document.getElementById('fnoLotCapitalNote').textContent =
+                'Capital: ₹' + capital.toLocaleString('en-IN');
+        }
+        banner.style.display = 'block';
     }
 
     // Asset dropdown: find or inject. Suppress the change handler's own
