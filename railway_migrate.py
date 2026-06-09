@@ -91,6 +91,14 @@ def ensure_raw_tables(session):
             created_at TIMESTAMP DEFAULT NOW()
         )""", "fno_signal_history"),
 
+        ("""CREATE TABLE IF NOT EXISTS fno_config (
+            id              SERIAL PRIMARY KEY,
+            telegram_fields TEXT         DEFAULT '',
+            telegram_mode   VARCHAR(10)  DEFAULT 'teaser',
+            updated_at      TIMESTAMP    DEFAULT NOW(),
+            updated_by      VARCHAR(100)
+        )""", "fno_config"),
+
         ("""CREATE TABLE IF NOT EXISTS data_api_broker (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
@@ -753,6 +761,84 @@ def ensure_missing_columns(session):
     ]
     for ddl, label in cols:
         _col(session, ddl, label)
+
+    # ── fno_config ────────────────────────────────────────────
+    # Per-index SL/Target points, Telegram flags, and telegram_mode.
+    # Defaults here use the new wider 1:2 R:R values (SL 15%, T1 30%):
+    #   NIFTY/FINNIFTY: SL=30, T1=60, T2=90,  T3=120
+    #   BANKNIFTY/SENSEX: SL=60, T1=120, T2=180, T3=240
+    cols = [
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS nifty_sl_points FLOAT DEFAULT 30.0",            "fno_config.nifty_sl_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS nifty_target_points FLOAT DEFAULT 60.0",        "fno_config.nifty_target_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS nifty_target_2_points FLOAT DEFAULT 90.0",      "fno_config.nifty_target_2_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS nifty_target_3_points FLOAT DEFAULT 120.0",     "fno_config.nifty_target_3_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS nifty_telegram BOOLEAN DEFAULT TRUE",           "fno_config.nifty_telegram"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_sl_points FLOAT DEFAULT 60.0",        "fno_config.banknifty_sl_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_target_points FLOAT DEFAULT 120.0",   "fno_config.banknifty_target_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_target_2_points FLOAT DEFAULT 180.0", "fno_config.banknifty_target_2_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_target_3_points FLOAT DEFAULT 240.0", "fno_config.banknifty_target_3_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_telegram BOOLEAN DEFAULT FALSE",      "fno_config.banknifty_telegram"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_sl_points FLOAT DEFAULT 30.0",         "fno_config.finnifty_sl_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_points FLOAT DEFAULT 60.0",     "fno_config.finnifty_target_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_2_points FLOAT DEFAULT 90.0",   "fno_config.finnifty_target_2_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_3_points FLOAT DEFAULT 120.0",  "fno_config.finnifty_target_3_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_telegram BOOLEAN DEFAULT FALSE",       "fno_config.finnifty_telegram"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_sl_points FLOAT DEFAULT 60.0",          "fno_config.sensex_sl_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_points FLOAT DEFAULT 120.0",     "fno_config.sensex_target_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_2_points FLOAT DEFAULT 180.0",   "fno_config.sensex_target_2_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_3_points FLOAT DEFAULT 240.0",   "fno_config.sensex_target_3_points"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_telegram BOOLEAN DEFAULT FALSE",        "fno_config.sensex_telegram"),
+        ("ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS telegram_mode VARCHAR(10) DEFAULT 'teaser'",   "fno_config.telegram_mode"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
+    # Seed the single fno_config row if the table is empty
+    from sqlalchemy import text as _text
+    try:
+        session.execute(_text("""
+            INSERT INTO fno_config (
+                telegram_fields, telegram_mode,
+                nifty_sl_points,     nifty_target_points,     nifty_target_2_points,     nifty_target_3_points,
+                banknifty_sl_points, banknifty_target_points, banknifty_target_2_points, banknifty_target_3_points,
+                finnifty_sl_points,  finnifty_target_points,  finnifty_target_2_points,  finnifty_target_3_points,
+                sensex_sl_points,    sensex_target_points,    sensex_target_2_points,    sensex_target_3_points,
+                nifty_telegram, banknifty_telegram, finnifty_telegram, sensex_telegram
+            )
+            SELECT
+                'header,direction,confidence,entry_mode,spot_atm,trades_list,active_trade,exit_reason,timestamp,dashboard_link',
+                'full',
+                30, 60, 90, 120,
+                60, 120, 180, 240,
+                30, 60, 90, 120,
+                60, 120, 180, 240,
+                TRUE, FALSE, FALSE, FALSE
+            WHERE NOT EXISTS (SELECT 1 FROM fno_config)
+        """))
+        session.commit()
+        logger.info("  Seeded default fno_config row.")
+    except Exception as exc:
+        session.rollback()
+        logger.warning("  [skip] seed fno_config: %s", exc)
+
+    # Widen SL/Target on existing rows still at the old tight defaults.
+    # Condition: nifty_sl_points <= 20 means the old 10% SL values are in place.
+    # Admin-customised rows (sl > 20) are left untouched.
+    try:
+        result = session.execute(_text("""
+            UPDATE fno_config SET
+                nifty_sl_points=30,     nifty_target_points=60,     nifty_target_2_points=90,     nifty_target_3_points=120,
+                banknifty_sl_points=60, banknifty_target_points=120, banknifty_target_2_points=180, banknifty_target_3_points=240,
+                finnifty_sl_points=30,  finnifty_target_points=60,  finnifty_target_2_points=90,   finnifty_target_3_points=120,
+                sensex_sl_points=60,    sensex_target_points=120,   sensex_target_2_points=180,    sensex_target_3_points=240
+            WHERE nifty_sl_points <= 20 AND nifty_target_points <= 30
+        """))
+        session.commit()
+        if result.rowcount:
+            logger.info("  Updated %s fno_config row(s) to wider SL/Target (1:2 R:R).", result.rowcount)
+    except Exception as exc:
+        session.rollback()
+        logger.warning("  [skip] fno_config SL widening: %s", exc)
 
     # Fix FK constraints pointing to old 'broker_accounts' table — should be 'user_brokers'
     fk_fixes = [
