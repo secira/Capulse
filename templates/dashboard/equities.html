@@ -217,7 +217,9 @@
                         data-id="{{ holding.id }}"
                         data-qty="{{ holding.quantity }}"
                         data-buy="{{ holding.purchase_price or 0 }}"
-                        data-investment="{{ holding.total_investment or 0 }}">
+                        data-investment="{{ holding.total_investment or 0 }}"
+                        data-stored-price="{{ holding.current_price or 0 }}"
+                        data-stored-value="{{ holding.current_value or 0 }}">
                         <td style="padding-left:16px;">
                             <div class="fw-bold" style="font-size:14px;">{{ holding.symbol }}</div>
                             <div class="text-muted" style="font-size:11px;">{{ holding.company_name }}</div>
@@ -501,11 +503,34 @@ async function fetchAllLivePrices() {
         }
     });
 
-    // Set loading indicator on each price cell
+    // Set loading indicator on each price cell (only if no stored price to show)
     rows.forEach(row => {
+        const storedPrice = parseFloat(row.dataset.storedPrice || 0);
         const cell = row.querySelector('.curr-price-val');
-        if (cell) cell.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:10px; color:#94a3b8;"></i>';
+        if (cell && storedPrice <= 0) {
+            cell.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:10px; color:#94a3b8;"></i>';
+        }
     });
+
+    // Helper: restore stored DB price when live fetch fails / returns zero
+    function restoreStoredPrice(row) {
+        const storedPrice = parseFloat(row.dataset.storedPrice || 0);
+        const storedValue = parseFloat(row.dataset.storedValue || 0);
+        const cell = row.querySelector('.curr-price-val');
+        if (!cell) return;
+        if (storedPrice > 0) {
+            const fmt = (n, dec=0) => n.toLocaleString('en-IN', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+            cell.innerHTML = '₹' + fmt(storedPrice, 2) + '<br><span style="font-size:9px;font-weight:400;background:#f1f5f9;color:#64748b;padding:1px 5px;border-radius:8px;">stored</span>';
+            cell.style.color = '';
+            // Also restore curr-value if we have it
+            const valCell = row.querySelector('.curr-value-cell');
+            if (valCell && storedValue > 0) {
+                valCell.innerHTML = '₹' + fmt(storedValue);
+            }
+        } else {
+            cell.innerHTML = '<span class="text-muted">—</span>';
+        }
+    }
 
     // Fetch live price for each unique symbol (in parallel)
     const symbols = Object.keys(symbolMap);
@@ -519,16 +544,10 @@ async function fetchAllLivePrices() {
             if (price > 0) {
                 symbolMap[sym].forEach(row => updateRowWithPrice(row, price, src));
             } else {
-                symbolMap[sym].forEach(row => {
-                    const cell = row.querySelector('.curr-price-val');
-                    if (cell) cell.innerHTML = '<span class="text-muted">—</span>';
-                });
+                symbolMap[sym].forEach(row => restoreStoredPrice(row));
             }
         } catch (e) {
-            symbolMap[sym].forEach(row => {
-                const cell = row.querySelector('.curr-price-val');
-                if (cell) cell.innerHTML = '<span class="text-muted">—</span>';
-            });
+            symbolMap[sym].forEach(row => restoreStoredPrice(row));
         }
     }));
 
