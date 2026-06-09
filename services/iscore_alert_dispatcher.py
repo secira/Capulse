@@ -378,6 +378,7 @@ def reload_schedules() -> int:
         _scheduler.add_job(
             _make_runner(schedule_key), CronTrigger(**cron_kwargs),
             id=job_id, replace_existing=True, max_instances=1,
+            misfire_grace_time=3600, coalesce=True,
         )
         installed += 1
         logger.info(
