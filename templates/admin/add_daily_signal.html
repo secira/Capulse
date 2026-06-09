@@ -66,15 +66,8 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Expiry <span class="text-danger">*</span></label>
-                            <div class="input-group">
-                                <select name="expiry_date" id="expiryDate" class="form-select">
-                                    <option value="">Loading expiries…</option>
-                                </select>
-                                <button type="button" class="btn btn-outline-primary" id="reloadExpiryBtn" onclick="loadExpiries(true)" title="Reload expiry list">
-                                    <i class="fas fa-sync-alt"></i>
-                                </button>
-                            </div>
-                            <div class="form-text" id="expiryHint">Select a contract date.</div>
+                            <input type="date" name="expiry_date" id="expiryDate" class="form-control" required>
+                            <div class="form-text" id="expiryHint">Pick the contract expiry date.</div>
                         </div>
                     </div>
                     
@@ -327,49 +320,6 @@ async function fetchLivePrice(silent) {
     }
 }
 
-// ── Expiry list loader ────────────────────────────────────────────────
-async function loadExpiries(force) {
-    const sel  = document.getElementById('expiryDate');
-    const hint = document.getElementById('expiryHint');
-    const at   = document.getElementById('assetType').value;
-    const st   = document.getElementById('subType').value;
-    if (!sel) return;
-    // Only options/futures need expiry.
-    if (!['NIFTY','BANKNIFTY','SENSEX','FINNIFTY'].includes(at) || !['CE','PE','FUT'].includes(st)) {
-        sel.innerHTML = '<option value="">—</option>';
-        return;
-    }
-    sel.innerHTML = '<option value="">Loading…</option>';
-    hint.textContent = 'Fetching expiry list…';
-    hint.className   = 'form-text text-muted';
-    try {
-        const r = await fetch(`{{ url_for('admin.api_expiries') }}?asset_type=${encodeURIComponent(at)}`,
-                              { credentials: 'same-origin' });
-        const d = await r.json();
-        if (d.success && d.expiries && d.expiries.length) {
-            sel.innerHTML = '<option value="">Select expiry…</option>' +
-                d.expiries.map(e => {
-                    const lbl = new Date(e).toLocaleDateString('en-IN',
-                        { day:'2-digit', month:'short', year:'numeric' });
-                    return `<option value="${e}">${lbl}</option>`;
-                }).join('');
-            // Pre-select the nearest expiry (first in list).
-            sel.value = d.expiries[0];
-            hint.textContent = `${d.expiries.length} expiries (${d.source})`;
-            hint.className   = 'form-text text-success';
-            maybeAutoFetch();
-        } else {
-            sel.innerHTML = '<option value="">No expiries — pick a date</option>';
-            hint.textContent = d.message || 'Expiry list unavailable.';
-            hint.className   = 'form-text text-warning';
-        }
-    } catch (e) {
-        sel.innerHTML = '<option value="">Error loading expiries</option>';
-        hint.textContent = 'Failed to load expiries: ' + e.message;
-        hint.className   = 'form-text text-danger';
-    }
-}
-
 document.addEventListener('DOMContentLoaded', () => {
     ['symbol', 'strikePrice'].forEach(id => {
         const el = document.getElementById(id);
@@ -377,10 +327,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const exp = document.getElementById('expiryDate');
     if (exp) exp.addEventListener('change', maybeAutoFetch);
-    // Reload expiries whenever asset/instrument changes.
     ['assetType', 'subType'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.addEventListener('change', loadExpiries);
+        if (el) el.addEventListener('change', maybeAutoFetch);
     });
 });
 </script>
