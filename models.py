@@ -2906,6 +2906,13 @@ class ResearchList(db.Model):
     # Historical data source used for quantitative analysis
     hist_data_source = db.Column(db.String(50), nullable=True)  # 'Dhan', 'yfinance', etc.
 
+    # Holding Period Recommendation
+    holding_period = db.Column(db.String(20), nullable=True)  # '1 week', '2 weeks', '4 weeks', '3 months', 'Exit Now'
+    holding_period_label = db.Column(db.String(30), nullable=True)  # 'Swing Trade', 'Position Trade', etc.
+    holding_period_days = db.Column(db.Integer, nullable=True)
+    entry_timing = db.Column(db.String(200), nullable=True)
+    exit_trigger = db.Column(db.Text, nullable=True)
+
     # Status and tracking
     is_active = db.Column(db.Boolean, default=True)
     last_computed_at = db.Column(db.DateTime, nullable=True)  # When I-Score was calculated
@@ -2977,6 +2984,14 @@ class ResearchList(db.Model):
         self.recommendation_summary = result.get('recommendation_summary', '')
         self.hist_data_source = result.get('data_source') or result.get('hist_data_source') or None
         self.last_computed_at = datetime.utcnow()
+
+        hp = result.get('holding_period') or {}
+        if isinstance(hp, dict):
+            self.holding_period = hp.get('period')
+            self.holding_period_label = hp.get('label')
+            self.holding_period_days = hp.get('days')
+            self.entry_timing = hp.get('entry_timing')
+            self.exit_trigger = hp.get('exit_trigger')
         
     def __repr__(self):
         return f'<ResearchList {self.symbol} I-Score:{self.i_score} Rec:{self.recommendation}>'

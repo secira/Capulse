@@ -132,6 +132,53 @@
                                     <div id="penaltyReasons" class="mt-2 text-center" style="display:none;"></div>
                                 </div>
 
+                                <!-- Holding Period Card -->
+                                <div id="holdingPeriodCard" style="display:none;" class="mb-3">
+                                    <div class="rounded-3 border p-3" id="holdingPeriodInner">
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="fas fa-clock" id="hpIcon"></i>
+                                                <span class="fw-bold small text-uppercase" style="letter-spacing:.04em;">Holding Period</span>
+                                            </div>
+                                            <span class="badge fs-6 px-3 py-2 fw-bold" id="hpPeriodBadge">--</span>
+                                        </div>
+                                        <div class="mb-1">
+                                            <span class="badge bg-light text-dark border fw-semibold" id="hpLabel">--</span>
+                                        </div>
+                                        <div class="mt-2 small" id="hpReasoning" style="color:#4a5568;"></div>
+                                        <hr class="my-2">
+                                        <div class="row g-2 small">
+                                            <div class="col-12">
+                                                <div class="d-flex align-items-start gap-2">
+                                                    <i class="fas fa-sign-in-alt mt-1" style="color:#3182ce;min-width:14px;"></i>
+                                                    <div>
+                                                        <span class="fw-semibold">Entry Timing: </span>
+                                                        <span id="hpEntryTiming" class="text-muted"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="d-flex align-items-start gap-2">
+                                                    <i class="fas fa-sign-out-alt mt-1 text-danger" style="min-width:14px;"></i>
+                                                    <div>
+                                                        <span class="fw-semibold">Exit Trigger: </span>
+                                                        <span id="hpExitTrigger" class="text-muted"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="fas fa-calendar-check text-secondary" style="min-width:14px;"></i>
+                                                    <div>
+                                                        <span class="fw-semibold">Next Review: </span>
+                                                        <span id="hpReviewDate" class="text-muted"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="row g-2" id="componentScores">
                                     <div class="col-6 col-md-4">
                                         <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('quantitative')" style="cursor: pointer;">
@@ -597,6 +644,7 @@ function analyzeSymbol() {
     document.getElementById('iscoreInfo').style.display = 'none';
     document.getElementById('iscoreResult').style.display = 'none';
     document.getElementById('iscoreError').style.display = 'none';
+    document.getElementById('holdingPeriodCard').style.display = 'none';
     document.getElementById('iscoreLoading').style.display = 'block';
     document.getElementById('loadingSymbol').textContent = symbol;
     document.getElementById('analyzeBtn').disabled = true;
@@ -845,6 +893,54 @@ function displayIScoreResult(data) {
                 const icon = f.type === 'positive' ? 'fa-check-circle text-success' : f.type === 'negative' ? 'fa-times-circle text-danger' : 'fa-minus-circle text-muted';
                 return '<div class="d-flex align-items-start mb-1"><i class="fas ' + icon + ' me-2 mt-1"></i><small>' + f.text + '</small></div>';
             }).join('');
+    }
+
+    renderHoldingPeriod(data.holding_period);
+}
+
+function renderHoldingPeriod(hp) {
+    const card = document.getElementById('holdingPeriodCard');
+    if (!hp || !card) return;
+
+    card.style.display = 'block';
+
+    const colorMap = {
+        success: { bg: '#f0fdf4', border: '#22c55e', badge: 'bg-success', icon: '#16a34a' },
+        primary: { bg: '#eff6ff', border: '#3b82f6', badge: 'bg-primary', icon: '#2563eb' },
+        warning: { bg: '#fefce8', border: '#eab308', badge: 'bg-warning text-dark', icon: '#ca8a04' },
+        danger:  { bg: '#fef2f2', border: '#ef4444', badge: 'bg-danger', icon: '#dc2626' },
+        secondary:{ bg: '#f9fafb', border: '#6b7280', badge: 'bg-secondary', icon: '#6b7280' },
+    };
+    const c = colorMap[hp.color] || colorMap['secondary'];
+
+    const inner = document.getElementById('holdingPeriodInner');
+    if (inner) {
+        inner.style.background = c.bg;
+        inner.style.borderColor = c.border;
+    }
+
+    const icon = document.getElementById('hpIcon');
+    if (icon) icon.style.color = c.icon;
+
+    const periodBadge = document.getElementById('hpPeriodBadge');
+    if (periodBadge) {
+        periodBadge.className = 'badge fs-6 px-3 py-2 fw-bold ' + c.badge;
+        periodBadge.textContent = hp.period || '--';
+    }
+
+    const lbl = document.getElementById('hpLabel');
+    if (lbl) lbl.textContent = hp.label || '';
+
+    const reasoning = document.getElementById('hpReasoning');
+    if (reasoning) reasoning.textContent = hp.reasoning || '';
+
+    document.getElementById('hpEntryTiming').textContent = hp.entry_timing || '--';
+    document.getElementById('hpExitTrigger').textContent = hp.exit_trigger || '--';
+
+    const rdEl = document.getElementById('hpReviewDate');
+    if (rdEl && hp.review_date) {
+        const rd = new Date(hp.review_date);
+        rdEl.textContent = rd.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     }
 }
 

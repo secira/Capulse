@@ -2945,6 +2945,17 @@ class LangGraphIScoreEngine:
                 date.today()
             )
             
+            from services.iscore.holding_period import compute_holding_period as _chp
+            _hp = _chp(
+                recommendation=state.get('recommendation', 'HOLD'),
+                overall_score=state.get('overall_score', 50) or 50,
+                risk_score=state.get('risk_score', 50) or 50,
+                trend_score=state.get('trend_score', 50) or 50,
+                quantitative_score=state.get('quantitative_score', 50) or 50,
+                raw_indicators=state.get('raw_indicators', {}),
+                is_stock=is_stock,
+            )
+
             payload = {
                 'overall_score': state.get('overall_score'),
                 'overall_confidence': state.get('overall_confidence'),
@@ -2954,6 +2965,7 @@ class LangGraphIScoreEngine:
                 'penalty_reasons': state.get('penalty_reasons', []),
                 'confidence_level': state.get('confidence_level', 'Medium'),
                 'score_factors': state.get('score_factors', []),
+                'holding_period': _hp,
                 'qualitative': {'score': state.get('qualitative_score'), 'details': state.get('qualitative_details')},
                 'quantitative': {'score': state.get('quantitative_score'), 'details': state.get('quantitative_details')},
                 'search': {'score': state.get('search_score'), 'details': state.get('search_details')},
@@ -3123,6 +3135,17 @@ class LangGraphIScoreEngine:
                     'details': result.get('market_context_details', {}),
                 }
 
+            from services.iscore.holding_period import compute_holding_period
+            holding_period = compute_holding_period(
+                recommendation=result.get('recommendation', 'HOLD'),
+                overall_score=result.get('overall_score', 50),
+                risk_score=result.get('risk_score', 50),
+                trend_score=result.get('trend_score', 50),
+                quantitative_score=result.get('quantitative_score', 50),
+                raw_indicators=result.get('raw_indicators', {}),
+                is_stock=is_stock,
+            )
+
             return {
                 'success': True,
                 'symbol': symbol,
@@ -3133,6 +3156,7 @@ class LangGraphIScoreEngine:
                 'confidence_level': result.get('confidence_level', 'Medium'),
                 'recommendation': result.get('recommendation', 'INCONCLUSIVE'),
                 'summary': result.get('recommendation_summary', ''),
+                'holding_period': holding_period,
                 'market_data': {
                     'current_price': current_price,
                     'previous_close': previous_close,
