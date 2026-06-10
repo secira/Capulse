@@ -6,7 +6,7 @@ packages = ["cargo", "glibcLocales", "libev", "libiconv", "libxcrypt", "nodejs",
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["gunicorn", "--bind", "0.0.0.0:5000", "--reuse-port", "--workers", "2", "--threads", "4", "--worker-class", "gthread", "--timeout", "120", "main:app"]
+run = ["gunicorn", "-c", "gunicorn.conf.py", "--bind", "0.0.0.0:5000", "main:app"]
 
 [workflows]
 runButton = "Project"
@@ -55,7 +55,7 @@ integrations = ["perplexity_v0:1.0.0", "flask_google_oauth:1.0.0", "twilio_send_
 [userenv]
 
 [userenv.shared]
-TELEGRAM_CHAT_ID = "-1002780721096a"
+TELEGRAM_CHAT_ID = "-1002780721096ajjj"
 ADMIN_EMAILS = "udayid@gmail.com,admin@targetcapital.ai,tech@targetcapital.ai"
 BROKER_ENCRYPTION_KEY = "Qw5q7nYOK8d2GqKEWKZEE1QHwtedlczlbU6qXpbEwPQ="
 USE_REMOTE_EXEC = "true"

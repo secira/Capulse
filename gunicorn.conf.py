@@ -40,6 +40,23 @@ limit_request_line = 4094
 limit_request_fields = 100
 limit_request_field_size = 8190
 
+def post_fork(server, worker):
+    """Dispose the inherited SQLAlchemy connection pool in each worker after fork.
+
+    With preload_app=True the master process loads the app (and may open DB
+    connections during startup migrations). Without this hook, forked workers
+    inherit those connections and share them — leading to 'connection already
+    closed' / 'SSL connection has been closed unexpectedly' errors under load.
+    Calling dispose() forces each worker to open fresh connections from its own
+    pool on first use.
+    """
+    try:
+        from app import db
+        db.engine.dispose()
+    except Exception:
+        pass
+
+
 def when_ready(server):
     """Called just after server is started"""
     server.log.info("Target Capital server ready to accept connections")
