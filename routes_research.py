@@ -611,6 +611,21 @@ def api_research_cached(symbol):
                 if not md.get('timestamp') and cached_at_iso:
                     md['timestamp'] = cached_at_iso
                     payload['market_data'] = md
+                # Older cache rows pre-date holding_period — recompute if missing
+                if not payload.get('holding_period'):
+                    try:
+                        from services.iscore.holding_period import compute_holding_period as _chp
+                        comps = payload.get('components', {})
+                        payload['holding_period'] = _chp(
+                            recommendation=payload.get('recommendation', 'HOLD'),
+                            overall_score=float(payload.get('iscore') or payload.get('overall_score') or 50),
+                            risk_score=float((comps.get('risk') or {}).get('score') or 50),
+                            trend_score=float((comps.get('trend') or {}).get('score') or 50),
+                            quantitative_score=float((comps.get('quantitative') or {}).get('score') or 50),
+                            is_stock=(asset_type == 'stocks'),
+                        )
+                    except Exception:
+                        pass
             return jsonify({
                 'success': True,
                 'cached': True,
@@ -622,6 +637,21 @@ def api_research_cached(symbol):
         rl = ResearchList.query.filter_by(symbol=symbol, is_active=True).first()
         if rl and rl.i_score is not None:
             computed_at = rl.last_computed_at or rl.updated_at
+            # Recompute holding period from stored scores (ResearchList only
+            # stores period/label/days, not the full rich dict the UI needs)
+            rl_holding_period = None
+            try:
+                from services.iscore.holding_period import compute_holding_period as _chp
+                rl_holding_period = _chp(
+                    recommendation=rl.recommendation or 'HOLD',
+                    overall_score=float(rl.i_score or 50),
+                    risk_score=float(rl.risk_score or 50) if hasattr(rl, 'risk_score') and rl.risk_score else 50,
+                    trend_score=float(rl.trend_score or 50),
+                    quantitative_score=float(rl.quantitative_score or 50),
+                    is_stock=(asset_type == 'stocks'),
+                )
+            except Exception:
+                pass
             # Build a response shape compatible with displayIScoreResult()
             payload = {
                 'success': True,
@@ -631,6 +661,7 @@ def api_research_cached(symbol):
                 'confidence': float(rl.confidence) if rl.confidence else 0,
                 'recommendation': rl.recommendation or 'HOLD',
                 'summary': rl.recommendation_summary or '',
+                'holding_period': rl_holding_period,
                 'components': {
                     'qualitative':  {'score': float(rl.qualitative_score or 0),  'details': rl.qualitative_details or {}},
                     'quantitative': {'score': float(rl.quantitative_score or 0), 'details': rl.quantitative_details or {}},
