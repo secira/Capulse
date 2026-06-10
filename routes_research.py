@@ -454,11 +454,28 @@ def api_research_analyze():
             payload.setdefault('recommendation', cached.recommendation or 'HOLD')
             payload['_from_cache'] = True
             payload['_cached_at']  = cached.computed_at.isoformat() if cached.computed_at else today_str
+            # Backfill holding_period for cache rows written before the field existed
+            if not payload.get('holding_period'):
+                try:
+                    from services.iscore.holding_period import compute_holding_period as _chp
+                    comps = payload.get('components', {})
+                    payload['holding_period'] = _chp(
+                        recommendation=payload.get('recommendation', 'HOLD'),
+                        overall_score=float(payload.get('iscore') or payload.get('overall_score') or 50),
+                        risk_score=float((comps.get('risk') or {}).get('score') or 50),
+                        trend_score=float((comps.get('trend') or {}).get('score') or 50),
+                        quantitative_score=float((comps.get('quantitative') or {}).get('score') or 50),
+                        is_stock=(asset_type == 'stocks'),
+                    )
+                except Exception:
+                    pass
             logger.info(
                 f"Returning cached I-Score for {symbol} "
                 f"(hits={cached.hit_count}, size={len(str(payload))}b, "
-                f"has_components={'components' in payload})"
+                f"has_components={'components' in payload}, "
+                f"has_holding_period={'holding_period' in payload})"
             )
+            db.session.close()
             return jsonify(payload)
 
         from services.langgraph_iscore_engine import LangGraphIScoreEngine
@@ -626,6 +643,7 @@ def api_research_cached(symbol):
                         )
                     except Exception:
                         pass
+            db.session.close()
             return jsonify({
                 'success': True,
                 'cached': True,
@@ -677,6 +695,7 @@ def api_research_cached(symbol):
                 'data_source': rl.hist_data_source or '',
                 '_from_cache': True,
             }
+            db.session.close()
             return jsonify({
                 'success': True,
                 'cached': True,
@@ -684,6 +703,7 @@ def api_research_cached(symbol):
                 'result': payload,
             })
 
+        db.session.close()
         return jsonify({'success': True, 'cached': False, 'symbol': symbol})
 
     except Exception as e:
