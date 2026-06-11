@@ -612,14 +612,16 @@ with app.app_context():
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_3_points FLOAT DEFAULT 70.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_2_points FLOAT DEFAULT 100.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_3_points FLOAT DEFAULT 140.0',
-        # Widen SL to 15% / enforce 1:2 R:R — update existing rows where values are still at
-        # the old tight defaults. Rows already customised by admin are left untouched.
+        # Seed correct SL/Target defaults — only runs when admin has NEVER explicitly saved
+        # (updated_by IS NULL means the row was created by bootstrap, never via the admin form).
+        # This is safe to run on every startup: once admin saves via Admin → F&O Settings,
+        # updated_by is set and this migration becomes a permanent no-op for that install.
         '''UPDATE fno_config SET
-            nifty_sl_points=30, nifty_target_points=60, nifty_target_2_points=90, nifty_target_3_points=120,
-            banknifty_sl_points=60, banknifty_target_points=120, banknifty_target_2_points=180, banknifty_target_3_points=240,
-            finnifty_sl_points=30, finnifty_target_points=60, finnifty_target_2_points=90, finnifty_target_3_points=120,
-            sensex_sl_points=60, sensex_target_points=120, sensex_target_2_points=180, sensex_target_3_points=240
-           WHERE nifty_sl_points <= 20 AND nifty_target_points <= 30''',
+            nifty_sl_points=20, nifty_target_points=40, nifty_target_2_points=60, nifty_target_3_points=90,
+            banknifty_sl_points=50, banknifty_target_points=100, banknifty_target_2_points=150, banknifty_target_3_points=200,
+            finnifty_sl_points=20, finnifty_target_points=40, finnifty_target_2_points=60, finnifty_target_3_points=90,
+            sensex_sl_points=50, sensex_target_points=100, sensex_target_2_points=150, sensex_target_3_points=200
+           WHERE updated_by IS NULL''',
         '''INSERT INTO fno_config (telegram_fields, telegram_mode, banknifty_telegram, finnifty_telegram, sensex_telegram)
             SELECT 'header,direction,confidence,entry_mode,spot_atm,trades_list,active_trade,exit_reason,timestamp,dashboard_link',
                    'full', FALSE, FALSE, FALSE
@@ -820,14 +822,14 @@ with app.app_context():
            ON CONFLICT (schedule_key) DO NOTHING''',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS telegram_mode VARCHAR(10) DEFAULT \'teaser\'',
         # One-time data migration: upgrade existing installs from the old teaser default to full mode
-        # and disable non-NIFTY Telegram alerts.  Conditional on telegram_mode still being 'teaser'
-        # so admin-configured rows (where someone explicitly chose teaser) are left untouched.
+        # and disable non-NIFTY Telegram alerts.  Guarded by updated_by IS NULL so rows already
+        # explicitly saved by an admin (updated_by set) are never silently overwritten.
         """UPDATE fno_config
            SET telegram_mode       = 'full',
                banknifty_telegram  = FALSE,
                finnifty_telegram   = FALSE,
                sensex_telegram     = FALSE
-           WHERE telegram_mode = 'teaser'
+           WHERE updated_by IS NULL
              AND id = (SELECT id FROM fno_config ORDER BY id ASC LIMIT 1)""",
         # ── NSE/BSE Trading Holiday Calendar ──────────────────────────────
         '''CREATE TABLE IF NOT EXISTS market_holiday (
