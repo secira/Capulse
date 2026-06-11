@@ -170,9 +170,12 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
 
-{# ─── Close-Signal modals — placed OUTSIDE the table to avoid stacking-context
-       issues that caused the modal backdrop and content to flicker/overlay ─── #}
+{# ── Modals rendered in extra_js block so they land directly in <body>,
+   completely outside any container/card with CSS transforms that would
+   otherwise create a stacking context and cause the backdrop+modal flicker. ── #}
+{% block extra_js %}
 {% if signals.items %}
 {% for signal in signals.items %}
 <div class="modal fade" id="statusModal{{ signal.id }}" tabindex="-1" aria-labelledby="statusModalLabel{{ signal.id }}" aria-hidden="true">
