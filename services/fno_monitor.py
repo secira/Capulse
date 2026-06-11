@@ -261,6 +261,7 @@ def _close_stale_open_trades(app) -> None:
                 )
 
             # 2. Today, if market is already past 3PM IST
+            closed_today = []
             if now_ist >= eod_ist:
                 closed_today = db.session.execute(db.text("""
                     UPDATE fno_signal_history
@@ -277,6 +278,36 @@ def _close_stale_open_trades(app) -> None:
                     )
 
             db.session.commit()
+
+            # Backfill exit_spot for stale-closed trades so P&L Analysis shows
+            # the entry premium (as a 0-P&L breakeven proxy) rather than "—".
+            all_closed_ids = [r[0] for r in closed_past] + [r[0] for r in closed_today]
+            if all_closed_ids:
+                rows_to_fix = db.session.execute(db.text(
+                    "SELECT id, trades_json FROM fno_signal_history "
+                    "WHERE id = ANY(:ids) AND exit_spot IS NULL"
+                ), {'ids': all_closed_ids}).fetchall()
+                import ast as _ast
+                for fix_row in rows_to_fix:
+                    try:
+                        trades_list = _ast.literal_eval(fix_row[1] or '[]')
+                        entry_p = 0.0
+                        if isinstance(trades_list, list):
+                            for t in trades_list:
+                                if isinstance(t, dict):
+                                    ep = t.get('entry_price') or t.get('ltp') or 0
+                                    if float(ep or 0) > 0:
+                                        entry_p = float(ep)
+                                        break
+                        if entry_p > 0:
+                            db.session.execute(db.text(
+                                "UPDATE fno_signal_history "
+                                "   SET exit_spot = :ep "
+                                " WHERE id = :row_id AND exit_spot IS NULL"
+                            ), {'ep': entry_p, 'row_id': fix_row[0]})
+                    except Exception as _bp:
+                        logger.debug(f"exit_spot backfill failed for id {fix_row[0]}: {_bp}")
+                db.session.commit()
     except Exception as e:
         logger.warning(f"_close_stale_open_trades failed: {e}")
 
@@ -389,8 +420,11 @@ def _save_signal_to_db(app, signal_data: dict, index_id: str,
             # exit_spot stores the ATM *option* LTP at exit time (not the index
             # spot) so P&L Analysis can calculate real profit/loss for 3PM exits.
             if signal_data.get('signal_type') == 'TRADE_EXIT' and trade_code and outcome:
-                # Use captured option LTP if available; fall back to index spot.
-                _exit_s = signal_data.get('exit_option_ltp') or signal_data.get('spot_price', 0)
+                # Use captured option LTP only — never fall back to index spot_price
+                # because spot_price is the underlying index value (e.g. 23 300 for NIFTY)
+                # which would show a wildly wrong exit premium in P&L Analysis.
+                _exit_ltp = float(signal_data.get('exit_option_ltp') or 0)
+                _exit_s = _exit_ltp if _exit_ltp > 0 else None
                 db.session.execute(db.text("""
                     UPDATE fno_signal_history
                        SET outcome   = :outcome,

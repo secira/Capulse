@@ -392,6 +392,38 @@ def _db_mark_sent_today(today_ist: date) -> None:
             pass
 
 
+def _atomic_claim_premarket_send(today_ist: date) -> bool:
+    """Atomically claim the right to send today's pre-market report.
+
+    Uses a conditional UPDATE … RETURNING that succeeds only when the row's
+    last_sent_date is NOT already today.  PostgreSQL's row-level locking means
+    at most one concurrent caller wins the UPDATE, making this race-free across
+    all gunicorn workers — no threading lock or two-step check-then-mark needed.
+
+    Returns True iff THIS caller is the designated sender for today.
+    """
+    try:
+        from app import db
+        result = db.session.execute(db.text(
+            "UPDATE alert_schedule "
+            "   SET last_sent_date = :d "
+            " WHERE schedule_key = 'premarket_report' "
+            "   AND (last_sent_date IS NULL OR last_sent_date != :d) "
+            "RETURNING id"
+        ), {"d": today_ist})
+        row = result.fetchone()
+        db.session.commit()
+        return row is not None
+    except Exception as e:
+        logger.warning(f"_atomic_claim_premarket_send failed ({e}); falling back to in-memory guard")
+        try:
+            from app import db as _db
+            _db.session.rollback()
+        except Exception:
+            pass
+        return False
+
+
 def _db_clear_sent_today() -> None:
     """Reset last_sent_date so a retry is possible after a send failure."""
     try:
@@ -422,31 +454,31 @@ def send_premarket_report(force: bool = False) -> bool:
         today_ist = datetime.now(IST).date()
 
         # ── once-per-day guard — two layers ──────────────────────────────────
-        # Layer 1 (in-process): threading lock + module-level date flag.
-        #   Fast path — prevents two threads in the same worker racing each other.
-        # Layer 2 (cross-process): DB date in alert_schedule.last_sent_date.
-        #   Survives gunicorn worker restarts; a new worker will see the DB flag
-        #   even if its own _premarket_sent_date was just reset to None.
+        # Layer 1 (in-process fast path): module-level date flag.
+        #   If this worker has already sent today, skip without a DB round-trip.
+        # Layer 2 (cross-process atomic): _atomic_claim_premarket_send().
+        #   A conditional UPDATE … RETURNING is atomic at the PostgreSQL row level,
+        #   so only ONE worker across the entire fleet wins the claim — eliminating
+        #   the race condition where two workers both pass a read-then-write check.
         if not force:
+            # Fast in-memory check (no DB hit for the common case)
+            if _premarket_sent_date == today_ist:
+                logger.info(
+                    "send_premarket_report: already sent today "
+                    f"({today_ist}) — skipping duplicate (in-memory guard)"
+                )
+                return False
+            # Atomic DB claim — only the first caller per day wins this UPDATE
+            if not _atomic_claim_premarket_send(today_ist):
+                logger.info(
+                    "send_premarket_report: already sent today "
+                    f"({today_ist}) — skipping duplicate (atomic DB guard)"
+                )
+                _premarket_sent_date = today_ist  # sync so fast path fires next time
+                return False
+            # We hold the DB claim — mark in-memory immediately so other threads
+            # in this same worker don't attempt a second send.
             with _sent_guard_lock:
-                # Check in-memory flag first (fast, no DB round-trip)
-                if _premarket_sent_date == today_ist:
-                    logger.info(
-                        "send_premarket_report: already sent today "
-                        f"({today_ist}) — skipping duplicate (in-memory guard)"
-                    )
-                    return False
-                # Check DB flag — catches the "new worker, old report" case
-                if _db_check_sent_today(today_ist):
-                    logger.info(
-                        "send_premarket_report: already sent today "
-                        f"({today_ist}) — skipping duplicate (DB guard)"
-                    )
-                    _premarket_sent_date = today_ist  # sync in-memory with DB
-                    return False
-                # Claim the slot immediately (before the network call) so a
-                # concurrent worker that acquires the lock right after will see
-                # the date is already set and bail out.
                 _premarket_sent_date = today_ist
 
         # Skip on weekends & trading holidays — send holiday wish instead.

@@ -37,10 +37,10 @@ _INDEX_KEYS = [k for k, _ in FNO_INDICES]
 # Wider SL (15% of typical ATM premium) reduces premature stop-outs on
 # normal intraday noise that historically caused >60% of SL hits.
 _INDEX_DEFAULTS: Dict[str, Dict[str, Any]] = {
-    "NIFTY":     {"sl_points": 30.0,  "target_points": 60.0,  "target_2_points": 90.0,  "target_3_points": 120.0, "telegram": True},
-    "BANKNIFTY": {"sl_points": 60.0,  "target_points": 120.0, "target_2_points": 180.0, "target_3_points": 240.0, "telegram": True},
-    "FINNIFTY":  {"sl_points": 30.0,  "target_points": 60.0,  "target_2_points": 90.0,  "target_3_points": 120.0, "telegram": True},
-    "SENSEX":    {"sl_points": 60.0,  "target_points": 120.0, "target_2_points": 180.0, "target_3_points": 240.0, "telegram": True},
+    "NIFTY":     {"sl_points": 20.0, "target_points": 40.0, "target_2_points": 60.0, "target_3_points":  90.0, "telegram": True},
+    "BANKNIFTY": {"sl_points": 50.0, "target_points": 100.0, "target_2_points": 150.0, "target_3_points": 200.0, "telegram": True},
+    "FINNIFTY":  {"sl_points": 20.0, "target_points": 40.0, "target_2_points": 60.0, "target_3_points":  90.0, "telegram": True},
+    "SENSEX":    {"sl_points": 50.0, "target_points": 100.0, "target_2_points": 150.0, "target_3_points": 200.0, "telegram": True},
 }
 
 
