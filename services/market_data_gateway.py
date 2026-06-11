@@ -595,7 +595,10 @@ def get_index_prices(
         except Exception as e:
             logger.debug(f"gateway: system Dhan index prices: {e}")
 
-    # ── 4. yfinance ───────────────────────────────────────────────────────────
+    # ── 4. yfinance fast_info ─────────────────────────────────────────────────
+    # fast_info always supplies both last_price and previous_close so we never
+    # get a pct_change of 0.0 due to history(period='2d') returning a single bar
+    # when the market is open mid-session (confirmed bug with ^BSESN).
     _yf_map = {
         'NIFTY':     '^NSEI',
         'BANKNIFTY': '^NSEBANK',
@@ -612,26 +615,16 @@ def get_index_prices(
                 if not yf_sym:
                     continue
                 try:
-                    # history() returns actual OHLCV bars — gives correct closing data
-                    # after market hours where fast_info.last_price can be zero.
-                    h = yf.Ticker(yf_sym).history(period='2d', auto_adjust=True)
-                    if h is not None and not h.empty:
-                        closes = h['Close'].dropna()
-                        if len(closes) >= 2:
-                            ltp  = float(closes.iloc[-1])
-                            prev = float(closes.iloc[-2])
-                            chg  = round(ltp - prev, 2)
-                            pct  = round(chg / prev * 100, 2) if prev else 0.0
-                            result[sym] = {
-                                'ltp': ltp, 'change': chg, 'pct_change': pct,
-                                'source': SRC_YFINANCE,
-                            }
-                        elif len(closes) == 1:
-                            ltp = float(closes.iloc[0])
-                            result[sym] = {
-                                'ltp': ltp, 'change': 0.0, 'pct_change': 0.0,
-                                'source': SRC_YFINANCE,
-                            }
+                    fi = yf.Ticker(yf_sym).fast_info
+                    ltp  = float(getattr(fi, 'last_price', 0) or 0)
+                    prev = float(getattr(fi, 'previous_close', 0) or 0)
+                    if ltp > 0:
+                        chg = round(ltp - prev, 2) if prev else 0.0
+                        pct = round(chg / prev * 100, 2) if prev else 0.0
+                        result[sym] = {
+                            'ltp': ltp, 'change': chg, 'pct_change': pct,
+                            'source': SRC_YFINANCE,
+                        }
                 except Exception:
                     pass
         except Exception as e:

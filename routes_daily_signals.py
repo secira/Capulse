@@ -590,38 +590,41 @@ def dashboard_daily_signals_content():
     nifty50_data = []
 
     def _fetch_dhan_indices():
-        """Fetch index prices: Dhan → yfinance. Cached 5 min."""
+        """Fetch index prices via Market Data Gateway → yfinance fast_info. Cached 5 min."""
         cached = _market_cache_get('indices', ttl=_CACHE_TTL_INDICES)
         if cached is not None:
             return cached
         result = {}
         ALL_KEYS = {'nifty_50', 'nifty_bank', 'sensex', 'nifty_it', 'india_vix'}
 
-        # Priority 1: Dhan
+        # Priority 1: Market Data Gateway (admin broker → TrueData → system Dhan)
         try:
-            from services.dhan_service import get_index_quotes
-            dhan_data = get_index_quotes(_captured_uid)
-            DHAN_KEY_MAP = {
+            from services.market_data_gateway import get_index_prices
+            gw = get_index_prices(user_id=_captured_uid)
+            GW_KEY_MAP = {
                 'NIFTY':     'nifty_50',
                 'BANKNIFTY': 'nifty_bank',
                 'SENSEX':    'sensex',
                 'INDIA VIX': 'india_vix',
             }
-            for dhan_sym, key in DHAN_KEY_MAP.items():
-                d = dhan_data.get(dhan_sym, {})
-                ltp = float(d.get('ltp', 0))
-                if ltp > 0:
-                    chg = float(d.get('pct_change', 0))
-                    if not chg:
-                        close = float(d.get('close', ltp) or ltp)
-                        chg = round((ltp - close) / close * 100, 2) if close else 0.0
-                    result[key] = {'value': round(ltp, 2), 'change_percent': chg, 'live': True, 'source': 'Dhan'}
-            logger.info(f"Dhan indices fetched: {list(result.keys())}")
+            if gw.get('_success'):
+                for gw_sym, key in GW_KEY_MAP.items():
+                    d = gw.get(gw_sym, {})
+                    if isinstance(d, dict) and d.get('ltp', 0) > 0:
+                        result[key] = {
+                            'value': round(float(d['ltp']), 2),
+                            'change_percent': round(float(d.get('pct_change', 0)), 2),
+                            'live': True,
+                            'source': d.get('source', gw.get('_source', 'gateway')),
+                        }
+                if result:
+                    logger.info(f"Gateway indices fetched: {list(result.keys())} via {gw.get('_source', '?')}")
         except Exception as e:
-            logger.warning(f"Dhan index fetch failed: {e}")
+            logger.warning(f"Gateway index fetch failed: {e}")
 
-        # Priority 2: yfinance for missing — use history(period='2d') so we get the
-        # actual closing bar after market hours instead of a potentially-stale fast_info.
+        # Priority 2: yfinance fast_info for any missing keys (incl. nifty_it).
+        # fast_info always provides both last_price and previous_close — no
+        # single-bar problem that history(period='2d') has during market hours.
         missing = ALL_KEYS - set(result.keys())
         if missing:
             try:
@@ -635,23 +638,17 @@ def dashboard_daily_signals_content():
                     if not yf_sym:
                         continue
                     try:
-                        h = yf.Ticker(yf_sym).history(period='2d', auto_adjust=True)
-                        if h is not None and not h.empty:
-                            closes = h['Close'].dropna()
-                            if len(closes) >= 2:
-                                ltp  = float(closes.iloc[-1])
-                                prev = float(closes.iloc[-2])
-                                chg  = round((ltp - prev) / prev * 100, 2) if prev else 0.0
-                                result[key] = {'value': round(ltp, 2), 'change_percent': chg,
-                                               'live': True, 'source': 'yfinance'}
-                            elif len(closes) == 1:
-                                ltp = float(closes.iloc[0])
-                                result[key] = {'value': round(ltp, 2), 'change_percent': 0.0,
-                                               'live': True, 'source': 'yfinance'}
+                        fi = yf.Ticker(yf_sym).fast_info
+                        ltp  = float(getattr(fi, 'last_price', 0) or 0)
+                        prev = float(getattr(fi, 'previous_close', 0) or 0)
+                        if ltp > 0:
+                            chg = round((ltp - prev) / prev * 100, 2) if prev else 0.0
+                            result[key] = {'value': round(ltp, 2), 'change_percent': chg,
+                                           'live': True, 'source': 'yfinance'}
                     except Exception:
                         continue
             except Exception as e:
-                logger.warning(f"yfinance fallback failed: {e}")
+                logger.warning(f"yfinance fast_info fallback failed: {e}")
 
         if result:
             _market_cache_set('indices', result)

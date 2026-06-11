@@ -265,6 +265,30 @@ def get_index_price_with_fallback(symbol: str, user_id: Optional[int] = None) ->
         except Exception as e:
             logger.debug(f"user data broker lookup failed: {e}")
 
+    # ── 3. yfinance fast_info — universal fallback when all brokers fail ──
+    # Covers NIFTY, BANKNIFTY, FINNIFTY, SENSEX and INDIA VIX so the Trade Now
+    # page always shows a live CMP even without an active broker connection.
+    try:
+        import yfinance as yf
+        _YF_INDEX_MAP = {
+            'NIFTY':     '^NSEI',
+            'BANKNIFTY': '^NSEBANK',
+            'FINNIFTY':  '^NSEI',
+            'SENSEX':    '^BSESN',
+            'INDIA VIX': '^INDIAVIX',
+        }
+        yf_sym = _YF_INDEX_MAP.get(underlying.upper())
+        if yf_sym:
+            fi = yf.Ticker(yf_sym).fast_info
+            ltp  = float(getattr(fi, 'last_price', 0) or 0)
+            prev = float(getattr(fi, 'previous_close', 0) or 0)
+            effective = ltp if ltp > 0 else prev
+            if effective > 0:
+                logger.info(f"get_index_price_with_fallback: yfinance fast_info {underlying}={effective:.2f}")
+                return effective, "yfinance"
+    except Exception as e:
+        logger.debug(f"yfinance fallback get_index_price({underlying}): {e}")
+
     return 0.0, "unavailable"
 
 
