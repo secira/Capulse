@@ -1219,18 +1219,34 @@ def our_signals_pnl_api():
         m = ((m - 1) % 12) + 1
         from_date = date(y, m, 1)
 
+    _CLOSED_STATUSES = ['TARGET_1_HIT', 'TARGET_2_HIT', 'TARGET_3_HIT',
+                        'SL_HIT', 'CLOSED', 'EXPIRED']
+
+    # Include any signal that is explicitly closed (by status) OR has a recorded outcome/exit
     query = DailyTradingSignal.query.filter(
         DailyTradingSignal.signal_date >= from_date,
-        DailyTradingSignal.trade_outcome.isnot(None),
         db.or_(
-            DailyTradingSignal.final_points.isnot(None),
-            DailyTradingSignal.exit_price.isnot(None),
+            DailyTradingSignal.status.in_(_CLOSED_STATUSES),
+            db.and_(
+                DailyTradingSignal.trade_outcome.isnot(None),
+                DailyTradingSignal.trade_outcome != '',
+            ),
         ),
     )
     if asset_filter != 'ALL':
         query = query.filter(DailyTradingSignal.asset_type == asset_filter)
 
     signals = query.order_by(DailyTradingSignal.signal_date.desc()).all()
+
+    # Status → human-readable outcome (fallback when trade_outcome not set)
+    _STATUS_OUTCOME = {
+        'TARGET_1_HIT': 'TARGET 1 HIT',
+        'TARGET_2_HIT': 'TARGET 2 HIT',
+        'TARGET_3_HIT': 'TARGET 3 HIT',
+        'SL_HIT':       'SL HIT',
+        'CLOSED':       'EARLY EXIT',
+        'EXPIRED':      'EXPIRED',
+    }
 
     months_dict: dict = OrderedDict()
     for s in signals:
@@ -1251,8 +1267,8 @@ def our_signals_pnl_api():
 
         trades = []
         for s in msigs:
+            entry = float(s.buy_above) if s.buy_above else None
             fp    = float(s.final_points) if s.final_points is not None else None
-            entry = float(s.buy_above)    if s.buy_above else None
             # Prefer actual exit_price; fall back to entry + final_points
             exit_price_val = float(s.exit_price) if getattr(s, 'exit_price', None) else None
             exit_val = exit_price_val if exit_price_val is not None else (
@@ -1261,16 +1277,36 @@ def our_signals_pnl_api():
             # Recalculate fp from exit_price if we have it and fp is missing
             if fp is None and exit_price_val is not None and entry:
                 fp = round(exit_price_val - entry, 2)
+            # Last-resort: derive fp from price levels when status is authoritative.
+            # Also triggers when fp==0 (column default) and no explicit exit_price set —
+            # that means the admin never recorded actual P&L so use stop_loss/target levels.
+            if (fp is None or (fp == 0.0 and exit_price_val is None)) and entry:
+                st = s.status or ''
+                if st == 'SL_HIT' and s.stop_loss:
+                    fp = round(float(s.stop_loss) - entry, 2)
+                    exit_val = float(s.stop_loss)
+                elif st == 'TARGET_1_HIT' and s.target_1:
+                    fp = round(float(s.target_1) - entry, 2)
+                    exit_val = float(s.target_1)
+                elif st == 'TARGET_2_HIT' and s.target_2:
+                    fp = round(float(s.target_2) - entry, 2)
+                    exit_val = float(s.target_2)
+                elif st == 'TARGET_3_HIT' and s.target_3:
+                    fp = round(float(s.target_3) - entry, 2)
+                    exit_val = float(s.target_3)
             pnl_pct = round(fp / entry * 100, 1) if (fp is not None and entry and entry > 0) else None
 
-            oc = s.trade_outcome or ''
+            # Determine outcome label: prefer trade_outcome, fall back to status
+            oc = (s.trade_outcome or '').strip()
             oc_up = oc.upper()
             if 'TARGET 1' in oc_up or '1ST' in oc_up:  outcome = 'TARGET 1 HIT'
             elif 'TARGET 2' in oc_up or '2ND' in oc_up: outcome = 'TARGET 2 HIT'
             elif 'TARGET 3' in oc_up or '3RD' in oc_up: outcome = 'TARGET 3 HIT'
             elif 'STOP LOSS' in oc_up or 'SL HIT' in oc_up: outcome = 'SL HIT'
             elif 'EARLY EXIT' in oc_up:                  outcome = 'EARLY EXIT'
-            else:                                          outcome = oc
+            elif oc:                                       outcome = oc
+            else:
+                outcome = _STATUS_OUTCOME.get(s.status or '', s.status or '—')
 
             entry_ist = (
                 (s.created_at + timedelta(hours=5, minutes=30)).strftime('%H:%M')

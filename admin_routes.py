@@ -1779,8 +1779,23 @@ def update_signal_status(signal_id):
         exit_price_raw = request.form.get('exit_price', '').strip()
         final_pts_raw  = request.form.get('final_points', '').strip()
 
-        signal.status        = new_status
-        signal.trade_outcome = trade_outcome
+        signal.status = new_status
+
+        # Auto-derive trade_outcome from status if admin left it blank
+        _STATUS_TO_OUTCOME = {
+            'TARGET_1_HIT': '1st Target Hit',
+            'TARGET_2_HIT': '2nd Target Hit',
+            'TARGET_3_HIT': '3rd Target Hit',
+            'SL_HIT':       'Stop Loss Hit',
+            'CLOSED':       'Early Exit',
+            'EXPIRED':      'Expired',
+        }
+        if trade_outcome:
+            signal.trade_outcome = trade_outcome
+        elif new_status in _STATUS_TO_OUTCOME:
+            signal.trade_outcome = _STATUS_TO_OUTCOME[new_status]
+        else:
+            signal.trade_outcome = trade_outcome or None
 
         # Exit price (premium at which the trade was closed)
         if exit_price_raw:
@@ -1803,6 +1818,18 @@ def update_signal_status(signal_id):
             l = float(signal.loss_points or 0)
             if p or l:
                 signal.final_points = p - l
+
+        # Last resort: derive final_points from price levels when no exit price given
+        if signal.final_points is None and signal.buy_above:
+            entry = float(signal.buy_above)
+            if new_status == 'SL_HIT' and signal.stop_loss:
+                signal.final_points = round(float(signal.stop_loss) - entry, 2)
+            elif new_status == 'TARGET_1_HIT' and signal.target_1:
+                signal.final_points = round(float(signal.target_1) - entry, 2)
+            elif new_status == 'TARGET_2_HIT' and signal.target_2:
+                signal.final_points = round(float(signal.target_2) - entry, 2)
+            elif new_status == 'TARGET_3_HIT' and signal.target_3:
+                signal.final_points = round(float(signal.target_3) - entry, 2)
 
         if new_status in ['TARGET_1_HIT', 'TARGET_2_HIT', 'TARGET_3_HIT', 'SL_HIT', 'CLOSED', 'EXPIRED']:
             if not signal.closed_at:
