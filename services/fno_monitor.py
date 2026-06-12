@@ -109,7 +109,9 @@ def _is_market_hours():
     except Exception:
         pass
     open_  = now.replace(hour=9,  minute=30, second=0, microsecond=0)
-    close_ = now.replace(hour=15, minute=0,  second=0, microsecond=0)
+    # Extended to 3:05 PM so the 3:00 PM EOD force-exit always gets at least
+    # one scan window to fire (APScheduler can miss the exact :00 second).
+    close_ = now.replace(hour=15, minute=5,  second=0, microsecond=0)
     return open_ <= now <= close_
 
 
@@ -819,6 +821,20 @@ def _check_active_trade_exit(analysis: dict, idx: str):
     now        = _now_ist()
     entry_time = trade.get('entry_time')
 
+    # ── Previous-day guard ────────────────────────────────────────────────────
+    # If the active trade was entered on a different IST calendar day than today,
+    # force-close it immediately. This handles the APScheduler timing race where
+    # the 3:00 PM EOD scan fires 1-3 seconds after market close, making
+    # _is_market_hours() return False and skipping the EOD exit — leaving the
+    # in-memory _active_trade set overnight, which blocks today's signal generation.
+    if entry_time and entry_time.date() < now.date():
+        logger.info(
+            f"[{idx}] Previous-day trade detected "
+            f"(entered {entry_time.date()}, today={now.date()}) — force-closing"
+        )
+        return True, '3PM Square Off'
+    # ─────────────────────────────────────────────────────────────────────────
+
     # Hard 3PM square-off — every open intraday trade closes at 3:00 PM IST
     # so daily P&L is fully realised before cash market close.
     eod = now.replace(hour=EOD_FORCE_EXIT_HOUR, minute=EOD_FORCE_EXIT_MINUTE,
@@ -865,6 +881,18 @@ def _try_trigger_trade(analysis: dict, idx: str):
     adx        = analysis.get('strength', {}).get('adx', 0)
 
     now  = _now_ist()
+
+    # No new entries at or after 3:00 PM IST — the extended market-hours window
+    # (3:00–3:05 PM) exists only to allow EOD exits to fire, not for new entries.
+    eod = now.replace(hour=EOD_FORCE_EXIT_HOUR, minute=EOD_FORCE_EXIT_MINUTE,
+                      second=0, microsecond=0)
+    if now >= eod:
+        logger.info(f"[{idx}] No new entries after 3:00 PM IST (EOD window)")
+        _confirmation_count[idx] = 0
+        _confirmation_dir[idx]   = None
+        _trade_state[idx]        = 'NONE'
+        return None
+
     last_exit = _last_exit_time[idx]
     if last_exit and (now - last_exit).total_seconds() < ENTRY_COOLDOWN_MINUTES * 60:
         remaining = int((ENTRY_COOLDOWN_MINUTES * 60 - (now - last_exit).total_seconds()) / 60)
