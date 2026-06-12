@@ -1869,14 +1869,24 @@ class NiftyOptionsEngine:
         MAX_SPREAD_PCT = 3.0
         OVERHEATED_PCT_CHANGE = 25.0  # block if option premium already moved >25% on last tick
 
-        # Resolve admin-configured SL/Target rule ONCE per enrichment cycle
-        # (avoids N DB hits inside the loop).
+        # Resolve admin-configured SL/Target ONCE before the per-option loop.
+        # Calling it once avoids N DB hits and ensures background (APScheduler)
+        # threads — which lack a request context — don't silently fall back to
+        # hardcoded multipliers on every individual option.
+        _INDEX_FALLBACKS = {
+            "NIFTY":     (20.0, 30.0, 35.0, 40.0),
+            "BANKNIFTY": (40.0, 50.0, 60.0, 70.0),
+            "FINNIFTY":  (20.0, 30.0, 35.0, 40.0),
+            "SENSEX":    (40.0, 50.0, 60.0, 70.0),
+        }
         try:
             from services.fno_config import compute_sl_target_points as _compute_sl_tgt
+            _idx_sl, _idx_t1, _idx_t2, _idx_t3 = _compute_sl_tgt(0, self.index)
+            logger.debug(f"F&O config ({self.index}): SL={_idx_sl} T1={_idx_t1} T2={_idx_t2} T3={_idx_t3}")
         except Exception as _cfg_err:
-            logger.warning(f"fno_config import failed, using legacy defaults: {_cfg_err}")
-            def _compute_sl_tgt(ltp_, index=None):
-                return max(20, round(ltp_ * 0.10)), max(30, round(ltp_ * 0.15))
+            logger.warning(f"compute_sl_target_points failed, using built-in fallback: {_cfg_err}")
+            _idx_sl, _idx_t1, _idx_t2, _idx_t3 = _INDEX_FALLBACKS.get(
+                (self.index or "NIFTY").upper(), (20.0, 30.0, 35.0, 40.0))
 
         for t in trades:
             strike = int(t['strike']) if isinstance(t['strike'], float) and t['strike'] == int(t['strike']) else t['strike']
@@ -1923,23 +1933,13 @@ class NiftyOptionsEngine:
                 logger.info(f"Skipping {key}: premium overheated ({pct_chg:.1f}%)")
                 continue
 
-            # SL/Target are admin-configurable absolute points, set PER INDEX
-            # via Admin → F&O Settings. _compute_sl_tgt resolved once above this loop.
-            try:
-                sl_points, target_points, target_2_points, target_3_points = _compute_sl_tgt(ltp, self.index)
-            except Exception as _cfg_err:
-                logger.warning(f"compute_sl_target_points failed, using legacy defaults: {_cfg_err}")
-                sl_points      = max(30, round(ltp * 0.15))
-                target_points  = max(60, round(ltp * 0.30))
-                target_2_points = max(90, round(ltp * 0.45))
-                target_3_points = max(120, round(ltp * 0.60))
-
-            # ── Enforce minimum 1:2 risk-reward regardless of config ────
-            # At a 34% win rate you need ≥ 1:2 R:R just to break even.
-            # Never allow admin config to produce a target smaller than 2× SL.
-            target_points   = max(target_points,   int(round(2.0 * sl_points)))
-            target_2_points = max(target_2_points, int(round(3.0 * sl_points)))
-            target_3_points = max(target_3_points, int(round(4.0 * sl_points)))
+            # Use admin-configured SL/Target resolved once before the loop.
+            # These values come directly from the F&O Settings DB — no multiplier
+            # overrides so the admin-set values are respected exactly.
+            sl_points      = _idx_sl
+            target_points  = _idx_t1
+            target_2_points = _idx_t2
+            target_3_points = _idx_t3
 
             entry_price = ltp
             # Floor SL so it never crosses zero (cap at 0.05 minimum tick).
