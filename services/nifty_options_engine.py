@@ -1908,10 +1908,12 @@ class NiftyOptionsEngine:
                 logger.warning(f"No option data for {key}, skipping")
                 continue
 
-            # ── Minimum premium filter — skip penny/OTM options ────────
-            # Options below ₹50 have disproportionate SL risk: a ₹15 move
-            # on a ₹30 premium is a -50% hit. The SL can't be set sensibly.
-            MIN_PREMIUM = 50
+            # ── Minimum premium filter — skip very cheap options ───────
+            # Options below ₹40 have disproportionate SL risk: a ₹15 move
+            # on a ₹25 premium is a -60% hit. The SL can't be set sensibly.
+            # ₹40 (was ₹50) lets near-ATM weekly-expiry options qualify
+            # 5-15 min earlier than the old threshold.
+            MIN_PREMIUM = 40
             if ltp < MIN_PREMIUM:
                 logger.info(f"Skipping {key}: LTP ₹{ltp:.2f} below minimum premium ₹{MIN_PREMIUM}")
                 continue
@@ -2447,6 +2449,22 @@ class NiftyOptionsEngine:
                              else 'Aggressive' if confidence >= 50
                              else 'Weak')
 
+        # ── Raw ATM chain snapshot (bypasses MIN_PREMIUM / liquidity filters) ──
+        # Used by fno_monitor to track the ACTIVE trade option's LTP even when
+        # the premium drops below the recommendation threshold (e.g. into SL zone).
+        raw_atm_chain: dict = {}
+        for _n in range(-4, 5):          # ATM-4 to ATM+4 strikes
+            _s = atm + _n * self.strike_interval
+            for _otype in ('CE', 'PE'):
+                _ckey = f"{_s}{_otype}"
+                _cdata = (current_chain or {}).get(_ckey, {})
+                if _cdata and float(_cdata.get('ltp', 0) or 0) > 0:
+                    raw_atm_chain[_ckey] = {
+                        'strike': _s,
+                        'type':   _otype,
+                        'ltp':    float(_cdata.get('ltp', 0) or 0),
+                    }
+
         result = {
             'timestamp': now.strftime('%Y-%m-%d %H:%M:%S IST'),
             'data_source': data_source,
@@ -2493,6 +2511,7 @@ class NiftyOptionsEngine:
             'lot_size':          self.lot_size,
             'strike_interval':   self.strike_interval,
             'display_name':      self.display_name,
+            'raw_atm_chain':     raw_atm_chain,
         }
 
         # Cache live-broker results so concurrent browser requests reuse them

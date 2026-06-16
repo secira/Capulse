@@ -813,6 +813,48 @@ def _should_send_alert(signal_data: dict, idx: str) -> bool:
 
 # ── Trade lifecycle (per index) ────────────────────────────────────────────────
 
+def _find_option_ltp(
+    trades: list,
+    atm_key: str,
+    entry_strike,
+    entry_type: str,
+    raw_atm_chain: dict = None,
+) -> float:
+    """
+    Locate the current LTP for the active-trade option using three fallbacks:
+
+    1. Exact symbol match in the engine's recommended ``trades`` list.
+    2. Strike + type match in ``trades`` (handles minor symbol format drift).
+    3. Raw chain lookup in ``raw_atm_chain`` (bypasses MIN_PREMIUM and all
+       liquidity filters) — critical when the option drops into SL territory
+       and falls off the recommendation list.
+
+    Returns 0.0 if the price cannot be determined from any source.
+    """
+    # 1. Exact symbol match
+    for t in trades:
+        if t.get('symbol') == atm_key:
+            return float(t.get('ltp', 0) or 0)
+
+    # 2. Strike + type match (symbol format may differ slightly)
+    if entry_strike and entry_type:
+        e_strike = float(entry_strike)
+        e_type   = str(entry_type).upper()
+        for t in trades:
+            if (abs(float(t.get('strike', 0) or 0) - e_strike) < 0.5
+                    and str(t.get('type', '')).upper() == e_type):
+                return float(t.get('ltp', 0) or 0)
+
+    # 3. Raw chain (bypasses MIN_PREMIUM — most important fallback)
+    if raw_atm_chain and entry_strike and entry_type:
+        ckey = f"{int(float(entry_strike))}{str(entry_type).upper()}"
+        data = raw_atm_chain.get(ckey, {})
+        if data:
+            return float(data.get('ltp', 0) or 0)
+
+    return 0.0
+
+
 def _check_active_trade_exit(analysis: dict, idx: str):
     trade = _active_trade[idx]
     if not trade:
@@ -842,24 +884,29 @@ def _check_active_trade_exit(analysis: dict, idx: str):
     if now >= eod:
         return True, '3PM Square Off'
 
-    trades  = analysis.get('trades', [])
-    atm_key = trade.get('atm_key', '')
-    if trades and atm_key:
-        for t in trades:
-            if t.get('symbol') == atm_key:
-                ltp = t.get('ltp', 0)
-                sl  = trade.get('sl', 0)
-                t1  = trade.get('target',   0)
-                t2  = trade.get('target_2', 0)
-                t3  = trade.get('target_3', 0)
-                if ltp > 0 and sl > 0 and ltp <= sl:
-                    return True, f'Stop-loss hit (SL={sl:.0f}, LTP={ltp:.0f})'
-                if ltp > 0 and t3 > 0 and ltp >= t3:
-                    return True, f'Target 3 reached (T3={t3:.0f}, LTP={ltp:.0f})'
-                if ltp > 0 and t2 > 0 and ltp >= t2:
-                    return True, f'Target 2 reached (T2={t2:.0f}, LTP={ltp:.0f})'
-                if ltp > 0 and t1 > 0 and ltp >= t1:
-                    return True, f'Target 1 reached (T1={t1:.0f}, LTP={ltp:.0f})'
+    trades        = analysis.get('trades', [])
+    raw_chain     = analysis.get('raw_atm_chain', {})
+    atm_key       = trade.get('atm_key', '')
+    entry_strike  = trade.get('atm_strike', 0)
+    entry_type    = trade.get('type', '')
+    ltp = _find_option_ltp(trades, atm_key, entry_strike, entry_type, raw_chain)
+    if ltp > 0:
+        # Update last_known_ltp each time we get a valid price so the EOD
+        # square-off always has a real premium to record.
+        if _active_trade[idx]:
+            _active_trade[idx]['last_known_ltp'] = ltp
+        sl  = trade.get('sl', 0)
+        t1  = trade.get('target',   0)
+        t2  = trade.get('target_2', 0)
+        t3  = trade.get('target_3', 0)
+        if sl > 0 and ltp <= sl:
+            return True, f'Stop-loss hit (SL={sl:.0f}, LTP={ltp:.0f})'
+        if t3 > 0 and ltp >= t3:
+            return True, f'Target 3 reached (T3={t3:.0f}, LTP={ltp:.0f})'
+        if t2 > 0 and ltp >= t2:
+            return True, f'Target 2 reached (T2={t2:.0f}, LTP={ltp:.0f})'
+        if t1 > 0 and ltp >= t1:
+            return True, f'Target 1 reached (T1={t1:.0f}, LTP={ltp:.0f})'
 
     if not _is_market_hours():
         return True, 'Market closed'
@@ -1011,20 +1058,20 @@ def _scan_index(app, idx: str, data_broker_user_id):
                     analysis['trade_direction'] = _active_trade[idx].get('direction', analysis.get('trade_direction'))
                     analysis['confidence']      = _active_trade[idx].get('confidence', analysis.get('confidence'))
                     # Capture the ATM option LTP at the moment of exit so P&L
-                    # can be calculated for 3PM Square-Off (previously stored as
-                    # index spot which made the exit price unusable).
-                    _atm_key_at_exit = _active_trade[idx].get('atm_key', '')
-                    _exit_ltp = 0.0
-                    if _atm_key_at_exit:
-                        for _t in analysis.get('trades', []):
-                            if _t.get('symbol') == _atm_key_at_exit:
-                                _exit_ltp = float(_t.get('ltp', 0) or 0)
-                                break
-                    # If the current analysis doesn't have the old strike in its
-                    # trades list (e.g. strike shifted out of ATM range at 3PM),
-                    # fall back to the last polled LTP we stored while ACTIVE.
+                    # can be calculated. Use the 3-tier helper so we get a real
+                    # price even when the option dropped below MIN_PREMIUM filter
+                    # (e.g. SL-zone options disappear from the recommended list).
+                    _at_exit  = _active_trade[idx]
+                    _exit_ltp = _find_option_ltp(
+                        analysis.get('trades', []),
+                        _at_exit.get('atm_key', ''),
+                        _at_exit.get('atm_strike', 0),
+                        _at_exit.get('type', ''),
+                        analysis.get('raw_atm_chain', {}),
+                    )
+                    # Final fallback: last polled LTP (updated every 60 s while ACTIVE)
                     if _exit_ltp <= 0:
-                        _exit_ltp = float(_active_trade[idx].get('last_known_ltp', 0) or 0)
+                        _exit_ltp = float(_at_exit.get('last_known_ltp', 0) or 0)
                     analysis['exit_option_ltp'] = _exit_ltp
                     _last_exit_time[idx]    = _now_ist()
                     _active_trade[idx]      = None
@@ -1051,15 +1098,16 @@ def _scan_index(app, idx: str, data_broker_user_id):
                     # only entry (TRADE_TRIGGER) and exit (TRADE_EXIT) are sent.
                     # Partner webhooks still receive ACTIVE pings for downstream
                     # systems that need live tracking.
-                    atm_key = at.get('atm_key', '')
-                    ltp = 0.0
-                    for t in analysis.get('trades', []):
-                        if t.get('symbol') == atm_key:
-                            ltp = float(t.get('ltp', 0))
-                            break
-                    # Keep a rolling snapshot of the option LTP so 3PM square-off
-                    # exits have a real premium price even if the strike shifts
-                    # out of the current analysis's recommended trades list.
+                    ltp = _find_option_ltp(
+                        analysis.get('trades', []),
+                        at.get('atm_key', ''),
+                        at.get('atm_strike', 0),
+                        at.get('type', ''),
+                        analysis.get('raw_atm_chain', {}),
+                    )
+                    # Keep a rolling snapshot so 3PM square-off / SL checks
+                    # always have a real premium price even when the option
+                    # falls off the MIN_PREMIUM-filtered recommended list.
                     if ltp > 0 and _active_trade[idx]:
                         _active_trade[idx]['last_known_ltp'] = ltp
                     active_info = {

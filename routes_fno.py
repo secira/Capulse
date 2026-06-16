@@ -487,6 +487,95 @@ def fno_pnl_history():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@fno_bp.route('/api/correct-trade-outcome', methods=['POST'])
+@login_required
+def fno_correct_trade_outcome():
+    """
+    Admin-only endpoint to manually correct a trade's outcome and exit price.
+    Useful for fixing records where the automated exit reason was wrong
+    (e.g. 'SL HIT' misclassified as '3PM SQUARE OFF' due to symbol tracking failure).
+
+    POST body (JSON):
+        trade_code   - required, e.g. "NIFTYT01"
+        outcome      - required, e.g. "SL HIT", "TARGET HIT", "3PM SQUARE OFF"
+        exit_spot    - optional float, actual exit premium (₹)
+        exit_time    - optional string "HH:MM" in IST (defaults to current time)
+    """
+    from flask_login import current_user
+    if not getattr(current_user, 'is_admin', False):
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+    data       = request.get_json(force=True) or {}
+    trade_code = (data.get('trade_code') or '').strip().upper()
+    outcome    = (data.get('outcome') or '').strip()
+    exit_spot  = data.get('exit_spot')
+    exit_time_str = (data.get('exit_time') or '').strip()
+
+    if not trade_code or not outcome:
+        return jsonify({'success': False, 'error': 'trade_code and outcome are required'}), 400
+
+    VALID_OUTCOMES = {'SL HIT', 'TARGET HIT', 'TARGET 2 HIT', 'TARGET 3 HIT',
+                      '3PM SQUARE OFF', 'MARKET CLOSED', 'MANUAL CLOSE'}
+    if outcome.upper() not in VALID_OUTCOMES:
+        return jsonify({'success': False, 'error': f'Invalid outcome. Valid values: {sorted(VALID_OUTCOMES)}'}), 400
+
+    try:
+        from app import db
+        from datetime import datetime, timedelta
+
+        # Determine exit timestamp
+        if exit_time_str:
+            ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+            try:
+                hh, mm = exit_time_str.split(':')
+                exit_dt_ist = ist_now.replace(hour=int(hh), minute=int(mm),
+                                              second=0, microsecond=0)
+                exit_dt_utc = exit_dt_ist - timedelta(hours=5, minutes=30)
+            except Exception:
+                return jsonify({'success': False, 'error': 'exit_time must be HH:MM format'}), 400
+        else:
+            exit_dt_utc = None
+
+        # Build update parts
+        update_parts = ['outcome = :outcome']
+        params = {'outcome': outcome.upper(), 'trade_code': trade_code}
+
+        if exit_spot is not None:
+            update_parts.append('exit_spot = :exit_spot')
+            params['exit_spot'] = float(exit_spot)
+
+        if exit_dt_utc:
+            update_parts.append('exit_time = :exit_time')
+            params['exit_time'] = exit_dt_utc
+
+        sql = db.text(
+            f"UPDATE fno_signal_history SET {', '.join(update_parts)} "
+            f"WHERE trade_code = :trade_code AND signal_type = 'TRADE_EXIT'"
+        )
+        result = db.session.execute(sql, params)
+        db.session.commit()
+
+        if result.rowcount == 0:
+            return jsonify({'success': False,
+                            'error': f'No TRADE_EXIT row found for trade_code={trade_code}. '
+                                     'The trade may still be active or the code is wrong.'}), 404
+
+        logger.info(
+            f"Admin correction: trade_code={trade_code}, outcome={outcome}, "
+            f"exit_spot={exit_spot}, exit_time={exit_time_str} "
+            f"(by user {current_user.id})"
+        )
+        return jsonify({
+            'success': True,
+            'message': f'Trade {trade_code} updated: outcome={outcome}',
+            'rows_updated': result.rowcount,
+        })
+
+    except Exception as e:
+        logger.error(f"Trade outcome correction error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @fno_bp.route('/api/active-trade')
 @login_required
 def fno_active_trade():
