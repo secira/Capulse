@@ -79,12 +79,13 @@ _recent_confidences   = _make_per_index([])
 _last_active_alert    = _make_per_index(None)   # Timestamp of last TRADE_ACTIVE Telegram update
 _active_trade_code    = _make_per_index(None)   # Current trade code (e.g. NIFTYT01)
 
-# ── Cross-index circuit breaker ────────────────────────────────────────────────
-# After 2 consecutive SL hits on ANY index, suppress ALL new trade entries for
-# the rest of the trading session. Prevents cascade losses on bad market days.
-_consecutive_losses  = _make_per_index(0)   # SL-hit streak per index (reset on any non-SL exit)
-_circuit_breaker_on  = False                # True = all indices blocked from new entries
-_circuit_breaker_date = None               # date the breaker was set (auto-resets next day)
+# ── Per-index circuit breaker ──────────────────────────────────────────────────
+# After 2 consecutive SL hits on the SAME index, suppress new entries on THAT
+# index only for the rest of the trading session.  Other indices keep trading
+# independently — a BANKNIFTY bad-streak must not block a FINNIFTY opportunity.
+_consecutive_losses   = _make_per_index(0)     # SL-hit streak per index
+_circuit_breaker_on   = _make_per_index(False) # per-index breaker flag
+_circuit_breaker_date = _make_per_index(None)  # date breaker was set (auto-resets next day)
 
 _scheduler_started = False
 _fno_app = None          # set by start_scheduler; used inside alert helpers that lack app context
@@ -315,18 +316,17 @@ def _close_stale_open_trades(app) -> None:
 
 
 def _reset_daily_if_needed(idx: str):
-    global _circuit_breaker_on, _circuit_breaker_date
     today = _now_ist().date()
     if _daily_date[idx] != today:
         _daily_date[idx]         = today
         _daily_signal_count[idx] = 0
         _consecutive_losses[idx] = 0
         _persist_alert_state(idx)
-    # Auto-reset circuit breaker on a new calendar day
-    if _circuit_breaker_on and _circuit_breaker_date and _circuit_breaker_date < today:
-        _circuit_breaker_on   = False
-        _circuit_breaker_date = None
-        logger.info("Cross-index circuit breaker reset for new trading day")
+    # Auto-reset THIS index's circuit breaker on a new calendar day
+    if _circuit_breaker_on[idx] and _circuit_breaker_date[idx] and _circuit_breaker_date[idx] < today:
+        _circuit_breaker_on[idx]   = False
+        _circuit_breaker_date[idx] = None
+        logger.info(f"[{idx}] Per-index circuit breaker reset for new trading day")
 
 
 def _smoothed_confidence(idx: str, raw: int) -> int:
@@ -916,10 +916,9 @@ def _check_active_trade_exit(analysis: dict, idx: str):
 
 def _try_trigger_trade(analysis: dict, idx: str):
     """Returns 'TRADE_TRIGGER' if a new trade should be locked, else None."""
-    global _circuit_breaker_on
-    # Cross-index circuit breaker: 2 consecutive SL hits on any index blocks all.
-    if _circuit_breaker_on:
-        logger.info(f"[{idx}] Circuit breaker ACTIVE — skipping new entry (2+ consecutive losses today)")
+    # Per-index circuit breaker: 2 consecutive SL hits on THIS index only blocks THIS index.
+    if _circuit_breaker_on[idx]:
+        logger.info(f"[{idx}] Circuit breaker ACTIVE — skipping new entry (2+ consecutive losses today on {idx})")
         return None
 
     direction  = analysis.get('trade_direction', 'NEUTRAL')
@@ -1173,25 +1172,23 @@ def _scan_index(app, idx: str, data_broker_user_id):
                 outcome=analysis.get('outcome'),
             )
 
-        # ── Circuit breaker: track consecutive SL hits across all indices ──
-        # After any TRADE_EXIT, update the per-index SL streak.
-        # Two consecutive SL hits on any single index trips the circuit breaker
-        # for ALL indices for the rest of the trading session.
+        # ── Per-index circuit breaker: track SL streaks independently ─────────
+        # Two consecutive SL hits on THIS index blocks only THIS index.
+        # Other indices remain unaffected and can continue trading.
         if signal_type == 'TRADE_EXIT':
-            global _circuit_breaker_on, _circuit_breaker_date
             outcome_now = analysis.get('outcome', '')
             if outcome_now == 'SL HIT':
                 _consecutive_losses[idx] += 1
                 logger.info(
                     f"[{idx}] SL hit streak: {_consecutive_losses[idx]} consecutive"
                 )
-                if _consecutive_losses[idx] >= 2 and not _circuit_breaker_on:
-                    _circuit_breaker_on   = True
-                    _circuit_breaker_date = _now_ist().date()
+                if _consecutive_losses[idx] >= 2 and not _circuit_breaker_on[idx]:
+                    _circuit_breaker_on[idx]   = True
+                    _circuit_breaker_date[idx] = _now_ist().date()
                     logger.warning(
                         f"[{idx}] ⚡ CIRCUIT BREAKER TRIPPED — "
-                        f"{_consecutive_losses[idx]} consecutive SL hits. "
-                        f"All new entries suppressed for today."
+                        f"{_consecutive_losses[idx]} consecutive SL hits on {idx}. "
+                        f"New {idx} entries suppressed for today. Other indices unaffected."
                     )
             else:
                 # Any non-SL exit (Target hit / 3PM square-off) resets the streak
@@ -1341,11 +1338,15 @@ def get_monitor_status(index_id: str = 'NIFTY') -> dict:
         'active_trade':         active,
         'cooldown_remaining_min': cooldown,
         'entry_cooldown_min':   ENTRY_COOLDOWN_MINUTES,
+        'circuit_breaker':      _circuit_breaker_on[idx],
+        'consecutive_losses':   _consecutive_losses[idx],
         'all_states': {
             i: {
-                'trade_state': _trade_state[i],
-                'signals_today': _daily_signal_count[i],
-                'active': bool(_active_trade[i]),
+                'trade_state':        _trade_state[i],
+                'signals_today':      _daily_signal_count[i],
+                'active':             bool(_active_trade[i]),
+                'circuit_breaker':    _circuit_breaker_on[i],
+                'consecutive_losses': _consecutive_losses[i],
             } for i in SCAN_INDICES
         },
     }
