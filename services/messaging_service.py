@@ -179,7 +179,13 @@ def send_telegram_admin_message(message_text, parse_mode='Markdown'):
 def format_daily_signal_telegram(signal) -> str:
     """Format a `DailyTradingSignal` as an HTML Telegram message that matches
     the visual style of the F&O monitor alert (`services/fno_monitor.py`).
+
+    All user-supplied text fields are HTML-escaped before insertion so that
+    special characters (&, <, >) in notes or strategy names never cause
+    Telegram to reject the message with a 400 Bad Request.
     """
+    import html as _html
+
     asset    = (signal.asset_type or '').upper()
     sub      = (signal.sub_type or '').upper()
     action   = (signal.action or 'BUY').upper()
@@ -194,8 +200,13 @@ def format_daily_signal_telegram(signal) -> str:
     else:
         dir_emoji = '🟡'
 
-    type_emoji  = '📡'  # "Our Signal" — broadcast
-    duration_lbl = {'DAY': 'Intraday', 'WEEK': 'Swing', 'MONTH': 'Long Term'}.get(duration, duration or '—')
+    type_emoji   = '📡'  # "Our Signal" — broadcast
+    duration_lbl = {
+        'DAY':   'Intraday',
+        'BTST':  'BTST (Buy Today Sell Tomorrow)',
+        'WEEK':  'Swing',
+        'MONTH': 'Long Term',
+    }.get(duration, duration or '—')
 
     # Targets list
     targets = []
@@ -206,8 +217,11 @@ def format_daily_signal_telegram(signal) -> str:
             except (TypeError, ValueError):
                 pass
 
+    script_safe   = _html.escape(signal.script or '')
+    strategy_safe = _html.escape(signal.strategy_name or 'Trend Following')
+
     msg  = f"{type_emoji} <b>Our Signal #{signal.signal_number} — {asset}</b>\n\n"
-    msg += f"{dir_emoji} <b>Action:</b> {action} <code>{signal.script}</code>\n"
+    msg += f"{dir_emoji} <b>Action:</b> {action} <code>{script_safe}</code>\n"
     msg += f"⏳ <b>Duration:</b> {duration_lbl}\n"
     expiry = getattr(signal, 'expiry_date', None)
     if expiry:
@@ -215,7 +229,7 @@ def format_daily_signal_telegram(signal) -> str:
             msg += f"📅 <b>Expiry:</b> {expiry.strftime('%d %b %Y')}\n"
         except Exception:
             msg += f"📅 <b>Expiry:</b> {expiry}\n"
-    msg += f"📊 <b>Strategy:</b> {signal.strategy_name or 'Trend Following'}\n"
+    msg += f"📊 <b>Strategy:</b> {strategy_safe}\n"
     msg += f"⚠️ <b>Risk:</b> {risk}\n\n"
 
     msg += f"💰 <b>Entry:</b> ₹{float(signal.buy_above):,.2f}\n"
@@ -224,8 +238,9 @@ def format_daily_signal_telegram(signal) -> str:
         msg += f"🎯 <b>Targets:</b> {' / '.join(targets)}\n"
 
     if signal.notes:
-        notes = signal.notes if len(signal.notes) <= 200 else signal.notes[:200] + '…'
-        msg += f"\n📝 <i>{notes}</i>\n"
+        raw_notes  = signal.notes if len(signal.notes) <= 200 else signal.notes[:200] + '…'
+        notes_safe = _html.escape(raw_notes)
+        msg += f"\n📝 <i>{notes_safe}</i>\n"
 
     msg += "\n<i>Place SL-Limit orders to avoid slippage on fast moves.</i>\n"
     msg += f"\n⏰ <i>{datetime.now(timezone.utc).strftime('%d/%m/%Y %I:%M %p')} UTC</i>"

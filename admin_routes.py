@@ -1767,6 +1767,22 @@ def delete_daily_signal(signal_id):
     return redirect(url_for('admin.daily_signals'))
 
 
+@admin_bp.route('/daily-signals/resend-telegram/<int:signal_id>', methods=['POST'])
+@admin_required
+def resend_daily_signal_telegram(signal_id):
+    """Resend a daily signal's Telegram notification (retry after a failed send)."""
+    signal = DailyTradingSignal.query.get_or_404(signal_id)
+    try:
+        from services.messaging_service import send_daily_signal_telegram
+        if send_daily_signal_telegram(signal):
+            flash(f'Signal #{signal.signal_number} — Telegram alert resent ✓', 'success')
+        else:
+            flash(f'Signal #{signal.signal_number} — Telegram resend FAILED. Check Admin → Telegram for credentials.', 'danger')
+    except Exception as e:
+        flash(f'Signal #{signal.signal_number} — Telegram error: {e}', 'danger')
+    return redirect(url_for('admin.daily_signals'))
+
+
 @admin_bp.route('/daily-signals/update-status/<int:signal_id>', methods=['POST'])
 @admin_required
 def update_signal_status(signal_id):
