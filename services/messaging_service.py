@@ -243,7 +243,13 @@ def format_daily_signal_telegram(signal) -> str:
         msg += f"\n📝 <i>{notes_safe}</i>\n"
 
     msg += "\n<i>Place SL-Limit orders to avoid slippage on fast moves.</i>\n"
-    msg += f"\n⏰ <i>{datetime.now(timezone.utc).strftime('%d/%m/%Y %I:%M %p')} UTC</i>"
+    from datetime import timedelta as _td
+    call_dt = getattr(signal, 'call_time', None) or getattr(signal, 'created_at', None)
+    if call_dt:
+        call_ist = call_dt + _td(hours=5, minutes=30)
+        msg += f"\n⏰ <b>Call Time:</b> <i>{call_ist.strftime('%d %b %Y, %I:%M %p')} IST</i>"
+    else:
+        msg += f"\n⏰ <i>{datetime.now(timezone.utc).strftime('%d/%m/%Y %I:%M %p')} UTC</i>"
     msg += "\n\n<a href='https://www.targetcapital.ai/dashboard/live-market-pulse'>View on Target Capital</a>"
     return msg
 

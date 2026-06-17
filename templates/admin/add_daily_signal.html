@@ -14,12 +14,18 @@
             <div class="card-body">
                 <form method="POST" action="{{ url_for('admin.add_daily_signal') }}" id="signalForm">
                     <div class="row">
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label">Signal Date <span class="text-danger">*</span></label>
                             <input type="date" name="signal_date" class="form-control" value="{{ today }}" required>
                         </div>
+
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">Call Time (IST)</label>
+                            <input type="time" name="call_time" class="form-control" id="callTimeInput">
+                            <div class="form-text">When you gave this call</div>
+                        </div>
                         
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label">Asset Type <span class="text-danger">*</span></label>
                             <select name="asset_type" id="assetType" class="form-select" required onchange="updateFormFields()">
                                 <option value="">Select Asset Type</option>
@@ -317,6 +323,14 @@ async function fetchLivePrice(silent) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Auto-fill Call Time with current IST time
+    const ct = document.getElementById('callTimeInput');
+    if (ct && !ct.value) {
+        const now = new Date();
+        // IST = UTC + 5:30
+        const ist = new Date(now.getTime() + (5 * 60 + 30) * 60000);
+        ct.value = ist.toISOString().slice(11, 16);
+    }
     // No auto-fetch on field changes — admin enters all price values manually.
     // Use the ↻ button next to Current Market Price to fetch spot price on demand.
 });

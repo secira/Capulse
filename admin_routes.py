@@ -1682,6 +1682,17 @@ def add_daily_signal():
                 else:
                     script = symbol
             
+            # Parse optional call_time (form sends HH:MM in IST; store as UTC)
+            from datetime import timedelta as _td
+            call_time_val = None
+            call_time_str = (request.form.get('call_time') or '').strip()
+            if call_time_str:
+                try:
+                    ct = datetime.strptime(f"{signal_date_str} {call_time_str}", '%Y-%m-%d %H:%M')
+                    call_time_val = ct - _td(hours=5, minutes=30)
+                except ValueError:
+                    pass
+
             # Create new signal
             new_signal = DailyTradingSignal(
                 signal_number=signal_number,
@@ -1706,6 +1717,7 @@ def add_daily_signal():
                 notes=request.form.get('notes'),
                 created_by=session.get('admin_id'),
                 analyst_name=session.get('admin_username'),
+                call_time=call_time_val,
                 status='ACTIVE'
             )
             
@@ -1765,6 +1777,14 @@ def edit_daily_signal(signal_id):
             signal.strategy_name = request.form.get('strategy_name', 'Trend Following')
             signal.notes = request.form.get('notes')
             signal.status = request.form.get('status', signal.status)
+            from datetime import timedelta as _td
+            call_time_str = (request.form.get('call_time') or '').strip()
+            if call_time_str:
+                try:
+                    ct = datetime.strptime(f"{signal.signal_date.strftime('%Y-%m-%d')} {call_time_str}", '%Y-%m-%d %H:%M')
+                    signal.call_time = ct - _td(hours=5, minutes=30)
+                except ValueError:
+                    pass
             
             # Rebuild script name
             asset_type = signal.asset_type

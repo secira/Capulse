@@ -15,12 +15,19 @@
             <div class="card-body">
                 <form method="POST" action="{{ url_for('admin.edit_daily_signal', signal_id=signal.id) }}" id="signalForm">
                     <div class="row">
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label">Signal Date</label>
                             <input type="text" class="form-control" value="{{ signal.signal_date.strftime('%d %b %Y') }}" disabled>
                         </div>
+
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label">Call Time (IST)</label>
+                            <input type="time" name="call_time" class="form-control"
+                                   value="{{ signal.call_time_ist.strftime('%H:%M') if signal.call_time_ist else '' }}">
+                            <div class="form-text">When you gave this call</div>
+                        </div>
                         
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label">Asset Type <span class="text-danger">*</span></label>
                             <select name="asset_type" id="assetType" class="form-select" required onchange="updateFormFields()">
                                 <option value="">Select Asset Type</option>

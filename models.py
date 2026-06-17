@@ -3067,10 +3067,28 @@ class DailyTradingSignal(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     closed_at = db.Column(db.DateTime, nullable=True)
-    
+    call_time = db.Column(db.DateTime, nullable=True)
+
     # Relationships
     admin = db.relationship('Admin', backref='daily_signals')
     
+    @property
+    def call_time_ist(self):
+        """Call time in IST (UTC+5:30). Uses call_time if set, else created_at."""
+        from datetime import timedelta
+        t = self.call_time or self.created_at
+        if not t:
+            return None
+        return t + timedelta(hours=5, minutes=30)
+
+    @property
+    def exit_time_ist(self):
+        """Exit time in IST (UTC+5:30). Set when signal is closed."""
+        from datetime import timedelta
+        if not self.closed_at:
+            return None
+        return self.closed_at + timedelta(hours=5, minutes=30)
+
     @property
     def formatted_signal(self):
         """Return formatted signal message"""

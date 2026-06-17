@@ -320,10 +320,20 @@
                     <div class="info-label">Status</div>
                     <div class="info-value">{{ signal.status }}</div>
                 </div>
-                <div class="info-item">
-                    <div class="info-label">Created At</div>
-                    <div class="info-value">{{ signal.created_at.strftime('%d %b %Y, %H:%M') if signal.created_at else '-' }}</div>
+                <div class="info-item" style="background:#eff6ff; border:1px solid #bfdbfe;">
+                    <div class="info-label">⏰ Call Time (IST)</div>
+                    <div class="info-value" style="color:#1d4ed8;">
+                        {{ signal.call_time_ist.strftime('%d %b %Y, %I:%M %p') if signal.call_time_ist else '—' }}
+                    </div>
                 </div>
+                {% if signal.exit_time_ist %}
+                <div class="info-item" style="background:#fef2f2; border:1px solid #fecaca;">
+                    <div class="info-label">🏁 Exit Time (IST)</div>
+                    <div class="info-value" style="color:#dc2626;">
+                        {{ signal.exit_time_ist.strftime('%d %b %Y, %I:%M %p') }}
+                    </div>
+                </div>
+                {% endif %}
             </div>
 
             {% if signal.profit_points or signal.loss_points %}

@@ -239,7 +239,10 @@ const signalData = {
         duration_display: "{{ signal.duration_display }}",
         risk_level: "{{ signal.risk_level or 'Medium' }}",
         notes: `{{ (signal.notes or '') | replace('`', "'") }}`,
-        expiry_date: "{{ signal.expiry_date.strftime('%d %b %Y') if signal.expiry_date else 'N/A' }}"
+        expiry_date: "{{ signal.expiry_date.strftime('%d %b %Y') if signal.expiry_date else 'N/A' }}",
+        call_time: "{{ signal.call_time_ist.strftime('%I:%M %p') if signal.call_time_ist else '' }}",
+        exit_time: "{{ signal.exit_time_ist.strftime('%I:%M %p') if signal.exit_time_ist else '' }}",
+        status: "{{ signal.status }}"
     },
     {% endfor %}
 };
@@ -300,10 +303,18 @@ function viewSignalDetail(signalId) {
                             <small class="text-muted d-block">Duration</small>
                             <span class="fw-semibold">${s.duration_display}</span>
                         </div>
-                        <div>
+                        <div class="mb-2">
                             <small class="text-muted d-block">Risk Level</small>
                             <span class="fw-semibold risk-${s.risk_level.toLowerCase()}">${s.risk_level}</span>
                         </div>
+                        <div class="mb-2">
+                            <small class="text-muted d-block">⏰ Call Time (IST)</small>
+                            <span class="fw-semibold text-primary">${s.call_time || '—'}</span>
+                        </div>
+                        ${s.exit_time ? `<div>
+                            <small class="text-muted d-block">🏁 Exit Time (IST)</small>
+                            <span class="fw-semibold text-danger">${s.exit_time}</span>
+                        </div>` : ''}
                     </div>
                 </div>
             </div>
