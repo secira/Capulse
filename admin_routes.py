@@ -922,6 +922,41 @@ def notifications():
     return render_template('admin/notifications.html', report=report)
 
 
+def _telegram_send_with_error(text, parse_mode='HTML'):
+    """Call Telegram sendMessage directly and return (ok: bool, error: str).
+
+    Unlike send_telegram_message() which only returns bool, this helper returns
+    the actual Telegram API error text so it can be shown in the admin flash
+    banner — making remote production debugging possible without server logs.
+    """
+    import re as _re, requests as _req, os as _os
+    raw_token = _os.environ.get('TELEGRAM_BOT_TOKEN', '') or ''
+    raw_chat  = _os.environ.get('TELEGRAM_CHAT_ID', '') or ''
+    m = _re.search(r'(\d+:[A-Za-z0-9_-]+)', raw_token)
+    token   = m.group(1) if m else raw_token.strip().strip('"').strip("'")
+    chat_id = raw_chat.strip().strip('"').strip("'")
+    if not token:
+        return False, 'TELEGRAM_BOT_TOKEN not set in environment'
+    if not chat_id:
+        return False, 'TELEGRAM_CHAT_ID not set in environment'
+    try:
+        payload = {'chat_id': chat_id, 'text': text,
+                   'parse_mode': parse_mode, 'disable_web_page_preview': True}
+        r = _req.post(f'https://api.telegram.org/bot{token}/sendMessage',
+                      json=payload, timeout=10)
+        if r.status_code == 200:
+            return True, ''
+        # Include the full Telegram error so admin can diagnose remotely
+        try:
+            tj = r.json()
+            detail = tj.get('description', r.text[:300])
+        except Exception:
+            detail = r.text[:300]
+        return False, f'HTTP {r.status_code} — {detail}'
+    except Exception as exc:
+        return False, f'Network error: {exc}'
+
+
 @admin_bp.route('/telegram', methods=['GET', 'POST'])
 @admin_required
 def telegram_messenger():
@@ -939,12 +974,12 @@ def telegram_messenger():
     if request.method == 'POST':
         action = request.form.get('action', '')
         if action == 'test':
-            ok = send_telegram_message(
+            ok, err = _telegram_send_with_error(
                 "🧪 <b>Target Capital — Telegram Test</b>\n"
                 "If you see this in the group, the bot is wired up correctly.",
                 parse_mode='HTML',
             )
-            flash('Test message sent ✓' if ok else 'Test FAILED — see diagnostics below', 'success' if ok else 'error')
+            flash('Test message sent ✓' if ok else f'Test FAILED — {err}', 'success' if ok else 'error')
         elif action == 'test_fno':
             try:
                 from services.fno_monitor import _send_telegram_alert
@@ -976,8 +1011,8 @@ def telegram_messenger():
             if not body:
                 flash('Message body is empty.', 'error')
             else:
-                ok = send_telegram_message(body, parse_mode='HTML')
-                flash('Message sent ✓' if ok else 'Send FAILED — see diagnostics below', 'success' if ok else 'error')
+                ok, err = _telegram_send_with_error(body, parse_mode='HTML')
+                flash('Message sent ✓' if ok else f'Send FAILED — {err}', 'success' if ok else 'error')
         elif action == 'send_signal':
             try:
                 sid = int(request.form.get('signal_id') or 0)
@@ -987,12 +1022,23 @@ def telegram_messenger():
             if not sig:
                 flash('Signal not found.', 'error')
             else:
-                ok = send_daily_signal_telegram(sig)
-                flash(
-                    f'Signal #{sig.signal_number} ({sig.script}) sent ✓' if ok
-                    else f'Signal #{sig.signal_number} send FAILED — see diagnostics below',
-                    'success' if ok else 'error',
-                )
+                try:
+                    from services.messaging_service import format_daily_signal_telegram
+                    body = format_daily_signal_telegram(sig)
+                    ok, err = _telegram_send_with_error(body, parse_mode='HTML')
+                    if ok:
+                        from app import db
+                        from datetime import datetime as _dt
+                        sig.shared_telegram = True
+                        sig.telegram_shared_at = _dt.utcnow()
+                        db.session.commit()
+                    flash(
+                        f'Signal #{sig.signal_number} ({sig.script}) sent ✓' if ok
+                        else f'Signal #{sig.signal_number} FAILED — {err}',
+                        'success' if ok else 'error',
+                    )
+                except Exception as exc:
+                    flash(f'Signal send error: {exc}', 'error')
         return redirect(url_for('admin.telegram_messenger'))
 
     diag = telegram_diagnostics()
