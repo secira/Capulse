@@ -256,6 +256,7 @@ function renderMonth(m, idx) {
     html +=     '<div class="month-title"><i class="fas fa-calendar-alt me-2" style="color:#64748b"></i>' + m.month_label + '</div>';
     html +=     '<div class="month-pills">';
     html +=       '<span class="pill pill-blue">' + s.total_trades + ' trade' + (s.total_trades !== 1 ? 's' : '') + '</span>';
+    if (s.active_count > 0) html += '<span class="pill" style="background:#dbeafe;color:#1d4ed8;animation:pulse-active 1.5s infinite">🔵 ' + s.active_count + ' active</span>';
     if (s.wins > 0)       html += '<span class="pill pill-green">✅ ' + s.wins + ' win'  + (s.wins !== 1 ? 's' : '') + '</span>';
     if (s.losses > 0)     html += '<span class="pill pill-red">❌ ' + s.losses + ' loss' + (s.losses !== 1 ? 'es' : '') + '</span>';
     if (s.time_exits > 0) html += '<span class="pill pill-amber">⏱ ' + s.time_exits + ' time</span>';
@@ -283,7 +284,7 @@ function renderMonth(m, idx) {
     html += '</div>';
 
     if (m.trades.length === 0) {
-        html += '<div class="empty-state" style="padding:30px"><i class="fas fa-inbox"></i><br>No closed trades this month.</div>';
+        html += '<div class="empty-state" style="padding:30px"><i class="fas fa-inbox"></i><br>No trades this month.</div>';
     } else {
         html += '<div style="overflow-x:auto"><table class="trades-table"><thead><tr>';
         colsForSource().forEach(function(c) { html += '<th>' + c + '</th>'; });
@@ -330,22 +331,25 @@ function loadPnL() {
         }
         if (!res.months || res.months.length === 0) {
             var msg = _source === 'analyst'
-                ? '<strong>No closed analyst signals yet</strong><br><span style="font-size:13px">Outcomes are recorded when an admin updates the signal status (Target Hit, SL Hit, etc.) via Admin → Daily Signals.</span>'
+                ? '<strong>No signals found for this period</strong><br><span style="font-size:13px">Active signals appear here as soon as they are created. P&L updates when admin closes them via Admin → Daily Signals.</span>'
                 : '<strong>No closed F&O engine trades yet</strong><br><span style="font-size:13px">Completed trades appear here after the monitor closes them.</span>';
             cont.innerHTML = '<div class="empty-state"><i class="fas fa-chart-pie"></i><br>' + msg + '</div>';
             return;
         }
 
-        var totalTrades = res.total_trades || 0;
-        var allWithPnl  = [];
-        res.months.forEach(function(m){ m.trades.forEach(function(t){ if(t.pnl_pct !== null) allWithPnl.push(t); }); });
+        var totalTrades  = res.total_trades  || 0;
+        var totalClosed  = res.total_closed  || 0;
+        var totalActive  = totalTrades - totalClosed;
+        var allWithPnl   = [];
+        res.months.forEach(function(m){ m.trades.forEach(function(t){ if(t.pnl_pct !== null && !t.is_active) allWithPnl.push(t); }); });
         var allWins    = allWithPnl.filter(function(t){ return t.pnl_pct > 0; }).length;
         var overallWr  = allWithPnl.length ? Math.round(allWins / allWithPnl.length * 100) : null;
         var overallCum = allWithPnl.length ? allWithPnl.reduce(function(a,t){ return a + t.pnl_pct; }, 0).toFixed(1) : null;
         var cumColor   = overallCum !== null && parseFloat(overallCum) >= 0 ? '#15803d' : '#dc2626';
 
         var html = '<div style="background:#0f172a;border-radius:14px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">';
-        html += '<div style="color:#fff"><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Total Closed Trades</div><div style="font-size:28px;font-weight:800">' + totalTrades + '</div></div>';
+        html += '<div style="color:#fff"><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Total Trades</div><div style="font-size:28px;font-weight:800">' + totalTrades + '</div></div>';
+        html += '<div><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Active / Closed</div><div style="font-size:28px;font-weight:800"><span style="color:#60a5fa">' + totalActive + '</span> <span style="color:#64748b;font-size:18px">/</span> <span style="color:#fff">' + totalClosed + '</span></div></div>';
         html += '<div style="color:#fff"><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Win Rate</div><div style="font-size:28px;font-weight:800">' + (overallWr !== null ? overallWr + '%' : '—') + '</div></div>';
         html += '<div><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Cumulative P&L</div><div style="font-size:28px;font-weight:800;color:' + cumColor + '">' + (overallCum !== null ? (parseFloat(overallCum) >= 0 ? '+' : '') + overallCum + '%' : '—') + '</div></div>';
         html += '<div style="color:#fff"><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Months Tracked</div><div style="font-size:28px;font-weight:800">' + res.months.length + '</div></div>';

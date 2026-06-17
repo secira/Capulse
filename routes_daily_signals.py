@@ -1222,22 +1222,6 @@ def our_signals_pnl_api():
     _CLOSED_STATUSES = ['TARGET_1_HIT', 'TARGET_2_HIT', 'TARGET_3_HIT',
                         'SL_HIT', 'CLOSED', 'EXPIRED']
 
-    # Include any signal that is explicitly closed (by status) OR has a recorded outcome/exit
-    query = DailyTradingSignal.query.filter(
-        DailyTradingSignal.signal_date >= from_date,
-        db.or_(
-            DailyTradingSignal.status.in_(_CLOSED_STATUSES),
-            db.and_(
-                DailyTradingSignal.trade_outcome.isnot(None),
-                DailyTradingSignal.trade_outcome != '',
-            ),
-        ),
-    )
-    if asset_filter != 'ALL':
-        query = query.filter(DailyTradingSignal.asset_type == asset_filter)
-
-    signals = query.order_by(DailyTradingSignal.signal_date.desc()).all()
-
     # Status → human-readable outcome (fallback when trade_outcome not set)
     _STATUS_OUTCOME = {
         'TARGET_1_HIT': 'TARGET 1 HIT',
@@ -1248,73 +1232,82 @@ def our_signals_pnl_api():
         'EXPIRED':      'EXPIRED',
     }
 
+    # Include ALL signals — ACTIVE trades show as open positions, closed show P&L
+    query = DailyTradingSignal.query.filter(
+        DailyTradingSignal.signal_date >= from_date,
+    )
+    if asset_filter != 'ALL':
+        query = query.filter(DailyTradingSignal.asset_type == asset_filter)
+
+    signals = query.order_by(DailyTradingSignal.signal_date.desc()).all()
+
     months_dict: dict = OrderedDict()
     for s in signals:
         key = s.signal_date.strftime('%b %Y')
         months_dict.setdefault(key, []).append(s)
 
+    total_closed = 0
     months_out = []
     for month_label, msigs in months_dict.items():
-        fp_list = [float(s.final_points) for s in msigs if s.final_points is not None]
-        wins      = sum(1 for p in fp_list if p > 0)
-        losses    = sum(1 for p in fp_list if p < 0)
-        total_pts = round(sum(fp_list), 2)
-        win_rate  = round(wins / len(fp_list) * 100, 1) if fp_list else None
-
-        entries   = [float(s.buy_above) for s in msigs if s.buy_above and float(s.buy_above) > 0]
-        avg_entry = sum(entries) / len(entries) if entries else None
-        cum_pnl_pct = round(total_pts / avg_entry * 100, 1) if avg_entry else None
-
         trades = []
-        for s in msigs:
-            entry = float(s.buy_above) if s.buy_above else None
-            fp    = float(s.final_points) if s.final_points is not None else None
-            # Prefer actual exit_price; fall back to entry + final_points
-            exit_price_val = float(s.exit_price) if getattr(s, 'exit_price', None) else None
-            exit_val = exit_price_val if exit_price_val is not None else (
-                round(entry + fp, 2) if (entry and fp is not None) else None
-            )
-            # Recalculate fp from exit_price if we have it and fp is missing
-            if fp is None and exit_price_val is not None and entry:
-                fp = round(exit_price_val - entry, 2)
-            # Last-resort: derive fp from price levels when status is authoritative.
-            # Also triggers when fp==0 (column default) and no explicit exit_price set —
-            # that means the admin never recorded actual P&L so use stop_loss/target levels.
-            if (fp is None or (fp == 0.0 and exit_price_val is None)) and entry:
-                st = s.status or ''
-                if st == 'SL_HIT' and s.stop_loss:
-                    fp = round(float(s.stop_loss) - entry, 2)
-                    exit_val = float(s.stop_loss)
-                elif st == 'TARGET_1_HIT' and s.target_1:
-                    fp = round(float(s.target_1) - entry, 2)
-                    exit_val = float(s.target_1)
-                elif st == 'TARGET_2_HIT' and s.target_2:
-                    fp = round(float(s.target_2) - entry, 2)
-                    exit_val = float(s.target_2)
-                elif st == 'TARGET_3_HIT' and s.target_3:
-                    fp = round(float(s.target_3) - entry, 2)
-                    exit_val = float(s.target_3)
-            pnl_pct = round(fp / entry * 100, 1) if (fp is not None and entry and entry > 0) else None
+        closed_fp_list = []   # only from resolved trades for stats
 
-            # Determine outcome label: prefer trade_outcome, fall back to status
-            oc = (s.trade_outcome or '').strip()
-            oc_up = oc.upper()
-            if 'TARGET 1' in oc_up or '1ST' in oc_up:  outcome = 'TARGET 1 HIT'
-            elif 'TARGET 2' in oc_up or '2ND' in oc_up: outcome = 'TARGET 2 HIT'
-            elif 'TARGET 3' in oc_up or '3RD' in oc_up: outcome = 'TARGET 3 HIT'
-            elif 'STOP LOSS' in oc_up or 'SL HIT' in oc_up: outcome = 'SL HIT'
-            elif 'EARLY EXIT' in oc_up:                  outcome = 'EARLY EXIT'
-            elif oc:                                       outcome = oc
+        for s in msigs:
+            is_active = (s.status or 'ACTIVE') == 'ACTIVE'
+            entry = float(s.buy_above) if s.buy_above else None
+
+            if is_active:
+                # Open position — no exit data yet
+                fp       = None
+                exit_val = None
+                pnl_pct  = None
+                outcome  = 'ACTIVE'
+                exit_ist = None
             else:
-                outcome = _STATUS_OUTCOME.get(s.status or '', s.status or '—')
+                fp    = float(s.final_points) if s.final_points is not None else None
+                exit_price_val = float(s.exit_price) if getattr(s, 'exit_price', None) else None
+                exit_val = exit_price_val if exit_price_val is not None else (
+                    round(entry + fp, 2) if (entry and fp is not None) else None
+                )
+                if fp is None and exit_price_val is not None and entry:
+                    fp = round(exit_price_val - entry, 2)
+                if (fp is None or (fp == 0.0 and exit_price_val is None)) and entry:
+                    st = s.status or ''
+                    if st == 'SL_HIT' and s.stop_loss:
+                        fp = round(float(s.stop_loss) - entry, 2)
+                        exit_val = float(s.stop_loss)
+                    elif st == 'TARGET_1_HIT' and s.target_1:
+                        fp = round(float(s.target_1) - entry, 2)
+                        exit_val = float(s.target_1)
+                    elif st == 'TARGET_2_HIT' and s.target_2:
+                        fp = round(float(s.target_2) - entry, 2)
+                        exit_val = float(s.target_2)
+                    elif st == 'TARGET_3_HIT' and s.target_3:
+                        fp = round(float(s.target_3) - entry, 2)
+                        exit_val = float(s.target_3)
+                pnl_pct = round(fp / entry * 100, 1) if (fp is not None and entry and entry > 0) else None
+
+                oc = (s.trade_outcome or '').strip()
+                oc_up = oc.upper()
+                if 'TARGET 1' in oc_up or '1ST' in oc_up:  outcome = 'TARGET 1 HIT'
+                elif 'TARGET 2' in oc_up or '2ND' in oc_up: outcome = 'TARGET 2 HIT'
+                elif 'TARGET 3' in oc_up or '3RD' in oc_up: outcome = 'TARGET 3 HIT'
+                elif 'STOP LOSS' in oc_up or 'SL HIT' in oc_up: outcome = 'SL HIT'
+                elif 'EARLY EXIT' in oc_up:                  outcome = 'EARLY EXIT'
+                elif oc:                                       outcome = oc
+                else:
+                    outcome = _STATUS_OUTCOME.get(s.status or '', s.status or '—')
+
+                exit_ist = (
+                    (s.closed_at + timedelta(hours=5, minutes=30)).strftime('%H:%M')
+                    if s.closed_at else None
+                )
+                if fp is not None:
+                    closed_fp_list.append(fp)
+                total_closed += 1
 
             entry_ist = (
-                (s.created_at + timedelta(hours=5, minutes=30)).strftime('%H:%M')
-                if s.created_at else '—'
-            )
-            exit_ist = (
-                (s.closed_at + timedelta(hours=5, minutes=30)).strftime('%H:%M')
-                if s.closed_at else None
+                (s.call_time_ist.strftime('%H:%M') if s.call_time_ist else '—')
             )
 
             trades.append({
@@ -1333,23 +1326,42 @@ def our_signals_pnl_api():
                 'outcome':       outcome,
                 'trade_code':    f'S{s.signal_number}',
                 'risk_level':    s.risk_level,
+                'is_active':     is_active,
             })
+
+        # Monthly stats only from closed/resolved trades
+        wins      = sum(1 for p in closed_fp_list if p > 0)
+        losses    = sum(1 for p in closed_fp_list if p < 0)
+        total_pts = round(sum(closed_fp_list), 2) if closed_fp_list else 0
+        win_rate  = round(wins / len(closed_fp_list) * 100, 1) if closed_fp_list else None
+        active_count = sum(1 for t in trades if t['is_active'])
+
+        closed_entries = [float(s.buy_above) for s in msigs
+                          if (s.status or 'ACTIVE') != 'ACTIVE' and s.buy_above and float(s.buy_above) > 0]
+        avg_entry   = sum(closed_entries) / len(closed_entries) if closed_entries else None
+        cum_pnl_pct = round(total_pts / avg_entry * 100, 1) if (avg_entry and closed_fp_list) else None
 
         months_out.append({
             'month_label': month_label,
             'summary': {
-                'total_trades': len(msigs),
-                'wins':         wins,
-                'losses':       losses,
-                'time_exits':   0,
-                'win_rate':     win_rate,
-                'total_points': total_pts,
-                'cum_pnl_pct':  cum_pnl_pct,
+                'total_trades':  len(msigs),
+                'active_count':  active_count,
+                'wins':          wins,
+                'losses':        losses,
+                'time_exits':    0,
+                'win_rate':      win_rate,
+                'total_points':  total_pts,
+                'cum_pnl_pct':   cum_pnl_pct,
             },
             'trades': trades,
         })
 
-    return jsonify({'success': True, 'months': months_out, 'total_trades': len(signals)})
+    return jsonify({
+        'success':      True,
+        'months':       months_out,
+        'total_trades': len(signals),
+        'total_closed': total_closed,
+    })
 
 
 @app.route('/dashboard/daily-signals/analysis')
