@@ -496,6 +496,7 @@ def ensure_missing_columns(session):
         ("ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS whatsapp_shared_at TIMESTAMP",                                   "daily_trading_signals.whatsapp_shared_at"),
         ("ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS telegram_shared_at TIMESTAMP",                                   "daily_trading_signals.telegram_shared_at"),
         ("ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP",                                            "daily_trading_signals.closed_at"),
+        ("ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS call_time TIMESTAMP",                                            "daily_trading_signals.call_time"),
         ("ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()",                             "daily_trading_signals.updated_at"),
     ]
     for ddl, label in cols:
