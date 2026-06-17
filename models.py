@@ -3118,6 +3118,7 @@ Place SL-Limit Order to Avoid Slippage and fast movement.
         """Return human-readable duration"""
         duration_map = {
             'DAY': 'Day Trading',
+            'BTST': 'BTST',
             'WEEK': 'Swing Trading',
             'MONTH': 'Long Term'
         }
