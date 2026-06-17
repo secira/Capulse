@@ -524,6 +524,7 @@ with app.app_context():
         'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS trial_extended_at TIMESTAMP',
         'ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS expiry_date DATE',
         'ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS exit_price NUMERIC(12,2)',
+        'ALTER TABLE daily_trading_signals ADD COLUMN IF NOT EXISTS call_time TIMESTAMP',
         'ALTER TABLE research_list ADD COLUMN IF NOT EXISTS holding_period VARCHAR(20)',
         'ALTER TABLE research_list ADD COLUMN IF NOT EXISTS holding_period_label VARCHAR(30)',
         'ALTER TABLE research_list ADD COLUMN IF NOT EXISTS holding_period_days INTEGER',

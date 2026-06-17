@@ -1,0 +1,18 @@
+[parameters: {'signal_date_1': datetime.date(2026, 6, 17), 'tenant_id_1': 'live'}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+152.233.47.68 - - [17/Jun/2026:09:57:50 +0000] "GET /static/js/main.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/our-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0" 68984
+2026-06-17 09:57:54 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-06-17 09:58:54 UTC)" (scheduled at 2026-06-17 09:57:54.328613+00:00)
+2026-06-17 09:57:54 - services.market_calendar - WARNING - [market_calendar.py:53] - market_calendar.get_holiday failed: Working outside of application context.
+152.233.47.68 - - [17/Jun/2026:09:57:49 +0000] "GET /dashboard/our-signals HTTP/1.1" 500 29842 "https://www.targetcapital.ai/dashboard/fno/nifty" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0" 150454
+152.233.47.68 - - [17/Jun/2026:09:57:50 +0000] "GET /static/js/tradingview-widget.js?v=8 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/our-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0" 31133
+152.233.47.68 - - [17/Jun/2026:09:57:50 +0000] "GET /static/js/tradingview-datafeed.js?v=3 HTTP/1.1" 304 0 "https://www.targetcapital.ai/dashboard/our-signals" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0" 37507
+This typically means that you attempted to use functionality that needed
+the current application. To solve this, set up an application context
+with app.app_context(). See the documentation for more information.
+2026-06-17 09:57:54 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-06-17 09:58:54 UTC)" executed successfully
+2026-06-17 09:58:54 - apscheduler.executors.default - INFO - [base.py:129] - Running job "run_scan (trigger: interval[0:01:00], next run at: 2026-06-17 09:59:54 UTC)" (scheduled at 2026-06-17 09:58:54.328613+00:00)
+2026-06-17 09:58:54 - services.market_calendar - WARNING - [market_calendar.py:53] - market_calendar.get_holiday failed: Working outside of application context.
+This typically means that you attempted to use functionality that needed
+the current application. To solve this, set up an application context
+with app.app_context(). See the documentation for more information.
+2026-06-17 09:58:54 - apscheduler.executors.default - INFO - [base.py:156] - Job "run_scan (trigger: interval[0:01:00], next run at: 2026-06-17 09:59:54 UTC)" executed successfully
