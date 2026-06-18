@@ -2562,11 +2562,16 @@ class BrokerService:
 
     @staticmethod
     def _sync_trade_history(broker_account: BrokerAccount, trades_data: List[Dict]):
-        """Persist the broker trade book (executed trades) into BrokerOrder.
+        """Persist the broker trade book (executed trades) into BrokerOrder AND
+        write FIFO-matched round-trip trades into ManualTradeImport so the
+        Behavioural AI engine can analyse them.
 
         Uses (broker_account_id, trade_id / order_id) as idempotency key so
         re-syncing is safe. Completed trades feed the Behavioural AI engine.
         """
+        from collections import defaultdict, deque
+        from models import ManualTradeImport
+
         for t in trades_data:
             idempotency_key = t.get('trade_id') or t.get('order_id')
             if not idempotency_key:
@@ -2600,6 +2605,118 @@ class BrokerService:
             db.session.add(order)
 
         db.session.flush()
+
+        # ── FIFO round-trip matching → ManualTradeImport ──────────────────────
+        # Group all legs by symbol, sort chronologically, FIFO-match BUY↔SELL
+        # pairs, then upsert each matched round-trip into ManualTradeImport using
+        # external_trade_id for idempotency. This makes live broker trade history
+        # visible to the Behavioural AI engine without requiring a CSV upload.
+
+        legs_by_symbol: dict = defaultdict(list)
+        for t in trades_data:
+            sym = (t.get('symbol') or t.get('trading_symbol') or '').strip()
+            side = (t.get('transaction_type') or 'BUY').upper()
+            qty = float(t.get('quantity') or 0)
+            price = float(t.get('price') or 0.0)
+            trade_date = t.get('trade_date')
+            tid = t.get('trade_id') or t.get('order_id') or ''
+            if not sym or qty <= 0 or price <= 0 or side not in ('BUY', 'SELL'):
+                continue
+            if not isinstance(trade_date, datetime):
+                trade_date = datetime.utcnow()
+            legs_by_symbol[sym].append({
+                'side': side, 'qty': qty, 'price': price,
+                'ts': trade_date, 'tid': tid,
+            })
+
+        broker_name = broker_account.broker_name or 'Broker'
+        user_id = broker_account.user_id
+        tenant_id = getattr(broker_account, 'tenant_id', 'live') or 'live'
+
+        for sym, legs in legs_by_symbol.items():
+            legs.sort(key=lambda x: x['ts'])
+            opens: deque = deque()   # BUY legs waiting for a SELL
+            shorts: deque = deque()  # SELL legs waiting for a BUY cover
+
+            for leg in legs:
+                qty_rem = leg['qty']
+                if leg['side'] == 'BUY':
+                    while qty_rem > 0 and shorts:
+                        s = shorts[0]
+                        mq = min(qty_rem, s['qty'])
+                        BrokerService._upsert_manual_trade(
+                            user_id, tenant_id, sym, broker_name,
+                            entry_ts=s['ts'], entry_price=s['price'],
+                            exit_ts=leg['ts'], exit_price=leg['price'],
+                            qty=mq, direction='SHORT',
+                            ext_id=f"{s['tid']}_{leg['tid']}",
+                        )
+                        s['qty'] -= mq
+                        qty_rem -= mq
+                        if s['qty'] == 0:
+                            shorts.popleft()
+                    if qty_rem > 0:
+                        opens.append({**leg, 'qty': qty_rem})
+                else:  # SELL
+                    while qty_rem > 0 and opens:
+                        o = opens[0]
+                        mq = min(qty_rem, o['qty'])
+                        BrokerService._upsert_manual_trade(
+                            user_id, tenant_id, sym, broker_name,
+                            entry_ts=o['ts'], entry_price=o['price'],
+                            exit_ts=leg['ts'], exit_price=leg['price'],
+                            qty=mq, direction='LONG',
+                            ext_id=f"{o['tid']}_{leg['tid']}",
+                        )
+                        o['qty'] -= mq
+                        qty_rem -= mq
+                        if o['qty'] == 0:
+                            opens.popleft()
+                    if qty_rem > 0:
+                        shorts.append({**leg, 'qty': qty_rem})
+
+    @staticmethod
+    def _upsert_manual_trade(user_id, tenant_id, symbol, broker_name,
+                              entry_ts, entry_price, exit_ts, exit_price,
+                              qty, direction, ext_id):
+        """Insert a matched round-trip into ManualTradeImport (idempotent via external_trade_id)."""
+        from models import ManualTradeImport
+        if ManualTradeImport.query.filter_by(
+            user_id=user_id, external_trade_id=ext_id
+        ).first():
+            return  # Already stored
+
+        if direction == 'LONG':
+            pnl = (exit_price - entry_price) * qty
+        else:
+            pnl = (entry_price - exit_price) * qty
+        pnl_pct = round((pnl / (entry_price * qty)) * 100, 2) if entry_price and qty else 0.0
+        hold_hrs = max(0.0, (exit_ts - entry_ts).total_seconds() / 3600)
+        result = 'WIN' if pnl > 0 else ('LOSS' if pnl < 0 else 'BREAKEVEN')
+
+        rec = ManualTradeImport(
+            user_id=user_id,
+            tenant_id=tenant_id,
+            symbol=symbol[:50],
+            strategy_name=f'Live {direction}',
+            quantity=int(qty),
+            entry_price=round(entry_price, 4),
+            exit_price=round(exit_price, 4),
+            realized_pnl=round(pnl, 2),
+            pnl_percentage=pnl_pct,
+            holding_period_hours=round(hold_hrs, 2),
+            trade_result=result,
+            exit_reason='MANUAL',
+            broker_name=broker_name,
+            total_charges=0.0,
+            net_pnl=round(pnl, 2),
+            entry_time=entry_ts,
+            exit_time=exit_ts,
+            asset_type='STOCK',
+            source='broker_sync',
+            external_trade_id=ext_id,
+        )
+        db.session.add(rec)
 
     @staticmethod
     def _sync_profile(broker_account: BrokerAccount, profile_data: Dict):

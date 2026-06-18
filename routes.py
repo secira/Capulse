@@ -801,17 +801,30 @@ def sync_broker_account(account_id):
         account.sync_status = 'syncing'
         db.session.commit()
 
+        # Honour sync_types from request body; default to portfolio data only
+        req_body = request.get_json(silent=True) or {}
+        _allowed = {'holdings', 'positions', 'orders', 'trade_history', 'profile'}
+        requested_types = req_body.get('sync_types')
+        if isinstance(requested_types, list) and all(t in _allowed for t in requested_types):
+            sync_types = requested_types
+        else:
+            sync_types = ['holdings', 'positions', 'orders']
+
         try:
-            results = BrokerService.sync_broker_data(account, ['holdings', 'positions', 'orders'])
+            results = BrokerService.sync_broker_data(account, sync_types)
             account.sync_status = 'success'
             account.last_sync = datetime.utcnow()
             db.session.commit()
             holdings = results.get('holdings', 0)
             positions = results.get('positions', 0)
             orders = results.get('orders', 0)
+            trade_history = results.get('trade_history', 0)
+            parts = [f'{holdings} holdings', f'{positions} positions', f'{orders} orders']
+            if trade_history:
+                parts.append(f'{trade_history} trades')
             return jsonify({
                 'success': True,
-                'message': f'{account.broker_name} synced — {holdings} holdings, {positions} positions, {orders} orders'
+                'message': f'{account.broker_name} synced — {", ".join(parts)}'
             })
         except BrokerAPIError as broker_err:
             account.sync_status = 'failed'
@@ -842,6 +855,15 @@ def sync_all_broker_accounts():
         if not accounts:
             return jsonify({'success': False, 'message': 'No connected broker accounts found'})
 
+        # Honour sync_types from request body
+        req_body = request.get_json(silent=True) or {}
+        _allowed = {'holdings', 'positions', 'orders', 'trade_history', 'profile'}
+        requested_types = req_body.get('sync_types')
+        if isinstance(requested_types, list) and all(t in _allowed for t in requested_types):
+            sync_types = requested_types
+        else:
+            sync_types = ['holdings', 'positions', 'orders']
+
         synced = []
         failed = []
 
@@ -849,7 +871,7 @@ def sync_all_broker_accounts():
             try:
                 account.sync_status = 'syncing'
                 db.session.commit()
-                BrokerService.sync_broker_data(account, ['holdings', 'positions', 'orders'])
+                BrokerService.sync_broker_data(account, sync_types)
                 account.sync_status = 'success'
                 account.last_sync = datetime.utcnow()
                 db.session.commit()
