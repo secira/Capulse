@@ -3006,7 +3006,8 @@ def fno_signal_history():
 
         rows = db.session.execute(db.text(f"""
             SELECT id, trade_code, index_id, signal_type, direction,
-                   confidence, outcome, created_at, exit_time, exit_spot
+                   confidence, outcome, created_at, exit_time, exit_spot,
+                   market_regime
             FROM   fno_signal_history
             WHERE  {w_clause}
             ORDER  BY created_at DESC
@@ -3027,16 +3028,17 @@ def fno_signal_history():
         signals = []
         for r in rows:
             signals.append({
-                'id':          r[0],
-                'trade_code':  r[1] or '—',
-                'index_id':    r[2] or 'NIFTY',
-                'signal_type': r[3] or '—',
-                'direction':   r[4] or '—',
-                'confidence':  r[5],
-                'outcome':     r[6] or '—',
-                'created_at':  _to_ist(r[7]),
-                'exit_time':   _to_ist(r[8]),
-                'exit_spot':   r[9],
+                'id':            r[0],
+                'trade_code':    r[1] or '—',
+                'index_id':      r[2] or 'NIFTY',
+                'signal_type':   r[3] or '—',
+                'direction':     r[4] or '—',
+                'confidence':    r[5],
+                'outcome':       r[6] or '—',
+                'created_at':    _to_ist(r[7]),
+                'exit_time':     _to_ist(r[8]),
+                'exit_spot':     r[9],
+                'market_regime': r[10] or 'trending',
             })
 
         total_pages = max(1, (total + per_page - 1) // per_page)

@@ -250,7 +250,7 @@
 <div id="dataSourceWarning" style="display:none;margin-bottom:16px;"></div>
 
 <!-- FLAT MARKET DETECTED BANNER -->
-<div id="flatMarketBanner" style="display:none;margin-bottom:16px;padding:16px 20px;background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;display:flex;align-items:flex-start;gap:14px">
+<div id="flatMarketBanner" style="display:none;margin-bottom:16px;padding:16px 20px;background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;align-items:flex-start;gap:14px">
     <div style="font-size:28px;line-height:1">🌫️</div>
     <div>
         <div style="font-size:15px;font-weight:800;color:#92400e;letter-spacing:.3px">Flat Market Detected</div>
@@ -843,7 +843,7 @@ function refreshAnalysis() {
         var flatBanner = document.getElementById('flatMarketBanner');
         var flatAdxEl  = document.getElementById('flatMarketAdx');
         if (d.market_regime === 'flat') {
-            flatBanner.style.display = 'flex';
+            flatBanner.style.cssText = flatBanner.style.cssText.replace('display:none','') + ';display:flex';
             if (flatAdxEl) {
                 flatAdxEl.textContent = 'Current ADX: ' + (d.strength ? d.strength.adx : '—') + ' — trend requires ADX ≥ 20';
             }

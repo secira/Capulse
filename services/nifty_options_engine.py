@@ -2395,6 +2395,12 @@ class NiftyOptionsEngine:
         if next_chain:
             next_trades = self._enrich_trades(raw_strikes, next_chain, confidence, entry_mode, next_expiry_info)
 
+        # Flat market gate — clear all trade recommendations so the UI shows nothing.
+        # ADX < 20 means sideways conditions: recommendations would be misleading.
+        if market_regime == 'flat':
+            current_trades = []
+            next_trades    = []
+
         for t in current_trades:
             t['trade_reasons'] = self._generate_trade_reasons(t, direction, strength, oi_signal, trigger=trigger)
         for t in next_trades:
