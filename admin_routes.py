@@ -310,16 +310,18 @@ def users(page=1):
 @admin_required
 def user_detail(user_id):
     """User detail page with payment and trade history"""
+    from datetime import datetime as _dt
     user = User.query.get_or_404(user_id)
     payments = UserPayment.query.filter_by(user_id=user_id).order_by(desc(UserPayment.created_at)).limit(10).all()
     executed_trades = ExecutedTrade.query.filter_by(user_id=user_id).order_by(desc(ExecutedTrade.executed_at)).limit(10).all()
     brokers = BrokerAccount.query.filter_by(user_id=user_id).all()
-    
+
     return render_template('admin/user_detail.html',
                          user=user,
                          payments=payments,
                          executed_trades=executed_trades,
-                         brokers=brokers)
+                         brokers=brokers,
+                         now=_dt.utcnow())
 
 @admin_bp.route('/user/<int:user_id>/update-plan', methods=['POST'])
 @admin_required
@@ -347,19 +349,34 @@ def update_user_plan(user_id):
 @admin_bp.route('/user/<int:user_id>/edit', methods=['POST'])
 @admin_required
 def edit_user(user_id):
-    """Edit user profile details and admin privilege."""
+    """Edit user profile details, admin privilege, and subscription expiry."""
+    from datetime import datetime as _dt
     user = User.query.get_or_404(user_id)
 
-    username     = request.form.get('username',     '').strip() or None
-    email        = request.form.get('email',        '').strip() or None
-    first_name   = request.form.get('first_name',   '').strip() or None
-    last_name    = request.form.get('last_name',    '').strip() or None
+    username      = request.form.get('username',      '').strip() or None
+    email         = request.form.get('email',         '').strip() or None
+    first_name    = request.form.get('first_name',    '').strip() or None
+    last_name     = request.form.get('last_name',     '').strip() or None
     mobile_number = request.form.get('mobile_number', '').strip() or None
     promote_admin = request.form.get('is_admin') == '1'
+    expiry_raw    = request.form.get('subscription_end_date', '').strip()
 
     # Safety: don't allow demoting the currently-logged-in admin
     if hasattr(current_user, 'id') and current_user.id == user.id and not promote_admin and user.is_admin:
         flash('You cannot remove your own admin privilege.', 'danger')
+        return redirect(url_for('admin.user_detail', user_id=user_id))
+
+    # Parse the expiry date
+    new_expiry = None
+    expiry_error = None
+    if expiry_raw:
+        try:
+            new_expiry = _dt.strptime(expiry_raw, '%Y-%m-%d')
+        except ValueError:
+            expiry_error = f'Invalid expiry date "{expiry_raw}" — use YYYY-MM-DD format.'
+
+    if expiry_error:
+        flash(expiry_error, 'danger')
         return redirect(url_for('admin.user_detail', user_id=user_id))
 
     try:
@@ -385,6 +402,9 @@ def edit_user(user_id):
         user.last_name     = last_name
         user.mobile_number = mobile_number
         user.is_admin      = promote_admin
+        # Update subscription expiry only when a value was submitted
+        if expiry_raw:
+            user.subscription_end_date = new_expiry
         db.session.commit()
         flash(f'User "{username or email or user_id}" updated successfully.', 'success')
     except Exception as e:

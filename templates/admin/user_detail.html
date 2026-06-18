@@ -58,9 +58,22 @@
                             {% endif %}
                         </td>
                     </tr>
-                    {% if user.subscription_end_date %}
-                    <tr><td class="fw-bold text-muted">Plan Expires</td><td>{{ user.subscription_end_date.strftime('%d %b %Y') }}</td></tr>
-                    {% endif %}
+                    <tr>
+                        <td class="fw-bold text-muted">Plan Expires</td>
+                        <td>
+                            {% if user.subscription_end_date %}
+                                {% if user.subscription_end_date < now %}
+                                    <span class="text-danger"><i class="fas fa-calendar-times me-1"></i>{{ user.subscription_end_date.strftime('%d %b %Y') }} <span class="badge bg-danger ms-1">Expired</span></span>
+                                {% else %}
+                                    <span class="text-success"><i class="fas fa-calendar-check me-1"></i>{{ user.subscription_end_date.strftime('%d %b %Y') }}</span>
+                                {% endif %}
+                            {% elif user.pricing_plan and user.pricing_plan.value != 'free' %}
+                                <span class="text-warning"><i class="fas fa-calendar-alt me-1"></i>19 Jun 2026 <span class="badge bg-warning text-dark ms-1">Fallback</span></span>
+                            {% else %}
+                                <span class="text-muted">Trial — {{ user.plan_expires_at().strftime('%d %b %Y') }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
                 </table>
             </div>
         </div>
@@ -129,6 +142,18 @@
                         <label class="form-label fw-semibold small mb-1">Mobile Number</label>
                         <input type="text" name="mobile_number" class="form-control form-control-sm"
                                value="{{ user.mobile_number or '' }}" placeholder="+91XXXXXXXXXX">
+                    </div>
+
+                    <!-- Subscription Expiry Date -->
+                    <div class="mb-3 p-2 rounded" style="background:#f0f9ff;border:1px solid #bae6fd">
+                        <label class="form-label fw-semibold small mb-1">
+                            <i class="fas fa-calendar-alt me-1 text-primary"></i>Subscription Expiry Date
+                        </label>
+                        <input type="date" name="subscription_end_date" class="form-control form-control-sm"
+                               value="{{ user.subscription_end_date.strftime('%Y-%m-%d') if user.subscription_end_date else '' }}">
+                        <small class="text-muted" style="font-size:11px">
+                            Extend to give more time · Set a past date to expire immediately · Leave blank to keep current date unchanged.
+                        </small>
                     </div>
 
                     <!-- Admin privilege toggle -->
