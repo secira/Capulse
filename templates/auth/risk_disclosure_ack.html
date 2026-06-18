@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Disclosure — Target Capital</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #f1f5f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+        }
+
+        .rd-card {
+            background: #fff;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 680px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.10);
+            overflow: hidden;
+        }
+
+        /* ── Header ── */
+        .rd-header {
+            background: #00091a;
+            padding: 28px 36px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .rd-header-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+        .rd-header-logo img {
+            height: 32px;
+            filter: brightness(0) invert(1);
+        }
+        .rd-header-logo span {
+            font-size: 17px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+        .rd-header-sep {
+            width: 1px;
+            height: 28px;
+            background: rgba(255,255,255,0.2);
+            margin: 0 4px;
+        }
+        .rd-header-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        /* ── SEBI alert banner ── */
+        .rd-sebi-banner {
+            background: #fef3c7;
+            border-bottom: 2px solid #f59e0b;
+            padding: 14px 36px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .rd-sebi-banner i {
+            font-size: 18px;
+            color: #d97706;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+        .rd-sebi-banner-text {
+            font-size: 11px;
+            font-weight: 600;
+            color: #92400e;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .rd-sebi-banner-sub {
+            font-size: 11.5px;
+            color: #78350f;
+            margin-top: 2px;
+            font-weight: 400;
+        }
+
+        /* ── Body ── */
+        .rd-body {
+            padding: 28px 36px 0;
+        }
+
+        .rd-section-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 18px;
+        }
+
+        /* ── Big stat cards ── */
+        .rd-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .rd-stat {
+            background: #fef2f2;
+            border: 1.5px solid #fecaca;
+            border-radius: 12px;
+            padding: 16px 18px;
+        }
+        .rd-stat-num {
+            font-size: 26px;
+            font-weight: 800;
+            color: #dc2626;
+            line-height: 1.1;
+            margin-bottom: 4px;
+        }
+        .rd-stat-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #7f1d1d;
+            line-height: 1.4;
+        }
+
+        /* ── Full-width stats ── */
+        .rd-stat.full {
+            grid-column: 1 / -1;
+            background: #fff7ed;
+            border-color: #fed7aa;
+        }
+        .rd-stat.full .rd-stat-num {
+            color: #ea580c;
+        }
+        .rd-stat.full .rd-stat-label {
+            color: #7c2d12;
+        }
+
+        /* ── Detail bullets ── */
+        .rd-detail {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+        }
+        .rd-detail ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .rd-detail ul li {
+            font-size: 13px;
+            color: #475569;
+            padding-left: 20px;
+            position: relative;
+            line-height: 1.5;
+        }
+        .rd-detail ul li::before {
+            content: '›';
+            position: absolute;
+            left: 4px;
+            color: #94a3b8;
+            font-weight: 700;
+        }
+
+        /* ── SEBI source ── */
+        .rd-source {
+            font-size: 11px;
+            color: #94a3b8;
+            padding: 0 0 18px;
+            line-height: 1.5;
+        }
+        .rd-source strong { color: #64748b; }
+
+        /* ── Acknowledgement form ── */
+        .rd-footer {
+            padding: 20px 36px 28px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .rd-checkbox-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+        .rd-checkbox-row input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            margin-top: 1px;
+            accent-color: #dc2626;
+            cursor: pointer;
+        }
+        .rd-checkbox-row label {
+            font-size: 13.5px;
+            font-weight: 500;
+            color: #1e293b;
+            cursor: pointer;
+            line-height: 1.5;
+        }
+
+        .rd-proceed-btn {
+            width: 100%;
+            padding: 14px;
+            background: #00091a;
+            color: #fff;
+            font-family: 'Poppins', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .rd-proceed-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+        .rd-proceed-btn:not(:disabled):hover {
+            background: #0f172a;
+        }
+
+        .rd-full-link {
+            display: block;
+            text-align: center;
+            margin-top: 12px;
+            font-size: 12px;
+            color: #94a3b8;
+            text-decoration: none;
+        }
+        .rd-full-link:hover { color: #64748b; }
+
+        /* ── Mobile ── */
+        @media (max-width: 520px) {
+            .rd-header { padding: 20px 20px 18px; }
+            .rd-sebi-banner { padding: 12px 20px; }
+            .rd-body { padding: 20px 20px 0; }
+            .rd-footer { padding: 16px 20px 24px; }
+            .rd-stats { grid-template-columns: 1fr; }
+            .rd-stat.full { grid-column: 1; }
+            .rd-stat-num { font-size: 22px; }
+        }
+    </style>
+</head>
+<body>
+<div class="rd-card">
+
+    <!-- Header -->
+    <div class="rd-header">
+        <a class="rd-header-logo" href="/">
+            <img src="/static/img/logo.png" alt="Target Capital" onerror="this.style.display='none'">
+            <span>Target Capital</span>
+        </a>
+        <div class="rd-header-sep"></div>
+        <div class="rd-header-title"><i class="fas fa-shield-alt me-1"></i>Mandatory Risk Disclosure</div>
+    </div>
+
+    <!-- SEBI banner -->
+    <div class="rd-sebi-banner">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div>
+            <div class="rd-sebi-banner-text">SEBI Mandated Disclosure — Equity Derivatives (F&amp;O)</div>
+            <div class="rd-sebi-banner-sub">As required by SEBI circular dated January 25, 2023</div>
+        </div>
+    </div>
+
+    <!-- Body -->
+    <div class="rd-body">
+        <div class="rd-section-title">Risk Disclosure on Derivatives</div>
+
+        <!-- Key SEBI stats -->
+        <div class="rd-stats">
+            <div class="rd-stat">
+                <div class="rd-stat-num">9 out of 10</div>
+                <div class="rd-stat-label">individual traders in equity Futures &amp; Options incurred <strong>net losses</strong></div>
+            </div>
+            <div class="rd-stat">
+                <div class="rd-stat-num">₹50,000</div>
+                <div class="rd-stat-label">average net trading loss registered by loss makers</div>
+            </div>
+            <div class="rd-stat full">
+                <div class="rd-stat-num">+28%</div>
+                <div class="rd-stat-label">additional transaction costs incurred <em>over and above</em> net trading losses by loss makers</div>
+            </div>
+        </div>
+
+        <!-- Transaction cost note for winners -->
+        <div class="rd-detail">
+            <ul>
+                <li>Those making net trading <strong>profits</strong> incurred between <strong>15% to 50%</strong> of such profits as transaction costs.</li>
+                <li>Transaction costs include brokerage, STT, exchange charges, GST, SEBI turnover fees, and stamp duty.</li>
+                <li>Past performance of any trading system or signal does not guarantee future results.</li>
+                <li>Derivatives involve significant risk. Trade only with capital you can afford to lose.</li>
+            </ul>
+        </div>
+
+        <!-- Source citation -->
+        <div class="rd-source">
+            <strong>Source:</strong> SEBI study dated January 25, 2023 — "Analysis of Profit and Loss of Individual Traders dealing in equity Futures and Options (F&O) Segment." Aggregate findings based on annual P&amp;L of individual traders in equity F&amp;O during FY 2021-22.
+            <a href="/risk-disclosure" target="_blank" style="color:#3b82f6;text-decoration:none;margin-left:4px">Full Risk Disclosure →</a>
+        </div>
+    </div>
+
+    <!-- Acknowledgement -->
+    <div class="rd-footer">
+        <form method="POST" action="{{ url_for('risk_disclosure_ack') }}" id="rdForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ next_url }}">
+
+            <label class="rd-checkbox-row" for="rdCheck">
+                <input type="checkbox" id="rdCheck" name="acknowledged" onchange="toggleBtn(this)">
+                <span>I have read and understood the above risk disclosure. I am aware that trading in equity Futures &amp; Options carries a high risk of financial loss.</span>
+            </label>
+
+            <button type="submit" class="rd-proceed-btn" id="rdBtn" disabled>
+                <i class="fas fa-arrow-right"></i>
+                I Understand — Proceed to Dashboard
+            </button>
+        </form>
+        <a href="/risk-disclosure" target="_blank" class="rd-full-link">
+            <i class="fas fa-external-link-alt me-1"></i>Read full Risk Disclosure
+        </a>
+    </div>
+
+</div>
+
+<script>
+function toggleBtn(cb) {
+    document.getElementById('rdBtn').disabled = !cb.checked;
+}
+</script>
+</body>
+</html>

@@ -411,6 +411,27 @@ def risk_disclosure():
     """Risk Disclosure page route"""
     return render_template('risk_disclosure.html')
 
+
+@app.route('/risk-disclosure-ack', methods=['GET', 'POST'])
+@login_required
+def risk_disclosure_ack():
+    """Post-login mandatory SEBI risk disclosure acknowledgement.
+
+    GET  → render the disclosure page.
+    POST → mark session as acknowledged, redirect to dashboard (or next).
+    """
+    from flask import session as flask_session
+    if request.method == 'POST':
+        flask_session['risk_disclosure_acked'] = True
+        next_url = request.form.get('next', '').strip()
+        # Validate next_url is an internal path only
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            return redirect(next_url)
+        return redirect(url_for('dashboard'))
+
+    next_url = request.args.get('next', url_for('dashboard'))
+    return render_template('auth/risk_disclosure_ack.html', next_url=next_url)
+
 @app.route('/compliance')
 def compliance():
     """Compliance page route"""

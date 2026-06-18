@@ -1213,6 +1213,30 @@ _TRIAL_EXEMPT_ENDPOINTS: frozenset = frozenset({
     'account_profile', 'update_profile', 'account_settings',
     'account_billing', 'change_password', 'update_notification_settings',
     'extend_trial',
+    # Risk disclosure acknowledgement (must never be gated by trial check)
+    'risk_disclosure_ack', 'risk_disclosure',
+})
+
+# ── SEBI Risk Disclosure gate ─────────────────────────────────────────────────
+# Endpoints that are allowed through BEFORE the user acknowledges the disclosure.
+_RISK_DISCLOSURE_EXEMPT: frozenset = frozenset({
+    'static', 'health_check', 'liveness_check', 'readiness_check',
+    # All public pages
+    'index', 'about', 'services', 'algo_trading', 'algo_trading_service',
+    'blog', 'blog_post', 'blog_post_by_slug', 'pricing', 'careers',
+    'news', 'partners', 'for_brokers', 'contact',
+    'trading_signals', 'daily_signals_feature', 'live_market',
+    'risk_disclosure', 'terms_of_service', 'privacy_policy', 'compliance',
+    'cancellation_refund_policy',
+    # Auth
+    'login', 'register', 'logout',
+    'google_auth.login', 'google_auth.callback', 'google_auth.logout',
+    'send_otp', 'verify_otp', 'resend_otp', 'mobile_login',
+    # The disclosure page itself
+    'risk_disclosure_ack',
+    # Payments
+    'subscribe', 'verify_payment', 'payment_success', 'payment_failed',
+    'upgrade_plan', 'razorpay_webhook',
 })
 
 # ── BETA INVITE-ONLY GATE ─────────────────────────────────────────────────────
@@ -1240,6 +1264,34 @@ def check_beta_invite_gate():
     This hook is intentionally a no-op; it is kept so the beta posture can be
     reinstated later without re-wiring the request pipeline."""
     return
+
+
+@app.before_request
+def check_risk_disclosure():
+    """Redirect authenticated users to the SEBI risk disclosure page until they acknowledge it.
+
+    The flag ``session['risk_disclosure_acked']`` is set by the POST handler of
+    ``risk_disclosure_ack`` and lives for the lifetime of the login session.
+    Admins are exempt; all non-authenticated requests pass through naturally.
+    """
+    from flask import session as flask_session, redirect, url_for
+    from flask_login import current_user
+
+    endpoint = request.endpoint
+    if not endpoint or endpoint in _RISK_DISCLOSURE_EXEMPT:
+        return
+
+    if not current_user.is_authenticated:
+        return
+
+    if getattr(current_user, 'is_admin', False):
+        return
+
+    if flask_session.get('risk_disclosure_acked'):
+        return
+
+    # Preserve the originally-intended destination as `next`
+    return redirect(url_for('risk_disclosure_ack', next=request.path))
 
 
 @app.before_request
