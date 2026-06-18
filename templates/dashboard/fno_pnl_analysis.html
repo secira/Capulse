@@ -339,18 +339,27 @@ function loadPnL() {
 
         var totalTrades  = res.total_trades  || 0;
         var totalClosed  = res.total_closed  || 0;
-        var totalActive  = totalTrades - totalClosed;
+        var totalActive  = res.total_active  || (totalTrades - totalClosed);
         var allWithPnl   = [];
-        res.months.forEach(function(m){ m.trades.forEach(function(t){ if(t.pnl_pct !== null && !t.is_active) allWithPnl.push(t); }); });
+        var allSL = 0, allTarget = 0;
+        res.months.forEach(function(m){
+            m.trades.forEach(function(t){
+                if (t.pnl_pct !== null && t.outcome !== 'ACTIVE') allWithPnl.push(t);
+                if (t.outcome === 'SL HIT') allSL++;
+                if (t.outcome && t.outcome.indexOf('TARGET') === 0) allTarget++;
+            });
+        });
         var allWins    = allWithPnl.filter(function(t){ return t.pnl_pct > 0; }).length;
         var overallWr  = allWithPnl.length ? Math.round(allWins / allWithPnl.length * 100) : null;
         var overallCum = allWithPnl.length ? allWithPnl.reduce(function(a,t){ return a + t.pnl_pct; }, 0).toFixed(1) : null;
         var cumColor   = overallCum !== null && parseFloat(overallCum) >= 0 ? '#15803d' : '#dc2626';
+        var wrColor    = overallWr !== null && overallWr >= 50 ? '#15803d' : '#dc2626';
 
-        var html = '<div style="background:#0f172a;border-radius:14px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">';
+        var html = '<div style="background:#0f172a;border-radius:14px;padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">';
         html += '<div style="color:#fff"><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Total Trades</div><div style="font-size:28px;font-weight:800">' + totalTrades + '</div></div>';
-        html += '<div><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Active / Closed</div><div style="font-size:28px;font-weight:800"><span style="color:#60a5fa">' + totalActive + '</span> <span style="color:#64748b;font-size:18px">/</span> <span style="color:#fff">' + totalClosed + '</span></div></div>';
-        html += '<div style="color:#fff"><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Win Rate</div><div style="font-size:28px;font-weight:800">' + (overallWr !== null ? overallWr + '%' : '—') + '</div></div>';
+        html += '<div><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Active / Closed</div><div style="font-size:28px;font-weight:800"><span style="color:#60a5fa">' + totalActive + '</span><span style="color:#64748b;font-size:18px"> / </span><span style="color:#fff">' + totalClosed + '</span></div></div>';
+        html += '<div><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">✅ Target / ❌ SL</div><div style="font-size:28px;font-weight:800"><span style="color:#4ade80">' + allTarget + '</span><span style="color:#64748b;font-size:18px"> / </span><span style="color:#f87171">' + allSL + '</span></div></div>';
+        html += '<div style="color:' + wrColor + '"><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Win Rate</div><div style="font-size:28px;font-weight:800">' + (overallWr !== null ? overallWr + '%' : '—') + '</div></div>';
         html += '<div><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Cumulative P&L</div><div style="font-size:28px;font-weight:800;color:' + cumColor + '">' + (overallCum !== null ? (parseFloat(overallCum) >= 0 ? '+' : '') + overallCum + '%' : '—') + '</div></div>';
         html += '<div style="color:#fff"><div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Months Tracked</div><div style="font-size:28px;font-weight:800">' + res.months.length + '</div></div>';
         html += '</div>';

@@ -433,8 +433,14 @@ def fno_pnl_history():
                 'week_in_month_lbl':  week_in_month_lbl,
             })
 
+        _TIME_EXIT_OUTCOMES = {'3PM SQUARE OFF', 'TIME EXIT', 'MARKET CLOSED', 'MANUAL CLOSE'}
+
         def _summarise(tlist):
+            active   = [t for t in tlist if t['outcome'] == 'ACTIVE']
             closed   = [t for t in tlist if t['outcome'] != 'ACTIVE']
+            sl_hits  = [t for t in closed if t['outcome'] == 'SL HIT']
+            tgt_hits = [t for t in closed if t['outcome'] and t['outcome'].startswith('TARGET')]
+            t_exits  = [t for t in closed if t['outcome'] in _TIME_EXIT_OUTCOMES]
             with_pnl = [t for t in closed if t['pnl_pct'] is not None]
             wins     = [t for t in with_pnl if t['pnl_pct'] > 0]
             losses   = [t for t in with_pnl if t['pnl_pct'] <= 0]
@@ -442,8 +448,12 @@ def fno_pnl_history():
             cum_pnl  = round(sum(t['pnl_pct'] for t in with_pnl), 1) if with_pnl else None
             return {
                 'total_trades': len(closed),
+                'active_count': len(active),
                 'wins':         len(wins),
                 'losses':       len(losses),
+                'sl_hits':      len(sl_hits),
+                'target_hits':  len(tgt_hits),
+                'time_exits':   len(t_exits),
                 'square_offs':  len(closed) - len(with_pnl),
                 'win_rate':     round(len(wins) / len(with_pnl) * 100, 1) if with_pnl else None,
                 'total_points': tot_pts,
@@ -481,7 +491,15 @@ def fno_pnl_history():
                 data['summary'] = _summarise(data['trades'])
                 groups.append(data)
 
-        return jsonify({'success': True, 'months': groups, 'total_trades': len(trades)})
+        total_closed = sum(1 for t in trades if t['outcome'] != 'ACTIVE')
+        total_active = len(trades) - total_closed
+        return jsonify({
+            'success':       True,
+            'months':        groups,
+            'total_trades':  len(trades),
+            'total_closed':  total_closed,
+            'total_active':  total_active,
+        })
     except Exception as e:
         logger.error(f"P&L history error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500

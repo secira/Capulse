@@ -17,7 +17,8 @@ IST_OFFSET = timedelta(hours=5, minutes=30)
 # Tier 2 (60-74) and Tier 3 (50-59) are surfaced in the app/UI only.
 ALERT_CONFIDENCE_THRESHOLD = 75
 SIGNAL_COOLDOWN_MINUTES    = 10
-MAX_SIGNALS_PER_DAY        = 3          # per index
+MAX_SIGNALS_PER_DAY        = 2          # per index — cap at 2 to avoid over-signalling
+MAX_SIGNALS_TOTAL_PER_DAY  = 4          # cross-index daily cap across NIFTY+BANKNIFTY+FINNIFTY+SENSEX
 
 # Trade Lifecycle constants (shared across indices)
 # CONFIRMATION_CANDLES = 2: require two consecutive strong 60-second scans
@@ -25,7 +26,7 @@ MAX_SIGNALS_PER_DAY        = 3          # per index
 # false triggers in choppy/reversing markets (high SL-hit rate cause).
 CONFIRMATION_CANDLES    = 2
 ENTRY_COOLDOWN_MINUTES  = 15
-TRADE_MIN_CONFIDENCE    = 80
+TRADE_MIN_CONFIDENCE    = 85           # raised from 80 — only enter on high-conviction setups
 TRADE_MIN_ADX           = 25
 EOD_FORCE_EXIT_HOUR     = 15      # 3:00 PM IST — hard-close every open signal so
 EOD_FORCE_EXIT_MINUTE   = 0       # daily P&L is deterministic at end-of-day.
@@ -55,6 +56,27 @@ _INDEX_TRADE_PREFIX = {
     'FINNIFTY':  'FINT',
     'SENSEX':    'SNXT',
 }
+
+# ── Cross-index daily trade counter ──────────────────────────────────────────
+# Hard cap across all indices combined to prevent over-signalling.
+_global_daily_trade_count: int = 0
+_global_daily_trade_date  = None
+
+def _global_daily_reset_if_needed():
+    global _global_daily_trade_count, _global_daily_trade_date
+    today = _now_ist().date()
+    if _global_daily_trade_date != today:
+        _global_daily_trade_date  = today
+        _global_daily_trade_count = 0
+
+def _global_trade_count_ok() -> bool:
+    _global_daily_reset_if_needed()
+    return _global_daily_trade_count < MAX_SIGNALS_TOTAL_PER_DAY
+
+def _global_trade_count_increment():
+    global _global_daily_trade_count
+    _global_daily_reset_if_needed()
+    _global_daily_trade_count += 1
 
 # ── Per-index mutable state ───────────────────────────────────────────────────
 # Each dict maps index_id → value.
@@ -949,6 +971,19 @@ def _try_trigger_trade(analysis: dict, idx: str):
         _trade_state[idx]        = 'NONE'
         return None
 
+    # Cross-index daily cap — stop new entries if all indices have already generated
+    # MAX_SIGNALS_TOTAL_PER_DAY trades today. This prevents a volatile day from
+    # flooding users with signals across every index simultaneously.
+    if not _global_trade_count_ok():
+        logger.info(
+            f"[{idx}] Cross-index daily cap reached ({MAX_SIGNALS_TOTAL_PER_DAY} trades today). "
+            "No new entries until tomorrow."
+        )
+        _confirmation_count[idx] = 0
+        _confirmation_dir[idx]   = None
+        _trade_state[idx]        = 'NONE'
+        return None
+
     strong = (
         confidence >= TRADE_MIN_CONFIDENCE
         and entry_mode in ('CONFIRMED', 'EARLY')
@@ -1000,10 +1035,12 @@ def _try_trigger_trade(analysis: dict, idx: str):
         _trade_state[idx]        = 'ACTIVE'
         _confirmation_count[idx] = 0
         _confirmation_dir[idx]   = None
+        _global_trade_count_increment()   # count this trade against the cross-index daily cap
         t = _active_trade[idx]
         logger.info(
             f"[{idx}] 🔒 Trade LOCKED: {direction} {t.get('type','')} "
-            f"@ {t['entry_price']:.0f}  SL={t['sl']:.0f}  Target={t['target']:.0f}"
+            f"@ {t['entry_price']:.0f}  SL={t['sl']:.0f}  Target={t['target']:.0f}  "
+            f"(global today: {_global_daily_trade_count}/{MAX_SIGNALS_TOTAL_PER_DAY})"
         )
         return 'TRADE_TRIGGER'
 
