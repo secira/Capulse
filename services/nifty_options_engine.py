@@ -2156,6 +2156,18 @@ class NiftyOptionsEngine:
             ema_data=strength.get('ema', {}),
         )
 
+        # ── ADX-based market regime classification ─────────────────────────────
+        # ADX < 20 = flat/sideways; VWAP/EMA/SuperTrend flip rapidly → high
+        # false-positive rate. Suppress ALL new entries to protect capital.
+        _adx_val = strength.get('adx', 22.0)
+        _vol_expansion = regime.get('vol_expansion', False)
+        if _adx_val < 20.0:
+            market_regime = 'flat'
+        elif _adx_val >= 25.0 and _vol_expansion:
+            market_regime = 'volatile'
+        else:
+            market_regime = 'trending'
+
         # ── HalfTrend lifecycle layer ─────────────────────────────────
         # Per spec, HalfTrend manages trade lifecycle (persistence + exits)
         # and acts as a confidence tailwind when it aligns with direction.
@@ -2213,6 +2225,11 @@ class NiftyOptionsEngine:
         if _estimated_data:
             entry_mode = 'NO TRADE'
 
+        # HARD BLOCK: flat market — ADX < 20 = non-trending/sideways conditions.
+        # Indicators whipsaw, producing high false-positive rates. Suppress ALL entries.
+        if market_regime == 'flat':
+            entry_mode = 'NO TRADE'
+
         # HARD BLOCK: extremely low volume (< 50% of 20-bar avg) means no participation.
         # Signals in thin-volume conditions have high false-positive rates — market is
         # in consolidation/chop. Only block when well below avg, not just below.
@@ -2245,6 +2262,11 @@ class NiftyOptionsEngine:
         block_reasons = []
         if _estimated_data:
             block_reasons.append("No live option data — connect a Data API broker or check NSE connectivity")
+        if market_regime == 'flat':
+            block_reasons.append(
+                f"Flat market — ADX {_adx_val:.1f} (< 20): sideways conditions detected, "
+                f"all signals suppressed to protect capital"
+            )
         if not time_check['pass']:
             block_reasons.append(time_check['reason'])
         # Regime filter reasons (chop / vwap-distance / compression / overlap)
@@ -2506,6 +2528,7 @@ class NiftyOptionsEngine:
                 'daily_loss_limit': '3%',
                 'risk_per_trade': '1% of capital',
             },
+            'market_regime':     market_regime,
             'configured_source': self.data_source,
             'index':             self.index,
             'lot_size':          self.lot_size,

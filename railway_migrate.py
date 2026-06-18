@@ -502,6 +502,13 @@ def ensure_missing_columns(session):
     for ddl, label in cols:
         _col(session, ddl, label)
 
+    # ── fno_signal_history (ADX gate additions) ────────────────────────
+    cols = [
+        ("ALTER TABLE fno_signal_history ADD COLUMN IF NOT EXISTS market_regime VARCHAR(20)",                                         "fno_signal_history.market_regime"),
+    ]
+    for ddl, label in cols:
+        _col(session, ddl, label)
+
     # ── trading_signals (TradingSignal model) ────────────────
     cols = [
         ("ALTER TABLE trading_signals ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255) DEFAULT 'live'",                               "trading_signals.tenant_id"),

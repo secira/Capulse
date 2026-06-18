@@ -249,6 +249,20 @@
 <!-- DATA SOURCE WARNING -->
 <div id="dataSourceWarning" style="display:none;margin-bottom:16px;"></div>
 
+<!-- FLAT MARKET DETECTED BANNER -->
+<div id="flatMarketBanner" style="display:none;margin-bottom:16px;padding:16px 20px;background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;display:flex;align-items:flex-start;gap:14px">
+    <div style="font-size:28px;line-height:1">🌫️</div>
+    <div>
+        <div style="font-size:15px;font-weight:800;color:#92400e;letter-spacing:.3px">Flat Market Detected</div>
+        <div style="font-size:13px;color:#78350f;margin-top:4px">
+            ADX is below 20 — the market is in a sideways/non-trending phase. VWAP, EMA and SuperTrend indicators
+            produce unreliable signals in this environment. <strong>All trade signals are suppressed to protect your capital.</strong>
+            Monitor ADX; signals will resume automatically when trend strength returns (ADX ≥ 20).
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:#92400e;font-weight:600" id="flatMarketAdx"></div>
+    </div>
+</div>
+
 <!-- FINAL DECISION BANNER -->
 <div class="decision-banner decision-notrade" id="decisionBanner" style="display:none">
     <div class="decision-icon" id="decisionIcon">🚫</div>
@@ -823,6 +837,18 @@ function refreshAnalysis() {
             dsBadge.style.background = badgeBg;
             dsBadge.style.color = badgeColor;
             dsBadge.style.display = 'inline-block';
+        }
+
+        // Flat market banner
+        var flatBanner = document.getElementById('flatMarketBanner');
+        var flatAdxEl  = document.getElementById('flatMarketAdx');
+        if (d.market_regime === 'flat') {
+            flatBanner.style.display = 'flex';
+            if (flatAdxEl) {
+                flatAdxEl.textContent = 'Current ADX: ' + (d.strength ? d.strength.adx : '—') + ' — trend requires ADX ≥ 20';
+            }
+        } else {
+            flatBanner.style.display = 'none';
         }
 
         isBlocked = d.is_blocked || false;

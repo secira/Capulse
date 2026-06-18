@@ -391,11 +391,11 @@ def _save_signal_to_db(app, signal_data: dict, index_id: str,
                 INSERT INTO fno_signal_history
                     (index_id, signal_type, direction, confidence, confidence_grade,
                      entry_mode, spot_price, atm_strike, trades_json, layers_json,
-                     alert_sent, data_source, trade_code, outcome)
+                     alert_sent, data_source, trade_code, outcome, market_regime)
                 VALUES
                     (:index_id, :signal_type, :direction, :confidence, :confidence_grade,
                      :entry_mode, :spot_price, :atm_strike, :trades_json, :layers_json,
-                     :alert_sent, :data_source, :trade_code, :outcome)
+                     :alert_sent, :data_source, :trade_code, :outcome, :market_regime)
             """), {
                 'index_id':        index_id,
                 'signal_type':     signal_data.get('signal_type', 'SCAN'),
@@ -412,10 +412,11 @@ def _save_signal_to_db(app, signal_data: dict, index_id: str,
                     'strength':    signal_data.get('strength', {}),
                     'oi_analysis': signal_data.get('oi_analysis', {}),
                 }),
-                'alert_sent':  signal_data.get('alert_sent', False),
-                'data_source': signal_data.get('data_source', 'nse_python'),
-                'trade_code':  trade_code,
-                'outcome':     outcome,
+                'alert_sent':    signal_data.get('alert_sent', False),
+                'data_source':   signal_data.get('data_source', 'nse_python'),
+                'trade_code':    trade_code,
+                'outcome':       outcome,
+                'market_regime': signal_data.get('market_regime', 'trending'),
             })
 
             # On exit: also update the TRIGGER record with the outcome.
@@ -1023,6 +1024,16 @@ def _scan_index(app, idx: str, data_broker_user_id):
 
         if not analysis:
             logger.warning(f"[{idx}] Engine returned no analysis")
+            return
+
+        # Flat market gate — ADX < 20 = sideways conditions.
+        # Skip all new signal generation, DB save, and Telegram alerts.
+        # Exception: if a trade is ACTIVE we still monitor it for exits.
+        if analysis.get('market_regime') == 'flat' and _trade_state[idx] != 'ACTIVE':
+            logger.info(
+                f"[{idx}] 🟡 Flat market (ADX={analysis.get('strength', {}).get('adx', 0):.1f} < 20) "
+                f"— signals suppressed, skipping scan"
+            )
             return
 
         raw_conf = analysis.get('confidence', 0)
