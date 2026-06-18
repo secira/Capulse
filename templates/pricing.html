@@ -49,7 +49,7 @@
             <!-- Starter Plan (14-day trial) -->
             <div class="col-lg-3 col-md-6">
                 <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
-                    <div class="card-body p-4">
+                    <div class="card-body p-4 d-flex flex-column">
                         <div class="text-center mb-4">
                             <span class="badge rounded-pill px-3 py-2 mb-3" style="background:#fef3c7;color:#b45309;">14-Day Free Trial</span>
                             <h4 class="fw-bold text-dark mb-1">Starter Plan</h4>
@@ -75,24 +75,26 @@
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Daily Trading Signals</li>
                             </ul>
                         </div>
-                        {% if current_user.is_authenticated %}
-                            {% if current_user.pricing_plan.value == 'FREE' %}
-                                {% if current_user.is_trial_active() %}
-                                <div class="text-center mb-2">
-                                    <span class="badge bg-warning text-dark px-3 py-2" style="font-size:12px;">
-                                        <i class="fas fa-clock me-1"></i>{{ current_user.trial_days_remaining() }} days remaining
-                                    </span>
-                                </div>
-                                <span class="btn btn-secondary w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
+                        <div class="mt-auto">
+                            {% if current_user.is_authenticated %}
+                                {% if current_user.pricing_plan.value == 'FREE' %}
+                                    {% if current_user.is_trial_active() %}
+                                    <div class="text-center mb-2">
+                                        <span class="badge bg-warning text-dark px-3 py-2" style="font-size:12px;">
+                                            <i class="fas fa-clock me-1"></i>{{ current_user.trial_days_remaining() }} days remaining
+                                        </span>
+                                    </div>
+                                    <span class="btn btn-secondary w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
+                                    {% else %}
+                                    <a href="{{ url_for('subscribe', plan_type='target_plus') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Upgrade to Growth</a>
+                                    {% endif %}
                                 {% else %}
-                                <a href="{{ url_for('subscribe', plan_type='target_plus') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Upgrade to Growth</a>
+                                    <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Downgrade unavailable</span>
                                 {% endif %}
                             {% else %}
-                                <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Downgrade unavailable</span>
+                                <a href="{{ url_for('register') }}" class="btn btn-outline-dark w-100 py-2 rounded-pill fw-semibold">Start Free Trial</a>
                             {% endif %}
-                        {% else %}
-                            <a href="{{ url_for('register') }}" class="btn btn-outline-dark w-100 py-2 rounded-pill fw-semibold">Start Free Trial</a>
-                        {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -100,7 +102,7 @@
             <!-- Growth Plan -->
             <div class="col-lg-3 col-md-6">
                 <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
-                    <div class="card-body p-4">
+                    <div class="card-body p-4 d-flex flex-column">
                         <div class="text-center mb-4">
                             <span class="badge bg-success rounded-pill px-3 py-2 mb-3" style="background:#16a34a!important">Growth</span>
                             <h4 class="fw-bold text-dark mb-1">Growth Plan</h4>
@@ -122,17 +124,19 @@
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Trade Now with guardrails</li>
                             </ul>
                         </div>
-                        {% if current_user.is_authenticated %}
-                            {% if current_user.pricing_plan.value == 'TARGET_PLUS' %}
-                                <span class="btn btn-success w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
-                            {% elif current_user.pricing_plan.value in ['TARGET_PRO', 'HNI'] %}
-                                <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Included in Plan</span>
+                        <div class="mt-auto">
+                            {% if current_user.is_authenticated %}
+                                {% if current_user.pricing_plan.value == 'TARGET_PLUS' %}
+                                    <span class="btn btn-success w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
+                                {% elif current_user.pricing_plan.value in ['TARGET_PRO', 'HNI'] %}
+                                    <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Included in Plan</span>
+                                {% else %}
+                                    <a href="{{ url_for('subscribe', plan_type='target_plus') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Upgrade Now</a>
+                                {% endif %}
                             {% else %}
-                                <a href="{{ url_for('subscribe', plan_type='target_plus') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Upgrade Now</a>
+                                <a href="{{ url_for('register') }}" class="btn btn-outline-primary w-100 py-2 rounded-pill fw-semibold">Get Started</a>
                             {% endif %}
-                        {% else %}
-                            <a href="{{ url_for('register') }}" class="btn btn-outline-primary w-100 py-2 rounded-pill fw-semibold">Get Started</a>
-                        {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -143,7 +147,7 @@
                     <div class="position-absolute top-0 start-50 translate-middle">
                         <span class="badge bg-primary px-3 py-2 rounded-pill">Most Popular</span>
                     </div>
-                    <div class="card-body p-4">
+                    <div class="card-body p-4 d-flex flex-column">
                         <div class="text-center mb-4">
                             <span class="badge rounded-pill px-3 py-2 mb-3" style="background:#ede9fe;color:#7c3aed;">Pro</span>
                             <h4 class="fw-bold text-dark mb-1">Pro Plan</h4>
@@ -165,17 +169,19 @@
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Priority email support</li>
                             </ul>
                         </div>
-                        {% if current_user.is_authenticated %}
-                            {% if current_user.pricing_plan.value == 'TARGET_PRO' %}
-                                <span class="btn btn-success w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
-                            {% elif current_user.pricing_plan.value == 'HNI' %}
-                                <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Included in Plan</span>
+                        <div class="mt-auto">
+                            {% if current_user.is_authenticated %}
+                                {% if current_user.pricing_plan.value == 'TARGET_PRO' %}
+                                    <span class="btn btn-success w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
+                                {% elif current_user.pricing_plan.value == 'HNI' %}
+                                    <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Included in Plan</span>
+                                {% else %}
+                                    <a href="{{ url_for('subscribe', plan_type='target_pro') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Upgrade Now</a>
+                                {% endif %}
                             {% else %}
-                                <a href="{{ url_for('subscribe', plan_type='target_pro') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Upgrade Now</a>
+                                <a href="{{ url_for('register') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Get Started</a>
                             {% endif %}
-                        {% else %}
-                            <a href="{{ url_for('register') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Get Started</a>
-                        {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -183,7 +189,7 @@
             <!-- Elite Plan -->
             <div class="col-lg-3 col-md-6">
                 <div class="card border-0 shadow-sm h-100" style="border-radius: 16px; border: 1px solid #fde68a !important;">
-                    <div class="card-body p-4">
+                    <div class="card-body p-4 d-flex flex-column">
                         <div class="text-center mb-4">
                             <span class="badge rounded-pill px-3 py-2 mb-3" style="background:#fef3c7;color:#d97706;">Elite</span>
                             <h4 class="fw-bold text-dark mb-1">Elite Plan</h4>
@@ -204,15 +210,17 @@
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Priority onboarding</li>
                             </ul>
                         </div>
-                        {% if current_user.is_authenticated %}
-                            {% if current_user.pricing_plan.value == 'HNI' %}
-                                <span class="btn btn-warning w-100 py-2 rounded-pill fw-semibold disabled text-dark">Current Plan</span>
+                        <div class="mt-auto">
+                            {% if current_user.is_authenticated %}
+                                {% if current_user.pricing_plan.value == 'HNI' %}
+                                    <span class="btn btn-warning w-100 py-2 rounded-pill fw-semibold disabled text-dark">Current Plan</span>
+                                {% else %}
+                                    <a href="{{ url_for('subscribe', plan_type='hni') }}" class="btn btn-warning w-100 py-2 rounded-pill fw-semibold text-dark">Upgrade to Elite</a>
+                                {% endif %}
                             {% else %}
-                                <a href="{{ url_for('subscribe', plan_type='hni') }}" class="btn btn-warning w-100 py-2 rounded-pill fw-semibold text-dark">Upgrade to Elite</a>
+                                <a href="{{ url_for('register') }}" class="btn btn-outline-warning w-100 py-2 rounded-pill fw-semibold text-dark">Get Started</a>
                             {% endif %}
-                        {% else %}
-                            <a href="{{ url_for('register') }}" class="btn btn-outline-warning w-100 py-2 rounded-pill fw-semibold text-dark">Get Started</a>
-                        {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
