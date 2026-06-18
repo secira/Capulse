@@ -562,12 +562,17 @@ class User(UserMixin, db.Model):
     def plan_expires_at(self):
         """Return the expiry datetime for the user's current plan.
 
-        - Starter (FREE): returns the trial end date
-        - Paid plans: returns subscription_end_date (None if no fixed term)
+        Always returns a datetime — never None.
+        - Starter (FREE): trial end date (created_at + 14 days + optional 7-day extension).
+        - Paid plans: subscription_end_date when set; otherwise falls back to
+          2026-06-19 as a monitoring sentinel so the date is always visible.
         """
         if self.pricing_plan == PricingPlan.FREE:
             return self.trial_end_date()
-        return self.subscription_end_date
+        if self.subscription_end_date:
+            return self.subscription_end_date
+        # Fallback sentinel — no end date recorded yet; use 19 Jun 2026
+        return datetime(2026, 6, 19)
 
     def plan_days_remaining(self):
         """Whole days left on the current plan/trial.

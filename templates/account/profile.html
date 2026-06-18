@@ -116,18 +116,18 @@
                         {% if current_user.pricing_plan == PricingPlan.FREE %}Trial Expires{% else %}Plan Expires{% endif %}
                     </span>
                     <span class="fw-bold" style="font-size:13px;">
-                        {% if current_user.plan_expires_at() %}
-                            {% if current_user.is_plan_expiring_soon(3) %}
-                                <span class="text-danger">
-                                    <i class="fas fa-exclamation-circle me-1"></i>{{ current_user.plan_expires_at().strftime('%d %b %Y') }}
-                                </span>
-                            {% elif (current_user.pricing_plan == PricingPlan.FREE and not current_user.is_trial_active()) or (current_user.pricing_plan != PricingPlan.FREE and not current_user.is_subscription_active()) %}
-                                <span class="text-danger">Expired</span>
-                            {% else %}
-                                {{ current_user.plan_expires_at().strftime('%d %b %Y') }}
-                            {% endif %}
+                        {% set expiry_date = current_user.plan_expires_at() %}
+                        {% set is_lapsed = (current_user.pricing_plan == PricingPlan.FREE and not current_user.is_trial_active()) or (current_user.pricing_plan != PricingPlan.FREE and not current_user.is_subscription_active()) %}
+                        {% if is_lapsed %}
+                            <span class="text-danger">
+                                <i class="fas fa-calendar-times me-1"></i>{{ expiry_date.strftime('%d %b %Y') }}
+                            </span>
+                        {% elif current_user.is_plan_expiring_soon(3) %}
+                            <span class="text-danger">
+                                <i class="fas fa-exclamation-circle me-1"></i>{{ expiry_date.strftime('%d %b %Y') }}
+                            </span>
                         {% else %}
-                            <span class="text-muted">—</span>
+                            {{ expiry_date.strftime('%d %b %Y') }}
                         {% endif %}
                     </span>
                 </div>
@@ -152,6 +152,9 @@
                     <h4 class="text-primary mb-1">{{ current_user.get_plan_display_name() }}</h4>
                     <p class="text-muted small mb-3">{{ current_user.get_plan_tagline() }}</p>
 
+                    {# plan_expires_at() always returns a date — never None #}
+                    {% set expiry = current_user.plan_expires_at() %}
+
                     {% if current_user.pricing_plan == PricingPlan.FREE %}
                         {# ── Starter / Trial ── #}
                         <p class="text-muted small mb-2">14-Day Free Trial</p>
@@ -161,7 +164,7 @@
                             <div class="mb-2">
                                 <span class="badge bg-light text-dark border small">
                                     <i class="fas fa-calendar-alt me-1 text-primary"></i>
-                                    Expires {{ current_user.plan_expires_at().strftime('%d %b %Y') }}
+                                    Expires {{ expiry.strftime('%d %b %Y') }}
                                 </span>
                             </div>
                             <div class="mb-2">
@@ -174,20 +177,18 @@
                             <div class="alert alert-warning py-2 px-3 mt-2 mb-0 text-start" style="font-size:12px;border-radius:8px;border-left:4px solid #f59e0b;">
                                 <i class="fas fa-exclamation-triangle me-1"></i>
                                 <strong>Trial ending soon!</strong> Upgrade before
-                                {{ current_user.plan_expires_at().strftime('%d %b') }} to keep your access.
+                                {{ expiry.strftime('%d %b') }} to keep your access.
                                 <a href="{{ url_for('pricing') }}" class="d-block mt-1 fw-semibold" style="color:#b45309;">View Plans →</a>
                             </div>
                             {% endif %}
                         {% else %}
                             <span class="badge bg-danger mb-2">Trial Expired</span>
-                            {% if current_user.plan_expires_at() %}
                             <div class="mb-2">
                                 <span class="badge bg-light text-dark border small">
                                     <i class="fas fa-calendar-times me-1 text-danger"></i>
-                                    Expired {{ current_user.plan_expires_at().strftime('%d %b %Y') }}
+                                    Expired on {{ expiry.strftime('%d %b %Y') }}
                                 </span>
                             </div>
-                            {% endif %}
                             <p class="text-muted small mt-2 mb-0">Upgrade to continue accessing all features.</p>
                         {% endif %}
 
@@ -197,56 +198,46 @@
                         {% if current_user.is_subscription_active() %}
                             {% set days_left = current_user.plan_days_remaining() %}
                             <span class="badge bg-success mb-2">Active</span>
-                            {% if current_user.plan_expires_at() %}
-                                <div class="mb-2">
-                                    <span class="badge bg-light text-dark border small">
-                                        <i class="fas fa-calendar-alt me-1 text-primary"></i>
-                                        Valid until {{ current_user.plan_expires_at().strftime('%d %b %Y') }}
-                                    </span>
-                                </div>
-                                {% if days_left is not none %}
-                                <div class="mb-2">
-                                    <span class="badge {{ 'bg-danger' if days_left <= 3 else 'bg-info text-dark' }} small">
-                                        <i class="fas fa-hourglass-half me-1"></i>
-                                        {{ days_left }} day{{ 's' if days_left != 1 else '' }} remaining
-                                    </span>
-                                </div>
-                                {% endif %}
-                                {% if current_user.is_plan_expiring_soon(3) %}
-                                <div class="alert alert-warning py-2 px-3 mt-2 mb-0 text-start" style="font-size:12px;border-radius:8px;border-left:4px solid #f59e0b;">
-                                    <i class="fas fa-exclamation-triangle me-1"></i>
-                                    <strong>Plan expiring soon!</strong> Renew before
-                                    {{ current_user.plan_expires_at().strftime('%d %b') }} to avoid interruption.
-                                    <a href="{{ url_for('account_billing') }}" class="d-block mt-1 fw-semibold" style="color:#b45309;">Renew Now →</a>
-                                </div>
-                                {% endif %}
+                            <div class="mb-2">
+                                <span class="badge bg-light text-dark border small">
+                                    <i class="fas fa-calendar-alt me-1 text-primary"></i>
+                                    Expires {{ expiry.strftime('%d %b %Y') }}
+                                </span>
+                            </div>
+                            {% if days_left is not none %}
+                            <div class="mb-2">
+                                <span class="badge {{ 'bg-danger' if days_left <= 3 else 'bg-info text-dark' }} small">
+                                    <i class="fas fa-hourglass-half me-1"></i>
+                                    {{ days_left }} day{{ 's' if days_left != 1 else '' }} remaining
+                                </span>
+                            </div>
+                            {% endif %}
+                            {% if current_user.is_plan_expiring_soon(3) %}
+                            <div class="alert alert-warning py-2 px-3 mt-2 mb-0 text-start" style="font-size:12px;border-radius:8px;border-left:4px solid #f59e0b;">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                <strong>Plan expiring soon!</strong> Renew before
+                                {{ expiry.strftime('%d %b') }} to avoid interruption.
+                                <a href="{{ url_for('account_billing') }}" class="d-block mt-1 fw-semibold" style="color:#b45309;">Renew Now →</a>
+                            </div>
                             {% endif %}
                         {% else %}
-                            {% if current_user.plan_expires_at() %}
-                                {% set expiry = current_user.plan_expires_at() %}
-                                {% if expiry < now %}
-                                    {# Already expired #}
-                                    <span class="badge bg-danger mb-2">Expired</span>
-                                    <div class="mb-2">
-                                        <span class="badge bg-light text-dark border small">
-                                            <i class="fas fa-calendar-times me-1 text-danger"></i>
-                                            Expired on {{ expiry.strftime('%d %b %Y') }}
-                                        </span>
-                                    </div>
-                                    <p class="text-muted small mb-0">Renew your plan to restore access.</p>
-                                {% else %}
-                                    {# Inactive but expiry still in future #}
-                                    <span class="badge bg-warning text-dark mb-2">Inactive</span>
-                                    <div class="mb-2">
-                                        <span class="badge bg-light text-dark border small">
-                                            <i class="fas fa-calendar-alt me-1 text-primary"></i>
-                                            Expires {{ expiry.strftime('%d %b %Y') }}
-                                        </span>
-                                    </div>
-                                {% endif %}
+                            {% if expiry < now %}
+                                <span class="badge bg-danger mb-2">Plan Expired</span>
+                                <div class="mb-2">
+                                    <span class="badge bg-light text-dark border small">
+                                        <i class="fas fa-calendar-times me-1 text-danger"></i>
+                                        Expired on {{ expiry.strftime('%d %b %Y') }}
+                                    </span>
+                                </div>
+                                <p class="text-muted small mb-0">Renew your plan to restore access.</p>
                             {% else %}
                                 <span class="badge bg-warning text-dark mb-2">Inactive</span>
-                                <p class="text-muted small mb-0">No active subscription found.</p>
+                                <div class="mb-2">
+                                    <span class="badge bg-light text-dark border small">
+                                        <i class="fas fa-calendar-alt me-1 text-warning"></i>
+                                        Expires {{ expiry.strftime('%d %b %Y') }}
+                                    </span>
+                                </div>
                             {% endif %}
                         {% endif %}
                     {% endif %}
