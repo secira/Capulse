@@ -3007,7 +3007,7 @@ def fno_signal_history():
         rows = db.session.execute(db.text(f"""
             SELECT id, trade_code, index_id, signal_type, direction,
                    confidence, outcome, created_at, exit_time, exit_spot,
-                   market_regime
+                   market_regime, layers_json
             FROM   fno_signal_history
             WHERE  {w_clause}
             ORDER  BY created_at DESC
@@ -3025,6 +3025,21 @@ def fno_signal_history():
                 dt = _pytz.utc.localize(dt)
             return dt.astimezone(_IST)
 
+        import json as _json
+
+        def _extract_adx(layers_json_str):
+            """Parse ADX from layers_json.strength.adx (stored as string repr)."""
+            if not layers_json_str:
+                return None
+            try:
+                # layers_json is stored via str({...}) so it uses single quotes
+                # Try json.loads after replacing single quotes, or use ast.literal_eval
+                import ast
+                d = ast.literal_eval(layers_json_str)
+                return d.get('strength', {}).get('adx')
+            except Exception:
+                return None
+
         signals = []
         for r in rows:
             signals.append({
@@ -3039,6 +3054,7 @@ def fno_signal_history():
                 'exit_time':     _to_ist(r[8]),
                 'exit_spot':     r[9],
                 'market_regime': r[10] or 'trending',
+                'adx':           _extract_adx(r[11]),
             })
 
         total_pages = max(1, (total + per_page - 1) // per_page)
