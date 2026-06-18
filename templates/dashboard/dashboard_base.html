@@ -358,4 +358,89 @@ function _istStr(ts, timeOnly) {
 }());
 </script>
 
+<!-- ── SEBI Risk Disclosure Modal ── -->
+{% if current_user.is_authenticated and not current_user.is_admin and not session.get('risk_disclosure_acked') %}
+<div class="modal fade" id="riskDisclosureModal" tabindex="-1"
+     data-bs-backdrop="static" data-bs-keyboard="false"
+     aria-labelledby="riskDisclosureModalLabel" aria-modal="true" role="dialog">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0" style="border-radius:16px;overflow:hidden;">
+
+            <!-- Header -->
+            <div class="modal-header border-0 p-0">
+                <div class="w-100 d-flex align-items-center gap-3 px-4 py-3" style="background:#0d9488;">
+                    <i class="fas fa-shield-alt text-white fs-5"></i>
+                    <h5 class="modal-title fw-bold text-white mb-0" id="riskDisclosureModalLabel">
+                        Risk Disclosure on Derivatives
+                    </h5>
+                    <span class="ms-auto badge rounded-pill" style="background:rgba(255,255,255,0.2);font-size:11px;font-weight:500;">
+                        SEBI Mandated
+                    </span>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="modal-body px-4 pt-3 pb-2">
+                <!-- Stat row -->
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-4">
+                        <div class="rounded-3 p-3 text-center h-100" style="background:#fef2f2;border:1.5px solid #fecaca;">
+                            <div class="fw-black mb-1" style="font-size:1.8rem;color:#dc2626;font-weight:800;">9 / 10</div>
+                            <div style="font-size:12px;color:#7f1d1d;line-height:1.4;">individual traders in equity F&amp;O incurred <strong>net losses</strong></div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="rounded-3 p-3 text-center h-100" style="background:#fef2f2;border:1.5px solid #fecaca;">
+                            <div class="fw-black mb-1" style="font-size:1.8rem;color:#dc2626;font-weight:800;">₹50,000</div>
+                            <div style="font-size:12px;color:#7f1d1d;line-height:1.4;">average net trading <strong>loss</strong> for loss makers</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="rounded-3 p-3 text-center h-100" style="background:#fff7ed;border:1.5px solid #fed7aa;">
+                            <div class="fw-black mb-1" style="font-size:1.8rem;color:#ea580c;font-weight:800;">+28%</div>
+                            <div style="font-size:12px;color:#7c2d12;line-height:1.4;">additional transaction costs over &amp; above losses</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bullet points -->
+                <ul class="mb-3" style="font-size:13.5px;color:#334155;line-height:1.7;padding-left:1.4rem;">
+                    <li>9 out of 10 individual traders in equity Futures and Options Segment, incurred net losses.</li>
+                    <li>On an average, loss makers registered net trading loss close to ₹ 50,000.</li>
+                    <li>Over and above the net trading losses incurred, loss makers expended an additional 28% of net trading losses as transaction costs.</li>
+                    <li>Those making net trading profits, incurred between 15% to 50% of such profits as transaction cost.</li>
+                </ul>
+
+                <!-- SEBI source -->
+                <p class="mb-0" style="font-size:11.5px;color:#64748b;line-height:1.6;">
+                    <a href="/risk-disclosure" target="_blank" style="color:#2563eb;text-decoration:none;">
+                        SEBI study dated January 25, 2023 on Analysis of Profit and Loss of Individual Traders dealing in equity Futures and Options (F&amp;O) Segment,
+                        wherein Aggregate Level findings are based on annual Profit/Loss incurred by individual traders in equity F&amp;O during FY 2021-22
+                    </a>
+                </p>
+            </div>
+
+            <!-- Footer -->
+            <div class="modal-footer border-0 px-4 pb-4 pt-2 justify-content-end">
+                <form method="POST" action="{{ url_for('risk_disclosure_ack') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button type="submit" class="btn btn-lg px-5 fw-semibold"
+                            style="background:#0d9488;color:#fff;border-radius:10px;min-width:140px;">
+                        Proceed
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var el = document.getElementById('riskDisclosureModal');
+    if (el) { new bootstrap.Modal(el).show(); }
+})();
+</script>
+{% endif %}
+
 {% endblock %}

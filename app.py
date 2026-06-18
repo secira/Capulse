@@ -1290,6 +1290,10 @@ def check_risk_disclosure():
     if flask_session.get('risk_disclosure_acked'):
         return
 
+    # Dashboard routes show the modal inline — no redirect needed
+    if request.path.startswith('/dashboard'):
+        return
+
     # Preserve the originally-intended destination as `next`
     return redirect(url_for('risk_disclosure_ack', next=request.path))
 
