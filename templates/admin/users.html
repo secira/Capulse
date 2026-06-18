@@ -90,6 +90,7 @@
                         <tr>
                             <th>User</th>
                             <th>Plan</th>
+                            <th>Expiry Date</th>
                             <th>Registration</th>
                             <th>Last Login</th>
                             <th>Brokers</th>
@@ -127,6 +128,28 @@
                                 {% endif %}
                             </td>
                             <td>
+                                {% set expiry = user.plan_expires_at() %}
+                                {% if expiry %}
+                                    {% if expiry < now %}
+                                        <small class="text-danger fw-semibold">
+                                            <i class="fas fa-calendar-times me-1"></i>{{ expiry.strftime('%d %b %Y') }}
+                                            <span class="badge bg-danger ms-1" style="font-size:9px;">Expired</span>
+                                        </small>
+                                    {% elif (expiry - now).days <= 7 %}
+                                        <small class="text-warning fw-semibold">
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ expiry.strftime('%d %b %Y') }}
+                                            <span class="badge bg-warning text-dark ms-1" style="font-size:9px;">{{ (expiry - now).days }}d left</span>
+                                        </small>
+                                    {% else %}
+                                        <small class="text-success">
+                                            <i class="fas fa-calendar-check me-1"></i>{{ expiry.strftime('%d %b %Y') }}
+                                        </small>
+                                    {% endif %}
+                                {% else %}
+                                    <small class="text-muted">—</small>
+                                {% endif %}
+                            </td>
+                            <td>
                                 <small>
                                     {{ user.created_at.strftime('%b %d, %Y') if user.created_at else 'N/A' }}
                                 </small>
@@ -161,7 +184,7 @@
                             </td>
                             <td>
                                 <div class="d-flex gap-1">
-                                    <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" class="btn btn-sm btn-outline-primary admin-btn" title="View / Edit">
+                                    <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" class="btn btn-sm btn-outline-primary admin-btn" title="View / Edit — change plan, expiry date, profile">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                     {% if not user.is_admin %}

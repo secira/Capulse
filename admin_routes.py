@@ -299,12 +299,24 @@ def dashboard():
 @admin_required
 def users(page=1):
     """User management page"""
+    from datetime import datetime as _dt
     per_page = 20
-    users = User.query.paginate(
+    plan_filter = request.args.get('plan')
+    query = User.query
+    if plan_filter:
+        from models import PricingPlan
+        plan_map = {
+            'free': PricingPlan.FREE,
+            'target_plus': PricingPlan.TARGET_PLUS,
+            'target_pro': PricingPlan.TARGET_PRO,
+            'hni': PricingPlan.HNI,
+        }
+        if plan_filter in plan_map:
+            query = query.filter(User.pricing_plan == plan_map[plan_filter])
+    users = query.order_by(User.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
-    
-    return render_template('admin/users.html', users=users)
+    return render_template('admin/users.html', users=users, now=_dt.utcnow())
 
 @admin_bp.route('/user/<int:user_id>')
 @admin_required
