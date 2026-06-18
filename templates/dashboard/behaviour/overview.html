@@ -285,11 +285,14 @@ function _baiToast(msg, type) {
             <div class="fw-semibold mb-1"><i class="fas fa-check-circle text-success me-1"></i>Auto-detects your broker's format:</div>
             <div class="d-flex flex-wrap gap-1 mt-1 mb-2">
               <span class="badge bg-success-subtle text-success">Dhan P&L Export</span>
+              <span class="badge bg-success-subtle text-success">Dhan Trade History</span>
+              <span class="badge bg-warning-subtle text-warning">Zerodha Trade Book</span>
+              <span class="badge bg-warning-subtle text-warning">Zerodha P&L</span>
               <span class="badge bg-primary-subtle text-primary">Target Capital Template</span>
               <span class="badge bg-secondary-subtle text-secondary">Any CSV</span>
             </div>
             <div class="text-muted">Supports <strong>Stocks, F&amp;O (Options + Futures) and Mutual Funds</strong>.<br>
-            In Dhan: Go to P&L Report → select date range → Download CSV</div>
+            <strong>Dhan:</strong> Console → P&L Report → Download CSV &nbsp;|&nbsp; <strong>Zerodha:</strong> Console → Tax P&L → Tradewise → Download</div>
           </div>
           <form method="POST" action="{{ url_for('behaviour_upload_trades') }}" enctype="multipart/form-data">
             <div class="upload-zone mb-3" onclick="document.getElementById('tradeFile').click()">
@@ -919,10 +922,14 @@ new Chart(document.getElementById('hourChart'), {
             <div class="fw-semibold mb-1"><i class="fas fa-check-circle text-success me-1"></i>Auto-detects format:</div>
             <div class="d-flex flex-wrap gap-1 mb-2">
               <span class="badge bg-success-subtle text-success">Dhan P&L Export</span>
+              <span class="badge bg-success-subtle text-success">Dhan Trade History</span>
+              <span class="badge bg-warning-subtle text-warning">Zerodha Trade Book</span>
+              <span class="badge bg-warning-subtle text-warning">Zerodha P&L</span>
               <span class="badge bg-primary-subtle text-primary">Target Capital Template</span>
               <span class="badge bg-secondary-subtle text-secondary">Generic CSV</span>
             </div>
-            <div class="text-muted">Supports <strong>Stocks, F&amp;O and Mutual Funds</strong>. Re-upload any time — new trades are merged.</div>
+            <div class="text-muted">Supports <strong>Stocks, F&amp;O and Mutual Funds</strong>. Re-upload any time — new trades are merged.<br>
+            <strong>Zerodha:</strong> Console → Reports → Tax P&L → Tradewise → Download CSV</div>
           </div>
           <form method="POST" action="{{ url_for('behaviour_upload_trades') }}" enctype="multipart/form-data">
             <div class="upload-zone mb-3" id="modalUploadZone" onclick="document.getElementById('modalTradeFile').click()">

@@ -245,16 +245,20 @@ def _parse_scrip_name(scrip):
 
 
 def _detect_format(content):
-    """Return 'dhan_pnl', 'dhan_trades', 'zerodha', or 'generic' based on file content."""
-    head = content[:1000].lower()
+    """Return 'dhan_pnl', 'dhan_trades', 'zerodha_trades', 'zerodha_pnl', or 'generic'."""
+    head = content[:1500].lower()
     # Dhan P&L export
     if 'pnl report' in head or 'scrip name' in head:
         return 'dhan_pnl'
     # Dhan Trade History export — header has these exact columns
     if 'buy/sell' in head and 'trade price' in head and 'quantity/lot' in head:
         return 'dhan_trades'
-    if 'trade date' in head and 'tradingsymbol' in head:
-        return 'zerodha'
+    # Zerodha Console tradewise P&L (round-trip rows) — has 'buy avg' or 'sell avg'
+    if 'tradingsymbol' in head and ('buy avg' in head or 'sell avg' in head):
+        return 'zerodha_pnl'
+    # Zerodha Kite / Console trade-by-trade (individual legs)
+    if 'tradingsymbol' in head and ('trade_type' in head or 'trade type' in head):
+        return 'zerodha_trades'
     return 'generic'
 
 
@@ -508,10 +512,219 @@ def _parse_dhan_pnl(content):
     return trades
 
 
+def _parse_zerodha_trades(content):
+    """
+    Parse Zerodha Kite / Console trade-by-trade CSV (individual BUY/SELL legs).
+
+    Expected columns (case-insensitive):
+      tradingsymbol, trade_type / trade type, quantity, price,
+      trade_date / trade date / order_execution_time, trade_id / order_id
+
+    Strategy: FIFO-match BUY against SELL legs per symbol — same as Dhan Trade History.
+    Open positions (unmatched legs) are silently skipped.
+    """
+    from collections import defaultdict, deque
+    import re as _re
+
+    reader = csv.DictReader(io.StringIO(content))
+    if not reader.fieldnames:
+        raise ValueError('CSV appears empty.')
+
+    # Normalise header names (strip whitespace, lowercase, replace space→underscore)
+    raw_headers = reader.fieldnames
+    norm = {h.strip().lower().replace(' ', '_'): h for h in raw_headers}
+
+    needed = {'tradingsymbol'}
+    if not needed.issubset(norm.keys()):
+        raise ValueError(
+            'Could not find Zerodha trade columns. Expected at minimum: tradingsymbol, '
+            'trade_type / trade type, quantity, price.'
+        )
+
+    def _col(row, *keys):
+        """Return first matching key value from normalised row."""
+        for k in keys:
+            v = row.get(k, '').strip()
+            if v:
+                return v
+        return ''
+
+    legs_by_symbol = defaultdict(list)
+    for row in reader:
+        row_norm = {k.strip().lower().replace(' ', '_'): v.strip() for k, v in row.items() if k}
+        sym = row_norm.get('tradingsymbol', '').strip().upper()
+        side = _col(row_norm, 'trade_type', 'tradetype').upper()
+        if side not in ('BUY', 'SELL') or not sym:
+            continue
+        try:
+            qty = float(_col(row_norm, 'quantity') or '0')
+            price = float((_col(row_norm, 'price') or '0').replace(',', ''))
+            if qty <= 0 or price <= 0:
+                continue
+        except (ValueError, TypeError):
+            continue
+
+        # Parse timestamp — try several column name variants
+        ts_raw = _col(row_norm, 'trade_date', 'order_execution_time', 'date', 'time')
+        ts = _parse_date_any(ts_raw) if ts_raw else datetime.utcnow()
+
+        tid = _col(row_norm, 'trade_id', 'order_id', 'tradeid', 'orderid') or ''
+
+        # Classify asset type from symbol (F&O option/futures patterns)
+        if _re.search(r'(CE|PE)\d*$', sym) or _re.search(
+                r'\d{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\d{2,4}', sym, _re.I):
+            asset_type = 'OPTION'
+        elif sym.endswith('FUT') or 'FUT' in sym:
+            asset_type = 'FUTURES'
+        else:
+            asset_type = 'STOCK'
+
+        legs_by_symbol[sym].append({
+            'ts': ts, 'side': side, 'qty': qty, 'price': price,
+            'tid': tid, 'asset_type': asset_type,
+        })
+
+    trades = []
+    for sym, legs in legs_by_symbol.items():
+        legs.sort(key=lambda x: x['ts'])
+        asset_type = legs[0]['asset_type']
+        try:
+            parsed_sym, det_asset, detail, expiry_dt = _parse_scrip_name(sym)
+            if det_asset != 'STOCK':
+                asset_type = det_asset
+        except Exception:
+            parsed_sym, detail, expiry_dt = sym, sym, None
+
+        opens = deque()
+        shorts = deque()
+        for leg in legs:
+            qty_rem = leg['qty']
+            if leg['side'] == 'BUY':
+                while qty_rem > 0 and shorts:
+                    s = shorts[0]
+                    mq = min(qty_rem, s['qty'])
+                    trades.append(_build_round_trip(
+                        parsed_sym, asset_type, detail, expiry_dt,
+                        entry_ts=s['ts'], entry_price=s['price'],
+                        exit_ts=leg['ts'], exit_price=leg['price'],
+                        qty=mq, direction='SHORT',
+                    ))
+                    # Override broker name for Zerodha
+                    trades[-1]['broker_name'] = 'Zerodha'
+                    trades[-1]['source'] = 'zerodha_trades'
+                    s['qty'] -= mq
+                    qty_rem -= mq
+                    if s['qty'] == 0:
+                        shorts.popleft()
+                if qty_rem > 0:
+                    opens.append({**leg, 'qty': qty_rem})
+            else:
+                while qty_rem > 0 and opens:
+                    o = opens[0]
+                    mq = min(qty_rem, o['qty'])
+                    trades.append(_build_round_trip(
+                        parsed_sym, asset_type, detail, expiry_dt,
+                        entry_ts=o['ts'], entry_price=o['price'],
+                        exit_ts=leg['ts'], exit_price=leg['price'],
+                        qty=mq, direction='LONG',
+                    ))
+                    trades[-1]['broker_name'] = 'Zerodha'
+                    trades[-1]['source'] = 'zerodha_trades'
+                    o['qty'] -= mq
+                    qty_rem -= mq
+                    if o['qty'] == 0:
+                        opens.popleft()
+                if qty_rem > 0:
+                    shorts.append({**leg, 'qty': qty_rem})
+
+    return trades
+
+
+def _parse_zerodha_pnl(content):
+    """
+    Parse Zerodha Console tradewise P&L CSV (already-rounded round-trip rows).
+
+    Expected columns (case-insensitive):
+      tradingsymbol, open date / buy date, sell date / close date,
+      quantity, buy average / buy avg, sell average / sell avg, pnl
+
+    Each row IS a complete round trip — no FIFO matching needed.
+    """
+    import re as _re
+
+    reader = csv.DictReader(io.StringIO(content))
+    if not reader.fieldnames:
+        raise ValueError('CSV appears empty.')
+
+    norm_map = {h.strip().lower().replace(' ', '_'): h for h in reader.fieldnames}
+
+    def _col(row_norm, *keys):
+        for k in keys:
+            v = row_norm.get(k, '').strip()
+            if v:
+                return v
+        return ''
+
+    trades = []
+    for row in reader:
+        row_norm = {k.strip().lower().replace(' ', '_'): (v or '').strip() for k, v in row.items() if k}
+        sym = _col(row_norm, 'tradingsymbol', 'symbol', 'scrip').upper()
+        if not sym:
+            continue
+        try:
+            qty = float(_col(row_norm, 'quantity', 'qty') or '0')
+            buy_avg = float((_col(row_norm, 'buy_average', 'buy_avg', 'buy_price') or '0').replace(',', ''))
+            sell_avg = float((_col(row_norm, 'sell_average', 'sell_avg', 'sell_price') or '0').replace(',', ''))
+            if qty <= 0 or buy_avg <= 0 or sell_avg <= 0:
+                continue
+        except (ValueError, TypeError):
+            continue
+
+        entry_ts = _parse_date_any(_col(row_norm, 'open_date', 'buy_date', 'trade_date', 'date'))
+        exit_ts = _parse_date_any(_col(row_norm, 'close_date', 'sell_date', 'exit_date'))
+        if not exit_ts:
+            exit_ts = entry_ts or datetime.utcnow()
+        if not entry_ts:
+            entry_ts = exit_ts
+
+        try:
+            parsed_sym, asset_type, detail, expiry_dt = _parse_scrip_name(sym)
+        except Exception:
+            parsed_sym, asset_type, detail, expiry_dt = sym, 'STOCK', sym, None
+
+        pnl = (sell_avg - buy_avg) * qty
+        pnl_pct = round((sell_avg - buy_avg) / buy_avg * 100, 2) if buy_avg else 0.0
+        hold_hrs = max(0.0, (exit_ts - entry_ts).total_seconds() / 3600)
+        result = 'WIN' if pnl > 0 else ('LOSS' if pnl < 0 else 'BREAKEVEN')
+
+        trades.append({
+            'symbol': parsed_sym,
+            'asset_type': asset_type,
+            'instrument_detail': detail,
+            'quantity': int(qty),
+            'entry_price': round(buy_avg, 4),
+            'exit_price': round(sell_avg, 4),
+            'realized_pnl': round(pnl, 2),
+            'pnl_percentage': pnl_pct,
+            'holding_period_hours': round(hold_hrs, 2),
+            'trade_result': result,
+            'exit_reason': 'EXPIRY' if asset_type in ('OPTION', 'FUTURES') else 'MANUAL',
+            'broker_name': 'Zerodha',
+            'total_charges': 0.0,
+            'net_pnl': round(pnl, 2),
+            'entry_time': entry_ts,
+            'exit_time': exit_ts,
+            'strategy_name': asset_type,
+            'source': 'zerodha_pnl',
+        })
+
+    return trades
+
+
 @app.route('/dashboard/behavioural-insights/upload', methods=['POST'])
 @login_required
 def behaviour_upload_trades():
-    """Smart CSV upload — auto-detects Dhan P&L, Zerodha, and generic formats."""
+    """Smart CSV upload — auto-detects Dhan, Zerodha, and generic formats."""
     from models import ManualTradeImport
 
     file = request.files.get('trade_file')
@@ -526,21 +739,31 @@ def behaviour_upload_trades():
     errors = []
 
     # ── Broker-specific parsers ──────────────────────────────────────────────
-    if fmt in ('dhan_pnl', 'dhan_trades'):
+    _BROKER_FMTS = ('dhan_pnl', 'dhan_trades', 'zerodha_trades', 'zerodha_pnl')
+    if fmt in _BROKER_FMTS:
+        _PARSER_MAP = {
+            'dhan_pnl':       _parse_dhan_pnl,
+            'dhan_trades':    _parse_dhan_trade_history,
+            'zerodha_trades': _parse_zerodha_trades,
+            'zerodha_pnl':    _parse_zerodha_pnl,
+        }
+        _BROKER_LABEL = {
+            'dhan_pnl':       'Dhan P&L',
+            'dhan_trades':    'Dhan Trade History',
+            'zerodha_trades': 'Zerodha Trade Book',
+            'zerodha_pnl':    'Zerodha P&L',
+        }
         try:
-            if fmt == 'dhan_pnl':
-                trade_dicts = _parse_dhan_pnl(content)
-            else:
-                trade_dicts = _parse_dhan_trade_history(content)
+            trade_dicts = _PARSER_MAP[fmt](content)
         except ValueError as e:
             flash(str(e), 'danger')
             return redirect(url_for('behavioural_insights'))
 
         if not trade_dicts:
             flash(
-                'No completed round-trip trades found in this CSV. '
-                'Dhan Trade History only produces a trade once a BUY is matched with a SELL '
-                '(or vice-versa). Open positions are skipped.', 'warning'
+                f'No completed round-trip trades found in this {_BROKER_LABEL[fmt]} CSV. '
+                'Only matched BUY↔SELL pairs are imported. Open positions are skipped.',
+                'warning',
             )
             return redirect(url_for('behavioural_insights'))
 
@@ -629,15 +852,21 @@ def behaviour_upload_trades():
 
     if imported:
         db.session.commit()
+        _label_map = {
+            'dhan_pnl': 'Dhan', 'dhan_trades': 'Dhan',
+            'zerodha_trades': 'Zerodha', 'zerodha_pnl': 'Zerodha',
+        }
+        broker_label = _label_map.get(fmt, '')
         breakdown = {}
-        for td in (trade_dicts if fmt == 'dhan' else []):
-            breakdown[td['asset_type']] = breakdown.get(td['asset_type'], 0) + 1
+        if fmt in _BROKER_FMTS:
+            for td in trade_dicts:
+                breakdown[td['asset_type']] = breakdown.get(td['asset_type'], 0) + 1
         if breakdown:
             parts = [f"{v} {k}" for k, v in sorted(breakdown.items())]
             flash(
-                f'Imported {imported} trades from Dhan — {", ".join(parts)}. '
-                f'Your Behavioural AI is now ready!',
-                'success'
+                f'Imported {imported} trade{"s" if imported != 1 else ""} from {broker_label} — '
+                f'{", ".join(parts)}. Your Behavioural AI is now ready!',
+                'success',
             )
         else:
             flash(f'Successfully imported {imported} trade{"s" if imported != 1 else ""}. Your Behavioural AI analysis is now ready!', 'success')
