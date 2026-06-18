@@ -2326,6 +2326,10 @@ class NiftyOptionsEngine:
             else:
                 setup_state = 'TRADE_ACTIVE'  # spec name; was TRADE_RECOMMENDED
 
+        # Flat market gate: override setup_state regardless of direction/trigger outcome.
+        if market_regime == 'flat':
+            setup_state = 'NO_TRADE'
+
         # Unified decision — confidence tiering (per product spec):
         #   ≥75 : Tier 1 — High conviction (Telegram alerts)
         #   70-74: Tier 2 — Regular signals shown in app/UI
