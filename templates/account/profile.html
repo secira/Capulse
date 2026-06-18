@@ -222,14 +222,31 @@
                                 {% endif %}
                             {% endif %}
                         {% else %}
-                            <span class="badge bg-warning text-dark mb-2">Inactive</span>
                             {% if current_user.plan_expires_at() %}
-                            <div class="mb-2">
-                                <span class="badge bg-light text-dark border small">
-                                    <i class="fas fa-calendar-times me-1 text-danger"></i>
-                                    Expired {{ current_user.plan_expires_at().strftime('%d %b %Y') }}
-                                </span>
-                            </div>
+                                {% set expiry = current_user.plan_expires_at() %}
+                                {% if expiry < now %}
+                                    {# Already expired #}
+                                    <span class="badge bg-danger mb-2">Expired</span>
+                                    <div class="mb-2">
+                                        <span class="badge bg-light text-dark border small">
+                                            <i class="fas fa-calendar-times me-1 text-danger"></i>
+                                            Expired on {{ expiry.strftime('%d %b %Y') }}
+                                        </span>
+                                    </div>
+                                    <p class="text-muted small mb-0">Renew your plan to restore access.</p>
+                                {% else %}
+                                    {# Inactive but expiry still in future #}
+                                    <span class="badge bg-warning text-dark mb-2">Inactive</span>
+                                    <div class="mb-2">
+                                        <span class="badge bg-light text-dark border small">
+                                            <i class="fas fa-calendar-alt me-1 text-primary"></i>
+                                            Expires {{ expiry.strftime('%d %b %Y') }}
+                                        </span>
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-warning text-dark mb-2">Inactive</span>
+                                <p class="text-muted small mb-0">No active subscription found.</p>
                             {% endif %}
                         {% endif %}
                     {% endif %}

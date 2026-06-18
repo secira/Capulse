@@ -7136,13 +7136,14 @@ def api_ai_trading_signals(symbol):
 @login_required
 def account_profile():
     """User profile management"""
-    # Get user statistics for display
     from models import TradingSignal
+    from datetime import datetime as _dt
     trading_signals_count = TradingSignal.query.count()
-    return render_template('account/profile.html', 
+    return render_template('account/profile.html',
                          active_section='profile',
                          trading_signals_count=trading_signals_count,
-                         PricingPlan=PricingPlan)
+                         PricingPlan=PricingPlan,
+                         now=_dt.utcnow())
 
 @app.route('/account/profile', methods=['POST'])
 @login_required
