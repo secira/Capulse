@@ -558,6 +558,37 @@ class User(UserMixin, db.Model):
         return (self.subscription_status == SubscriptionStatus.ACTIVE and 
                 self.subscription_end_date and 
                 self.subscription_end_date > datetime.utcnow())
+
+    def plan_expires_at(self):
+        """Return the expiry datetime for the user's current plan.
+
+        - Starter (FREE): returns the trial end date
+        - Paid plans: returns subscription_end_date (None if no fixed term)
+        """
+        if self.pricing_plan == PricingPlan.FREE:
+            return self.trial_end_date()
+        return self.subscription_end_date
+
+    def plan_days_remaining(self):
+        """Whole days left on the current plan/trial.
+
+        Returns None when no expiry is set (e.g. paid plan with no end date).
+        Returns 0 when the plan has already expired.
+        """
+        expiry = self.plan_expires_at()
+        if expiry is None:
+            return None
+        now = datetime.utcnow()
+        if hasattr(expiry, 'tzinfo') and expiry.tzinfo is not None:
+            expiry = expiry.replace(tzinfo=None)
+        return max(0, (expiry - now).days)
+
+    def is_plan_expiring_soon(self, days=3):
+        """True if the plan expires within ``days`` days (exclusive of 0 — already expired)."""
+        remaining = self.plan_days_remaining()
+        if remaining is None:
+            return False
+        return 0 < remaining <= days
     
     def generate_referral_code(self):
         """Generate unique referral code for user"""

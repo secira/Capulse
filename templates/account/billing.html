@@ -5,58 +5,112 @@
 
 {% block dashboard_content %}
 <!-- Current Plan Status -->
+{% set plan_days = current_user.plan_days_remaining() %}
+{% set plan_expiry = current_user.plan_expires_at() %}
+{% set expiring_soon = current_user.is_plan_expiring_soon(3) %}
+{% set is_trial = current_user.pricing_plan == PricingPlan.FREE %}
+
 <div class="mb-4">
     <div>
-        <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+        {% if expiring_soon or (is_trial and not current_user.is_trial_active()) %}
+        <div class="alert alert-danger d-flex align-items-center gap-3 mb-3" style="border-radius:12px;border-left:5px solid #dc2626;">
+            <i class="fas fa-exclamation-triangle fa-lg"></i>
+            <div>
+                {% if is_trial and not current_user.is_trial_active() %}
+                <strong>Your free trial has ended.</strong> Choose a plan to continue using all features.
+                {% elif plan_days == 0 %}
+                <strong>Your {{ current_user.get_plan_display_name() }} has expired.</strong> Renew now to keep access.
+                {% else %}
+                <strong>Your {{ current_user.get_plan_display_name() }} expires in {{ plan_days }} day{{ 's' if plan_days != 1 else '' }}.</strong>
+                Renew now to avoid losing access.
+                {% endif %}
+                <a href="{{ url_for('pricing') }}" class="ms-2 fw-bold text-danger">{{ 'Choose a Plan →' if is_trial else 'Renew Now →' }}</a>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card border-0 shadow-sm" style="border-radius: 16px; {% if expiring_soon %}border: 2px solid #fca5a5 !important;{% endif %}">
             <div class="card-body p-4">
                 <div class="row align-items-center">
                     <div class="col-md-8">
                         <div class="d-flex align-items-center">
                             <div class="me-3">
+                                {% if is_trial %}
+                                <i class="fas fa-hourglass-half fa-2x text-warning"></i>
+                                {% elif expiring_soon %}
+                                <i class="fas fa-exclamation-circle fa-2x text-danger"></i>
+                                {% else %}
                                 <i class="fas fa-crown fa-2x text-primary"></i>
+                                {% endif %}
                             </div>
                             <div>
                                 <h4 class="mb-1">{{ current_user.get_plan_display_name() }}</h4>
                                 <p class="text-muted mb-1" style="font-size:13px;">{{ current_user.get_plan_tagline() }}</p>
-                                {% if current_user.pricing_plan == PricingPlan.FREE %}
-                                <p class="text-muted mb-0 small">Free plan — Dashboard, Live Market Pulse & Portfolio Analysis</p>
+
+                                {% if is_trial %}
+                                    {% if current_user.is_trial_active() %}
+                                    <p class="text-muted mb-0 small">14-day free trial — full Growth Plan privileges</p>
+                                    {% else %}
+                                    <p class="text-danger mb-0 small fw-semibold">Trial ended — upgrade to continue</p>
+                                    {% endif %}
                                 {% else %}
                                 <p class="text-muted mb-0 small">₹{{ current_user.get_plan_price() }}/month</p>
                                 {% endif %}
 
-                                {% if current_user.pricing_plan != PricingPlan.FREE %}
+                                <!-- Validity badge row -->
                                 <div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
-                                    {% if current_user.is_subscription_active() %}
-                                    <span class="badge bg-success">Active</span>
-                                    {% if current_user.subscription_end_date %}
-                                    <span class="badge bg-light text-dark border" style="font-size:12px;">
-                                        <i class="fas fa-calendar-alt me-1 text-primary"></i>
-                                        Valid until {{ current_user.subscription_end_date.strftime('%d %b %Y') }}
-                                    </span>
-                                    {% endif %}
+                                    {% if is_trial %}
+                                        {% if current_user.is_trial_active() %}
+                                        <span class="badge bg-success">Trial Active</span>
+                                        {% if plan_expiry %}
+                                        <span class="badge bg-light text-dark border" style="font-size:12px;">
+                                            <i class="fas fa-calendar-alt me-1 text-warning"></i>
+                                            Trial ends {{ plan_expiry.strftime('%d %b %Y') }}
+                                        </span>
+                                        {% if plan_days is not none %}
+                                        <span class="badge {% if plan_days <= 3 %}bg-danger{% elif plan_days <= 7 %}bg-warning text-dark{% else %}bg-light text-dark border{% endif %}" style="font-size:12px;">
+                                            {{ plan_days }} day{{ 's' if plan_days != 1 else '' }} remaining
+                                        </span>
+                                        {% endif %}
+                                        {% endif %}
+                                        {% else %}
+                                        <span class="badge bg-danger">Trial Expired</span>
+                                        {% endif %}
                                     {% else %}
-                                    <span class="badge bg-warning text-dark">Inactive</span>
+                                        {% if current_user.is_subscription_active() %}
+                                        <span class="badge bg-success">Active</span>
+                                        {% if plan_expiry %}
+                                        <span class="badge bg-light text-dark border" style="font-size:12px;">
+                                            <i class="fas fa-calendar-alt me-1 text-primary"></i>
+                                            Valid until {{ plan_expiry.strftime('%d %b %Y') }}
+                                        </span>
+                                        {% if plan_days is not none %}
+                                        <span class="badge {% if plan_days <= 3 %}bg-danger{% elif plan_days <= 7 %}bg-warning text-dark{% else %}bg-light text-dark border{% endif %}" style="font-size:12px;">
+                                            {{ plan_days }} day{{ 's' if plan_days != 1 else '' }} remaining
+                                        </span>
+                                        {% endif %}
+                                        {% endif %}
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark">Inactive</span>
+                                        {% endif %}
                                     {% endif %}
                                 </div>
-                                {% endif %}
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4 text-end">
-                        {% if current_user.pricing_plan == PricingPlan.FREE %}
+                    <div class="col-md-4 text-end mt-3 mt-md-0">
+                        {% if is_trial %}
                         <a href="{{ url_for('pricing') }}" class="btn btn-primary btn-lg rounded-pill px-4">
-                            Upgrade Plan
+                            <i class="fas fa-arrow-up me-1"></i>Upgrade Plan
                         </a>
                         {% elif current_user.pricing_plan == PricingPlan.HNI %}
                         <a href="{{ url_for('contact') }}" class="btn btn-outline-primary rounded-pill px-4">
                             Contact Manager
                         </a>
                         {% else %}
-                        <div class="btn-group">
-                            <a href="{{ url_for('pricing') }}" class="btn btn-outline-primary rounded-pill px-4">
-                                Change Plan
-                            </a>
-                        </div>
+                        <a href="{{ url_for('pricing') }}" class="btn {% if expiring_soon %}btn-danger{% else %}btn-outline-primary{% endif %} rounded-pill px-4">
+                            {% if expiring_soon %}<i class="fas fa-redo me-1"></i>Renew Now{% else %}Change Plan{% endif %}
+                        </a>
                         {% endif %}
                     </div>
                 </div>

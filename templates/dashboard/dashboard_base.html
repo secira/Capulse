@@ -56,6 +56,64 @@
 
     <!-- Mobile Sidebar Overlay -->
     <div class="mobile-sidebar-overlay" id="mobileSidebarOverlay"></div>
+
+    <!-- ── Plan Expiry Warning Modal (shown once per session when ≤3 days remain) ── -->
+    {% if current_user.is_authenticated and not current_user.is_admin %}
+    {% set _exp_days = current_user.plan_days_remaining() %}
+    {% set _is_trial = current_user.pricing_plan.value == 'FREE' %}
+    {% if _exp_days is not none and _exp_days <= 3 and (_exp_days > 0 or _is_trial) %}
+    <div id="planExpiryModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:20px;max-width:420px;width:calc(100% - 32px);padding:32px;box-shadow:0 20px 60px rgba(0,0,0,0.25);font-family:'Poppins',sans-serif;position:relative;">
+            <div style="text-align:center;margin-bottom:20px;">
+                <div style="width:64px;height:64px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size:28px;color:#dc2626;"></i>
+                </div>
+                {% if _is_trial %}
+                <h5 style="font-weight:800;color:#0f172a;margin-bottom:8px;">
+                    Your free trial expires in {{ _exp_days }} day{{ 's' if _exp_days != 1 else '' }}
+                </h5>
+                <p style="font-size:14px;color:#64748b;line-height:1.6;">
+                    You're on the <strong>Starter (14-day trial)</strong> with full Growth Plan access.
+                    Upgrade now to keep your broker connections, AI tools, and F&O signals uninterrupted.
+                </p>
+                {% else %}
+                <h5 style="font-weight:800;color:#0f172a;margin-bottom:8px;">
+                    Your {{ current_user.get_plan_display_name() }} expires in {{ _exp_days }} day{{ 's' if _exp_days != 1 else '' }}
+                </h5>
+                <p style="font-size:14px;color:#64748b;line-height:1.6;">
+                    Renew your plan now to keep uninterrupted access to all your AI tools, broker connections, and signals.
+                </p>
+                {% endif %}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <a href="{{ url_for('pricing') }}"
+                   style="display:block;padding:13px;background:#00091a;color:#fff;border-radius:12px;text-align:center;font-weight:700;font-size:15px;text-decoration:none;">
+                    <i class="fas fa-arrow-up me-2"></i>{{ 'Upgrade Now' if _is_trial else 'Renew Plan' }}
+                </a>
+                <button onclick="dismissExpiryModal()"
+                        style="padding:12px;background:#f1f5f9;color:#475569;border:none;border-radius:12px;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit;">
+                    Remind me later
+                </button>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        var KEY = 'tc_expiry_dismissed_{{ _exp_days }}';
+        if (!sessionStorage.getItem(KEY)) {
+            var el = document.getElementById('planExpiryModal');
+            if (el) { el.style.display = 'flex'; }
+        }
+    })();
+    function dismissExpiryModal() {
+        var KEY = 'tc_expiry_dismissed_{{ _exp_days }}';
+        sessionStorage.setItem(KEY, '1');
+        var el = document.getElementById('planExpiryModal');
+        if (el) { el.style.display = 'none'; }
+    }
+    </script>
+    {% endif %}
+    {% endif %}
     
     <!-- Non-intrusive Signal Panel -->
     <div class="signal-panel" id="signalPanel" style="display: none;">

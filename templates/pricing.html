@@ -46,37 +46,52 @@
     <div class="container">
         <div class="row g-4 justify-content-center">
 
-            <!-- Starter Plan (Free) -->
+            <!-- Starter Plan (14-day trial) -->
             <div class="col-lg-3 col-md-6">
                 <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
                     <div class="card-body p-4">
                         <div class="text-center mb-4">
-                            <span class="badge bg-secondary rounded-pill px-3 py-2 mb-3">Free Forever</span>
+                            <span class="badge rounded-pill px-3 py-2 mb-3" style="background:#fef3c7;color:#b45309;">14-Day Free Trial</span>
                             <h4 class="fw-bold text-dark mb-1">Starter Plan</h4>
-                            <p class="text-muted small mb-4">Start your journey</p>
-                            <div class="d-flex align-items-baseline justify-content-center">
+                            <p class="text-muted small mb-2">Start your journey</p>
+                            <div class="d-flex align-items-baseline justify-content-center mb-1">
                                 <h2 class="display-5 fw-bold text-dark mb-0 me-1">₹0</h2>
-                                <small class="text-muted">/month</small>
+                                <small class="text-muted">/14 days</small>
                             </div>
+                            <p class="text-muted" style="font-size:11px;">then ₹1,499/mo (Growth Plan)</p>
                         </div>
-                        <div class="features-list mb-4">
+                        <div class="features-list mb-3">
+                            <div class="rounded p-2 mb-3" style="background:#f0fdf4;border:1px solid #bbf7d0;">
+                                <p class="mb-0 text-success fw-semibold" style="font-size:12px;">
+                                    <i class="fas fa-gift me-1"></i>Full Growth Plan features for 14 days — free
+                                </p>
+                            </div>
                             <ul class="list-unstyled" style="font-size:14px;">
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Dashboard access</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Live Market Pulse</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Portfolio Analysis</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Manual upload: Equity, MF & Gold</li>
-                                <li class="mb-2"><i class="fas fa-times text-muted me-2"></i>No broker connection</li>
-                                <li class="mb-2"><i class="fas fa-times text-muted me-2"></i>No Research Co-Pilot</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>1 broker connection</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>AI Research Co-Pilot</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>F&O Analysis Engine</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Behavioural AI Engine</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Trade Now with guardrails</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Daily Trading Signals</li>
                             </ul>
                         </div>
                         {% if current_user.is_authenticated %}
                             {% if current_user.pricing_plan.value == 'FREE' %}
+                                {% if current_user.is_trial_active() %}
+                                <div class="text-center mb-2">
+                                    <span class="badge bg-warning text-dark px-3 py-2" style="font-size:12px;">
+                                        <i class="fas fa-clock me-1"></i>{{ current_user.trial_days_remaining() }} days remaining
+                                    </span>
+                                </div>
                                 <span class="btn btn-secondary w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
+                                {% else %}
+                                <a href="{{ url_for('subscribe', plan_type='target_plus') }}" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold">Upgrade to Growth</a>
+                                {% endif %}
                             {% else %}
                                 <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Downgrade unavailable</span>
                             {% endif %}
                         {% else %}
-                            <a href="{{ url_for('register') }}" class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold">Start Free</a>
+                            <a href="{{ url_for('register') }}" class="btn btn-outline-dark w-100 py-2 rounded-pill fw-semibold">Start Free Trial</a>
                         {% endif %}
                     </div>
                 </div>
