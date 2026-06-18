@@ -1224,7 +1224,7 @@ _TRIAL_EXEMPT_ENDPOINTS: frozenset = frozenset({
 #   BETA_INVITE_CODE=<secret> is optional — a valid code is honoured at /register
 #   but is no longer required to sign up (registration is open).
 def _beta_invite_only_enabled() -> bool:
-    return os.environ.get("BETA_INVITE_ONLY", "true").strip().lower() in ("1", "true", "yes", "on")
+    return False
 
 
 @app.before_request
