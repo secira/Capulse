@@ -772,12 +772,12 @@ def api_research_thresholds():
         return jsonify({
             'success': True,
             'thresholds': {
-                'strong_buy': 80,
-                'buy': 65,
-                'hold_low': 45,
-                'hold_high': 64,
-                'sell': 30,
-                'min_confidence': 0.6
+                'strong_buy': 70,
+                'buy': 56,
+                'hold_low': 40,
+                'hold_high': 55,
+                'sell': 28,
+                'min_confidence': 0.38
             }
         })
     
@@ -787,12 +787,12 @@ def api_research_thresholds():
         return jsonify({
             'success': True,
             'thresholds': {
-                'strong_buy': 80,
-                'buy': 65,
-                'hold_low': 45,
-                'hold_high': 64,
-                'sell': 30,
-                'min_confidence': 0.6
+                'strong_buy': 70,
+                'buy': 56,
+                'hold_low': 40,
+                'hold_high': 55,
+                'sell': 28,
+                'min_confidence': 0.38
             }
         })
 

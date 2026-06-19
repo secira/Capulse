@@ -207,12 +207,12 @@ class LangGraphAIResearchPipeline:
         threshold_config = ResearchThresholdConfig.get_active_config(tenant_id)
         if not threshold_config:
             threshold_config = {
-                "strong_buy_threshold": 80,
-                "buy_threshold": 65,
-                "hold_low": 45,
-                "hold_high": 64,
-                "sell_threshold": 30,
-                "min_confidence": 0.6
+                "strong_buy_threshold": 70,
+                "buy_threshold": 56,
+                "hold_low": 40,
+                "hold_high": 55,
+                "sell_threshold": 28,
+                "min_confidence": 0.38
             }
         else:
             threshold_config = {
@@ -632,16 +632,16 @@ Provide a trend score from 0-100 (higher = more bullish positioning)."""
         if confidence < min_confidence:
             recommendation = "inconclusive"
             summary = f"Analysis for {symbol} shows insufficient confidence ({confidence:.0%}) to make a clear recommendation."
-        elif overall_score >= threshold_config.get("strong_buy_threshold", 80):
+        elif overall_score >= threshold_config.get("strong_buy_threshold", 70):
             recommendation = "strong_buy"
             summary = f"{symbol} shows strong bullish signals across multiple indicators with a score of {overall_score:.1f}/100. Recommend aggressive accumulation."
-        elif overall_score >= threshold_config.get("buy_threshold", 65):
+        elif overall_score >= threshold_config.get("buy_threshold", 56):
             recommendation = "buy"
             summary = f"{symbol} demonstrates positive momentum with a score of {overall_score:.1f}/100. Consider adding to portfolio."
-        elif overall_score >= threshold_config.get("hold_low", 45):
+        elif overall_score >= threshold_config.get("hold_low", 40):
             recommendation = "hold"
             summary = f"{symbol} shows mixed signals with a score of {overall_score:.1f}/100. Maintain existing positions."
-        elif overall_score >= threshold_config.get("sell_threshold", 30):
+        elif overall_score >= threshold_config.get("sell_threshold", 28):
             recommendation = "cautionary_sell"
             summary = f"{symbol} displays weakening signals with a score of {overall_score:.1f}/100. Consider reducing exposure."
         else:

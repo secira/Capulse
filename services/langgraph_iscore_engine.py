@@ -328,12 +328,12 @@ class LangGraphIScoreEngine:
         'market_context_pct': 5,
     }
     THRESHOLDS = {
-        'strong_buy': 78,
-        'buy': 63,
-        'hold_low': 42,
-        'hold_high': 62,
+        'strong_buy': 70,   # was 78 — achievable for quality stocks with broad bullish alignment
+        'buy': 56,          # was 63 — positive technical + sentiment qualifies
+        'hold_low': 40,     # was 42
+        'hold_high': 55,    # was 62
         'sell': 28,
-        'min_confidence': 0.45,
+        'min_confidence': 0.38,  # was 0.45 — stop blocking signals when data is reasonable
     }
 
     def _get_config(self) -> Dict:

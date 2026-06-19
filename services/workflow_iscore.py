@@ -27,11 +27,11 @@ ISCORE_SCHEMA = {
 }
 
 RECOMMENDATION_THRESHOLDS = {
-    "strong_buy": 80,
-    "buy": 65,
-    "hold_high": 64,
-    "hold_low": 45,
-    "sell": 30,
+    "strong_buy": 70,   # was 80 — aligned with LangGraph engine
+    "buy": 56,          # was 65
+    "hold_high": 55,    # was 64
+    "hold_low": 40,     # was 45
+    "sell": 28,         # was 30
 }
 
 

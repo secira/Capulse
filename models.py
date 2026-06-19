@@ -2673,14 +2673,14 @@ class ResearchThresholdConfig(db.Model):
     tenant_id = db.Column(db.String(255), db.ForeignKey('tenants.id'), nullable=True, default='live', index=True)
     
     # Score thresholds (out of 100)
-    strong_buy_threshold = db.Column(db.Integer, nullable=False, default=80)
-    buy_threshold = db.Column(db.Integer, nullable=False, default=65)
-    hold_low = db.Column(db.Integer, nullable=False, default=45)
-    hold_high = db.Column(db.Integer, nullable=False, default=64)
-    sell_threshold = db.Column(db.Integer, nullable=False, default=30)
+    strong_buy_threshold = db.Column(db.Integer, nullable=False, default=70)
+    buy_threshold = db.Column(db.Integer, nullable=False, default=56)
+    hold_low = db.Column(db.Integer, nullable=False, default=40)
+    hold_high = db.Column(db.Integer, nullable=False, default=55)
+    sell_threshold = db.Column(db.Integer, nullable=False, default=28)
     
     # Confidence threshold (0-1)
-    min_confidence = db.Column(db.Numeric(3, 2), nullable=False, default=0.6)
+    min_confidence = db.Column(db.Numeric(3, 2), nullable=False, default=0.38)
     
     # Hysteresis to avoid recommendation churn
     hysteresis = db.Column(db.Integer, nullable=False, default=5)
