@@ -82,26 +82,75 @@
         <div class="card admin-card mb-4">
             <div class="card-header"><h6 class="mb-0"><i class="fas fa-crown me-2"></i>Subscription Plan</h6></div>
             <div class="card-body">
-                <div class="mb-3">
-                    <span class="fw-bold">Current Plan: </span>
-                    {% set plan_val = user.pricing_plan.value if user.pricing_plan else 'free' %}
-                    {% if plan_val == 'hni' %}<span class="badge bg-danger fs-6">HNI</span>
-                    {% elif plan_val == 'target_pro' %}<span class="badge bg-warning fs-6">Target Pro</span>
-                    {% elif plan_val == 'target_plus' %}<span class="badge bg-info fs-6">Target Plus</span>
-                    {% else %}<span class="badge bg-secondary fs-6">Free</span>{% endif %}
+                {% set plan_val = user.pricing_plan.value if user.pricing_plan else 'free' %}
+                <div class="mb-3 d-flex align-items-center gap-2">
+                    <span class="fw-bold text-muted small">Current:</span>
+                    {% if plan_val == 'hni' %}<span class="badge bg-danger">Elite (HNI)</span>
+                    {% elif plan_val == 'target_pro' %}<span class="badge bg-warning text-dark">Pro</span>
+                    {% elif plan_val == 'target_plus' %}<span class="badge bg-info text-dark">Growth</span>
+                    {% else %}<span class="badge bg-secondary">Free</span>{% endif %}
+                    {% if user.subscription_end_date %}
+                        {% if user.subscription_end_date < now %}
+                            <span class="badge bg-danger ms-1"><i class="fas fa-calendar-times me-1"></i>Expired {{ user.subscription_end_date.strftime('%d %b %Y') }}</span>
+                        {% else %}
+                            <span class="badge bg-success ms-1"><i class="fas fa-calendar-check me-1"></i>Until {{ user.subscription_end_date.strftime('%d %b %Y') }}</span>
+                        {% endif %}
+                    {% endif %}
                 </div>
+
                 <form method="POST" action="{{ url_for('admin.update_user_plan', user_id=user.id) }}">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Change Plan</label>
-                        <select name="pricing_plan" class="form-select">
-                            <option value="free" {{ 'selected' if plan_val == 'free' else '' }}>Free</option>
-                            <option value="target_plus" {{ 'selected' if plan_val == 'target_plus' else '' }}>Target Plus</option>
-                            <option value="target_pro" {{ 'selected' if plan_val == 'target_pro' else '' }}>Target Pro</option>
-                            <option value="hni" {{ 'selected' if plan_val == 'hni' else '' }}>HNI</option>
+                    <input type="hidden" name="quick_days" id="quick_days_input" value="">
+
+                    <!-- Plan selector -->
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold small mb-1">Plan</label>
+                        <select name="pricing_plan" class="form-select form-select-sm" id="planSelect">
+                            <option value="free"         {{ 'selected' if plan_val == 'free' }}>Free (Trial)</option>
+                            <option value="target_plus"  {{ 'selected' if plan_val == 'target_plus' }}>Growth (Target Plus)</option>
+                            <option value="target_pro"   {{ 'selected' if plan_val == 'target_pro' }}>Pro (Target Pro)</option>
+                            <option value="hni"          {{ 'selected' if plan_val == 'hni' }}>Elite (HNI)</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100 admin-btn">
-                        <i class="fas fa-save me-2"></i>Update Plan
+
+                    <!-- Expiry date + quick-set -->
+                    <div class="mb-2" id="expirySection">
+                        <label class="form-label fw-semibold small mb-1">
+                            <i class="fas fa-calendar-alt me-1 text-primary"></i>Valid Until
+                        </label>
+                        <input type="date" name="subscription_end_date" id="expiryDateInput"
+                               class="form-control form-control-sm mb-2"
+                               value="{{ user.subscription_end_date.strftime('%Y-%m-%d') if user.subscription_end_date else '' }}">
+                        <div class="d-flex gap-1 flex-wrap">
+                            <button type="button" class="btn btn-xs btn-outline-secondary quick-btn"
+                                    onclick="setQuickDays(14)" style="font-size:11px;padding:2px 8px;">
+                                +14 days<br><small class="opacity-75">Free Trial</small>
+                            </button>
+                            <button type="button" class="btn btn-xs btn-outline-primary quick-btn"
+                                    onclick="setQuickDays(30)" style="font-size:11px;padding:2px 8px;">
+                                +30 days<br><small class="opacity-75">Monthly</small>
+                            </button>
+                            <button type="button" class="btn btn-xs btn-outline-success quick-btn"
+                                    onclick="setQuickDays(365)" style="font-size:11px;padding:2px 8px;">
+                                +365 days<br><small class="opacity-75">Annual</small>
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-1" style="font-size:10px;">
+                            Quick buttons set from today. Or pick a specific date above.
+                        </small>
+                    </div>
+
+                    <!-- Status toggle (hidden for Free) -->
+                    <div class="mb-3" id="statusSection">
+                        <label class="form-label fw-semibold small mb-1">Subscription Status</label>
+                        <select name="subscription_status" class="form-select form-select-sm">
+                            <option value="auto">Auto-detect (based on expiry date)</option>
+                            <option value="active"   {{ 'selected' if user.subscription_status and user.subscription_status.value == 'ACTIVE' }}>Force Active</option>
+                            <option value="inactive" {{ 'selected' if user.subscription_status and user.subscription_status.value == 'INACTIVE' }}>Force Inactive</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 admin-btn btn-sm">
+                        <i class="fas fa-save me-2"></i>Update Plan &amp; Expiry
                     </button>
                 </form>
             </div>
@@ -323,5 +372,47 @@ function confirmAdminToggle(checkbox, username) {
         checkbox.checked = !granting;  // revert
     }
 }
+
+// Quick-set expiry: sets the date input to today + N days
+// and stores N in the hidden quick_days field so the backend
+// knows a quick-set was used (overrides the date picker value).
+function setQuickDays(days) {
+    const today = new Date();
+    today.setDate(today.getDate() + days);
+    const yyyy = today.getFullYear();
+    const mm   = String(today.getMonth() + 1).padStart(2, '0');
+    const dd   = String(today.getDate()).padStart(2, '0');
+    document.getElementById('expiryDateInput').value = `${yyyy}-${mm}-${dd}`;
+    document.getElementById('quick_days_input').value = days;
+
+    // Highlight the active button
+    document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+}
+
+// When admin manually edits the date picker, clear the quick_days shortcut
+document.addEventListener('DOMContentLoaded', function() {
+    const datePicker = document.getElementById('expiryDateInput');
+    if (datePicker) {
+        datePicker.addEventListener('change', function() {
+            document.getElementById('quick_days_input').value = '';
+            document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+        });
+    }
+
+    // Hide expiry + status fields for Free plan (they use trial logic)
+    const planSelect = document.getElementById('planSelect');
+    function toggleExpiryVisibility() {
+        const isFree = planSelect && planSelect.value === 'free';
+        const expiry = document.getElementById('expirySection');
+        const status = document.getElementById('statusSection');
+        if (expiry) expiry.style.opacity = isFree ? '0.4' : '1';
+        if (status) status.style.opacity = isFree ? '0.4' : '1';
+    }
+    if (planSelect) {
+        planSelect.addEventListener('change', toggleExpiryVisibility);
+        toggleExpiryVisibility();
+    }
+});
 </script>
 {% endblock %}

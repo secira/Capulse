@@ -138,10 +138,24 @@ def verify_payment():
 
         plan_info = PLANS[plan_type]
 
+        # Determine billing cycle duration: annual flag → 365 days, else use plan default
+        billing_period = request.form.get('billing_period', 'monthly').strip().lower()
+        if billing_period in ('annual', 'yearly'):
+            duration_days = 365
+        else:
+            duration_days = plan_info.get('duration_days', 30)
+            billing_period = 'monthly'
+
+        now = datetime.utcnow()
         current_user.pricing_plan = plan_info['pricing_plan']
         current_user.subscription_status = SubscriptionStatus.ACTIVE
-        current_user.subscription_start_date = datetime.utcnow()
-        current_user.subscription_end_date = datetime.utcnow() + timedelta(days=30)
+        current_user.subscription_start_date = now
+        current_user.billing_cycle = billing_period
+        # Stack on top of existing expiry if still in the future
+        base = current_user.subscription_end_date if (
+            current_user.subscription_end_date and current_user.subscription_end_date > now
+        ) else now
+        current_user.subscription_end_date = base + timedelta(days=duration_days)
         current_user.total_payments = (current_user.total_payments or 0) + plan_info['price']
 
         payment = Payment(
@@ -152,7 +166,7 @@ def verify_payment():
             currency='INR',
             status='captured',
             plan_type=plan_info['pricing_plan'],
-            billing_period='monthly',
+            billing_period=billing_period,
         )
         db.session.add(payment)
         db.session.commit()

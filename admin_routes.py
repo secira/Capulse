@@ -338,23 +338,62 @@ def user_detail(user_id):
 @admin_bp.route('/user/<int:user_id>/update-plan', methods=['POST'])
 @admin_required
 def update_user_plan(user_id):
-    """Update a user's subscription plan"""
+    """Update a user's subscription plan, expiry date, and status."""
+    from datetime import datetime as _dt, timedelta as _td
+    from models import PricingPlan, SubscriptionStatus
     user = User.query.get_or_404(user_id)
-    new_plan = request.form.get('pricing_plan')
-    valid_plans = ['free', 'target_plus', 'target_pro', 'hni']
-    if new_plan and new_plan.lower() in valid_plans:
-        from models import PricingPlan
-        plan_map = {
-            'free': PricingPlan.FREE,
-            'target_plus': PricingPlan.TARGET_PLUS,
-            'target_pro': PricingPlan.TARGET_PRO,
-            'hni': PricingPlan.HNI,
-        }
-        user.pricing_plan = plan_map[new_plan.lower()]
-        db.session.commit()
-        flash(f'Plan updated to {new_plan} for {user.username}.', 'success')
-    else:
+
+    new_plan      = request.form.get('pricing_plan', '').lower().strip()
+    expiry_raw    = request.form.get('subscription_end_date', '').strip()
+    quick_days    = request.form.get('quick_days', '').strip()       # 14 / 30 / 365
+    new_status    = request.form.get('subscription_status', '').strip()
+
+    valid_plans = {
+        'free':         PricingPlan.FREE,
+        'target_plus':  PricingPlan.TARGET_PLUS,
+        'target_pro':   PricingPlan.TARGET_PRO,
+        'hni':          PricingPlan.HNI,
+    }
+
+    if new_plan not in valid_plans:
         flash('Invalid plan selected.', 'danger')
+        return redirect(url_for('admin.user_detail', user_id=user_id))
+
+    # ── Plan ──────────────────────────────────────────────────────────────
+    user.pricing_plan = valid_plans[new_plan]
+
+    # ── Expiry date ───────────────────────────────────────────────────────
+    # Priority: quick_days button > manual date field > leave unchanged
+    now = _dt.utcnow()
+    if quick_days and quick_days.isdigit():
+        user.subscription_end_date = now + _td(days=int(quick_days))
+    elif expiry_raw:
+        try:
+            user.subscription_end_date = _dt.strptime(expiry_raw, '%Y-%m-%d')
+        except ValueError:
+            flash(f'Invalid expiry date "{expiry_raw}". Date not changed.', 'warning')
+
+    # ── Subscription status ───────────────────────────────────────────────
+    if new_plan == 'free':
+        # FREE users don't have a paid subscription status
+        user.subscription_status = SubscriptionStatus.INACTIVE
+    elif new_status == 'active':
+        user.subscription_status = SubscriptionStatus.ACTIVE
+        if not user.subscription_end_date:
+            # Default to 30 days if no date was set
+            user.subscription_end_date = now + _td(days=30)
+    elif new_status == 'inactive':
+        user.subscription_status = SubscriptionStatus.INACTIVE
+    else:
+        # Auto-derive: active if expiry is in the future
+        if user.subscription_end_date and user.subscription_end_date > now and new_plan != 'free':
+            user.subscription_status = SubscriptionStatus.ACTIVE
+        elif new_plan != 'free':
+            user.subscription_status = SubscriptionStatus.INACTIVE
+
+    db.session.commit()
+    expiry_str = user.subscription_end_date.strftime('%d %b %Y') if user.subscription_end_date else 'N/A'
+    flash(f'Plan updated: {new_plan.upper()} · Expires {expiry_str}', 'success')
     return redirect(url_for('admin.user_detail', user_id=user_id))
 
 
