@@ -44,7 +44,7 @@
         <div class="admin-stat-card success">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h3 class="mb-0">{{ users.items | selectattr('pricing_plan', 'in', ['hni', 'target_pro', 'target_plus']) | list | length }}</h3>
+                    <h3 class="mb-0">{{ paid_count }}</h3>
                     <p class="mb-0">Paid Users</p>
                 </div>
                 <i class="fas fa-crown fa-2x"></i>
@@ -55,7 +55,7 @@
         <div class="admin-stat-card warning">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h3 class="mb-0">{{ users.items | selectattr('pricing_plan', 'equalto', 'free') | list | length }}</h3>
+                    <h3 class="mb-0">{{ free_count }}</h3>
                     <p class="mb-0">Free Users</p>
                 </div>
                 <i class="fas fa-user fa-2x"></i>
@@ -66,7 +66,7 @@
         <div class="admin-stat-card danger">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h3 class="mb-0">{{ users.items | selectattr('last_login', 'none') | list | length }}</h3>
+                    <h3 class="mb-0">{{ never_login }}</h3>
                     <p class="mb-0">Never Logged In</p>
                 </div>
                 <i class="fas fa-user-times fa-2x"></i>
@@ -117,12 +117,13 @@
                                 </div>
                             </td>
                             <td>
-                                {% if user.pricing_plan == 'hni' %}
-                                    <span class="badge bg-danger">HNI</span>
-                                {% elif user.pricing_plan == 'target_pro' %}
-                                    <span class="badge bg-warning">Target Pro</span>
-                                {% elif user.pricing_plan == 'target_plus' %}
-                                    <span class="badge bg-info">Target Plus</span>
+                                {% set pv = user.pricing_plan.value if user.pricing_plan else 'free' %}
+                                {% if pv == 'hni' %}
+                                    <span class="badge bg-danger">Elite</span>
+                                {% elif pv == 'target_pro' %}
+                                    <span class="badge bg-warning text-dark">Pro</span>
+                                {% elif pv == 'target_plus' %}
+                                    <span class="badge bg-info text-dark">Growth</span>
                                 {% else %}
                                     <span class="badge bg-secondary">Free</span>
                                 {% endif %}

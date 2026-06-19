@@ -66,8 +66,9 @@
                             <br><small class="text-muted">{{ user.email }}</small>
                         </td>
                         <td>
-                            <span class="badge {{ 'bg-warning' if user.pricing_plan == 'hni' else 'bg-primary' }}">
-                                {{ user.pricing_plan|upper if user.pricing_plan else 'N/A' }}
+                            {% set pv = user.pricing_plan.value if user.pricing_plan else 'free' %}
+                            <span class="badge {{ 'bg-danger' if pv == 'hni' else ('bg-warning text-dark' if pv == 'target_pro' else ('bg-info text-dark' if pv == 'target_plus' else 'bg-secondary')) }}">
+                                {{ {'hni':'Elite','target_pro':'Pro','target_plus':'Growth','free':'Free'}.get(pv, pv|upper) }}
                             </span>
                         </td>
                         <td>

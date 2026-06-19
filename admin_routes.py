@@ -300,11 +300,11 @@ def dashboard():
 def users(page=1):
     """User management page"""
     from datetime import datetime as _dt
+    from models import PricingPlan
     per_page = 20
     plan_filter = request.args.get('plan')
     query = User.query
     if plan_filter:
-        from models import PricingPlan
         plan_map = {
             'free': PricingPlan.FREE,
             'target_plus': PricingPlan.TARGET_PLUS,
@@ -316,7 +316,19 @@ def users(page=1):
     users = query.order_by(User.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
-    return render_template('admin/users.html', users=users, now=_dt.utcnow())
+    # Pre-compute plan counts so the template doesn't need enum comparisons
+    paid_plans = (PricingPlan.TARGET_PLUS, PricingPlan.TARGET_PRO, PricingPlan.HNI)
+    paid_count  = User.query.filter(User.pricing_plan.in_(paid_plans)).count()
+    free_count  = User.query.filter(User.pricing_plan == PricingPlan.FREE).count()
+    never_login = User.query.filter(User.last_login == None).count()  # noqa: E711
+    return render_template(
+        'admin/users.html',
+        users=users,
+        now=_dt.utcnow(),
+        paid_count=paid_count,
+        free_count=free_count,
+        never_login=never_login,
+    )
 
 @admin_bp.route('/user/<int:user_id>')
 @admin_required
