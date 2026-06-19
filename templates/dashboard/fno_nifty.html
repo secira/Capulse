@@ -122,6 +122,31 @@
 .signal-event-exit{font-size:10px;background:#fce7f3;color:#9d174d;padding:2px 7px;border-radius:4px;font-weight:700}
 .signal-event-scan{font-size:10px;background:#f1f5f9;color:#64748b;padding:2px 7px;border-radius:4px;font-weight:600}
 
+/* ── F&O Numbered Accordion Sections ── */
+.fno-accordion-section{border:1px solid #e2e8f0;border-radius:14px;margin-bottom:10px;overflow:hidden;background:#fff;transition:box-shadow .2s}
+.fno-accordion-section:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.fno-section-highlight{border-color:#f59e0b!important;box-shadow:0 2px 12px rgba(245,158,11,.15)!important}
+.fno-section-header{width:100%;background:#f8fafc;border:none;padding:13px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;text-align:left;transition:background .2s;gap:12px;outline:none}
+.fno-section-header:hover{background:#f1f5f9}
+.fno-section-header-active{background:linear-gradient(135deg,#fff8ed,#fffef5)!important}
+.fno-section-header-active:hover{background:linear-gradient(135deg,#fef3c7,#fffef5)!important}
+.fno-sec-left{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.fno-sec-num{width:28px;height:28px;border-radius:50%;background:#e2e8f0;color:#475569;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
+.fno-sec-num-active{background:#f59e0b;color:#fff}
+.fno-sec-title{font-size:14px;font-weight:700;color:#1e293b;line-height:1.2}
+.fno-sec-sub{font-size:11px;color:#94a3b8;margin-top:2px}
+.fno-sec-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.fno-sec-preview{font-size:11px;color:#64748b;font-weight:600;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fno-chevron{color:#94a3b8;font-size:12px;transition:transform .3s;flex-shrink:0}
+.fno-section-header[aria-expanded="true"] .fno-chevron{transform:rotate(180deg)}
+.fno-collapse-body{padding:16px 18px;border-top:1px solid #f1f5f9;background:#fff}
+.fno-collapse-body .capital-bar{border:none;border-bottom:1px solid #f1f5f9;border-radius:0;margin-bottom:0;padding-bottom:14px}
+.fno-collapse-body .monitor-bar{border:none;border-top:1px solid #f1f5f9;border-radius:0;margin-bottom:0;padding-top:14px;padding-left:0;padding-right:0;background:transparent}
+.fno-trade-btn{font-size:12px;font-weight:700;padding:5px 14px;border-radius:8px;white-space:nowrap;cursor:pointer;border:none}
+.fno-trade-btn-active{background:#16a34a;color:#fff}
+.fno-trade-btn-active:hover{background:#15803d;color:#fff}
+.fno-trade-btn-disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed}
+
 .collapse-header{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:0;transition:all .2s}
 .collapse-header:hover{background:#f1f5f9}
 .collapse-header[aria-expanded="true"]{border-radius:12px 12px 0 0;border-bottom:none}
@@ -275,38 +300,8 @@
     <div class="block-reasons" id="blockReasons" style="display:none"></div>
 </div>
 
-<!-- Trading Capital Input -->
-<div class="capital-bar">
-    <label><i class="fas fa-wallet me-2 text-primary"></i>Trading Capital</label>
-    <div class="input-group" style="width:auto">
-        <span class="input-group-text" style="border-radius:8px 0 0 8px;font-weight:600;background:#f8fafc">₹</span>
-        <input type="text" class="capital-input" id="tradingCapital" value="1,00,000" placeholder="Enter capital" style="border-radius:0 8px 8px 0">
-    </div>
-    <div class="capital-info">
-        <div>Risk per trade (1%): <span id="riskPerTrade">₹1,000</span></div>
-        <div>Daily loss limit (3%): <span id="dailyLossLimit">₹3,000</span></div>
-        <div>Max lots: <span id="maxLots">—</span></div>
-    </div>
-    <div class="ms-auto d-flex align-items-center gap-2">
-        <button class="btn btn-sm btn-outline-primary" onclick="refreshAnalysis()"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
-    </div>
-</div>
-
-<!-- Monitor Status Bar -->
-<div class="monitor-bar" id="monitorBar">
-    <div>
-        <span class="monitor-dot inactive" id="monitorDot"></span>
-        <strong style="font-size:13px" id="monitorLabel">Scanner: Loading...</strong>
-    </div>
-    <div class="monitor-stat">Market: <span id="monitorMarket">—</span></div>
-    <div class="monitor-stat">Signals today: <span id="monitorSignals">0 / 3</span></div>
-    <div class="monitor-stat">Last alert: <span id="monitorLast">—</span></div>
-    <div class="monitor-stat">Threshold: <span id="monitorThreshold">75+</span></div>
-    <div class="monitor-stat">Scan: <span>Every 60s</span></div>
-</div>
-
-<!-- Active Trade / Lifecycle Panel -->
-<div id="activeTradePanelWrap" style="display:none">
+<!-- Active Trade / Lifecycle Panel — always visible when a trade is running -->
+<div id="activeTradePanelWrap" style="display:none;margin-bottom:10px">
     <div class="active-trade-panel" id="activeTradePanel">
         <div class="at-header">
             <span class="at-lock-icon" id="atIcon">🔒</span>
@@ -320,217 +315,365 @@
     </div>
 </div>
 
-<!-- MOMENTUM METER -->
-<div class="momentum-bar" id="momentumBar" style="display:none">
-    <div class="momentum-header">
-        <div style="display:flex;align-items:center;gap:8px">
-            <i class="fas fa-tachometer-alt text-primary"></i>
-            <span style="font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px">Momentum Meter</span>
+<!-- ═══════════════════════════════════════════════════
+     SECTION 2 · MONEY MANAGEMENT
+═══════════════════════════════════════════════════ -->
+<div class="fno-accordion-section">
+    <button class="fno-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#moneyMgmtCollapse" aria-expanded="false">
+        <div class="fno-sec-left">
+            <span class="fno-sec-num">2</span>
+            <div>
+                <div class="fno-sec-title"><i class="fas fa-wallet me-2 text-success"></i>Money Management</div>
+                <div class="fno-sec-sub">Capital input · risk sizing · lot calculation</div>
+            </div>
         </div>
-        <div>
-            <span style="font-size:18px;font-weight:800" id="momentumPct">—</span>
-            <span style="font-size:12px;font-weight:600;margin-left:4px" id="momentumLabel">—</span>
+        <div class="fno-sec-right">
+            <span class="fno-sec-preview" id="moneyMgmtPreview">₹1,00,000 capital</span>
+            <i class="fas fa-chevron-down fno-chevron"></i>
         </div>
-    </div>
-    <div class="momentum-track">
-        <div class="momentum-fill" id="momentumFill" style="width:0"></div>
+    </button>
+    <div class="collapse" id="moneyMgmtCollapse">
+        <div class="fno-collapse-body">
+            <div class="capital-bar" style="border-radius:10px;margin-bottom:12px">
+                <label><i class="fas fa-wallet me-2 text-primary"></i>Trading Capital</label>
+                <div class="input-group" style="width:auto">
+                    <span class="input-group-text" style="border-radius:8px 0 0 8px;font-weight:600;background:#f8fafc">₹</span>
+                    <input type="text" class="capital-input" id="tradingCapital" value="1,00,000" placeholder="Enter capital" style="border-radius:0 8px 8px 0">
+                </div>
+                <div class="capital-info">
+                    <div>Risk per trade (1%): <span id="riskPerTrade">₹1,000</span></div>
+                    <div>Daily loss limit (3%): <span id="dailyLossLimit">₹3,000</span></div>
+                    <div>Max lots: <span id="maxLots">—</span></div>
+                </div>
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshAnalysis()"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
+                </div>
+            </div>
+            <div class="monitor-bar" id="monitorBar" style="border-radius:10px;margin-bottom:0;border:1px solid #e2e8f0">
+                <div>
+                    <span class="monitor-dot inactive" id="monitorDot"></span>
+                    <strong style="font-size:13px" id="monitorLabel">Scanner: Loading...</strong>
+                </div>
+                <div class="monitor-stat">Market: <span id="monitorMarket">—</span></div>
+                <div class="monitor-stat">Signals today: <span id="monitorSignals">0 / 3</span></div>
+                <div class="monitor-stat">Last alert: <span id="monitorLast">—</span></div>
+                <div class="monitor-stat">Threshold: <span id="monitorThreshold">75+</span></div>
+                <div class="monitor-stat">Scan: <span>Every 60s</span></div>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Confidence & Entry -->
-<div class="engine-card">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="engine-title mb-0"><i class="fas fa-crosshairs"></i> Confidence & Entry</div>
-    </div>
-    <div class="row g-3 mb-3">
-        <div class="col-md-4 text-center">
-            <div style="font-size:36px;font-weight:800" id="confScore">—</div>
-            <div class="conf-meter"><div class="conf-fill" id="confFill" style="width:0"></div></div>
-            <div style="font-size:12px;font-weight:600;color:#64748b" id="confGrade">—</div>
+<!-- ═══════════════════════════════════════════════════
+     SECTION 3 · RISK MANAGEMENT RULES
+═══════════════════════════════════════════════════ -->
+<div class="fno-accordion-section">
+    <button class="fno-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#riskRulesCollapse" aria-expanded="false">
+        <div class="fno-sec-left">
+            <span class="fno-sec-num">3</span>
+            <div>
+                <div class="fno-sec-title"><i class="fas fa-shield-alt me-2 text-danger"></i>Risk Management &amp; Trading Psychology</div>
+                <div class="fno-sec-sub">Max trades · loss limits · live discipline scores</div>
+            </div>
         </div>
-        <div class="col-md-4 text-center">
-            <div style="font-size:12px;color:#64748b;font-weight:600">TRADE DIRECTION</div>
-            <div style="font-size:24px;font-weight:800" id="tradeDir">—</div>
+        <div class="fno-sec-right">
+            <span class="fno-sec-preview" id="riskStatusPreview">Max 3/day · 1% risk/trade</span>
+            <i class="fas fa-chevron-down fno-chevron"></i>
         </div>
-        <div class="col-md-4 text-center">
-            <div style="font-size:12px;color:#64748b;font-weight:600">ENTRY MODE</div>
-            <div style="font-size:24px;font-weight:800" id="entryMode">—</div>
-        </div>
-    </div>
-</div>
-
-<div id="noTradeArea" style="display:none">
-    <div class="engine-card" style="border-color:#fecaca;background:#fef2f2">
-        <div class="engine-title" style="color:#dc2626"><i class="fas fa-brain" style="color:#dc2626"></i> Why No Trade?</div>
-        <div id="noTradeIntelligence" style="font-size:13px;color:#7f1d1d"></div>
-    </div>
-</div>
-
-<div id="tradesArea" style="display:none">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h6 class="fw-bold mb-0"><i class="fas fa-list-ol me-2 text-primary"></i>Recommended Trades</h6>
-        <span class="text-muted" style="font-size:12px">ATM Strike: <strong id="atmStrike">—</strong> | Spot: <strong id="spotPrice">—</strong></span>
-        <span id="dataSourceBadge" style="display:none;margin-left:8px;font-size:11px;font-weight:700;padding:2px 10px;border-radius:6px;vertical-align:middle"></span>
-    </div>
-    <div class="expiry-dropdown-wrap">
-        <label><i class="fas fa-calendar-alt me-1"></i>Expiry</label>
-        <select class="expiry-select" id="expirySelect" onchange="onExpiryChange()">
-            <option value="current" id="expiryOptCurrent">Loading...</option>
-        </select>
-        <span class="expiry-dte-badge" id="expiryDTEBadge">—</span>
-        <span class="buy-badge"><i class="fas fa-arrow-up me-1"></i>Option Buy Only</span>
-    </div>
-    <div class="row g-3" id="tradesGrid"></div>
-</div>
-
-<!-- LAYERS: Traffic Light System -->
-<div class="row g-3 mt-3">
-    <div class="col-lg-3">
-        <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer1Collapse" aria-expanded="false">
-            <div class="engine-title"><i class="fas fa-clock"></i> Layer 1 — Time</div>
-            <span class="traffic-light ms-auto me-2" id="timeTraffic"><span class="tl-dot tl-red"></span>—</span>
-            <i class="fas fa-chevron-down chevron"></i>
-        </div>
-        <div class="collapse" id="layer1Collapse">
-            <div class="collapse-body" id="timeCard">
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="indicator-name" id="timeReason">Checking...</span>
+    </button>
+    <div class="collapse" id="riskRulesCollapse">
+        <div class="fno-collapse-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="risk-rule"><i class="fas fa-ban"></i><span>Max 3 trades per day</span></div>
+                    <div class="risk-rule"><i class="fas fa-times-circle"></i><span>Stop after 2 consecutive losses</span></div>
+                </div>
+                <div class="col-md-6">
+                    <div class="risk-rule"><i class="fas fa-percentage"></i><span>Daily loss limit: 3% of capital (<strong id="riskDailyLoss">₹3,000</strong>)</span></div>
+                    <div class="risk-rule"><i class="fas fa-coins"></i><span>Risk per trade: 1% of capital (<strong id="riskPerTradeRule">₹1,000</strong>)</span></div>
+                </div>
+            </div>
+            <div class="risk-live">
+                <div class="risk-live-item">
+                    <div class="risk-live-val" id="rlTradesToday">0 / 3</div>
+                    <div class="risk-live-lbl">Trades Today</div>
+                </div>
+                <div class="risk-live-item">
+                    <div class="risk-live-val" id="rlLossStreak">0</div>
+                    <div class="risk-live-lbl">Loss Streak</div>
+                </div>
+                <div class="risk-live-item">
+                    <div class="risk-live-val" id="rlRemainingRisk">₹3,000</div>
+                    <div class="risk-live-lbl">Remaining Risk</div>
+                </div>
+                <div class="risk-live-item">
+                    <div class="risk-live-val" style="color:#16a34a" id="rlRiskStatus">OK</div>
+                    <div class="risk-live-lbl">Risk Status</div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <div class="col-lg-3">
-        <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer2Collapse" aria-expanded="false">
-            <div class="engine-title"><i class="fas fa-compass"></i> Layer 2 — Direction</div>
-            <span class="traffic-light ms-auto me-2" id="dirTraffic"><span class="tl-dot tl-red"></span>—</span>
-            <i class="fas fa-chevron-down chevron"></i>
-        </div>
-        <div class="collapse" id="layer2Collapse">
-            <div class="collapse-body" id="directionCard">
-                <div class="indicator-row"><span class="indicator-name">Price vs VWAP</span><span class="indicator-val" id="vwapVal">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">Supertrend</span><span class="indicator-val" id="stVal">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">+DI / −DI</span><span class="indicator-val" id="dmiVal">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">RSI(7)</span><span class="indicator-val" id="rsiVal">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">Entry Trigger</span><span class="indicator-val" id="triggerVal">—</span></div>
+<!-- ═══════════════════════════════════════════════════
+     SECTION 4 · TECHNICAL ANALYSIS
+═══════════════════════════════════════════════════ -->
+<div class="fno-accordion-section">
+    <button class="fno-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#technicalCollapse" aria-expanded="false">
+        <div class="fno-sec-left">
+            <span class="fno-sec-num">4</span>
+            <div>
+                <div class="fno-sec-title"><i class="fas fa-chart-line me-2 text-primary"></i>Technical Analysis</div>
+                <div class="fno-sec-sub">Layer 1 Time · Layer 2 Direction · Layer 3 Strength · OI Analysis</div>
             </div>
         </div>
-    </div>
-
-    <div class="col-lg-3">
-        <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer3Collapse" aria-expanded="false">
-            <div class="engine-title"><i class="fas fa-bolt"></i> Layer 3 — Strength</div>
-            <span class="traffic-light ms-auto me-2" id="strTraffic"><span class="tl-dot tl-red"></span>—</span>
-            <i class="fas fa-chevron-down chevron"></i>
+        <div class="fno-sec-right">
+            <span class="fno-sec-preview" style="display:flex;align-items:center;gap:6px">
+                <span class="traffic-light" id="previewTimeTraffic"><span class="tl-dot tl-red"></span><span style="font-size:10px">T</span></span>
+                <span class="traffic-light" id="previewDirTraffic"><span class="tl-dot tl-red"></span><span style="font-size:10px">D</span></span>
+                <span class="traffic-light" id="previewStrTraffic"><span class="tl-dot tl-red"></span><span style="font-size:10px">S</span></span>
+                <span class="traffic-light" id="previewOiTraffic"><span class="tl-dot tl-red"></span><span style="font-size:10px">OI</span></span>
+            </span>
+            <i class="fas fa-chevron-down fno-chevron"></i>
         </div>
-        <div class="collapse" id="layer3Collapse">
-            <div class="collapse-body" id="strengthCard">
-                <div class="indicator-row"><span class="indicator-name">EMA 9</span><span class="indicator-val" id="ema9Val">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">EMA 21</span><span class="indicator-val" id="ema21Val">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">EMA Trend</span><span class="indicator-val" id="emaTrend">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">EMA Crossover</span><span class="indicator-val" id="emaCrossover">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">EMA Gap</span><span class="indicator-val" id="emaGap">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">Momentum Tier</span><span class="indicator-val" id="adxTier">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">ADX (ref)</span><span class="indicator-val" id="adxVal">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">Market Regime</span><span class="indicator-val" id="regimeVal">—</span></div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-3">
-        <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#oiCollapse" aria-expanded="true">
-            <div class="engine-title"><i class="fas fa-chart-pie"></i> OI Analysis</div>
-            <span class="traffic-light ms-auto me-2" id="oiTraffic"><span class="tl-dot tl-red"></span>—</span>
-            <i class="fas fa-chevron-down chevron"></i>
-        </div>
-        <div class="collapse show" id="oiCollapse">
-            <div class="collapse-body">
-                <div class="indicator-row"><span class="indicator-name">OI Differential</span><span class="indicator-val" id="oiDiff">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">PCR (Overall)</span><span class="indicator-val" id="pcrVal">—</span></div>
-                <div class="indicator-row"><span class="indicator-name">ATM PCR</span><span class="indicator-val" id="atmPcrVal">—</span></div>
-                <div class="indicator-row">
-                    <span class="indicator-name">Max Pain</span>
-                    <span class="indicator-val">
-                        <span id="maxPainStrike" style="font-weight:700">—</span>
-                        <span id="maxPainDist" style="font-size:10px;color:#94a3b8;margin-left:4px"></span>
-                    </span>
-                </div>
-                <div class="mt-2">
-                    <div class="d-flex justify-content-between" style="font-size:11px;font-weight:600"><span style="color:#ef4444">Call OI</span><span style="color:#22c55e">Put OI</span></div>
-                    <div class="oi-bar"><div class="oi-call" id="oiCallBar" style="width:50%"></div><div class="oi-put" id="oiPutBar" style="width:50%"></div></div>
-                    <div class="d-flex justify-content-between mt-1" style="font-size:10px;color:#94a3b8">
-                        <span id="totalCallOiLbl">—</span><span id="totalPutOiLbl">—</span>
+    </button>
+    <div class="collapse" id="technicalCollapse">
+        <div class="fno-collapse-body">
+            <div class="row g-3">
+                <div class="col-lg-3">
+                    <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer1Collapse" aria-expanded="false">
+                        <div class="engine-title"><i class="fas fa-clock"></i> Layer 1 — Time</div>
+                        <span class="traffic-light ms-auto me-2" id="timeTraffic"><span class="tl-dot tl-red"></span>—</span>
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </div>
+                    <div class="collapse" id="layer1Collapse">
+                        <div class="collapse-body" id="timeCard">
+                            <span class="indicator-name" id="timeReason">Checking...</span>
+                        </div>
                     </div>
                 </div>
-                <!-- Key Resistance (top CE OI) -->
-                <div class="mt-2" id="ceResistanceSection" style="display:none">
-                    <div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:4px">
-                        <i class="fas fa-shield me-1"></i>Key Resistance (Call OI)
+                <div class="col-lg-3">
+                    <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer2Collapse" aria-expanded="false">
+                        <div class="engine-title"><i class="fas fa-compass"></i> Layer 2 — Direction</div>
+                        <span class="traffic-light ms-auto me-2" id="dirTraffic"><span class="tl-dot tl-red"></span>—</span>
+                        <i class="fas fa-chevron-down chevron"></i>
                     </div>
-                    <div id="ceResistanceList"></div>
+                    <div class="collapse" id="layer2Collapse">
+                        <div class="collapse-body" id="directionCard">
+                            <div class="indicator-row"><span class="indicator-name">Price vs VWAP</span><span class="indicator-val" id="vwapVal">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">Supertrend</span><span class="indicator-val" id="stVal">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">+DI / −DI</span><span class="indicator-val" id="dmiVal">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">RSI(7)</span><span class="indicator-val" id="rsiVal">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">Entry Trigger</span><span class="indicator-val" id="triggerVal">—</span></div>
+                        </div>
+                    </div>
                 </div>
-                <!-- Key Support (top PE OI) -->
-                <div class="mt-2" id="peSupportSection" style="display:none">
-                    <div style="font-size:11px;font-weight:700;color:#22c55e;margin-bottom:4px">
-                        <i class="fas fa-shield-alt me-1"></i>Key Support (Put OI)
+                <div class="col-lg-3">
+                    <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#layer3Collapse" aria-expanded="false">
+                        <div class="engine-title"><i class="fas fa-bolt"></i> Layer 3 — Strength</div>
+                        <span class="traffic-light ms-auto me-2" id="strTraffic"><span class="tl-dot tl-red"></span>—</span>
+                        <i class="fas fa-chevron-down chevron"></i>
                     </div>
-                    <div id="peSupportList"></div>
+                    <div class="collapse" id="layer3Collapse">
+                        <div class="collapse-body" id="strengthCard">
+                            <div class="indicator-row"><span class="indicator-name">EMA 9</span><span class="indicator-val" id="ema9Val">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">EMA 21</span><span class="indicator-val" id="ema21Val">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">EMA Trend</span><span class="indicator-val" id="emaTrend">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">EMA Crossover</span><span class="indicator-val" id="emaCrossover">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">EMA Gap</span><span class="indicator-val" id="emaGap">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">Momentum Tier</span><span class="indicator-val" id="adxTier">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">ADX (ref)</span><span class="indicator-val" id="adxVal">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">Market Regime</span><span class="indicator-val" id="regimeVal">—</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3">
+                    <div class="collapse-header" data-bs-toggle="collapse" data-bs-target="#oiCollapse" aria-expanded="false">
+                        <div class="engine-title"><i class="fas fa-chart-pie"></i> OI Analysis</div>
+                        <span class="traffic-light ms-auto me-2" id="oiTraffic"><span class="tl-dot tl-red"></span>—</span>
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </div>
+                    <div class="collapse" id="oiCollapse">
+                        <div class="collapse-body">
+                            <div class="indicator-row"><span class="indicator-name">OI Differential</span><span class="indicator-val" id="oiDiff">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">PCR (Overall)</span><span class="indicator-val" id="pcrVal">—</span></div>
+                            <div class="indicator-row"><span class="indicator-name">ATM PCR</span><span class="indicator-val" id="atmPcrVal">—</span></div>
+                            <div class="indicator-row">
+                                <span class="indicator-name">Max Pain</span>
+                                <span class="indicator-val"><span id="maxPainStrike" style="font-weight:700">—</span><span id="maxPainDist" style="font-size:10px;color:#94a3b8;margin-left:4px"></span></span>
+                            </div>
+                            <div class="mt-2">
+                                <div class="d-flex justify-content-between" style="font-size:11px;font-weight:600"><span style="color:#ef4444">Call OI</span><span style="color:#22c55e">Put OI</span></div>
+                                <div class="oi-bar"><div class="oi-call" id="oiCallBar" style="width:50%"></div><div class="oi-put" id="oiPutBar" style="width:50%"></div></div>
+                                <div class="d-flex justify-content-between mt-1" style="font-size:10px;color:#94a3b8"><span id="totalCallOiLbl">—</span><span id="totalPutOiLbl">—</span></div>
+                            </div>
+                            <div class="mt-2" id="ceResistanceSection" style="display:none">
+                                <div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:4px"><i class="fas fa-shield me-1"></i>Key Resistance (Call OI)</div>
+                                <div id="ceResistanceList"></div>
+                            </div>
+                            <div class="mt-2" id="peSupportSection" style="display:none">
+                                <div style="font-size:11px;font-weight:700;color:#22c55e;margin-bottom:4px"><i class="fas fa-shield-alt me-1"></i>Key Support (Put OI)</div>
+                                <div id="peSupportList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="layer-decision-row ld-blocked mt-3" id="layerDecisionRow">
+                <i class="fas fa-robot" style="font-size:16px;color:#64748b"></i>
+                <span style="font-size:13px;font-weight:700;color:#334155" id="layerDecisionText">SYSTEM DECISION: Analysing...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     SECTION 5 · MOMENTUM METER
+═══════════════════════════════════════════════════ -->
+<div class="fno-accordion-section">
+    <button class="fno-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#momentumCollapse" aria-expanded="false">
+        <div class="fno-sec-left">
+            <span class="fno-sec-num">5</span>
+            <div>
+                <div class="fno-sec-title"><i class="fas fa-tachometer-alt me-2 text-warning"></i>Momentum Meter</div>
+                <div class="fno-sec-sub">Market momentum strength indicator</div>
+            </div>
+        </div>
+        <div class="fno-sec-right">
+            <span class="fno-sec-preview"><span id="momentumPctPreview">—</span>% &nbsp;<span id="momentumLabelPreview" style="font-size:10px">—</span></span>
+            <i class="fas fa-chevron-down fno-chevron"></i>
+        </div>
+    </button>
+    <div class="collapse" id="momentumCollapse">
+        <div class="fno-collapse-body">
+            <div id="momentumBar">
+                <div class="momentum-header">
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <i class="fas fa-tachometer-alt text-primary"></i>
+                        <span style="font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px">Momentum Meter</span>
+                    </div>
+                    <div>
+                        <span style="font-size:18px;font-weight:800" id="momentumPct">—</span>
+                        <span style="font-size:12px;font-weight:600;margin-left:4px" id="momentumLabel">—</span>
+                    </div>
+                </div>
+                <div class="momentum-track"><div class="momentum-fill" id="momentumFill" style="width:0"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     SECTION 6 · CONFIDENCE & ENTRY
+═══════════════════════════════════════════════════ -->
+<div class="fno-accordion-section">
+    <button class="fno-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#confEntryCollapse" aria-expanded="false">
+        <div class="fno-sec-left">
+            <span class="fno-sec-num">6</span>
+            <div>
+                <div class="fno-sec-title"><i class="fas fa-crosshairs me-2" style="color:#0ea5e9"></i>Confidence &amp; Entry</div>
+                <div class="fno-sec-sub">Signal confidence score · trade direction · entry mode</div>
+            </div>
+        </div>
+        <div class="fno-sec-right">
+            <span class="fno-sec-preview"><strong id="confScorePreview">—</strong>% · <span id="tradeDirPreview">—</span></span>
+            <i class="fas fa-chevron-down fno-chevron"></i>
+        </div>
+    </button>
+    <div class="collapse" id="confEntryCollapse">
+        <div class="fno-collapse-body">
+            <div class="row g-3 mb-3">
+                <div class="col-md-4 text-center">
+                    <div style="font-size:36px;font-weight:800" id="confScore">—</div>
+                    <div class="conf-meter"><div class="conf-fill" id="confFill" style="width:0"></div></div>
+                    <div style="font-size:12px;font-weight:600;color:#64748b" id="confGrade">—</div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <div style="font-size:12px;color:#64748b;font-weight:600">TRADE DIRECTION</div>
+                    <div style="font-size:24px;font-weight:800" id="tradeDir">—</div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <div style="font-size:12px;color:#64748b;font-weight:600">ENTRY MODE</div>
+                    <div style="font-size:24px;font-weight:800" id="entryMode">—</div>
+                </div>
+            </div>
+            <div id="noTradeArea" style="display:none">
+                <div class="engine-card" style="border-color:#fecaca;background:#fef2f2;margin-top:8px">
+                    <div class="engine-title" style="color:#dc2626"><i class="fas fa-brain" style="color:#dc2626"></i> Why No Trade?</div>
+                    <div id="noTradeIntelligence" style="font-size:13px;color:#7f1d1d"></div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- SYSTEM DECISION ROW -->
-<div class="layer-decision-row ld-blocked mt-3" id="layerDecisionRow">
-    <i class="fas fa-robot" style="font-size:16px;color:#64748b"></i>
-    <span style="font-size:13px;font-weight:700;color:#334155" id="layerDecisionText">SYSTEM DECISION: Analysing...</span>
+<!-- ═══════════════════════════════════════════════════
+     SECTION 7 · RECOMMENDED TRADES  (ATM · OTM · ITM)
+═══════════════════════════════════════════════════ -->
+<div class="fno-accordion-section">
+    <button class="fno-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#recTradesCollapse" aria-expanded="false">
+        <div class="fno-sec-left">
+            <span class="fno-sec-num">7</span>
+            <div>
+                <div class="fno-sec-title"><i class="fas fa-list-ol me-2 text-primary"></i>Recommended Trades</div>
+                <div class="fno-sec-sub">ATM · OTM · ITM option setups with full trade details</div>
+            </div>
+        </div>
+        <div class="fno-sec-right">
+            <span class="fno-sec-preview">ATM: <strong id="atmStrike">—</strong> · Spot: <strong id="spotPrice">—</strong></span>
+            <span id="dataSourceBadge" style="display:none;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;margin-right:4px"></span>
+            <i class="fas fa-chevron-down fno-chevron"></i>
+        </div>
+    </button>
+    <div class="collapse" id="recTradesCollapse">
+        <div class="fno-collapse-body">
+            <div id="tradesArea" style="display:none">
+                <div class="expiry-dropdown-wrap">
+                    <label><i class="fas fa-calendar-alt me-1"></i>Expiry</label>
+                    <select class="expiry-select" id="expirySelect" onchange="onExpiryChange()">
+                        <option value="current" id="expiryOptCurrent">Loading...</option>
+                    </select>
+                    <span class="expiry-dte-badge" id="expiryDTEBadge">—</span>
+                    <span class="buy-badge"><i class="fas fa-arrow-up me-1"></i>Option Buy Only</span>
+                </div>
+                <div class="row g-3" id="tradesGrid"></div>
+            </div>
+            <div id="noTradeMsg" style="display:none;padding:20px;text-align:center;color:#64748b;font-size:13px">
+                <i class="fas fa-ban fa-2x mb-2 text-danger"></i><br>
+                No trade signals available. Check Section 6 for details.
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- Risk Management Rules with LIVE STATUS -->
-<div class="engine-card mt-3">
-    <div class="engine-title"><i class="fas fa-shield-alt"></i> Risk Management Rules</div>
-    <div class="row">
-        <div class="col-md-6">
-            <div class="risk-rule"><i class="fas fa-ban"></i><span>Max 3 trades per day</span></div>
-            <div class="risk-rule"><i class="fas fa-times-circle"></i><span>Stop after 2 consecutive losses</span></div>
+<!-- ═══════════════════════════════════════════════════
+     SECTION 8 · TODAY'S TRADE RECOMMENDATIONS  (OPEN)
+═══════════════════════════════════════════════════ -->
+<div class="fno-accordion-section fno-section-highlight">
+    <button class="fno-section-header fno-section-header-active" type="button" data-bs-toggle="collapse" data-bs-target="#todayTradesCollapse" aria-expanded="true">
+        <div class="fno-sec-left">
+            <span class="fno-sec-num fno-sec-num-active">8</span>
+            <div>
+                <div class="fno-sec-title"><i class="fas fa-bolt me-2" style="color:#f59e0b"></i>Today's Trade Recommendations</div>
+                <div class="fno-sec-sub">NIFTY execution — one-click trade with live status</div>
+            </div>
         </div>
-        <div class="col-md-6">
-            <div class="risk-rule"><i class="fas fa-percentage"></i><span>Daily loss limit: 3% of capital (<strong id="riskDailyLoss">₹3,000</strong>)</span></div>
-            <div class="risk-rule"><i class="fas fa-coins"></i><span>Risk per trade: 1% of capital (<strong id="riskPerTradeRule">₹1,000</strong>)</span></div>
+        <div class="fno-sec-right">
+            <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();loadSignalHistory()" style="font-size:11px;padding:4px 10px">
+                <i class="fas fa-sync-alt me-1"></i>Refresh
+            </button>
+            <i class="fas fa-chevron-down fno-chevron" style="transform:rotate(180deg)"></i>
         </div>
-    </div>
-    <div class="risk-live">
-        <div class="risk-live-item">
-            <div class="risk-live-val" id="rlTradesToday">0 / 3</div>
-            <div class="risk-live-lbl">Trades Today</div>
+    </button>
+    <div class="collapse show" id="todayTradesCollapse">
+        <div class="fno-collapse-body">
+            <p style="font-size:11px;color:#64748b;margin-bottom:12px">
+                Each trade gets a unique code (e.g. NIFTYT01). Max 3 recommendations per day. Outcome is recorded after each trade closes via SL, Target, or Time Exit.
+            </p>
+            <div id="signalHistoryContainer">
+                <p class="text-muted text-center py-3" style="font-size:13px">Loading recommendations...</p>
+            </div>
         </div>
-        <div class="risk-live-item">
-            <div class="risk-live-val" id="rlLossStreak">0</div>
-            <div class="risk-live-lbl">Loss Streak</div>
-        </div>
-        <div class="risk-live-item">
-            <div class="risk-live-val" id="rlRemainingRisk">₹3,000</div>
-            <div class="risk-live-lbl">Remaining Risk</div>
-        </div>
-        <div class="risk-live-item">
-            <div class="risk-live-val" style="color:#16a34a" id="rlRiskStatus">OK</div>
-            <div class="risk-live-lbl">Risk Status</div>
-        </div>
-    </div>
-</div>
-
-<!-- Signal History — trade recommendations only -->
-<div class="engine-card mt-3">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="engine-title mb-0"><i class="fas fa-history"></i> Today's Trade Recommendations</div>
-        <button class="btn btn-sm btn-outline-secondary" onclick="loadSignalHistory()"><i class="fas fa-refresh me-1"></i>Refresh</button>
-    </div>
-    <div style="font-size:11px;color:#64748b;margin-bottom:12px">
-        Each trade gets a unique code (e.g. NIFTYT01). Max 3 recommendations per day. Outcome is recorded after each trade closes via SL, Target, or Time Exit.
-    </div>
-    <div id="signalHistoryContainer">
-        <p class="text-muted text-center py-3" style="font-size:13px">Loading recommendations...</p>
     </div>
 </div>
 
@@ -904,8 +1047,6 @@ function refreshAnalysis() {
         }
 
         if (d.momentum) {
-            var mBar = document.getElementById('momentumBar');
-            mBar.style.display = 'block';
             document.getElementById('momentumPct').textContent = d.momentum.pct + '%';
             var mLabel = document.getElementById('momentumLabel');
             mLabel.textContent = d.momentum.label;
@@ -913,13 +1054,20 @@ function refreshAnalysis() {
             var mFill = document.getElementById('momentumFill');
             mFill.style.width = d.momentum.pct + '%';
             mFill.className = 'momentum-fill ' + (d.momentum.pct >= 70 ? 'm-strong' : (d.momentum.pct >= 40 ? 'm-moderate' : 'm-weak'));
+            // Update Section 5 header preview
+            var pp = document.getElementById('momentumPctPreview');
+            var lp = document.getElementById('momentumLabelPreview');
+            if (pp) pp.textContent = d.momentum.pct;
+            if (lp) { lp.textContent = d.momentum.label; lp.style.color = mLabel.style.color; }
         }
 
         var ls = d.layer_status || {};
         setTrafficLight('timeTraffic', ls.time || 'fail', d.time_filter.status.toUpperCase());
+        setTrafficLight('previewTimeTraffic', ls.time || 'fail', '');
         document.getElementById('timeReason').textContent = d.time_filter.reason;
 
         setTrafficLight('dirTraffic', ls.direction || 'fail', d.direction.direction);
+        setTrafficLight('previewDirTraffic', ls.direction || 'fail', '');
         document.getElementById('vwapVal').textContent = d.direction.spot_vs_vwap + ' (VWAP: ' + fmt(d.direction.vwap) + ')';
         document.getElementById('stVal').textContent = d.direction.supertrend;
         document.getElementById('stVal').style.color = d.direction.supertrend === 'BUY' ? '#16a34a' : '#dc2626';
@@ -947,6 +1095,7 @@ function refreshAnalysis() {
         }
 
         setTrafficLight('strTraffic', ls.strength || 'fail', d.strength.strength);
+        setTrafficLight('previewStrTraffic', ls.strength || 'fail', '');
 
         // EMA 9 / EMA 21 momentum display
         var str = d.strength || {};
@@ -999,6 +1148,7 @@ function refreshAnalysis() {
 
         var oi = d.oi_analysis || {};
         setTrafficLight('oiTraffic', ls.oi || 'fail', oi.oi_signal);
+        setTrafficLight('previewOiTraffic', ls.oi || 'fail', '');
         document.getElementById('oiDiff').textContent = ((oi.oi_diff || 0) * 100).toFixed(2) + '%';
         document.getElementById('pcrVal').textContent = (oi.pcr !== undefined && oi.pcr !== null) ? oi.pcr : '—';
 
@@ -1063,7 +1213,6 @@ function refreshAnalysis() {
         }
 
         if (_activeTradeData) {
-            // Freeze confidence/direction/entry mode to the locked trade values
             var atConf = _activeTradeData.confidence || 0;
             document.getElementById('confScore').textContent = atConf;
             var fill = document.getElementById('confFill');
@@ -1075,22 +1224,25 @@ function refreshAnalysis() {
             document.getElementById('tradeDir').style.color = atDir === 'BULLISH' ? '#16a34a' : atDir === 'BEARISH' ? '#dc2626' : '#64748b';
             document.getElementById('entryMode').textContent = 'ACTIVE TRADE';
             document.getElementById('entryMode').style.color = '#2563eb';
+            var csp = document.getElementById('confScorePreview'); if (csp) csp.textContent = atConf;
+            var tdp = document.getElementById('tradeDirPreview');   if (tdp) { tdp.textContent = atDir; tdp.style.color = document.getElementById('tradeDir').style.color; }
         } else {
             document.getElementById('confScore').textContent = d.confidence;
             var fill = document.getElementById('confFill');
             fill.style.width = d.confidence + '%';
             fill.className = 'conf-fill ' + (d.confidence >= 80 ? 'conf-high' : d.confidence >= 60 ? 'conf-med' : 'conf-low');
-            // When blocked, show "Blocked — raw signal X/100" so the underlying
-            // signal strength is still visible but the actionable confidence is 0.
             var gradeLabel = d.confidence_grade + ' Signal';
             if (d.is_blocked && typeof d.signal_strength === 'number') {
                 gradeLabel = 'Blocked — raw signal ' + d.signal_strength + '/100';
             }
             document.getElementById('confGrade').textContent = gradeLabel;
-            document.getElementById('tradeDir').textContent = d.trade_direction === 'BOTH' ? 'CALL + PUT' : d.trade_direction;
+            var dirLabel = d.trade_direction === 'BOTH' ? 'CALL + PUT' : d.trade_direction;
+            document.getElementById('tradeDir').textContent = dirLabel;
             document.getElementById('tradeDir').style.color = d.trade_direction === 'BULLISH' ? '#16a34a' : d.trade_direction === 'BEARISH' ? '#dc2626' : d.trade_direction === 'BOTH' ? '#7c3aed' : '#64748b';
             document.getElementById('entryMode').textContent = d.entry_mode;
             document.getElementById('entryMode').style.color = d.entry_mode === 'CONFIRMED' ? '#16a34a' : d.entry_mode === 'EARLY' ? '#d97706' : '#dc2626';
+            var csp = document.getElementById('confScorePreview'); if (csp) csp.textContent = d.confidence;
+            var tdp = document.getElementById('tradeDirPreview');   if (tdp) { tdp.textContent = dirLabel; tdp.style.color = document.getElementById('tradeDir').style.color; }
         }
 
         document.getElementById('spotPrice').textContent = fmt(d.spot_price);
@@ -1114,39 +1266,38 @@ function refreshAnalysis() {
         sel.value = 'current';
         document.getElementById('expiryDTEBadge').textContent = (ei.current_dte || 0) + ' days to expiry';
 
+        // Section 7: Recommended Trades
+        var noTradeMsg = document.getElementById('noTradeMsg');
         if (d.trades && d.trades.length > 0) {
             document.getElementById('tradesArea').style.display = 'block';
+            if (noTradeMsg) noTradeMsg.style.display = 'none';
             renderTrades(d.trades, 'tradesGrid');
-
-            if (isBlocked) {
-                document.getElementById('noTradeArea').style.display = 'block';
-                var ntIntel = document.getElementById('noTradeIntelligence');
-                ntIntel.innerHTML = '';
-                if (d.block_reasons && d.block_reasons.length > 0) {
-                    var reasonsList = '<ul style="margin:0;padding-left:18px">';
-                    d.block_reasons.forEach(function(r) { reasonsList += '<li>' + r + '</li>'; });
-                    reasonsList += '</ul>';
-                    ntIntel.innerHTML = reasonsList;
-                }
-            } else {
-                document.getElementById('noTradeArea').style.display = 'none';
-            }
         } else {
             document.getElementById('tradesArea').style.display = 'none';
-            document.getElementById('noTradeArea').style.display = 'block';
-            var ntIntel = document.getElementById('noTradeIntelligence');
-            var reasons = [];
-            if (d.block_reasons && d.block_reasons.length > 0) {
-                reasons = d.block_reasons;
-            } else if (!d.time_filter.pass) {
-                reasons.push(d.time_filter.reason);
-            } else {
-                reasons.push('Confidence below threshold or no-trade zone active. ADX: ' + d.strength.adx);
+            if (noTradeMsg) noTradeMsg.style.display = 'block';
+        }
+
+        // Section 6: Confidence & Entry — "Why No Trade?" panel
+        var ntArea = document.getElementById('noTradeArea');
+        var ntIntel = document.getElementById('noTradeIntelligence');
+        if (!d.trades || d.trades.length === 0 || isBlocked) {
+            if (ntArea) ntArea.style.display = 'block';
+            if (ntIntel) {
+                var reasons = [];
+                if (d.block_reasons && d.block_reasons.length > 0) {
+                    reasons = d.block_reasons;
+                } else if (!d.time_filter.pass) {
+                    reasons.push(d.time_filter.reason);
+                } else {
+                    reasons.push('Confidence below threshold or no-trade zone active. ADX: ' + d.strength.adx);
+                }
+                var rl = '<ul style="margin:0;padding-left:18px">';
+                reasons.forEach(function(r) { rl += '<li>' + r + '</li>'; });
+                rl += '</ul>';
+                ntIntel.innerHTML = rl;
             }
-            var reasonsList = '<ul style="margin:0;padding-left:18px">';
-            reasons.forEach(function(r) { reasonsList += '<li>' + r + '</li>'; });
-            reasonsList += '</ul>';
-            ntIntel.innerHTML = reasonsList;
+        } else {
+            if (ntArea) ntArea.style.display = 'none';
         }
     }).catch(function(e) {
         document.getElementById('loadingOverlay').classList.remove('show');
@@ -1376,7 +1527,7 @@ function loadSignalHistory() {
         // ── Table ──
         html += '<div style="overflow-x:auto">';
         html += '<table class="sh-table"><thead><tr>';
-        ['Trade','Direction','Spot','ATM Strike','Entry Time','Entry ₹','Exit Time','Exit ₹','Points','P&L %','Status'].forEach(function(c) {
+        ['Trade','Direction','Spot','ATM Strike','Entry Time','Entry ₹','Exit Time','Exit ₹','Points','P&L %','Status','Action'].forEach(function(c) {
             html += '<th>' + c + '</th>';
         });
         html += '</tr></thead><tbody>';
@@ -1435,6 +1586,41 @@ function loadSignalHistory() {
             else if (isTimeExit) statusHtml = '<span class="sh-ob sh-ob-time">⏱ Time Exit</span>';
             else                 statusHtml = '<span class="sh-ob sh-ob-time">⏳ Pending</span>';
 
+            // ── Action / Trade button ──
+            var actionHtml;
+            if (isActive && _activeTradeData) {
+                var at = _activeTradeData;
+                var niftyLotSize = at.lot_size || FNO_LOT_SIZE;
+                var risk1        = Math.round(tradingCapital * 0.01);
+                var slPts        = at.sl_points > 0 ? at.sl_points : 10;
+                var maxLossLot   = slPts * niftyLotSize;
+                var sugLots      = Math.max(1, Math.floor(risk1 / maxLossLot));
+                var sugQty       = sugLots * niftyLotSize;
+                var tnp = new URLSearchParams({
+                    symbol:         at.symbol || (s.index_id === 1 ? 'NIFTY' : 'BANKNIFTY'),
+                    script:         at.symbol || (s.index_id === 1 ? 'NIFTY' : 'BANKNIFTY'),
+                    action:         'BUY',
+                    price:          (at.entry_price || 0).toString(),
+                    quantity:       sugQty.toString(),
+                    target:         (at.target || 0).toString(),
+                    stop_loss:      (at.sl || 0).toString(),
+                    product_type:   'NRML',
+                    source:         FNO_SOURCE,
+                    opt_type:       (at.type || ''),
+                    expiry:         (at.expiry || ''),
+                    index_id:       FNO_INDEX_ID,
+                    entry_price:    (at.entry_price || 0).toString(),
+                    fno_trade_code: (s.trade_code || ''),
+                    suggested_lots: sugLots.toString(),
+                    lot_size:       niftyLotSize.toString(),
+                    capital:        tradingCapital.toString()
+                });
+                actionHtml = '<a href="/dashboard/trade-now?' + tnp.toString() + '" class="fno-trade-btn fno-trade-btn-active"><i class="fas fa-bolt me-1"></i>Trade</a>';
+            } else {
+                var disabledLabel = isTarget ? 'Target Hit' : isSLHit ? 'SL Hit' : isTimeExit ? 'Exited' : 'Pending';
+                actionHtml = '<button class="fno-trade-btn fno-trade-btn-disabled" disabled>' + disabledLabel + '</button>';
+            }
+
             var trStyle = isTarget ? 'background:#f0fdf4' : isSLHit ? 'background:#fff5f5' : isActive ? 'background:#eff6ff' : '';
 
             html += '<tr style="' + trStyle + '">';
@@ -1449,6 +1635,7 @@ function loadSignalHistory() {
             html +=   '<td>' + ptsHtml + '</td>';
             html +=   '<td>' + pnlHtml + '</td>';
             html +=   '<td>' + statusHtml + '</td>';
+            html +=   '<td>' + actionHtml + '</td>';
             html += '</tr>';
         });
 
