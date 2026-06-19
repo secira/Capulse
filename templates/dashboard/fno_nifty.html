@@ -147,6 +147,12 @@
 .fno-trade-btn-active:hover{background:#15803d;color:#fff}
 .fno-trade-btn-disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed}
 
+/* ── Section 1: Trade Verdict ── */
+.fno-section-verdict{border-color:#cbd5e1}
+.fno-section-header-verdict{background:#f8fafc}
+.fno-sec-num-verdict{background:#1e293b;color:#fff}
+.fno-section-verdict .decision-banner{border-radius:10px;margin-bottom:0}
+
 .collapse-header{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:0;transition:all .2s}
 .collapse-header:hover{background:#f1f5f9}
 .collapse-header[aria-expanded="true"]{border-radius:12px 12px 0 0;border-bottom:none}
@@ -271,47 +277,58 @@
     <div class="idx-card"><div class="idx-label">INDIA VIX</div><div class="idx-price" id="idx-vix">—</div><div class="idx-change idx-flat" id="idx-vix-chg">—</div></div>
 </div>
 
-<!-- DATA SOURCE WARNING -->
-<div id="dataSourceWarning" style="display:none;margin-bottom:16px;"></div>
-
-<!-- FLAT MARKET DETECTED BANNER -->
-<div id="flatMarketBanner" style="display:none;margin-bottom:16px;padding:16px 20px;background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;align-items:flex-start;gap:14px">
-    <div style="font-size:28px;line-height:1">🌫️</div>
-    <div>
-        <div style="font-size:15px;font-weight:800;color:#92400e;letter-spacing:.3px">Flat Market Detected</div>
-        <div style="font-size:13px;color:#78350f;margin-top:4px">
-            ADX is below 20 — the market is in a sideways/non-trending phase. VWAP, EMA and SuperTrend indicators
-            produce unreliable signals in this environment. <strong>All trade signals are suppressed to protect your capital.</strong>
-            Monitor ADX; signals will resume automatically when trend strength returns (ADX ≥ 20).
-        </div>
-        <div style="margin-top:8px;font-size:12px;color:#92400e;font-weight:600" id="flatMarketAdx"></div>
-    </div>
-</div>
-
-<!-- FINAL DECISION BANNER -->
-<div class="decision-banner decision-notrade" id="decisionBanner" style="display:none">
-    <div class="decision-icon" id="decisionIcon">🚫</div>
-    <div class="decision-text" id="decisionText">NO TRADE</div>
-    <div class="decision-meta">
-        <div class="decision-meta-item">Market Direction: <strong id="decisionDir">—</strong></div>
-        <div class="decision-meta-item">Confidence: <strong id="decisionConf">—</strong></div>
-        <div class="decision-meta-item">Status: <strong id="decisionStatus">—</strong></div>
-    </div>
-    <div class="block-reasons" id="blockReasons" style="display:none"></div>
-</div>
-
-<!-- Active Trade / Lifecycle Panel — always visible when a trade is running -->
-<div id="activeTradePanelWrap" style="display:none;margin-bottom:10px">
-    <div class="active-trade-panel" id="activeTradePanel">
-        <div class="at-header">
-            <span class="at-lock-icon" id="atIcon">🔒</span>
+<!-- ═══════════════════════════════════════════════════
+     SECTION 1 · TRADE VERDICT  (always open)
+═══════════════════════════════════════════════════ -->
+<div class="fno-accordion-section fno-section-verdict">
+    <button class="fno-section-header fno-section-header-verdict" type="button" data-bs-toggle="collapse" data-bs-target="#verdictCollapse" aria-expanded="true">
+        <div class="fno-sec-left">
+            <span class="fno-sec-num fno-sec-num-verdict">1</span>
             <div>
-                <div class="at-title" id="atTitle">ACTIVE TRADE — DIRECTION LOCKED</div>
-                <div class="at-subtitle" id="atSubtitle">Managing position — no new entries until exit</div>
+                <div class="fno-sec-title"><i class="fas fa-gavel me-2" style="color:#1e293b"></i>Trade Verdict</div>
+                <div class="fno-sec-sub">Scentric AI decision — your starting point each session</div>
             </div>
         </div>
-        <div class="at-grid" id="atGrid"></div>
-        <div class="at-timer" id="atTimer"></div>
+        <div class="fno-sec-right">
+            <span class="fno-sec-preview" id="verdictPreview" style="font-size:13px;font-weight:700;color:#64748b">Analysing market…</span>
+            <i class="fas fa-chevron-down fno-chevron" style="transform:rotate(180deg)"></i>
+        </div>
+    </button>
+    <div class="collapse show" id="verdictCollapse">
+        <div class="fno-collapse-body">
+            <div id="dataSourceWarning" style="display:none;margin-bottom:12px;"></div>
+            <div id="flatMarketBanner" style="display:none;margin-bottom:12px;padding:14px 18px;background:#fffbeb;border:2px solid #f59e0b;border-radius:10px;align-items:flex-start;gap:12px">
+                <div style="font-size:24px;line-height:1">🌫️</div>
+                <div>
+                    <div style="font-size:14px;font-weight:800;color:#92400e">Flat Market Detected</div>
+                    <div style="font-size:12px;color:#78350f;margin-top:3px">ADX is below 20 — sideways phase. <strong>All signals suppressed to protect capital.</strong> Resumes when ADX ≥ 20.</div>
+                    <div style="margin-top:6px;font-size:11px;color:#92400e;font-weight:600" id="flatMarketAdx"></div>
+                </div>
+            </div>
+            <div class="decision-banner decision-notrade" id="decisionBanner" style="display:none;margin-bottom:0">
+                <div class="decision-icon" id="decisionIcon">🚫</div>
+                <div class="decision-text" id="decisionText">NO TRADE</div>
+                <div class="decision-meta">
+                    <div class="decision-meta-item">Market Direction: <strong id="decisionDir">—</strong></div>
+                    <div class="decision-meta-item">Confidence: <strong id="decisionConf">—</strong></div>
+                    <div class="decision-meta-item">Status: <strong id="decisionStatus">—</strong></div>
+                </div>
+                <div class="block-reasons" id="blockReasons" style="display:none"></div>
+            </div>
+            <div id="activeTradePanelWrap" style="display:none;margin-top:10px">
+                <div class="active-trade-panel" id="activeTradePanel">
+                    <div class="at-header">
+                        <span class="at-lock-icon" id="atIcon">🔒</span>
+                        <div>
+                            <div class="at-title" id="atTitle">ACTIVE TRADE — DIRECTION LOCKED</div>
+                            <div class="at-subtitle" id="atSubtitle">Managing position — no new entries until exit</div>
+                        </div>
+                    </div>
+                    <div class="at-grid" id="atGrid"></div>
+                    <div class="at-timer" id="atTimer"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -528,29 +545,30 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════
-     SECTION 5 · MOMENTUM METER
+     SECTION 5 · MOMENTUM METER  (momentum + confidence)
 ═══════════════════════════════════════════════════ -->
 <div class="fno-accordion-section">
-    <button class="fno-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#momentumCollapse" aria-expanded="false">
+    <button class="fno-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#momentumMeterCollapse" aria-expanded="false">
         <div class="fno-sec-left">
             <span class="fno-sec-num">5</span>
             <div>
                 <div class="fno-sec-title"><i class="fas fa-tachometer-alt me-2 text-warning"></i>Momentum Meter</div>
-                <div class="fno-sec-sub">Market momentum strength indicator</div>
+                <div class="fno-sec-sub">Market momentum · confidence score · trade direction · entry mode</div>
             </div>
         </div>
         <div class="fno-sec-right">
-            <span class="fno-sec-preview"><span id="momentumPctPreview">—</span>% &nbsp;<span id="momentumLabelPreview" style="font-size:10px">—</span></span>
+            <span class="fno-sec-preview"><span id="momentumPctPreview">—</span>% <span id="momentumLabelPreview" style="font-size:10px">—</span> &nbsp;·&nbsp; Conf: <strong id="confScorePreview">—</strong>% · <span id="tradeDirPreview">—</span></span>
             <i class="fas fa-chevron-down fno-chevron"></i>
         </div>
     </button>
-    <div class="collapse" id="momentumCollapse">
+    <div class="collapse" id="momentumMeterCollapse">
         <div class="fno-collapse-body">
-            <div id="momentumBar">
+            <!-- Momentum bar -->
+            <div id="momentumBar" style="margin-bottom:16px">
                 <div class="momentum-header">
                     <div style="display:flex;align-items:center;gap:8px">
                         <i class="fas fa-tachometer-alt text-primary"></i>
-                        <span style="font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px">Momentum Meter</span>
+                        <span style="font-size:13px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.5px">Momentum Strength</span>
                     </div>
                     <div>
                         <span style="font-size:18px;font-weight:800" id="momentumPct">—</span>
@@ -559,46 +577,27 @@
                 </div>
                 <div class="momentum-track"><div class="momentum-fill" id="momentumFill" style="width:0"></div></div>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════
-     SECTION 6 · CONFIDENCE & ENTRY
-═══════════════════════════════════════════════════ -->
-<div class="fno-accordion-section">
-    <button class="fno-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#confEntryCollapse" aria-expanded="false">
-        <div class="fno-sec-left">
-            <span class="fno-sec-num">6</span>
-            <div>
-                <div class="fno-sec-title"><i class="fas fa-crosshairs me-2" style="color:#0ea5e9"></i>Confidence &amp; Entry</div>
-                <div class="fno-sec-sub">Signal confidence score · trade direction · entry mode</div>
-            </div>
-        </div>
-        <div class="fno-sec-right">
-            <span class="fno-sec-preview"><strong id="confScorePreview">—</strong>% · <span id="tradeDirPreview">—</span></span>
-            <i class="fas fa-chevron-down fno-chevron"></i>
-        </div>
-    </button>
-    <div class="collapse" id="confEntryCollapse">
-        <div class="fno-collapse-body">
+            <hr style="border:none;border-top:1px solid #f1f5f9;margin:0 0 16px">
+            <!-- Confidence & Entry -->
             <div class="row g-3 mb-3">
                 <div class="col-md-4 text-center">
+                    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Confidence Score</div>
                     <div style="font-size:36px;font-weight:800" id="confScore">—</div>
                     <div class="conf-meter"><div class="conf-fill" id="confFill" style="width:0"></div></div>
-                    <div style="font-size:12px;font-weight:600;color:#64748b" id="confGrade">—</div>
+                    <div style="font-size:12px;font-weight:600;color:#64748b;margin-top:4px" id="confGrade">—</div>
                 </div>
                 <div class="col-md-4 text-center">
-                    <div style="font-size:12px;color:#64748b;font-weight:600">TRADE DIRECTION</div>
+                    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Trade Direction</div>
                     <div style="font-size:24px;font-weight:800" id="tradeDir">—</div>
                 </div>
                 <div class="col-md-4 text-center">
-                    <div style="font-size:12px;color:#64748b;font-weight:600">ENTRY MODE</div>
+                    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Entry Mode</div>
                     <div style="font-size:24px;font-weight:800" id="entryMode">—</div>
                 </div>
             </div>
+            <!-- Why No Trade? -->
             <div id="noTradeArea" style="display:none">
-                <div class="engine-card" style="border-color:#fecaca;background:#fef2f2;margin-top:8px">
+                <div class="engine-card" style="border-color:#fecaca;background:#fef2f2;margin-top:4px">
                     <div class="engine-title" style="color:#dc2626"><i class="fas fa-brain" style="color:#dc2626"></i> Why No Trade?</div>
                     <div id="noTradeIntelligence" style="font-size:13px;color:#7f1d1d"></div>
                 </div>
@@ -608,15 +607,15 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════
-     SECTION 7 · RECOMMENDED TRADES  (ATM · OTM · ITM)
+     SECTION 6 · ENGINE RECOMMENDATIONS  (ATM · OTM · ITM)
 ═══════════════════════════════════════════════════ -->
 <div class="fno-accordion-section">
     <button class="fno-section-header" type="button" data-bs-toggle="collapse" data-bs-target="#recTradesCollapse" aria-expanded="false">
         <div class="fno-sec-left">
-            <span class="fno-sec-num">7</span>
+            <span class="fno-sec-num">6</span>
             <div>
-                <div class="fno-sec-title"><i class="fas fa-list-ol me-2 text-primary"></i>Recommended Trades</div>
-                <div class="fno-sec-sub">ATM · OTM · ITM option setups with full trade details</div>
+                <div class="fno-sec-title"><i class="fas fa-robot me-2 text-primary"></i>Engine Recommendations</div>
+                <div class="fno-sec-sub">ATM · OTM · ITM setups generated by the Scentric AI engine</div>
             </div>
         </div>
         <div class="fno-sec-right">
@@ -640,22 +639,22 @@
             </div>
             <div id="noTradeMsg" style="display:none;padding:20px;text-align:center;color:#64748b;font-size:13px">
                 <i class="fas fa-ban fa-2x mb-2 text-danger"></i><br>
-                No trade signals available. Check Section 6 for details.
+                No trade signals available. Check Section 5 for details.
             </div>
         </div>
     </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════
-     SECTION 8 · TODAY'S TRADE RECOMMENDATIONS  (OPEN)
+     SECTION 7 · TODAY'S TRADE LOG  (OPEN)
 ═══════════════════════════════════════════════════ -->
 <div class="fno-accordion-section fno-section-highlight">
     <button class="fno-section-header fno-section-header-active" type="button" data-bs-toggle="collapse" data-bs-target="#todayTradesCollapse" aria-expanded="true">
         <div class="fno-sec-left">
-            <span class="fno-sec-num fno-sec-num-active">8</span>
+            <span class="fno-sec-num fno-sec-num-active">7</span>
             <div>
-                <div class="fno-sec-title"><i class="fas fa-bolt me-2" style="color:#f59e0b"></i>Today's Trade Recommendations</div>
-                <div class="fno-sec-sub">NIFTY execution — one-click trade with live status</div>
+                <div class="fno-sec-title"><i class="fas fa-bolt me-2" style="color:#f59e0b"></i>Today's Trade Log</div>
+                <div class="fno-sec-sub">Signals locked today · live P&amp;L · one-click execution</div>
             </div>
         </div>
         <div class="fno-sec-right">
@@ -1030,6 +1029,17 @@ function refreshAnalysis() {
                 statusText = 'BLOCKED';
             }
             document.getElementById('decisionStatus').textContent = statusText;
+        }
+
+        /* Update Section 1 header preview */
+        var vp = document.getElementById('verdictPreview');
+        if (vp) {
+            var vtxt = document.getElementById('decisionText').textContent;
+            var vdir = document.getElementById('decisionDir').textContent;
+            var vconf = document.getElementById('decisionConf').textContent;
+            var isTradeActive = (finalDecision === 'TRADE' || !!_activeTradeData);
+            vp.textContent = vtxt + ' · ' + vdir + ' · ' + vconf;
+            vp.style.color = isTradeActive ? '#16a34a' : '#dc2626';
         }
 
         var brContainer = document.getElementById('blockReasons');
