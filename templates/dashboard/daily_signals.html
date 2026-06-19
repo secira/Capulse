@@ -122,6 +122,8 @@
                         <th>Target 2</th>
                         <th>Stop Loss</th>
                         <th>Duration</th>
+                        <th><i class="fas fa-clock me-1 opacity-75"></i>Entry Time</th>
+                        <th><i class="fas fa-flag-checkered me-1 opacity-75"></i>Exit Time</th>
                         <th>Risk</th>
                         <th class="text-center">Action</th>
                     </tr>
@@ -164,6 +166,26 @@
                             <span class="badge {% if dur == 'day' %}bg-danger{% elif dur == 'week' %}bg-warning text-dark{% else %}bg-success{% endif %}">
                                 {{ signal.duration_display }}
                             </span>
+                        </td>
+                        <td>
+                            {% if signal.call_time_ist %}
+                                <span class="text-primary fw-semibold" style="font-size:12px;">
+                                    {{ signal.call_time_ist.strftime('%I:%M %p') }}
+                                </span>
+                                <br><small class="text-muted" style="font-size:10px;">IST</small>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if signal.exit_time_ist %}
+                                <span class="text-danger fw-semibold" style="font-size:12px;">
+                                    {{ signal.exit_time_ist.strftime('%I:%M %p') }}
+                                </span>
+                                <br><small class="text-muted" style="font-size:10px;">IST</small>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
                         </td>
                         <td>
                             <span class="risk-{{ (signal.risk_level or 'medium') | lower }}">

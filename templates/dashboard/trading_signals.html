@@ -32,7 +32,7 @@ h5, h6 {
 .trading-signals-table {
     table-layout: fixed !important;
     width: 100% !important;
-    min-width: 1900px !important;
+    min-width: 2020px !important;
 }
 
 .trading-signals-table th,
@@ -54,7 +54,7 @@ h5, h6 {
 /* Improved Mobile Responsive Behavior */
 @media (max-width: 768px) {
     .trading-signals-table {
-        min-width: 1600px !important;
+        min-width: 1750px !important;
     }
     
     .trading-signals-table th,
@@ -428,7 +428,8 @@ h5, h6 {
                         <col style="width: 120px;">  <!-- Return -->
                         <col style="width: 90px;">   <!-- Qty -->
                         <col style="width: 140px;">  <!-- Risk -->
-                        <col style="width: 120px;">  <!-- Time -->
+                        <col style="width: 115px;">  <!-- Entry Time -->
+                        <col style="width: 115px;">  <!-- Exit Time -->
                         <col style="width: 160px;">  <!-- Actions -->
                     </colgroup>
                     <thead class="bg-light sticky-top">
@@ -443,7 +444,8 @@ h5, h6 {
                             <th class="border-0">Return</th>
                             <th class="border-0">Qty</th>
                             <th class="border-0">Risk</th>
-                            <th class="border-0">Time</th>
+                            <th class="border-0"><i class="fas fa-clock me-1 opacity-75"></i>Entry Time</th>
+                            <th class="border-0"><i class="fas fa-flag-checkered me-1 opacity-75"></i>Exit Time</th>
                             <th class="border-0 text-center">Actions</th>
                         </tr>
                     </thead>
@@ -546,14 +548,25 @@ h5, h6 {
                                 {% endif %}
                             </td>
                             <td>
-                                <div>
-                                    <small class="text-muted">{{ signal.created_at.strftime('%I:%M %p') }}</small>
-                                    <div>
-                                        {% if signal.time_frame %}
-                                        <span class="badge bg-light text-dark small">{{ signal.time_frame }}</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
+                                {% set entry_ist = signal.created_at %}
+                                <span class="text-primary fw-semibold" style="font-size:12px;">
+                                    {{ entry_ist.strftime('%I:%M %p') }}
+                                </span>
+                                {% if signal.time_frame %}
+                                <br><span class="badge bg-light text-dark" style="font-size:10px;">{{ signal.time_frame }}</span>
+                                {% else %}
+                                <br><small class="text-muted" style="font-size:10px;">IST</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if signal.expires_at %}
+                                    <span class="text-danger fw-semibold" style="font-size:12px;">
+                                        {{ signal.expires_at.strftime('%I:%M %p') }}
+                                    </span>
+                                    <br><small class="text-muted" style="font-size:10px;">{{ signal.expires_at.strftime('%d %b') }}</small>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
                             </td>
                             <td class="text-center">
                                 <div class="btn-group">
