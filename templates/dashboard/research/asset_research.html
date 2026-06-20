@@ -7,436 +7,353 @@
 
 {% block dashboard_content %}
 <div class="research-page">
-    <div class="row g-4 mb-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-bottom py-3">
-                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                        <h5 class="mb-0 fw-bold">
-                            <i class="fas fa-robot me-2 text-primary"></i>
-                            Research Co-Pilot
-                        </h5>
+
+    {% set plan_value = current_user.pricing_plan.value if current_user.pricing_plan.value is defined else current_user.pricing_plan %}
+    {% if plan_value == 'free' and not current_user.is_admin %}
+    <!-- ── Paywall ── -->
+    <div class="text-center py-5">
+        <i class="fas fa-lock fa-3x text-muted mb-3"></i>
+        <h5 class="fw-semibold">Upgrade for I-Score Analysis</h5>
+        <p class="text-muted mb-3">Get AI-powered Intelli Score for any {{ asset.name|lower }}.</p>
+        <a href="{{ url_for('pricing') }}" class="btn btn-primary">Upgrade Now</a>
+    </div>
+    {% else %}
+
+    <!-- ══════════════════════════════════════════
+         SEARCH BAR
+    ══════════════════════════════════════════ -->
+    <div class="rs-search-card mb-4">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="flex-grow-1">
+                <div class="input-group rs-input-group">
+                    <span class="input-group-text bg-white border-end-0">
+                        <i class="fas fa-search text-muted"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0 ps-0" id="iscoreSymbol"
+                           placeholder="Enter symbol — e.g. {{ asset.example_symbols }}"
+                           style="text-transform:uppercase;font-size:15px;padding:12px 10px;height:auto">
+                    <button class="btn btn-primary px-4" type="button" id="analyzeBtn" onclick="analyzeSymbol()">
+                        <i class="fas fa-brain me-2"></i>Analyze
+                    </button>
+                </div>
+            </div>
+            <!-- I-Score info tooltip -->
+            <span tabindex="0"
+                  data-bs-toggle="tooltip" data-bs-placement="left" data-bs-html="true"
+                  title="<strong>What is I-Score?</strong><br>AI-powered 0–100 rating combining:<br>{% if asset_key == 'mutual_funds' %}• Performance (50%) · Trend (25%)<br>• Sentiment (15%) · Search (10%){% elif asset_key == 'bonds' %}• Yield Analysis (50%) · Market Trend (25%)<br>• Credit (15%) · Search (10%){% else %}• Quantitative (30%) · Trend (20%)<br>• Risk (20%) · Sentiment (15%)<br>• Search (10%) · Market Context (5%){% endif %}<br><br>80+ = Strong Buy · 65–79 = Buy<br>45–64 = Hold · &lt;45 = Sell"
+                  style="cursor:help;flex-shrink:0">
+                <i class="fas fa-info-circle text-primary" style="font-size:22px"></i>
+            </span>
+        </div>
+        <div id="symbolPrefillHint" class="mt-2 small text-primary fw-semibold" style="display:none"></div>
+    </div>
+
+    <!-- ══ LOADING ══ -->
+    <div id="iscoreLoading" style="display:none" class="text-center py-5">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="text-muted">Analyzing <span id="loadingSymbol"></span>…</p>
+        <small class="text-muted">Running Scentric AI engine</small>
+    </div>
+
+    <!-- ══ ERROR ══ -->
+    <div id="iscoreError" style="display:none" class="text-center py-4">
+        <i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>
+        <p class="text-muted mb-0" id="errorMessage">Analysis failed</p>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         RESULT
+    ══════════════════════════════════════════ -->
+    <div id="iscoreResult" style="display:none">
+
+        <!-- Score Header Card -->
+        <div class="rs-score-header mb-4">
+            <!-- Asset info bar -->
+            <div class="rs-asset-bar" id="assetHeader">
+                <div class="rs-asset-name-block">
+                    <h5 class="mb-0 fw-bold" id="assetName">--</h5>
+                    <small class="text-muted" id="assetSymbol">--</small>
+                </div>
+                <div class="rs-asset-price-block text-end">
+                    <h4 class="mb-0 fw-bold" id="currentPrice">₹--</h4>
+                    <small id="priceChange" class="fw-semibold">--</small>
+                </div>
+                <div class="w-100">
+                    <small class="text-muted"><i class="fas fa-clock me-1"></i><span id="dataTimestamp">Data as of: --</span></small>
+                </div>
+            </div>
+
+            <!-- I-Score circle + verdict -->
+            <div class="rs-score-center">
+                <p class="text-muted small mb-2">I-Score for <span id="resultSymbol" class="fw-bold text-dark"></span></p>
+                <div class="iscore-circle mx-auto mb-3 clickable-score" id="iscoreCircle"
+                     onclick="toggleOverallDetails()" title="Click to see scoring breakdown" style="cursor:pointer">
+                    <svg width="160" height="160" viewBox="0 0 160 160">
+                        <circle cx="80" cy="80" r="70" fill="none" stroke="#e9ecef" stroke-width="12"/>
+                        <circle id="iscoreArc" cx="80" cy="80" r="70" fill="none" stroke="#4299e1" stroke-width="12"
+                                stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="440"
+                                transform="rotate(-90 80 80)"/>
+                        <text x="80" y="75" text-anchor="middle" font-size="36" font-weight="bold" fill="#1a202c" id="iscoreValue">--</text>
+                        <text x="80" y="100" text-anchor="middle" font-size="14" fill="#718096">/100</text>
+                    </svg>
+                    <div class="click-hint mt-1">
+                        <small class="text-primary"><i class="fas fa-info-circle me-1"></i>Click for breakdown</small>
+                    </div>
+                </div>
+                <div id="recommendationBadge" class="mb-2"></div>
+                <div id="dataSourceBadgeWrap" style="display:none" class="mb-2">
+                    <span id="iscoreDataSourceBadge" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;display:inline-block"></span>
+                </div>
+                <p class="text-muted small mb-0 text-center" id="resultSummary" style="max-width:480px;margin:0 auto"></p>
+                <div id="confidencePenaltyStrip" class="mt-3" style="display:none">
+                    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-center">
+                        <span id="confidenceBadge" class="badge px-3 py-2"></span>
+                        <span id="penaltyBadge" class="badge bg-secondary px-3 py-2" style="display:none"></span>
+                    </div>
+                    <div id="penaltyReasons" class="mt-2 text-center" style="display:none"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Holding Period -->
+        <div id="holdingPeriodCard" style="display:none" class="mb-4">
+            <div class="rounded-3 border p-3" id="holdingPeriodInner">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-clock" id="hpIcon"></i>
+                        <span class="fw-bold small text-uppercase" style="letter-spacing:.04em">Holding Period</span>
+                    </div>
+                    <span class="badge fs-6 px-3 py-2 fw-bold" id="hpPeriodBadge">--</span>
+                </div>
+                <div class="mb-1"><span class="badge bg-light text-dark border fw-semibold" id="hpLabel">--</span></div>
+                <div class="mt-2 small" id="hpReasoning" style="color:#4a5568"></div>
+                <hr class="my-2">
+                <div class="row g-2 small">
+                    <div class="col-12">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="fas fa-sign-in-alt mt-1" style="color:#3182ce;min-width:14px"></i>
+                            <div><span class="fw-semibold">Entry Timing: </span><span id="hpEntryTiming" class="text-muted"></span></div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="fas fa-sign-out-alt mt-1 text-danger" style="min-width:14px"></i>
+                            <div><span class="fw-semibold">Exit Trigger: </span><span id="hpExitTrigger" class="text-muted"></span></div>
+                        </div>
+                    </div>
+                    <div class="col-12">
                         <div class="d-flex align-items-center gap-2">
-                            <span class="badge bg-info">AI-Powered Research</span>
+                            <i class="fas fa-calendar-check text-secondary" style="min-width:14px"></i>
+                            <div><span class="fw-semibold">Next Review: </span><span id="hpReviewDate" class="text-muted"></span></div>
                         </div>
                     </div>
-                </div>
-                <div class="card-body p-4">
-                    {% set plan_value = current_user.pricing_plan.value if current_user.pricing_plan.value is defined else current_user.pricing_plan %}
-                    {% if plan_value == 'free' and not current_user.is_admin %}
-                    <div class="text-center py-4">
-                        <i class="fas fa-lock fa-2x text-muted mb-3"></i>
-                        <h6 class="fw-semibold">Upgrade for I-Score Analysis</h6>
-                        <p class="text-muted small mb-3">Get AI-powered Intelli Score for any {{ asset.name|lower }}.</p>
-                        <a href="{{ url_for('pricing') }}" class="btn btn-sm btn-primary">Upgrade Now</a>
-                    </div>
-                    {% else %}
-                    <div class="row">
-                        <div class="col-lg-5">
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Enter Symbol</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="iscoreSymbol" 
-                                           placeholder="e.g., {{ asset.example_symbols }}" style="text-transform: uppercase;">
-                                    <button class="btn btn-primary" type="button" id="analyzeBtn" onclick="analyzeSymbol()">
-                                        <i class="fas fa-search me-1"></i> Analyze
-                                    </button>
-                                </div>
-                                <small class="text-muted">Enter a {{ asset.name|lower }} symbol for I-Score analysis</small>
-                                <div id="symbolPrefillHint" class="mt-1 small text-primary fw-semibold" style="display:none;"></div>
-                            </div>
-                            
-                            <div class="alert alert-light border mb-0" id="iscoreInfo">
-                                <h6 class="fw-bold mb-2"><i class="fas fa-info-circle me-2 text-primary"></i>What is I-Score?</h6>
-                                <p class="small text-muted mb-2">
-                                    I-Score (Intelli Score) is our AI-powered rating system that analyzes:
-                                </p>
-                                {% if asset_key == 'mutual_funds' %}
-                                <ul class="small text-muted mb-0 ps-3">
-                                    <li><strong>Qualitative Analysis (15%)</strong>: Fund house, fund age, AMC reputation</li>
-                                    <li><strong>Performance Analysis (50%)</strong>: NAV, CAGR, Returns, Sharpe ratio</li>
-                                    <li><strong>Search Sentiment (10%)</strong>: Market trends, Perplexity search</li>
-                                    <li><strong>Trend Analysis (25%)</strong>: Recent returns, category comparison</li>
-                                </ul>
-                                {% elif asset_key == 'bonds' %}
-                                <ul class="small text-muted mb-0 ps-3">
-                                    <li><strong>Credit Analysis (15%)</strong>: Credit rating, issuer quality, issuer type</li>
-                                    <li><strong>Yield Analysis (50%)</strong>: YTM, current yield, duration, price</li>
-                                    <li><strong>Search Sentiment (10%)</strong>: Market trends, Perplexity search</li>
-                                    <li><strong>Market Trend (25%)</strong>: Yield curve, rate outlook, liquidity</li>
-                                </ul>
-                                {% else %}
-                                <ul class="small text-muted mb-0 ps-3">
-                                    <li><strong>Qualitative Sentiment (15%)</strong>: News, social media, annual reports</li>
-                                    <li><strong>Quantitative Sentiment (50%)</strong>: RSI, SuperTrend, EMA indicators</li>
-                                    <li><strong>Search Sentiment (10%)</strong>: Google Trends, Perplexity search</li>
-                                    <li><strong>Trend Analysis (25%)</strong>: Open Interest, PCR, VIX</li>
-                                </ul>
-                                {% endif %}
-                            </div>
-                        </div>
-                        
-                        <div class="col-lg-7">
-                            <div id="iscoreLoading" style="display: none;" class="text-center py-5">
-                                <div class="spinner-border text-primary mb-3" role="status"></div>
-                                <p class="text-muted">Analyzing <span id="loadingSymbol"></span>...</p>
-                                <small class="text-muted">Running LangGraph AI workflow</small>
-                            </div>
-                            
-                            <div id="iscoreResult" style="display: none;">
-                                <!-- Asset Header with Real-Time Data -->
-                                <div class="card border-0 shadow-sm mb-3" id="assetHeader" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
-                                    <div class="card-body p-3">
-                                        <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <div>
-                                                <h5 class="mb-0 fw-bold" id="assetName" style="color: #1a202c;">--</h5>
-                                                <small class="text-muted" id="assetSymbol">--</small>
-                                            </div>
-                                            <div class="text-end">
-                                                <h4 class="mb-0 fw-bold" id="currentPrice" style="color: #2d3748;">₹--</h4>
-                                                <small id="priceChange" class="fw-semibold">--</small>
-                                            </div>
-                                        </div>
-                                        <small class="text-muted d-block mt-2"><i class="fas fa-clock me-1"></i><span id="dataTimestamp">Data as of: --</span></small>
-                                    </div>
-                                </div>
-                                
-                                <!-- I-Score Display -->
-                                <div class="text-center mb-4">
-                                    <h6 class="text-muted mb-2">I-Score Analysis for <span id="resultSymbol" class="fw-bold"></span></h6>
-                                    <div class="iscore-circle mx-auto mb-3 clickable-score" id="iscoreCircle" onclick="toggleOverallDetails()" title="Click to see detailed analysis" style="cursor: pointer;">
-                                        <svg width="160" height="160" viewBox="0 0 160 160">
-                                            <circle cx="80" cy="80" r="70" fill="none" stroke="#e9ecef" stroke-width="12"/>
-                                            <circle id="iscoreArc" cx="80" cy="80" r="70" fill="none" stroke="#4299e1" stroke-width="12"
-                                                    stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="440"
-                                                    transform="rotate(-90 80 80)"/>
-                                            <text x="80" y="75" text-anchor="middle" font-size="36" font-weight="bold" fill="#1a202c" id="iscoreValue">--</text>
-                                            <text x="80" y="100" text-anchor="middle" font-size="14" fill="#718096">/100</text>
-                                        </svg>
-                                        <div class="click-hint mt-1">
-                                            <small class="text-primary"><i class="fas fa-info-circle me-1"></i>Click for details</small>
-                                        </div>
-                                    </div>
-                                    <div id="recommendationBadge" class="mb-2"></div>
-                                    <div class="mb-2" id="dataSourceBadgeWrap" style="display:none">
-                                        <span id="iscoreDataSourceBadge" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;display:inline-block"></span>
-                                    </div>
-                                    <p class="text-muted small mb-0" id="resultSummary"></p>
-                                </div>
-                                
-                                <div id="confidencePenaltyStrip" class="mb-3" style="display:none;">
-                                    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-center">
-                                        <span id="confidenceBadge" class="badge px-3 py-2"></span>
-                                        <span id="penaltyBadge" class="badge bg-secondary px-3 py-2" style="display:none;"></span>
-                                    </div>
-                                    <div id="penaltyReasons" class="mt-2 text-center" style="display:none;"></div>
-                                </div>
-
-                                <!-- Holding Period Card -->
-                                <div id="holdingPeriodCard" style="display:none;" class="mb-3">
-                                    <div class="rounded-3 border p-3" id="holdingPeriodInner">
-                                        <div class="d-flex align-items-center justify-content-between mb-2">
-                                            <div class="d-flex align-items-center gap-2">
-                                                <i class="fas fa-clock" id="hpIcon"></i>
-                                                <span class="fw-bold small text-uppercase" style="letter-spacing:.04em;">Holding Period</span>
-                                            </div>
-                                            <span class="badge fs-6 px-3 py-2 fw-bold" id="hpPeriodBadge">--</span>
-                                        </div>
-                                        <div class="mb-1">
-                                            <span class="badge bg-light text-dark border fw-semibold" id="hpLabel">--</span>
-                                        </div>
-                                        <div class="mt-2 small" id="hpReasoning" style="color:#4a5568;"></div>
-                                        <hr class="my-2">
-                                        <div class="row g-2 small">
-                                            <div class="col-12">
-                                                <div class="d-flex align-items-start gap-2">
-                                                    <i class="fas fa-sign-in-alt mt-1" style="color:#3182ce;min-width:14px;"></i>
-                                                    <div>
-                                                        <span class="fw-semibold">Entry Timing: </span>
-                                                        <span id="hpEntryTiming" class="text-muted"></span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-12">
-                                                <div class="d-flex align-items-start gap-2">
-                                                    <i class="fas fa-sign-out-alt mt-1 text-danger" style="min-width:14px;"></i>
-                                                    <div>
-                                                        <span class="fw-semibold">Exit Trigger: </span>
-                                                        <span id="hpExitTrigger" class="text-muted"></span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-12">
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <i class="fas fa-calendar-check text-secondary" style="min-width:14px;"></i>
-                                                    <div>
-                                                        <span class="fw-semibold">Next Review: </span>
-                                                        <span id="hpReviewDate" class="text-muted"></span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row g-2" id="componentScores">
-                                    <div class="col-6 col-md-4">
-                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('quantitative')" style="cursor: pointer;">
-                                            <small class="text-muted d-block">Quantitative</small>
-                                            <span class="fw-bold" id="quantScore">--</span><small class="text-muted">/100</small>
-                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="quantBar" style="width:0;height:4px;border-radius:2px;"></div></div>
-                                            <div class="weight-badge"><small class="text-info" id="quantWeight">30%</small></div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-4">
-                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('trend')" style="cursor: pointer;">
-                                            <small class="text-muted d-block">Trend</small>
-                                            <span class="fw-bold" id="trendScore">--</span><small class="text-muted">/100</small>
-                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="trendBar" style="width:0;height:4px;border-radius:2px;"></div></div>
-                                            <div class="weight-badge"><small class="text-info" id="trendWeight">20%</small></div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-4" id="riskCol">
-                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('risk')" style="cursor: pointer;">
-                                            <small class="text-muted d-block">Risk</small>
-                                            <span class="fw-bold" id="riskScore">--</span><small class="text-muted">/100</small>
-                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="riskBar" style="width:0;height:4px;border-radius:2px;"></div></div>
-                                            <div class="weight-badge"><small class="text-info">20%</small></div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-4">
-                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('qualitative')" style="cursor: pointer;">
-                                            <small class="text-muted d-block">Sentiment</small>
-                                            <span class="fw-bold" id="qualScore">--</span><small class="text-muted">/100</small>
-                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="qualBar" style="width:0;height:4px;border-radius:2px;"></div></div>
-                                            <div class="weight-badge"><small class="text-info" id="qualWeight">15%</small></div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-4">
-                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('search')" style="cursor: pointer;">
-                                            <small class="text-muted d-block">Search</small>
-                                            <span class="fw-bold" id="searchScore">--</span><small class="text-muted">/100</small>
-                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="searchBar" style="width:0;height:4px;border-radius:2px;"></div></div>
-                                            <div class="weight-badge"><small class="text-info" id="searchWeight">10%</small></div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-4" id="mktCtxCol">
-                                        <div class="p-2 bg-light rounded text-center component-card" onclick="toggleComponentDetails('market_context')" style="cursor: pointer;">
-                                            <small class="text-muted d-block">Market</small>
-                                            <span class="fw-bold" id="mktCtxScore">--</span><small class="text-muted">/100</small>
-                                            <div class="score-bar mt-1"><div class="score-bar-fill" id="mktCtxBar" style="width:0;height:4px;border-radius:2px;"></div></div>
-                                            <div class="weight-badge"><small class="text-info">5%</small></div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div id="scoreFactors" class="mt-3" style="display:none;"></div>
-                                
-                                <!-- Inline Overall Details -->
-                                <div id="inlineOverallDetails" style="display: none; margin-top: 30px;" class="card border-0 shadow-sm">
-                                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                                        <h5 class="mb-0"><i class="fas fa-brain me-2"></i>I-Score Analysis Details</h5>
-                                        <button type="button" class="btn btn-sm btn-light" onclick="toggleOverallDetails()"><i class="fas fa-times"></i></button>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="text-center mb-4">
-                                            <h2 class="display-4 fw-bold" id="inlineOverallScore">--</h2>
-                                            <div id="inlineRecommendation" class="mb-3"></div>
-                                        </div>
-                                        <div class="alert alert-info">
-                                            <h6 class="fw-bold mb-2"><i class="fas fa-info-circle me-2"></i>How I-Score is Calculated</h6>
-                                            <p class="mb-2 small">I-Score combines multiple analysis dimensions with weighted scoring. Stocks use the full 6-component model; other assets use a 4-component model.</p>
-                                            <div id="weightsBreakdown" class="row text-center g-2">
-                                                <!-- Populated dynamically from data.transparency.weights -->
-                                            </div>
-                                        </div>
-                                        <h6 class="fw-bold mt-4 mb-3"><i class="fas fa-chart-bar me-2"></i>Component Score Breakdown</h6>
-                                        <div class="row g-3" id="inlineComponentBreakdown"></div>
-                                        <div class="mt-4" id="inlineOverallSummary"></div>
-                                        <div class="mt-4">
-                                            <h6 class="fw-bold mb-2"><i class="fas fa-gavel me-2"></i>Score Thresholds</h6>
-                                            <div class="d-flex flex-wrap gap-2">
-                                                <span class="badge bg-success">Strong Buy: 80+</span>
-                                                <span class="badge bg-primary">Buy: 65-79</span>
-                                                <span class="badge bg-warning text-dark">Hold: 45-64</span>
-                                                <span class="badge bg-orange">Cautionary Sell: 30-44</span>
-                                                <span class="badge bg-danger">Strong Sell: &lt;30</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Inline Component Details -->
-                                <div id="inlineComponentDetails" style="display: none; margin-top: 30px;" class="card border-0 shadow-sm">
-                                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                                        <h5 class="mb-0" id="inlineComponentTitle"><i class="fas fa-chart-line me-2"></i>Component Details</h5>
-                                        <button type="button" class="btn btn-sm btn-light" onclick="toggleComponentDetails()"><i class="fas fa-times"></i></button>
-                                    </div>
-                                    <div class="card-body" id="inlineComponentBody"></div>
-                                </div>
-                            </div>
-                            
-                            <div id="iscoreError" style="display: none;" class="text-center py-4">
-                                <i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>
-                                <p class="text-muted mb-0" id="errorMessage">Analysis failed</p>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
-    </div>
-    
-    
-    <div class="row g-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-bottom py-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <h5 class="mb-0 fw-bold">
-                            <i class="fas fa-bolt me-2 text-warning"></i>
-                            Active {{ asset.name }} Signals
-                        </h5>
-                        <span class="badge bg-primary">{{ signals|length }} Active</span>
-                    </div>
+
+        <!-- Score Factors -->
+        <div id="scoreFactors" class="mb-4 p-3 bg-light rounded-3 border" style="display:none"></div>
+
+        <!-- Overall Details (toggled by clicking I-Score circle) -->
+        <div id="inlineOverallDetails" style="display:none" class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-brain me-2"></i>I-Score Scoring Breakdown</h5>
+                <button type="button" class="btn btn-sm btn-light" onclick="toggleOverallDetails()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <h2 class="display-4 fw-bold" id="inlineOverallScore">--</h2>
+                    <div id="inlineRecommendation" class="mb-3"></div>
                 </div>
-                <div class="card-body p-0">
-                    {% set plan_value = current_user.pricing_plan.value if current_user.pricing_plan.value is defined else current_user.pricing_plan %}
-                    {% if plan_value == 'free' and not current_user.is_admin %}
-                    <div class="text-center py-5">
-                        <i class="fas fa-lock fa-3x text-muted mb-3"></i>
-                        <h5 class="fw-semibold">Upgrade to Access Trading Signals</h5>
-                        <p class="text-muted mb-4">Get real-time AI-powered trading signals with Target Plus or higher.</p>
-                        <a href="{{ url_for('pricing') }}" class="btn btn-primary">
-                            <i class="fas fa-arrow-up me-2"></i>Upgrade Now
-                        </a>
+                <div class="alert alert-info">
+                    <h6 class="fw-bold mb-2"><i class="fas fa-info-circle me-2"></i>How I-Score is Calculated</h6>
+                    <p class="mb-2 small">I-Score combines multiple analysis dimensions with weighted scoring.</p>
+                    <div id="weightsBreakdown" class="row text-center g-2"></div>
+                </div>
+                <h6 class="fw-bold mt-4 mb-3"><i class="fas fa-chart-bar me-2"></i>Component Score Breakdown</h6>
+                <div class="row g-3" id="inlineComponentBreakdown"></div>
+                <div class="mt-4" id="inlineOverallSummary"></div>
+                <div class="mt-4">
+                    <h6 class="fw-bold mb-2"><i class="fas fa-gavel me-2"></i>Score Thresholds</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="badge bg-success">Strong Buy: 80+</span>
+                        <span class="badge bg-primary">Buy: 65–79</span>
+                        <span class="badge bg-warning text-dark">Hold: 45–64</span>
+                        <span class="badge bg-orange">Cautionary Sell: 30–44</span>
+                        <span class="badge bg-danger">Strong Sell: &lt;30</span>
                     </div>
-                    {% elif signals %}
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th class="ps-4">Symbol</th>
-                                    <th>Action</th>
-                                    <th>Entry</th>
-                                    <th>Target</th>
-                                    <th>Stop Loss</th>
-                                    <th>Risk</th>
-                                    <th>Time Frame</th>
-                                    <th class="pe-4 text-end">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for signal in signals %}
-                                <tr>
-                                    <td class="ps-4">
-                                        <div class="fw-semibold">{{ signal.symbol }}</div>
-                                        <small class="text-muted">{{ signal.company_name or '' }}</small>
-                                    </td>
-                                    <td>
-                                        <span class="badge {{ 'bg-success' if signal.action == 'BUY' else 'bg-danger' }}">
-                                            {{ signal.action }}
-                                        </span>
-                                    </td>
-                                    <td>₹{{ signal.entry_price|round(2) if signal.entry_price else '-' }}</td>
-                                    <td class="text-success">₹{{ signal.target_price|round(2) if signal.target_price else '-' }}</td>
-                                    <td class="text-danger">₹{{ signal.stop_loss|round(2) if signal.stop_loss else '-' }}</td>
-                                    <td>
-                                        <span class="badge {{ 'bg-success' if signal.risk_level == 'LOW' else 'bg-warning' if signal.risk_level == 'MEDIUM' else 'bg-danger' }}">
-                                            {{ signal.risk_level or 'N/A' }}
-                                        </span>
-                                    </td>
-                                    <td>{{ signal.time_frame or 'Intraday' }}</td>
-                                    <td class="pe-4 text-end">
-                                        {% if current_user.can_access_menu('dashboard_trade_now') %}
-                                        <a href="{{ url_for('execute_trading_signal', signal_id=signal.id) }}" 
-                                           class="btn btn-sm btn-primary">
-                                            Execute
-                                        </a>
-                                        {% else %}
-                                        <span class="badge bg-secondary">View Only</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <div class="text-center py-5">
-                        <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
-                        <h5 class="fw-semibold">No Active Signals</h5>
-                        <p class="text-muted mb-0">There are no active {{ asset.name }} trading signals at the moment.</p>
-                        <p class="text-muted small">New signals are generated based on AI analysis of market conditions.</p>
-                    </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="row g-4 mb-4">
-        <div class="col-lg-8">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body p-4">
-                    <div class="d-flex align-items-center mb-4">
-                        <div class="asset-icon me-3" style="width: 56px; height: 56px; background: linear-gradient(135deg, #4299e1, #3182ce); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
-                            <i class="{{ asset.icon }} text-white" style="font-size: 24px;"></i>
-                        </div>
+
+        <!-- ════════════════════════════════════════
+             COMPONENT ACCORDION
+        ════════════════════════════════════════ -->
+        <div class="rs-accordion mb-4">
+
+            <!-- 1 · Quantitative -->
+            <div class="rs-sec" id="rs-sec-quantitative">
+                <button class="rs-sec-header" type="button" data-bs-toggle="collapse" data-bs-target="#rs-col-quantitative" aria-expanded="true">
+                    <div class="rs-sec-left">
+                        <span class="rs-sec-num">1</span>
                         <div>
-                            <h4 class="mb-1 fw-bold">{{ asset.name }} Overview</h4>
-                            <p class="text-muted mb-0">{{ asset.description }}</p>
+                            <div class="rs-sec-title"><i class="fas fa-chart-line me-2 text-primary"></i>Quantitative Analysis</div>
+                            <div class="rs-sec-sub">RSI · EMA · SuperTrend · Momentum indicators</div>
                         </div>
                     </div>
-                    
-                    <div class="row g-3">
-                        {% for feature in asset.features %}
-                        <div class="col-md-6">
-                            <div class="feature-card p-3 bg-light rounded-3 h-100">
-                                <div class="d-flex align-items-start">
-                                    <div class="feature-icon me-3" style="width: 40px; height: 40px; background: rgba(66, 153, 225, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                        <i class="{{ feature.icon }}" style="color: #4299e1;"></i>
-                                    </div>
-                                    <div>
-                                        <h6 class="mb-1 fw-semibold">{{ feature.title }}</h6>
-                                        <p class="text-muted mb-0 small">{{ feature.desc }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
+                    <div class="rs-sec-right">
+                        <span class="rs-sec-score-badge" id="accHeader-quantitative">—</span>
+                        <span class="rs-sec-weight" id="accWeight-quantitative">30%</span>
+                        <i class="fas fa-chevron-down rs-chevron" style="transform:rotate(180deg)"></i>
+                    </div>
+                </button>
+                <div class="collapse show" id="rs-col-quantitative">
+                    <div class="rs-sec-body" id="accBody-quantitative">
+                        <p class="text-muted text-center py-3 mb-0" style="font-size:13px"><i class="fas fa-search me-1"></i>Enter a symbol and click Analyze</p>
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="col-lg-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body p-4">
-                    <h5 class="fw-bold mb-3"><i class="fas fa-clock me-2"></i>Market Hours</h5>
-                    <p class="text-muted mb-4">{{ asset.market_hours }}</p>
-                    
-                    <div class="market-status mb-4">
-                        <div class="d-flex align-items-center justify-content-between p-3 bg-light rounded-3">
-                            <span class="fw-medium">Market Status</span>
-                            <span class="badge bg-secondary" id="marketStatus">Closed</span>
+
+            <!-- 2 · Trend -->
+            <div class="rs-sec" id="rs-sec-trend">
+                <button class="rs-sec-header" type="button" data-bs-toggle="collapse" data-bs-target="#rs-col-trend" aria-expanded="false">
+                    <div class="rs-sec-left">
+                        <span class="rs-sec-num">2</span>
+                        <div>
+                            <div class="rs-sec-title"><i class="fas fa-arrow-trend-up me-2 text-success"></i>Trend Analysis</div>
+                            <div class="rs-sec-sub">Multi-timeframe EMA · Volume profile · Trend alignment</div>
                         </div>
                     </div>
-                    
-                    <div class="quick-actions">
-                        <h6 class="fw-semibold mb-3">Quick Actions</h6>
-                        {% if current_user.can_access_menu('dashboard_trade_now') %}
-                        <button onclick="tradeFromResearch()" class="btn btn-primary w-100">
-                            <i class="fas fa-exchange-alt me-2"></i>Trade {{ asset.name }}
-                        </button>
-                        {% endif %}
+                    <div class="rs-sec-right">
+                        <span class="rs-sec-score-badge" id="accHeader-trend">—</span>
+                        <span class="rs-sec-weight" id="accWeight-trend">20%</span>
+                        <i class="fas fa-chevron-down rs-chevron"></i>
+                    </div>
+                </button>
+                <div class="collapse" id="rs-col-trend">
+                    <div class="rs-sec-body" id="accBody-trend">
+                        <p class="text-muted text-center py-3 mb-0" style="font-size:13px"><i class="fas fa-search me-1"></i>Enter a symbol and click Analyze</p>
                     </div>
                 </div>
             </div>
+
+            <!-- 3 · Risk (stocks only) -->
+            <div class="rs-sec" id="rs-sec-risk" style="display:none">
+                <button class="rs-sec-header" type="button" data-bs-toggle="collapse" data-bs-target="#rs-col-risk" aria-expanded="false">
+                    <div class="rs-sec-left">
+                        <span class="rs-sec-num">3</span>
+                        <div>
+                            <div class="rs-sec-title"><i class="fas fa-shield-alt me-2 text-warning"></i>Risk &amp; Volatility</div>
+                            <div class="rs-sec-sub">ATR · Max Drawdown · Beta vs Nifty 50</div>
+                        </div>
+                    </div>
+                    <div class="rs-sec-right">
+                        <span class="rs-sec-score-badge" id="accHeader-risk">—</span>
+                        <span class="rs-sec-weight" id="accWeight-risk">20%</span>
+                        <i class="fas fa-chevron-down rs-chevron"></i>
+                    </div>
+                </button>
+                <div class="collapse" id="rs-col-risk">
+                    <div class="rs-sec-body" id="accBody-risk">
+                        <p class="text-muted text-center py-3 mb-0" style="font-size:13px"><i class="fas fa-search me-1"></i>Enter a symbol and click Analyze</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4 · AI Sentiment -->
+            <div class="rs-sec" id="rs-sec-qualitative">
+                <button class="rs-sec-header" type="button" data-bs-toggle="collapse" data-bs-target="#rs-col-qualitative" aria-expanded="false">
+                    <div class="rs-sec-left">
+                        <span class="rs-sec-num" id="rs-num-qualitative">4</span>
+                        <div>
+                            <div class="rs-sec-title"><i class="fas fa-newspaper me-2" style="color:#8b5cf6"></i>AI Sentiment</div>
+                            <div class="rs-sec-sub">News · Social media · Annual reports · Analyst coverage</div>
+                        </div>
+                    </div>
+                    <div class="rs-sec-right">
+                        <span class="rs-sec-score-badge" id="accHeader-qualitative">—</span>
+                        <span class="rs-sec-weight" id="accWeight-qualitative">15%</span>
+                        <i class="fas fa-chevron-down rs-chevron"></i>
+                    </div>
+                </button>
+                <div class="collapse" id="rs-col-qualitative">
+                    <div class="rs-sec-body" id="accBody-qualitative">
+                        <p class="text-muted text-center py-3 mb-0" style="font-size:13px"><i class="fas fa-search me-1"></i>Enter a symbol and click Analyze</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5 · Search Sentiment -->
+            <div class="rs-sec" id="rs-sec-search">
+                <button class="rs-sec-header" type="button" data-bs-toggle="collapse" data-bs-target="#rs-col-search" aria-expanded="false">
+                    <div class="rs-sec-left">
+                        <span class="rs-sec-num" id="rs-num-search">5</span>
+                        <div>
+                            <div class="rs-sec-title"><i class="fas fa-search me-2" style="color:#0ea5e9"></i>Search Sentiment</div>
+                            <div class="rs-sec-sub">Perplexity AI · Google Trends · Market intelligence</div>
+                        </div>
+                    </div>
+                    <div class="rs-sec-right">
+                        <span class="rs-sec-score-badge" id="accHeader-search">—</span>
+                        <span class="rs-sec-weight" id="accWeight-search">10%</span>
+                        <i class="fas fa-chevron-down rs-chevron"></i>
+                    </div>
+                </button>
+                <div class="collapse" id="rs-col-search">
+                    <div class="rs-sec-body" id="accBody-search">
+                        <p class="text-muted text-center py-3 mb-0" style="font-size:13px"><i class="fas fa-search me-1"></i>Enter a symbol and click Analyze</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6 · Market Context (stocks only) -->
+            <div class="rs-sec" id="rs-sec-market_context" style="display:none">
+                <button class="rs-sec-header" type="button" data-bs-toggle="collapse" data-bs-target="#rs-col-market_context" aria-expanded="false">
+                    <div class="rs-sec-left">
+                        <span class="rs-sec-num" id="rs-num-market_context">6</span>
+                        <div>
+                            <div class="rs-sec-title"><i class="fas fa-globe me-2" style="color:#64748b"></i>Market Context</div>
+                            <div class="rs-sec-sub">India VIX · Put-Call Ratio · Nifty 50 direction</div>
+                        </div>
+                    </div>
+                    <div class="rs-sec-right">
+                        <span class="rs-sec-score-badge" id="accHeader-market_context">—</span>
+                        <span class="rs-sec-weight" id="accWeight-market_context">5%</span>
+                        <i class="fas fa-chevron-down rs-chevron"></i>
+                    </div>
+                </button>
+                <div class="collapse" id="rs-col-market_context">
+                    <div class="rs-sec-body" id="accBody-market_context">
+                        <p class="text-muted text-center py-3 mb-0" style="font-size:13px"><i class="fas fa-search me-1"></i>Enter a symbol and click Analyze</p>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /rs-accordion -->
+
+        <!-- Legacy inline component details (wired to old JS toggle — keep hidden) -->
+        <div id="inlineComponentDetails" style="display:none" class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0" id="inlineComponentTitle"><i class="fas fa-chart-line me-2"></i>Component Details</h5>
+                <button type="button" class="btn btn-sm btn-light" onclick="toggleComponentDetails()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="card-body" id="inlineComponentBody"></div>
         </div>
-    </div>
-</div>
+
+        <!-- Hidden score trackers — keep all IDs for existing JS compatibility -->
+        <div id="componentScores" style="display:none" aria-hidden="true">
+            <div id="riskCol"><span id="riskScore"></span><div id="riskBar"></div></div>
+            <div id="mktCtxCol"><span id="mktCtxScore"></span><div id="mktCtxBar"></div></div>
+            <span id="quantScore"></span><div id="quantBar"></div><small id="quantWeight">30%</small>
+            <span id="trendScore"></span><div id="trendBar"></div><small id="trendWeight">20%</small>
+            <span id="qualScore"></span><div id="qualBar"></div><small id="qualWeight">15%</small>
+            <span id="searchScore"></span><div id="searchBar"></div><small id="searchWeight">10%</small>
+        </div>
+
+    </div><!-- /iscoreResult -->
+
+    {% endif %}
+</div><!-- /research-page -->
 
 <style>
 .research-page {
@@ -598,36 +515,169 @@
 #componentModalHeader.quantitative { background: linear-gradient(135deg, #4299e1, #3182ce); color: white; }
 #componentModalHeader.search { background: linear-gradient(135deg, #48bb78, #38a169); color: white; }
 #componentModalHeader.trend { background: linear-gradient(135deg, #ed8936, #dd6b20); color: white; }
+
+/* ── Research Search Bar ── */
+.rs-search-card {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(0,9,26,0.07);
+    padding: 20px 24px;
+    border: 1px solid #e2e8f0;
+}
+.rs-input-group .input-group-text {
+    border-radius: 10px 0 0 10px;
+    border: 1.5px solid #cbd5e0;
+    border-right: none;
+}
+.rs-input-group .form-control {
+    border: 1.5px solid #cbd5e0;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+}
+.rs-input-group .btn {
+    border-radius: 0 10px 10px 0;
+}
+
+/* ── Score Header Card ── */
+.rs-score-header {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(0,9,26,0.07);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+.rs-asset-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border-bottom: 1px solid #e2e8f0;
+}
+.rs-asset-name-block { flex: 1; min-width: 160px; }
+.rs-asset-price-block { min-width: 120px; }
+.rs-score-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+}
+
+/* ── Component Accordion ── */
+.rs-accordion {
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 12px rgba(0,9,26,0.06);
+}
+.rs-sec {
+    border-bottom: 1px solid #e2e8f0;
+}
+.rs-sec:last-child {
+    border-bottom: none;
+}
+.rs-sec-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 20px;
+    background: #fff;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.2s;
+    gap: 12px;
+}
+.rs-sec-header:hover {
+    background: #f8faff;
+}
+.rs-sec-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+}
+.rs-sec-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #00091a;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.rs-sec-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1a202c;
+    line-height: 1.3;
+}
+.rs-sec-sub {
+    font-size: 11px;
+    color: #718096;
+    margin-top: 2px;
+}
+.rs-sec-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.rs-sec-score-badge {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: #edf2f7;
+    color: #2d3748;
+    white-space: nowrap;
+}
+.rs-sec-weight {
+    font-size: 11px;
+    color: #718096;
+    font-weight: 600;
+}
+.rs-chevron {
+    color: #718096;
+    font-size: 12px;
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+}
+.rs-sec-header[aria-expanded="true"] .rs-chevron {
+    transform: rotate(180deg) !important;
+}
+.rs-sec-header[aria-expanded="false"] .rs-chevron {
+    transform: rotate(0deg) !important;
+}
+.rs-sec-body {
+    padding: 16px 20px;
+    background: #fafbfc;
+    border-top: 1px solid #edf2f7;
+}
 </style>
 
 <script>
 const ASSET_KEY = '{{ asset_key }}';
 
 document.addEventListener('DOMContentLoaded', function() {
-    const statusBadge = document.getElementById('marketStatus');
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const day = now.getDay();
-    
-    const currentTime = hours * 60 + minutes;
-    const marketOpen = 9 * 60 + 15;
-    const marketClose = 15 * 60 + 30;
-    
-    if (day >= 1 && day <= 5 && currentTime >= marketOpen && currentTime <= marketClose) {
-        statusBadge.textContent = 'Open';
-        statusBadge.classList.remove('bg-secondary');
-        statusBadge.classList.add('bg-success');
-    } else {
-        statusBadge.textContent = 'Closed';
-    }
-    
+    // Initialise Bootstrap tooltips (info icon + any inline tooltips)
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+        new bootstrap.Tooltip(el, { trigger: 'hover focus', boundary: 'window' });
+    });
+
+    // Enter-key shortcut on symbol input
     const symbolInput = document.getElementById('iscoreSymbol');
     if (symbolInput) {
         symbolInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                analyzeSymbol();
-            }
+            if (e.key === 'Enter') analyzeSymbol();
         });
     }
 });
@@ -641,7 +691,6 @@ function analyzeSymbol() {
         return;
     }
     
-    document.getElementById('iscoreInfo').style.display = 'none';
     document.getElementById('iscoreResult').style.display = 'none';
     document.getElementById('iscoreError').style.display = 'none';
     document.getElementById('holdingPeriodCard').style.display = 'none';
@@ -896,6 +945,79 @@ function displayIScoreResult(data) {
     }
 
     renderHoldingPeriod(data.holding_period);
+    populateComponentAccordion(data);
+}
+
+function populateComponentAccordion(data) {
+    if (!data || !data.components) return;
+    const comp = data.components;
+    const weights = data.transparency?.weights || {};
+
+    // Config: key → {sectionId, headerBadgeId, weightId, bodyId, weightKey}
+    const sections = [
+        { key: 'quantitative',   weightKey: 'quantitative_pct',   defaultW: '30%' },
+        { key: 'trend',          weightKey: 'trend_pct',           defaultW: '20%' },
+        { key: 'risk',           weightKey: 'risk_pct',            defaultW: '20%' },
+        { key: 'qualitative',    weightKey: 'qualitative_pct',     defaultW: '15%' },
+        { key: 'search',         weightKey: 'search_pct',          defaultW: '10%' },
+        { key: 'market_context', weightKey: 'market_context_pct',  defaultW: '5%'  },
+    ];
+
+    sections.forEach(function(s) {
+        const secEl   = document.getElementById('rs-sec-' + s.key);
+        const badgeEl = document.getElementById('accHeader-' + s.key);
+        const wgtEl   = document.getElementById('accWeight-' + s.key);
+        const bodyEl  = document.getElementById('accBody-' + s.key);
+
+        if (!comp[s.key]) {
+            // Component not present for this asset type — hide the whole section
+            if (secEl) secEl.style.display = 'none';
+            return;
+        }
+
+        // Show the section
+        if (secEl) secEl.style.display = '';
+
+        const score = Math.round(comp[s.key].score || 0);
+
+        // Update header score badge with colour
+        if (badgeEl) {
+            badgeEl.textContent = score + '/100';
+            let bg = '#edf2f7', color = '#2d3748';
+            if (score >= 80) { bg = '#c6f6d5'; color = '#276749'; }
+            else if (score >= 65) { bg = '#bee3f8'; color = '#2a69ac'; }
+            else if (score >= 45) { bg = '#fefcbf'; color = '#975a16'; }
+            else if (score >= 30) { bg = '#fed7aa'; color = '#9c4221'; }
+            else { bg = '#fed7d7'; color = '#9b2c2c'; }
+            badgeEl.style.background = bg;
+            badgeEl.style.color = color;
+        }
+
+        // Update weight from API response if available
+        if (wgtEl && weights[s.weightKey] != null) {
+            wgtEl.textContent = weights[s.weightKey] + '%';
+        }
+
+        // Populate body with detailed component content
+        if (bodyEl) {
+            const details = comp[s.key].details;
+            if (details) {
+                bodyEl.innerHTML = renderComponentDetails(s.key, details);
+            } else {
+                bodyEl.innerHTML = '<p class="text-muted text-center py-2 mb-0" style="font-size:13px">No detailed data available for this component.</p>';
+            }
+        }
+    });
+
+    // Renumber visible sections sequentially
+    let visibleNum = 1;
+    sections.forEach(function(s) {
+        const secEl = document.getElementById('rs-sec-' + s.key);
+        if (secEl && secEl.style.display !== 'none') {
+            const numEl = document.querySelector('#rs-sec-' + s.key + ' .rs-sec-num');
+            if (numEl) numEl.textContent = visibleNum++;
+        }
+    });
 }
 
 function renderHoldingPeriod(hp) {
