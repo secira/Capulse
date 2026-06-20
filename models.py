@@ -2917,16 +2917,20 @@ class ResearchList(db.Model):
     confidence = db.Column(db.Numeric(5, 2), nullable=True)  # 0-100 confidence percentage
     
     # Component Scores (stored separately for display)
-    qualitative_score = db.Column(db.Numeric(5, 2), nullable=True)  # 15% weight
-    quantitative_score = db.Column(db.Numeric(5, 2), nullable=True)  # 50% weight
-    search_score = db.Column(db.Numeric(5, 2), nullable=True)  # 10% weight
-    trend_score = db.Column(db.Numeric(5, 2), nullable=True)  # 25% weight
-    
+    qualitative_score = db.Column(db.Numeric(5, 2), nullable=True)   # 15% weight
+    quantitative_score = db.Column(db.Numeric(5, 2), nullable=True)  # 30% weight
+    search_score = db.Column(db.Numeric(5, 2), nullable=True)         # 10% weight
+    trend_score = db.Column(db.Numeric(5, 2), nullable=True)          # 20% weight
+    risk_score = db.Column(db.Numeric(5, 2), nullable=True)           # 20% weight (stocks)
+    market_context_score = db.Column(db.Numeric(5, 2), nullable=True) # 5% weight (stocks)
+
     # Detailed Analysis (JSON for flexibility)
-    qualitative_details = db.Column(db.JSON, nullable=True)  # findings, sources, reasoning
-    quantitative_details = db.Column(db.JSON, nullable=True)  # RSI, EMA, price data
-    search_details = db.Column(db.JSON, nullable=True)  # buzz, trends, sentiment
-    trend_details = db.Column(db.JSON, nullable=True)  # VIX, PCR, market indicators
+    qualitative_details = db.Column(db.JSON, nullable=True)       # findings, sources, reasoning
+    quantitative_details = db.Column(db.JSON, nullable=True)      # RSI, EMA, price data
+    search_details = db.Column(db.JSON, nullable=True)            # buzz, trends, sentiment
+    trend_details = db.Column(db.JSON, nullable=True)             # VIX, PCR, market indicators
+    risk_details = db.Column(db.JSON, nullable=True)              # ATR, drawdown, beta
+    market_context_details = db.Column(db.JSON, nullable=True)   # VIX regime, Nifty PCR, direction
     
     # Market Data Snapshot
     current_price = db.Column(db.Numeric(12, 2), nullable=True)
@@ -3007,11 +3011,15 @@ class ResearchList(db.Model):
         self.quantitative_score = result.get('quantitative_score', 0)
         self.search_score = result.get('search_score', 0)
         self.trend_score = result.get('trend_score', 0)
-        
+        self.risk_score = result.get('risk_score') or None
+        self.market_context_score = result.get('market_context_score') or None
+
         self.qualitative_details = result.get('qualitative_details', {})
         self.quantitative_details = result.get('quantitative_details', {})
         self.search_details = result.get('search_details', {})
         self.trend_details = result.get('trend_details', {})
+        self.risk_details = result.get('risk_details') or None
+        self.market_context_details = result.get('market_context_details') or None
         
         self.current_price = result.get('current_price')
         self.previous_close = result.get('previous_close')
