@@ -193,7 +193,7 @@
 
             <!-- 1 · Quantitative -->
             <div class="rs-sec" id="rs-sec-quantitative">
-                <button class="rs-sec-header" type="button" data-bs-toggle="collapse" data-bs-target="#rs-col-quantitative" aria-expanded="true">
+                <button class="rs-sec-header" type="button" data-bs-toggle="collapse" data-bs-target="#rs-col-quantitative" aria-expanded="false">
                     <div class="rs-sec-left">
                         <span class="rs-sec-num">1</span>
                         <div>
@@ -204,10 +204,10 @@
                     <div class="rs-sec-right">
                         <span class="rs-sec-score-badge" id="accHeader-quantitative">—</span>
                         <span class="rs-sec-weight" id="accWeight-quantitative">30%</span>
-                        <i class="fas fa-chevron-down rs-chevron" style="transform:rotate(180deg)"></i>
+                        <i class="fas fa-chevron-down rs-chevron"></i>
                     </div>
                 </button>
-                <div class="collapse show" id="rs-col-quantitative">
+                <div class="collapse" id="rs-col-quantitative">
                     <div class="rs-sec-body" id="accBody-quantitative">
                         <p class="text-muted text-center py-3 mb-0" style="font-size:13px"><i class="fas fa-search me-1"></i>Enter a symbol and click Analyze</p>
                     </div>
@@ -220,7 +220,7 @@
                     <div class="rs-sec-left">
                         <span class="rs-sec-num">2</span>
                         <div>
-                            <div class="rs-sec-title"><i class="fas fa-arrow-trend-up me-2 text-success"></i>Trend Analysis</div>
+                            <div class="rs-sec-title"><i class="fas fa-chart-area me-2 text-success"></i>Trend Analysis</div>
                             <div class="rs-sec-sub">Multi-timeframe EMA · Volume profile · Trend alignment</div>
                         </div>
                     </div>
@@ -1018,6 +1018,13 @@ function populateComponentAccordion(data) {
             if (numEl) numEl.textContent = visibleNum++;
         }
     });
+
+    // Auto-expand section 1 (Quantitative) after analysis loads
+    const firstCollapseEl = document.getElementById('rs-col-quantitative');
+    if (firstCollapseEl && window.bootstrap) {
+        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(firstCollapseEl, { toggle: false });
+        bsCollapse.show();
+    }
 }
 
 function renderHoldingPeriod(hp) {
