@@ -499,18 +499,22 @@ def api_research_analyze():
                     'overall_confidence':   result.get('confidence', 0),
                     'recommendation':       result.get('recommendation', 'HOLD'),
                     'recommendation_summary': result.get('summary', ''),
-                    'qualitative_score':    components.get('qualitative', {}).get('score', 0),
-                    'quantitative_score':   components.get('quantitative', {}).get('score', 0),
-                    'search_score':         components.get('search',       {}).get('score', 0),
-                    'trend_score':          components.get('trend',        {}).get('score', 0),
-                    'qualitative_details':  components.get('qualitative', {}).get('details', {}),
-                    'quantitative_details': components.get('quantitative', {}).get('details', {}),
-                    'search_details':       components.get('search',       {}).get('details', {}),
-                    'trend_details':        components.get('trend',        {}).get('details', {}),
-                    'current_price':        market.get('current_price'),
-                    'previous_close':       market.get('previous_close'),
-                    'price_change_pct':     market.get('change_pct'),
-                    'data_source':          result.get('data_source', ''),
+                    'qualitative_score':       components.get('qualitative', {}).get('score', 0),
+                    'quantitative_score':      components.get('quantitative', {}).get('score', 0),
+                    'search_score':            components.get('search',       {}).get('score', 0),
+                    'trend_score':             components.get('trend',        {}).get('score', 0),
+                    'risk_score':              components.get('risk', {}).get('score') if components.get('risk') else None,
+                    'market_context_score':    components.get('market_context', {}).get('score') if components.get('market_context') else None,
+                    'qualitative_details':     components.get('qualitative', {}).get('details', {}),
+                    'quantitative_details':    components.get('quantitative', {}).get('details', {}),
+                    'search_details':          components.get('search',       {}).get('details', {}),
+                    'trend_details':           components.get('trend',        {}).get('details', {}),
+                    'risk_details':            components.get('risk', {}).get('details') if components.get('risk') else None,
+                    'market_context_details':  components.get('market_context', {}).get('details') if components.get('market_context') else None,
+                    'current_price':           market.get('current_price'),
+                    'previous_close':          market.get('previous_close'),
+                    'price_change_pct':        market.get('change_pct'),
+                    'data_source':             result.get('data_source', ''),
                 }
 
                 entry = ResearchList.query.filter_by(symbol=symbol).first()
@@ -560,6 +564,11 @@ def api_research_analyze():
                 logger.warning(f"Could not persist ResearchList/Cache for {symbol}: {save_err}")
                 # Non-fatal — still return result to user
 
+        # Stamp the fresh result with the server-side computed time (UTC ISO)
+        # so the frontend can show a consistent IST timestamp in both the
+        # "Data as of" header and the info banner.
+        if result and result.get('success'):
+            result['_computed_at'] = datetime.utcnow().isoformat()
         return jsonify(result)
         
     except Exception as e:

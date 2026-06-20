@@ -714,6 +714,9 @@ function analyzeSymbol() {
         
         if (data.success) {
             displayIScoreResult(data);
+            // Hide the "Showing stored I-Score computed…" banner — this is fresh data
+            const hint = document.getElementById('symbolPrefillHint');
+            if (hint) hint.style.display = 'none';
         } else {
             document.getElementById('iscoreError').style.display = 'block';
             document.getElementById('errorMessage').textContent = data.error || 'Analysis failed';
@@ -768,9 +771,18 @@ function displayIScoreResult(data) {
             document.getElementById('priceChange').innerHTML = `<span class="${changeColor}">${changeSymbol} ${Math.abs(change).toFixed(2)}%</span>`;
         }
         
-        if (document.getElementById('dataTimestamp') && marketData.timestamp) {
-            const date = new Date(marketData.timestamp);
-            document.getElementById('dataTimestamp').textContent = 'Data as of: ' + date.toLocaleString('en-IN', {
+        // Prefer analysis computation time over raw market data timestamp
+        const _analysisTime = data._computed_at || data._cached_at;
+        if (document.getElementById('dataTimestamp') && _analysisTime) {
+            const _d = new Date(_analysisTime);
+            document.getElementById('dataTimestamp').textContent = 'Analysed: ' + _d.toLocaleString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            }) + ' IST';
+        } else if (document.getElementById('dataTimestamp') && marketData.timestamp) {
+            const _d = new Date(marketData.timestamp);
+            document.getElementById('dataTimestamp').textContent = 'Analysed: ' + _d.toLocaleString('en-IN', {
                 timeZone: 'Asia/Kolkata',
                 day: '2-digit', month: 'short', year: 'numeric',
                 hour: '2-digit', minute: '2-digit'
