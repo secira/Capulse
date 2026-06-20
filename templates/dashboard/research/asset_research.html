@@ -237,7 +237,7 @@
             </div>
 
             <!-- 3 · Risk (stocks only) -->
-            <div class="rs-sec" id="rs-sec-risk" style="display:none">
+            <div class="rs-sec" id="rs-sec-risk">
                 <button class="rs-sec-header" type="button" data-bs-toggle="collapse" data-bs-target="#rs-col-risk" aria-expanded="false">
                     <div class="rs-sec-left">
                         <span class="rs-sec-num">3</span>
@@ -306,7 +306,7 @@
             </div>
 
             <!-- 6 · Market Context (stocks only) -->
-            <div class="rs-sec" id="rs-sec-market_context" style="display:none">
+            <div class="rs-sec" id="rs-sec-market_context">
                 <button class="rs-sec-header" type="button" data-bs-toggle="collapse" data-bs-target="#rs-col-market_context" aria-expanded="false">
                     <div class="rs-sec-left">
                         <span class="rs-sec-num" id="rs-num-market_context">6</span>
@@ -968,14 +968,16 @@ function populateComponentAccordion(data) {
         const wgtEl   = document.getElementById('accWeight-' + s.key);
         const bodyEl  = document.getElementById('accBody-' + s.key);
 
+        // Always keep all 6 sections visible
+        if (secEl) secEl.style.display = '';
+
         if (!comp[s.key]) {
-            // Component not present for this asset type — hide the whole section
-            if (secEl) secEl.style.display = 'none';
+            // Component not in API response — show placeholder, leave badge as "—"
+            if (bodyEl) {
+                bodyEl.innerHTML = '<p class="text-muted text-center py-2 mb-0" style="font-size:13px">No data available for this component.</p>';
+            }
             return;
         }
-
-        // Show the section
-        if (secEl) secEl.style.display = '';
 
         const score = Math.round(comp[s.key].score || 0);
 
@@ -1005,16 +1007,6 @@ function populateComponentAccordion(data) {
             } else {
                 bodyEl.innerHTML = '<p class="text-muted text-center py-2 mb-0" style="font-size:13px">No detailed data available for this component.</p>';
             }
-        }
-    });
-
-    // Renumber visible sections sequentially
-    let visibleNum = 1;
-    sections.forEach(function(s) {
-        const secEl = document.getElementById('rs-sec-' + s.key);
-        if (secEl && secEl.style.display !== 'none') {
-            const numEl = document.querySelector('#rs-sec-' + s.key + ' .rs-sec-num');
-            if (numEl) numEl.textContent = visibleNum++;
         }
     });
 
