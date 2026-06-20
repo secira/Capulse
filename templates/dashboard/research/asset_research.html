@@ -40,7 +40,7 @@
             <!-- I-Score info tooltip -->
             <span tabindex="0"
                   data-bs-toggle="tooltip" data-bs-placement="left" data-bs-html="true"
-                  title="<strong>What is I-Score?</strong><br>AI-powered 0–100 rating combining:<br>{% if asset_key == 'mutual_funds' %}• Performance (50%) · Trend (25%)<br>• Sentiment (15%) · Search (10%){% elif asset_key == 'bonds' %}• Yield Analysis (50%) · Market Trend (25%)<br>• Credit (15%) · Search (10%){% else %}• Quantitative (30%) · Trend (20%)<br>• Risk (20%) · Sentiment (15%)<br>• Search (10%) · Market Context (5%){% endif %}<br><br>80+ = Strong Buy · 65–79 = Buy<br>45–64 = Hold · &lt;45 = Sell"
+                  title="<strong>What is I-Score?</strong><br>AI-powered 0–100 rating combining:<br>{% if asset_key == 'mutual_funds' %}• Performance (50%) · Trend (25%)<br>• Sentiment (15%) · Search (10%){% elif asset_key == 'bonds' %}• Yield Analysis (50%) · Market Trend (25%)<br>• Credit (15%) · Search (10%){% else %}• Quantitative (30%) · Trend (20%)<br>• Risk (20%) · Sentiment (15%)<br>• Search (10%) · Market Context (5%){% endif %}<br><br>78+ = Strong Buy · 63–77 = Buy<br>42–62 = Hold · &lt;28 = Sell"
                   style="cursor:help;flex-shrink:0">
                 <i class="fas fa-info-circle text-primary" style="font-size:22px"></i>
             </span>
@@ -176,11 +176,10 @@
                 <div class="mt-4">
                     <h6 class="fw-bold mb-2"><i class="fas fa-gavel me-2"></i>Score Thresholds</h6>
                     <div class="d-flex flex-wrap gap-2">
-                        <span class="badge bg-success">Strong Buy: 80+</span>
-                        <span class="badge bg-primary">Buy: 65–79</span>
-                        <span class="badge bg-warning text-dark">Hold: 45–64</span>
-                        <span class="badge bg-orange">Cautionary Sell: 30–44</span>
-                        <span class="badge bg-danger">Strong Sell: &lt;30</span>
+                        <span class="badge bg-success">Strong Buy: 78+</span>
+                        <span class="badge bg-primary">Buy: 63+</span>
+                        <span class="badge bg-warning text-dark">Hold: 42–62</span>
+                        <span class="badge bg-danger">Sell / Strong Sell: &lt;28</span>
                     </div>
                 </div>
             </div>
@@ -197,8 +196,8 @@
                     <div class="rs-sec-left">
                         <span class="rs-sec-num">1</span>
                         <div>
-                            <div class="rs-sec-title"><i class="fas fa-chart-line me-2 text-primary"></i>Quantitative Analysis</div>
-                            <div class="rs-sec-sub">RSI · EMA · SuperTrend · Momentum indicators</div>
+                            <div class="rs-sec-title"><i class="fas fa-chart-line me-2 text-primary"></i>Quantitative (Technical)</div>
+                            <div class="rs-sec-sub">Real RSI(14) · EMA(9/20/50) · SuperTrend · Momentum from 120-day OHLCV</div>
                         </div>
                     </div>
                     <div class="rs-sec-right">
@@ -220,8 +219,8 @@
                     <div class="rs-sec-left">
                         <span class="rs-sec-num">2</span>
                         <div>
-                            <div class="rs-sec-title"><i class="fas fa-chart-area me-2 text-success"></i>Trend Analysis</div>
-                            <div class="rs-sec-sub">Multi-timeframe EMA · Volume profile · Trend alignment</div>
+                            <div class="rs-sec-title"><i class="fas fa-arrow-trend-up me-2 text-success"></i>Trend Analysis</div>
+                            <div class="rs-sec-sub">Multi-timeframe EMA alignment · Volume profile · Spike detection</div>
                         </div>
                     </div>
                     <div class="rs-sec-right">
@@ -243,8 +242,8 @@
                     <div class="rs-sec-left">
                         <span class="rs-sec-num">3</span>
                         <div>
-                            <div class="rs-sec-title"><i class="fas fa-shield-alt me-2 text-warning"></i>Risk &amp; Volatility</div>
-                            <div class="rs-sec-sub">ATR · Max Drawdown · Beta vs Nifty 50</div>
+                            <div class="rs-sec-title"><i class="fas fa-shield-alt me-2 text-danger"></i>Risk &amp; Volatility</div>
+                            <div class="rs-sec-sub">ATR volatility · Max drawdown · Beta vs Nifty 50</div>
                         </div>
                     </div>
                     <div class="rs-sec-right">
@@ -266,8 +265,8 @@
                     <div class="rs-sec-left">
                         <span class="rs-sec-num" id="rs-num-qualitative">4</span>
                         <div>
-                            <div class="rs-sec-title"><i class="fas fa-newspaper me-2" style="color:#8b5cf6"></i>AI Sentiment</div>
-                            <div class="rs-sec-sub">News · Social media · Annual reports · Analyst coverage</div>
+                            <div class="rs-sec-title"><i class="fas fa-newspaper me-2 text-info"></i>AI Sentiment (Qualitative)</div>
+                            <div class="rs-sec-sub">News · Social media · Annual reports · Analyst opinions</div>
                         </div>
                     </div>
                     <div class="rs-sec-right">
@@ -289,8 +288,8 @@
                     <div class="rs-sec-left">
                         <span class="rs-sec-num" id="rs-num-search">5</span>
                         <div>
-                            <div class="rs-sec-title"><i class="fas fa-search me-2" style="color:#0ea5e9"></i>Search Sentiment</div>
-                            <div class="rs-sec-sub">Perplexity AI · Google Trends · Market intelligence</div>
+                            <div class="rs-sec-title"><i class="fas fa-search me-2 text-warning"></i>Search Sentiment</div>
+                            <div class="rs-sec-sub">Perplexity AI market intelligence · Search trends</div>
                         </div>
                     </div>
                     <div class="rs-sec-right">
@@ -312,8 +311,8 @@
                     <div class="rs-sec-left">
                         <span class="rs-sec-num" id="rs-num-market_context">6</span>
                         <div>
-                            <div class="rs-sec-title"><i class="fas fa-globe me-2" style="color:#64748b"></i>Market Context</div>
-                            <div class="rs-sec-sub">India VIX · Put-Call Ratio · Nifty 50 direction</div>
+                            <div class="rs-sec-title"><i class="fas fa-globe me-2 text-secondary"></i>Market Context</div>
+                            <div class="rs-sec-sub">India VIX regime · Nifty PCR · Nifty 50 direction</div>
                         </div>
                     </div>
                     <div class="rs-sec-right">
@@ -836,10 +835,10 @@ function displayIScoreResult(data) {
     arc.setAttribute('stroke-dashoffset', offset);
     
     let arcColor = '#4299e1';
-    if (iscore >= 80) arcColor = '#38a169';
-    else if (iscore >= 65) arcColor = '#3182ce';
-    else if (iscore >= 45) arcColor = '#ecc94b';
-    else if (iscore >= 30) arcColor = '#ed8936';
+    if (iscore >= 78) arcColor = '#38a169';
+    else if (iscore >= 63) arcColor = '#3182ce';
+    else if (iscore >= 42) arcColor = '#ecc94b';
+    else if (iscore >= 28) arcColor = '#ed8936';
     else arcColor = '#e53e3e';
     arc.setAttribute('stroke', arcColor);
     
@@ -984,10 +983,10 @@ function populateComponentAccordion(data) {
         if (badgeEl) {
             badgeEl.textContent = score + '/100';
             let bg = '#edf2f7', color = '#2d3748';
-            if (score >= 80) { bg = '#c6f6d5'; color = '#276749'; }
-            else if (score >= 65) { bg = '#bee3f8'; color = '#2a69ac'; }
-            else if (score >= 45) { bg = '#fefcbf'; color = '#975a16'; }
-            else if (score >= 30) { bg = '#fed7aa'; color = '#9c4221'; }
+            if (score >= 78) { bg = '#c6f6d5'; color = '#276749'; }
+            else if (score >= 63) { bg = '#bee3f8'; color = '#2a69ac'; }
+            else if (score >= 42) { bg = '#fefcbf'; color = '#975a16'; }
+            else if (score >= 28) { bg = '#fed7aa'; color = '#9c4221'; }
             else { bg = '#fed7d7'; color = '#9b2c2c'; }
             badgeEl.style.background = bg;
             badgeEl.style.color = color;
@@ -2133,26 +2132,26 @@ function renderComponentDetails(componentKey, details) {
 }
 
 function getScoreColor(score) {
-    if (score >= 80) return '#38a169';
-    if (score >= 65) return '#3182ce';
-    if (score >= 45) return '#ecc94b';
-    if (score >= 30) return '#ed8936';
+    if (score >= 78) return '#38a169';
+    if (score >= 63) return '#3182ce';
+    if (score >= 42) return '#ecc94b';
+    if (score >= 28) return '#ed8936';
     return '#e53e3e';
 }
 
 function getScoreLabel(score) {
-    if (score >= 80) return 'Strong Bullish';
-    if (score >= 65) return 'Bullish';
-    if (score >= 45) return 'Neutral';
-    if (score >= 30) return 'Bearish';
+    if (score >= 78) return 'Strong Bullish';
+    if (score >= 63) return 'Bullish';
+    if (score >= 42) return 'Neutral';
+    if (score >= 28) return 'Bearish';
     return 'Strong Bearish';
 }
 
 function getScoreBadgeClass(score) {
-    if (score >= 80) return 'bg-success';
-    if (score >= 65) return 'bg-primary';
-    if (score >= 45) return 'bg-warning text-dark';
-    if (score >= 30) return 'bg-orange';
+    if (score >= 78) return 'bg-success';
+    if (score >= 63) return 'bg-primary';
+    if (score >= 42) return 'bg-warning text-dark';
+    if (score >= 28) return 'bg-orange';
     return 'bg-danger';
 }
 
