@@ -953,3 +953,52 @@ def refresh_watchlist_iscores_status():
         'recent_log': job['log'][-5:],
         'finished_at': job.get('finished_at'),
     })
+
+
+@app.route('/api/research/email-report', methods=['POST'])
+@login_required
+def api_research_email_report():
+    """Email the last cached I-Score report for a symbol to the logged-in user."""
+    try:
+        data       = request.get_json(silent=True) or {}
+        symbol     = (request.form.get('symbol') or data.get('symbol', '')).upper().strip()
+        asset_type = request.form.get('asset_type') or data.get('asset_type', 'stocks')
+        if not symbol:
+            return jsonify({'success': False, 'error': 'Symbol required'}), 400
+        if not current_user.email:
+            return jsonify({'success': False, 'error': 'No email on your account'}), 400
+
+        import hashlib
+        cache_key = hashlib.md5(
+            f"iscore:{asset_type}:{symbol}:{date.today().isoformat()}".encode()
+        ).hexdigest()
+        cached = ResearchCache.query.filter_by(cache_key=cache_key, is_valid=True).first()
+        if cached and cached.result_payload:
+            result = dict(cached.result_payload) if isinstance(cached.result_payload, dict) else cached.result_payload
+        else:
+            rl = ResearchList.query.filter_by(symbol=symbol).first()
+            if not rl or not rl.overall_score:
+                return jsonify({'success': False, 'error': 'No I-Score found. Run analysis first.'}), 404
+            result = {
+                'iscore': rl.overall_score,
+                'recommendation': rl.recommendation or 'HOLD',
+                'summary': rl.recommendation_summary or '',
+                'components': {
+                    'quantitative':   {'score': rl.quantitative_score},
+                    'trend':          {'score': rl.trend_score},
+                    'risk':           {'score': rl.risk_score},
+                    'qualitative':    {'score': rl.qualitative_score},
+                    'search':         {'score': rl.search_score},
+                    'market_context': {'score': rl.market_context_score},
+                },
+            }
+
+        from services.email_service import send_iscore_report_email
+        ok = send_iscore_report_email(current_user.email, symbol, result)
+        if ok:
+            return jsonify({'success': True, 'message': f'Report emailed to {current_user.email}'})
+        return jsonify({'success': False, 'error': 'Email delivery failed — check mail configuration'}), 500
+
+    except Exception as e:
+        logger.error(f"Email report error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

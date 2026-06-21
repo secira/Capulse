@@ -172,6 +172,15 @@ def verify_payment():
         db.session.commit()
 
         logger.info(f"User {current_user.id} upgraded to {plan_type}")
+
+        # Send subscription upgrade email
+        try:
+            from services.email_service import send_subscription_update_email
+            old_plan = current_user.pricing_plan.value if hasattr(current_user.pricing_plan, 'value') else str(current_user.pricing_plan)
+            send_subscription_update_email(current_user, old_plan, plan_type)
+        except Exception as _mail_err:
+            logger.warning(f"Subscription email failed (non-fatal): {_mail_err}")
+
         return jsonify({
             'success': True,
             'message': 'Payment successful! Your subscription has been activated.',

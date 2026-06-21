@@ -37,6 +37,14 @@
                     </button>
                 </div>
             </div>
+            <!-- Email report button — shown after I-Score loads -->
+            <button id="emailReportBtn" type="button"
+                    class="btn btn-outline-secondary btn-sm"
+                    style="display:none;white-space:nowrap;"
+                    onclick="emailIScoreReport()"
+                    title="Email this I-Score report to yourself">
+                <i class="fas fa-envelope me-1"></i>Email Report
+            </button>
             <!-- I-Score info tooltip -->
             <span tabindex="0"
                   data-bs-toggle="tooltip" data-bs-placement="left" data-bs-html="true"
@@ -717,6 +725,9 @@ function analyzeSymbol() {
             // Hide the "Showing stored I-Score computed…" banner — this is fresh data
             const hint = document.getElementById('symbolPrefillHint');
             if (hint) hint.style.display = 'none';
+            // Show "Email Report" button
+            const eb = document.getElementById('emailReportBtn');
+            if (eb) eb.style.display = '';
         } else {
             document.getElementById('iscoreError').style.display = 'block';
             document.getElementById('errorMessage').textContent = data.error || 'Analysis failed';
@@ -2201,6 +2212,8 @@ function formatDetailValue(value) {
             if (data.success && data.cached && data.result) {
                 // Show the stored I-Score immediately — no spinner needed
                 displayIScoreResult(data.result);
+                const eb = document.getElementById('emailReportBtn');
+                if (eb) eb.style.display = '';
 
                 // Add a soft banner so the user knows it's stored data
                 const cachedAt = data.cached_at
@@ -2266,6 +2279,41 @@ function tradeFromResearch() {
     if (price) params.set('price', price.toFixed(2));
 
     window.location.href = `/dashboard/trade-now?${params.toString()}`;
+}
+
+// ── Email I-Score report ────────────────────────────────────────────────────
+function emailIScoreReport() {
+    const symbol = (document.getElementById('iscoreSymbol').value || '').trim().toUpperCase();
+    if (!symbol) {
+        alert('Please enter a symbol and run Analyze first.');
+        return;
+    }
+    const btn = document.getElementById('emailReportBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Sending…'; }
+
+    fetch('/api/research/email-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: symbol, asset_type: ASSET_KEY }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope me-1"></i>Email Report'; }
+        if (data.success) {
+            const toast = document.createElement('div');
+            toast.className = 'alert alert-success alert-dismissible fade show position-fixed';
+            toast.style.cssText = 'bottom:20px;right:20px;z-index:9999;min-width:300px;';
+            toast.innerHTML = `<i class="fas fa-check-circle me-2"></i>${data.message || 'Report sent!'}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        } else {
+            alert('Could not send report: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope me-1"></i>Email Report'; }
+        alert('Network error — please try again.');
+    });
 }
 
 </script>

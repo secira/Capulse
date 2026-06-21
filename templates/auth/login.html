@@ -445,9 +445,12 @@
                            placeholder="Enter your password" autocomplete="current-password">
                 </div>
 
-                <div class="auth-check">
-                    <input type="checkbox" id="remember_me" name="remember_me">
-                    <label for="remember_me">Remember me for 30 days</label>
+                <div class="auth-check" style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <input type="checkbox" id="remember_me" name="remember_me">
+                        <label for="remember_me">Remember me for 30 days</label>
+                    </div>
+                    <a href="{{ url_for('forgot_password') }}" style="font-size:13px;color:#3182ce;text-decoration:none;">Forgot password?</a>
                 </div>
 
                 <button type="submit" class="btn-auth-primary">

@@ -337,6 +337,10 @@ class User(UserMixin, db.Model):
     otp_attempts = db.Column(db.Integer, default=0)
     last_otp_request = db.Column(db.DateTime, nullable=True)
     
+    # Password reset
+    reset_token = db.Column(db.String(128), nullable=True)
+    reset_token_expires_at = db.Column(db.DateTime, nullable=True)
+
     # Profile image (for OAuth login)
     profile_image_url = db.Column(db.String(500), nullable=True)
 

@@ -311,6 +311,10 @@ app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'notifications@targetcapital.ai')
 
+# Initialize Flask-Mail
+from flask_mail import Mail
+mail = Mail(app)
+
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -615,6 +619,10 @@ with app.app_context():
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_target_2_points FLOAT DEFAULT 100.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS banknifty_target_3_points FLOAT DEFAULT 140.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_2_points FLOAT DEFAULT 50.0',
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS reset_token VARCHAR(128)',
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS email_alerts_enabled BOOLEAN DEFAULT FALSE',
+        'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS alert_email_recipients TEXT DEFAULT \'\'',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS finnifty_target_3_points FLOAT DEFAULT 70.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_2_points FLOAT DEFAULT 100.0',
         'ALTER TABLE fno_config ADD COLUMN IF NOT EXISTS sensex_target_3_points FLOAT DEFAULT 140.0',
@@ -1210,6 +1218,8 @@ _TRIAL_EXEMPT_ENDPOINTS: frozenset = frozenset({
     'google_auth.login', 'google_auth.callback', 'google_auth.logout',
     # OTP / mobile auth
     'send_otp', 'verify_otp', 'resend_otp', 'mobile_login',
+    # Password reset (must be reachable without login or active trial)
+    'forgot_password', 'reset_password',
     # Payments / upgrades (must be reachable so they can subscribe)
     'subscribe', 'verify_payment', 'payment_success', 'payment_failed',
     'upgrade_plan', 'razorpay_webhook',
@@ -1236,6 +1246,7 @@ _RISK_DISCLOSURE_EXEMPT: frozenset = frozenset({
     'login', 'register', 'logout',
     'google_auth.login', 'google_auth.callback', 'google_auth.logout',
     'send_otp', 'verify_otp', 'resend_otp', 'mobile_login',
+    'forgot_password', 'reset_password',
     # The disclosure page itself
     'risk_disclosure_ack',
     # Payments

@@ -1470,11 +1470,107 @@ def register():
             send_signup_notification(user)
         except Exception as e:
             logging.error(f"Failed to send signup notification: {e}")
+
+        # Send welcome email to new user
+        try:
+            from services.email_service import send_welcome_email
+            send_welcome_email(user)
+        except Exception as e:
+            logging.error(f"Failed to send welcome email: {e}")
         
         flash('Registration successful! You can now log in.', 'success')
         return redirect(url_for('login'))
     
     return render_template('auth/register.html')
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    """Send password-reset link to user's email."""
+    from flask import request as _req
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+
+    if _req.method == 'POST':
+        import secrets as _secrets
+        from datetime import timedelta
+        email = _req.form.get('email', '').strip().lower()
+        if not email:
+            flash('Please enter your email address.', 'error')
+            return render_template('auth/forgot_password.html')
+
+        tenant_id = get_current_tenant_id()
+        user = User.query.filter(
+            User.tenant_id == tenant_id,
+            User.email == email
+        ).first()
+
+        if user:
+            token = _secrets.token_urlsafe(32)
+            user.reset_token = token
+            user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
+            try:
+                db.session.commit()
+                reset_url = url_for('reset_password', token=token, _external=True)
+                from services.email_service import send_password_reset_email
+                send_password_reset_email(
+                    user.email,
+                    reset_url,
+                    name=(user.first_name or '').strip()
+                )
+            except Exception as e:
+                db.session.rollback()
+                logging.error(f"Password reset error: {e}")
+
+        # Always show the same message to prevent email enumeration
+        flash('If that email is registered, a reset link has been sent. Check your inbox.', 'info')
+        return redirect(url_for('login'))
+
+    return render_template('auth/forgot_password.html')
+
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    """Validate token and let user set a new password."""
+    from flask import request as _req
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+
+    tenant_id = get_current_tenant_id()
+    user = User.query.filter(
+        User.tenant_id == tenant_id,
+        User.reset_token == token,
+        User.reset_token_expires_at > datetime.utcnow()
+    ).first()
+
+    if not user:
+        flash('This reset link is invalid or has expired. Please request a new one.', 'error')
+        return redirect(url_for('forgot_password'))
+
+    if _req.method == 'POST':
+        password = _req.form.get('password', '').strip()
+        confirm  = _req.form.get('confirm_password', '').strip()
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters.', 'error')
+            return render_template('auth/reset_password.html', token=token)
+        if password != confirm:
+            flash('Passwords do not match.', 'error')
+            return render_template('auth/reset_password.html', token=token)
+
+        user.set_password(password)
+        user.reset_token = None
+        user.reset_token_expires_at = None
+        try:
+            db.session.commit()
+            flash('Password reset successfully. You can now log in.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Password reset save error: {e}")
+            flash('Something went wrong. Please try again.', 'error')
+
+    return render_template('auth/reset_password.html', token=token)
+
 
 @app.route('/logout')
 @login_required

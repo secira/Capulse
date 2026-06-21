@@ -796,6 +796,58 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         return False
 
 
+def _send_email_alert(signal_data: dict, index_id: str) -> bool:
+    """Send F&O signal email alert alongside Telegram.
+    Gated by fno_config.email_alerts_enabled and alert_email_recipients."""
+    try:
+        def _with_ctx_local(fn):
+            try:
+                if _fno_app is None:
+                    return fn()
+                try:
+                    from flask import current_app
+                    current_app._get_current_object()
+                    return fn()
+                except RuntimeError:
+                    with _fno_app.app_context():
+                        return fn()
+            except Exception as _e:
+                logger.warning(f"[{index_id}] email _with_ctx error: {_e}")
+                return None
+
+        def _get_email_cfg():
+            from services.fno_config import get_fno_config
+            cfg = get_fno_config() or {}
+            return cfg.get('email_alerts_enabled', False), cfg.get('alert_email_recipients', '')
+
+        result = _with_ctx_local(_get_email_cfg)
+        if not result:
+            return False
+        enabled, recipients_raw = result
+        if not enabled:
+            logger.debug(f"[{index_id}] Email alert skipped — email_alerts_enabled=False")
+            return False
+
+        recipients = [r.strip() for r in recipients_raw.replace(',', '\n').splitlines() if r.strip()]
+        if not recipients:
+            logger.warning(f"[{index_id}] Email alert skipped — no recipients configured")
+            return False
+
+        def _do_send():
+            from services.email_service import send_trade_alert_email
+            return send_trade_alert_email(recipients, signal_data, index_id)
+
+        ok = _with_ctx_local(_do_send)
+        if ok:
+            logger.info(f"[{index_id}] Email alert sent to {len(recipients)} recipient(s)")
+        else:
+            logger.warning(f"[{index_id}] Email alert delivery failed")
+        return bool(ok)
+    except Exception as e:
+        logger.error(f"[{index_id}] Email alert error: {e}", exc_info=True)
+        return False
+
+
 # ── Alert gate ─────────────────────────────────────────────────────────────────
 
 SCAN_ALERT_MIN_CONFIDENCE = 70   # only broadcast SCAN signals at/above this
@@ -1127,6 +1179,7 @@ def _scan_index(app, idx: str, data_broker_user_id):
                     signal_type             = 'TRADE_EXIT'
                     if _should_send_alert(analysis, idx):
                         alert_sent = _send_telegram_alert(analysis, idx)
+                        _send_email_alert(analysis, idx)
                     _dispatch_partner_webhook(analysis, idx)
                 else:
                     at   = _active_trade[idx]
@@ -1189,6 +1242,7 @@ def _scan_index(app, idx: str, data_broker_user_id):
                     logger.info(f"[{idx}] 🆔 Trade code assigned: {trade_code}")
                     if _should_send_alert(analysis, idx):
                         alert_sent = _send_telegram_alert(analysis, idx)
+                        _send_email_alert(analysis, idx)
                         if alert_sent:
                             _last_signal_time[idx]      = _now_ist()
                             _last_signal_direction[idx] = analysis.get('trade_direction')
@@ -1203,6 +1257,7 @@ def _scan_index(app, idx: str, data_broker_user_id):
                     # immediately (gate enforces cooldown + daily cap).
                     if _should_send_alert(analysis, idx):
                         alert_sent = _send_telegram_alert(analysis, idx)
+                        _send_email_alert(analysis, idx)
                         if alert_sent:
                             _last_signal_time[idx]      = _now_ist()
                             _last_signal_direction[idx] = analysis.get('trade_direction')
