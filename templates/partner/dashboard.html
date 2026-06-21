@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Partner Dashboard — {{ partner.name }} | Target Capital{% endblock %}
+
+{% block content %}
+<div style="background:#f8f9fb;min-height:100vh;padding-top:90px;">
+<div class="container py-4">
+
+  <!-- Header bar -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <h4 class="fw-bold mb-0 text-dark">
+        <i class="fas fa-handshake me-2 text-primary"></i>Partner Dashboard
+      </h4>
+      <p class="text-muted mb-0 small">{{ partner.partner_display_id }} &nbsp;·&nbsp;
+        <span class="badge bg-{{ 'success' if partner.status == 'active' else 'warning text-dark' }}">
+          {{ partner.status | title }}
+        </span>
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('partner.profile') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-user-edit me-1"></i>Profile
+      </a>
+      <a href="{{ url_for('partner.logout') }}" class="btn btn-outline-danger btn-sm">
+        <i class="fas fa-sign-out-alt me-1"></i>Logout
+      </a>
+    </div>
+  </div>
+
+  {% if partner.status == 'pending' %}
+  <div class="alert alert-warning d-flex align-items-center gap-2 mb-4">
+    <i class="fas fa-clock fa-lg"></i>
+    <div>
+      <strong>Application Under Review</strong> — Our team will approve your account within 1–2 business days.
+      You can already share your referral code, but commissions will be tracked once activated.
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Referral Code Card -->
+  <div class="card border-0 shadow-sm mb-4" style="border-left:4px solid #1a73e8!important;">
+    <div class="card-body p-4">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h6 class="fw-bold text-muted text-uppercase small mb-2">Your Referral Details</h6>
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div>
+              <span class="text-muted small d-block">Referral Code</span>
+              <span class="fw-bold fs-5 text-primary font-monospace">{{ partner.partner_code }}</span>
+            </div>
+            <div class="vr d-none d-md-block"></div>
+            <div>
+              <span class="text-muted small d-block">Referral Link</span>
+              <span class="small text-break text-dark" id="refLink">
+                https://targetcapital.ai/register?ref={{ partner.partner_code }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+          <button class="btn btn-primary btn-sm me-2" onclick="copyRefLink()">
+            <i class="fas fa-copy me-1"></i>Copy Link
+          </button>
+          <button class="btn btn-outline-primary btn-sm" onclick="shareRefLink()">
+            <i class="fas fa-share-alt me-1"></i>Share
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="row g-3 mb-4">
+    {% set cards = [
+      ('fas fa-users', 'Total Traders Referred', total_referred, '', '#0d47a1'),
+      ('fas fa-check-circle', 'Paid Subscribers', paid_referred, '', '#2e7d32'),
+      ('fas fa-rupee-sign', 'Revenue Generated', '₹{:,.0f}'.format(rev_generated), '', '#6a1b9a'),
+      ('fas fa-coins', 'Commission Earned', '₹{:,.0f}'.format(earned), '', '#e65100'),
+    ] %}
+    {% for icon, label, val, suffix, color in cards %}
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-3 text-center">
+          <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-2"
+               style="width:44px;height:44px;background:{{ color }}1a;">
+            <i class="{{ icon }}" style="color:{{ color }};font-size:18px;"></i>
+          </div>
+          <div class="fw-bold fs-5 text-dark">{{ val }}</div>
+          <div class="text-muted" style="font-size:12px;">{{ label }}</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Wallet + Commission summary -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-5">
+      <div class="card border-0 shadow-sm h-100"
+           style="background:linear-gradient(135deg,#00091a,#0d47a1);color:white;">
+        <div class="card-body p-4">
+          <h6 class="fw-semibold opacity-75 mb-1">Wallet Balance</h6>
+          <div class="display-6 fw-bold mb-3">₹{{ '{:,.2f}'.format(wallet_balance) }}</div>
+          <div class="d-flex gap-4 mb-4">
+            <div>
+              <div class="opacity-75 small">Pending (hold)</div>
+              <div class="fw-semibold">₹{{ '{:,.2f}'.format(pending) }}</div>
+            </div>
+            <div>
+              <div class="opacity-75 small">Paid Out</div>
+              <div class="fw-semibold">₹{{ '{:,.2f}'.format(paid_out) }}</div>
+            </div>
+          </div>
+          {% if wallet_balance >= min_payout %}
+          <a href="{{ url_for('partner.payouts') }}" class="btn btn-light btn-sm fw-semibold">
+            <i class="fas fa-arrow-circle-up me-1"></i>Request Payout
+          </a>
+          {% else %}
+          <p class="mb-0 small opacity-75">
+            Minimum withdrawal: ₹{{ '{:,.0f}'.format(min_payout) }}
+            (₹{{ '{:,.0f}'.format(min_payout - wallet_balance) }} more needed)
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-7">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-3">Commission Structure</h6>
+          <table class="table table-sm table-borderless mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Plan</th><th>Price</th><th>Your Rate</th><th>Est. Commission</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% set rate = partner.commission_percentage | float %}
+              {% for plan, price in [('Growth', 1499), ('Pro', 2499), ('Elite', 4999)] %}
+              {% set net = price * 0.98 %}
+              {% set comm = net * rate / 100 %}
+              <tr>
+                <td class="fw-semibold">{{ plan }}</td>
+                <td>₹{{ '{:,.0f}'.format(price) }}</td>
+                <td><span class="badge bg-success">{{ rate | int }}%</span></td>
+                <td class="text-success fw-semibold">₹{{ '{:,.0f}'.format(comm) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="text-muted small mt-2 mb-0">
+            <i class="fas fa-info-circle me-1"></i>
+            Commission on net revenue (after ~2% gateway fee). 7-day hold before wallet credit.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Commissions -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+      <h6 class="mb-0 fw-bold">Recent Commissions</h6>
+      <a href="{{ url_for('partner.commissions') }}" class="btn btn-sm btn-outline-primary">View All</a>
+    </div>
+    <div class="card-body p-0">
+      {% if recent_commissions %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Date</th>
+              <th>Plan</th>
+              <th>Gross</th>
+              <th>Commission</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in recent_commissions %}
+            <tr>
+              <td class="ps-3 text-muted small">{{ c.created_at.strftime('%d %b %Y') }}</td>
+              <td><span class="badge bg-primary bg-opacity-10 text-primary">{{ c.plan_type or '—' }}</span></td>
+              <td>₹{{ '{:,.0f}'.format(c.gross_amount) }}</td>
+              <td class="fw-semibold text-success">₹{{ '{:,.0f}'.format(c.commission_amount) }}</td>
+              <td>
+                {% set sc = {'pending_hold':'warning text-dark','approved':'success','paid':'info','clawed_back':'danger','cancelled':'secondary'} %}
+                <span class="badge bg-{{ sc.get(c.status,'secondary') }}">{{ c.status.replace('_',' ') | title }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-5 text-muted">
+        <i class="fas fa-coins fa-2x mb-2 opacity-25"></i>
+        <p class="mb-0">No commissions yet. Share your referral link to start earning!</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+function copyRefLink() {
+    const link = 'https://targetcapital.ai/register?ref={{ partner.partner_code }}';
+    navigator.clipboard.writeText(link).then(() => {
+        const btn = event.target.closest('button');
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+        btn.classList.replace('btn-primary','btn-success');
+        setTimeout(() => { btn.innerHTML = orig; btn.classList.replace('btn-success','btn-primary'); }, 2000);
+    });
+}
+function shareRefLink() {
+    const link = 'https://targetcapital.ai/register?ref={{ partner.partner_code }}';
+    const text = 'Join Target Capital — India\'s AI-powered trading platform. Use my referral: {{ partner.partner_code }}\n' + link;
+    if (navigator.share) {
+        navigator.share({ title: 'Target Capital', text: text, url: link });
+    } else {
+        copyRefLink();
+    }
+}
+</script>
+{% endblock %}

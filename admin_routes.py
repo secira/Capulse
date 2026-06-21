@@ -3509,6 +3509,136 @@ def ping_telegram():
     return redirect(url_for('admin.alert_schedules'))
 
 
+@admin_bp.route('/partner-network', methods=['GET'])
+@admin_required
+def partner_network():
+    """Admin: Partner Network overview."""
+    from models_partner import Partner, PartnerCommission, PayoutRequest
+    from sqlalchemy import func
+
+    filter_status = request.args.get('status', '')
+    filter_type   = request.args.get('ptype', '')
+    page          = request.args.get('page', 1, type=int)
+
+    q = Partner.query
+    if filter_status:
+        q = q.filter_by(status=filter_status)
+    if filter_type:
+        q = q.filter_by(partner_type=filter_type)
+    partners = q.order_by(Partner.created_at.desc()).paginate(page=page, per_page=20)
+
+    # Stats
+    total  = Partner.query.count()
+    active = Partner.query.filter_by(status='active').count()
+    pending_count = Partner.query.filter_by(status='pending').count()
+
+    total_commission = db.session.query(
+        func.sum(PartnerCommission.commission_amount)
+    ).filter(PartnerCommission.status.in_(['approved', 'paid'])).scalar() or 0
+
+    total_wallet = db.session.query(func.sum(Partner.wallet_balance)).scalar() or 0
+
+    stats = {
+        'total': total, 'active': active, 'pending': pending_count,
+        'total_commission': float(total_commission),
+        'total_wallet': float(total_wallet),
+    }
+
+    payout_requests = PayoutRequest.query.filter(
+        PayoutRequest.status.in_(['requested', 'under_review'])
+    ).order_by(PayoutRequest.requested_at.asc()).all()
+
+    partner_types = {
+        'individual': 'Individual Partner',
+        'broker':     'Broker Partner',
+        'trainer':    'Training Partner',
+        'pms':        'Portfolio Manager (PMS)',
+    }
+
+    return render_template('admin/partner_network.html',
+        partners        = partners,
+        stats           = stats,
+        payout_requests = payout_requests,
+        partner_types   = partner_types,
+        filter_status   = filter_status,
+        filter_type     = filter_type,
+    )
+
+
+@admin_bp.route('/partner-network/<partner_id>/action', methods=['POST'])
+@admin_required
+def partner_action(partner_id):
+    """Admin: approve, suspend, activate, or update a partner."""
+    from models_partner import Partner
+    partner = Partner.query.get_or_404(partner_id)
+    action  = request.form.get('action', '')
+
+    if action == 'approve':
+        partner.status = 'active'
+        flash(f'Partner {partner.name} approved and activated.', 'success')
+    elif action == 'suspend':
+        partner.status = 'suspended'
+        flash(f'Partner {partner.name} suspended.', 'warning')
+    elif action == 'activate':
+        partner.status = 'active'
+        flash(f'Partner {partner.name} reactivated.', 'success')
+    elif action == 'update_commission':
+        try:
+            new_rate = float(request.form.get('commission', 20))
+            partner.commission_percentage = new_rate
+        except (ValueError, TypeError):
+            pass
+        kyc = request.form.get('kyc_status', '')
+        if kyc in ('pending', 'verified', 'rejected'):
+            partner.kyc_status = kyc
+        notes = request.form.get('admin_notes', '').strip()
+        if notes:
+            partner.admin_notes = notes
+        flash(f'Partner {partner.name} updated.', 'success')
+
+    from datetime import datetime
+    partner.updated_at = datetime.utcnow()
+    db.session.commit()
+    return redirect(url_for('admin.partner_network'))
+
+
+@admin_bp.route('/partner-network/payout/<req_id>/action', methods=['POST'])
+@admin_required
+def partner_payout_action(req_id):
+    """Admin: mark payout as paid or rejected."""
+    from models_partner import PayoutRequest, Partner
+    from datetime import datetime
+    req    = PayoutRequest.query.get_or_404(req_id)
+    action = request.form.get('action', '')
+    ref    = request.form.get('reference', '').strip()
+
+    partner = Partner.query.get(req.partner_id)
+
+    if action == 'paid':
+        req.status            = 'paid'
+        req.paid_at           = datetime.utcnow()
+        req.payment_reference = ref or None
+        # Mark linked commissions as paid
+        from models_partner import PartnerCommission
+        PartnerCommission.query.filter(
+            PartnerCommission.partner_id == req.partner_id,
+            PartnerCommission.status == 'approved',
+        ).update({'status': 'paid', 'paid_at': datetime.utcnow()})
+        flash(f'Payout of ₹{req.amount} marked as paid (ref: {ref or "—"}).', 'success')
+    elif action == 'rejected':
+        reason = request.form.get('reference', 'Admin rejected')
+        req.status           = 'rejected'
+        req.rejection_reason = reason
+        req.reviewed_at      = datetime.utcnow()
+        # Refund amount back to wallet
+        if partner:
+            partner.wallet_balance = float(partner.wallet_balance) + float(req.amount)
+        flash(f'Payout request rejected. Amount returned to partner wallet.', 'warning')
+
+    db.session.commit()
+    return redirect(url_for('admin.partner_network'))
+
+
 @admin_bp.route('/alert-schedules/test/<key>', methods=['POST'])
 @admin_required
 def test_alert_schedule(key):

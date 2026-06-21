@@ -170,6 +170,9 @@
                         <a href="{{ url_for('admin.fno_settings') }}" class="nav-link admin-nav-link {{ 'active' if 'fno_settings' in request.endpoint else '' }}">
                             <i class="fas fa-sliders-h me-2"></i>F&amp;O Settings
                         </a>
+                        <a href="{{ url_for('admin.partner_network') }}" class="nav-link admin-nav-link {{ 'active' if 'partner_network' in request.endpoint or 'partner_action' in request.endpoint or 'partner_payout' in request.endpoint else '' }}">
+                            <i class="fas fa-handshake me-2"></i>Partner Network
+                        </a>
                         <a href="{{ url_for('admin.partner_api') }}" class="nav-link admin-nav-link {{ 'active' if 'partner_api' in request.endpoint else '' }}">
                             <i class="fas fa-code me-2"></i>Partner API
                         </a>

@@ -1,332 +1,230 @@
 {% extends "base.html" %}
-
-{% block title %}Partners - Strategic Partnerships | Target Capital{% endblock %}
-
-{% block description %}Discover Target Capital's strategic partnerships with leading financial institutions, technology providers, and data vendors that power our AI trading platform.{% endblock %}
+{% block title %}Partner Network — Earn with Target Capital{% endblock %}
+{% block description %}Join the Target Capital Partner Network. Earn 20% commission on every paid subscription you refer. Individual, Broker, Trainer and PMS partner tiers available.{% endblock %}
 
 {% block content %}
-<!-- Hero Section -->
-<section class="bg-white" style="padding-top: 140px; padding-bottom: 80px;">
-    <div class="container">
-        <div class="row text-center">
-            <div class="col-lg-8 mx-auto">
-                <h1 class="display-4 fw-bold text-dark mb-4">
-                    Strategic Partnerships
-                </h1>
-                <p class="lead text-muted mb-5" style="font-size: 1.2rem;">
-                    We collaborate with industry leaders to deliver the best AI-powered trading experience. 
-                    Our partnerships provide access to premium data, advanced technology, and global markets.
-                </p>
-            </div>
+<!-- Hero -->
+<section class="text-center" style="padding:140px 0 80px;background:linear-gradient(135deg,#00091a 0%,#0d47a1 100%);color:white;">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <span class="badge mb-3 px-3 py-2"
+              style="background:rgba(255,255,255,0.15);font-size:13px;letter-spacing:1px;border:1px solid rgba(255,255,255,0.3);">
+          <i class="fas fa-handshake me-2"></i>Partner Growth Network
+        </span>
+        <h1 class="display-4 fw-bold mb-4" style="letter-spacing:-1px;">
+          Earn While You Grow
+        </h1>
+        <p class="lead mb-5 opacity-90">
+          Refer traders to Target Capital and earn <strong>20% commission</strong> on every verified 
+          paid subscription — Growth, Pro, or Elite. No caps. No complex tiers.
+        </p>
+        <div class="d-flex gap-3 justify-content-center flex-wrap">
+          <a href="{{ url_for('partner.register') }}" class="btn btn-light btn-lg fw-bold px-5"
+             style="border-radius:50px;">
+            <i class="fas fa-rocket me-2 text-primary"></i>Join Now — It's Free
+          </a>
+          <a href="{{ url_for('partner.login') }}" class="btn btn-outline-light btn-lg px-4"
+             style="border-radius:50px;">
+            <i class="fas fa-sign-in-alt me-2"></i>Partner Login
+          </a>
         </div>
+      </div>
     </div>
+  </div>
 </section>
 
-<!-- Key Partners -->
-<section class="bg-light" style="padding: 80px 0;">
-    <div class="container">
-        <div class="row">
-            <div class="col-12 text-center mb-5">
-                <h2 class="fw-bold text-dark mb-3">Our Key Partners</h2>
-                <p class="text-muted">Trusted relationships that enhance our platform capabilities</p>
-            </div>
-        </div>
-        
-        <div class="row g-4">
-            <!-- Data Partners -->
-            <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
-                    <div class="card-body p-4 text-center">
-                        <div class="mb-4">
-                            <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center" 
-                                 style="width: 100px; height: 100px;">
-                                <i class="fas fa-chart-bar text-white" style="font-size: 3rem;"></i>
-                            </div>
-                        </div>
-                        <h4 class="fw-bold mb-3">Alpha Vantage</h4>
-                        <p class="text-primary fw-semibold mb-3">Data Provider</p>
-                        <p class="text-muted">
-                            Real-time and historical financial market data covering global equities, 
-                            forex, commodities, and cryptocurrencies with enterprise-grade reliability.
-                        </p>
-                        <div class="mt-auto">
-                            <span class="badge bg-light text-dark me-2">Market Data</span>
-                            <span class="badge bg-light text-dark">Real-time APIs</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
-                    <div class="card-body p-4 text-center">
-                        <div class="mb-4">
-                            <div class="bg-success rounded-circle d-inline-flex align-items-center justify-content-center" 
-                                 style="width: 100px; height: 100px;">
-                                <i class="fas fa-building text-white" style="font-size: 3rem;"></i>
-                            </div>
-                        </div>
-                        <h4 class="fw-bold mb-3">NSE India</h4>
-                        <p class="text-success fw-semibold mb-3">Exchange Partner</p>
-                        <p class="text-muted">
-                            Direct integration with National Stock Exchange of India providing 
-                            real-time market data and trading access for Indian equity markets.
-                        </p>
-                        <div class="mt-auto">
-                            <span class="badge bg-light text-dark me-2">Indian Markets</span>
-                            <span class="badge bg-light text-dark">Live Trading</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
-                    <div class="card-body p-4 text-center">
-                        <div class="mb-4">
-                            <div class="bg-info rounded-circle d-inline-flex align-items-center justify-content-center" 
-                                 style="width: 100px; height: 100px;">
-                                <i class="fas fa-cloud text-white" style="font-size: 3rem;"></i>
-                            </div>
-                        </div>
-                        <h4 class="fw-bold mb-3">Amazon Web Services</h4>
-                        <p class="text-info fw-semibold mb-3">Cloud Infrastructure</p>
-                        <p class="text-muted">
-                            Enterprise-grade cloud infrastructure powering our AI models and 
-                            ensuring 99.9% uptime with global scalability and security.
-                        </p>
-                        <div class="mt-auto">
-                            <span class="badge bg-light text-dark me-2">Cloud Computing</span>
-                            <span class="badge bg-light text-dark">AI/ML Services</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+<!-- Commission Calculator strip -->
+<section style="background:#1a73e8;color:white;padding:24px 0;">
+  <div class="container">
+    <div class="row g-4 text-center">
+      {% for plan, price, comm in [('Growth Plan','₹1,499','₹294/trader'),('Pro Plan','₹2,499','₹490/trader'),('Elite Plan','₹4,999','₹980/trader')] %}
+      <div class="col-md-4">
+        <div class="fw-semibold">{{ plan }} &middot; {{ price }}</div>
+        <div class="opacity-90 small">Your commission: <strong>{{ comm }}</strong></div>
+      </div>
+      {% endfor %}
     </div>
+  </div>
 </section>
 
-<!-- Technology Partners -->
-<section class="bg-white" style="padding: 80px 0;">
-    <div class="container">
-        <div class="row">
-            <div class="col-12 text-center mb-5">
-                <h2 class="fw-bold text-dark mb-3">Technology Partners</h2>
-                <p class="text-muted">Cutting-edge technology stack powered by industry leaders</p>
-            </div>
-        </div>
-        
-        <div class="row g-4">
-            <div class="col-lg-3 col-md-6">
-                <div class="card border-0 shadow-sm text-center h-100" style="border-radius: 16px;">
-                    <div class="card-body p-4">
-                        <div class="mb-3">
-                            <i class="fab fa-google text-warning" style="font-size: 3rem;"></i>
-                        </div>
-                        <h5 class="fw-bold mb-2">Google Cloud AI</h5>
-                        <p class="text-muted small">
-                            Advanced machine learning and natural language processing capabilities
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-3 col-md-6">
-                <div class="card border-0 shadow-sm text-center h-100" style="border-radius: 16px;">
-                    <div class="card-body p-4">
-                        <div class="mb-3">
-                            <i class="fab fa-microsoft text-primary" style="font-size: 3rem;"></i>
-                        </div>
-                        <h5 class="fw-bold mb-2">Microsoft Azure</h5>
-                        <p class="text-muted small">
-                            Enterprise security, compliance, and hybrid cloud solutions
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-3 col-md-6">
-                <div class="card border-0 shadow-sm text-center h-100" style="border-radius: 16px;">
-                    <div class="card-body p-4">
-                        <div class="mb-3">
-                            <i class="fas fa-robot text-success" style="font-size: 3rem;"></i>
-                        </div>
-                        <h5 class="fw-bold mb-2">NVIDIA</h5>
-                        <p class="text-muted small">
-                            GPU-accelerated computing for high-performance AI model training
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-3 col-md-6">
-                <div class="card border-0 shadow-sm text-center h-100" style="border-radius: 16px;">
-                    <div class="card-body p-4">
-                        <div class="mb-3">
-                            <i class="fas fa-database text-danger" style="font-size: 3rem;"></i>
-                        </div>
-                        <h5 class="fw-bold mb-2">Redis Labs</h5>
-                        <p class="text-muted small">
-                            Real-time data processing and caching for millisecond trading decisions
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
+<!-- Partner Types -->
+<section style="padding:80px 0;background:#fff;">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="fw-bold text-dark mb-3">Four Partner Types</h2>
+      <p class="text-muted">One commission structure — zero confusion.</p>
     </div>
+    <div class="row g-4">
+      {% set ptypes = [
+        ('fas fa-user-tie','Individual Partner','Traders & investors who refer peers from their network.',
+         ['Personal referral link','Real-time dashboard','Wallet & payouts']),
+        ('fas fa-building','Broker Partner','Trading brokers who onboard client traders in bulk.',
+         ['Bulk client onboarding','Custom broker code','Dedicated support']),
+        ('fas fa-chalkboard-teacher','Training Partner','Stock market educators & course creators.',
+         ['Student referral tracking','Co-branded materials','Priority onboarding']),
+        ('fas fa-briefcase','Portfolio Manager (PMS)','PMS firms and family offices.',
+         ['Client portfolio tracking','High-volume rates','Compliance-friendly']),
+      ] %}
+      {% for icon, title, desc, features in ptypes %}
+      <div class="col-md-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100 p-1" style="border-radius:16px;">
+          <div class="card-body p-4">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                 style="width:52px;height:52px;background:linear-gradient(135deg,#e3f2fd,#bbdefb);">
+              <i class="{{ icon }} text-primary fs-5"></i>
+            </div>
+            <h6 class="fw-bold mb-2">{{ title }}</h6>
+            <p class="text-muted small mb-3">{{ desc }}</p>
+            <ul class="list-unstyled mb-0">
+              {% for f in features %}
+              <li class="small text-muted mb-1">
+                <i class="fas fa-check-circle text-success me-2"></i>{{ f }}
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="card-footer bg-transparent border-0 px-4 pb-4">
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="badge bg-success px-3 py-2 rounded-pill fw-semibold">20% Commission</span>
+              <span class="text-muted small">On paid subs</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
 </section>
 
-<!-- Partner Benefits -->
-<section class="bg-white" style="padding: 80px 0;">
-    <div class="container">
-        <div class="row align-items-center">
-            <div class="col-lg-6">
-                <h2 class="fw-bold text-dark mb-4">Why Partner with Target Capital?</h2>
-                <p class="text-muted mb-4">
-                    Join our growing ecosystem of partners helping to democratize AI-powered trading technology.
-                </p>
-                
-                <div class="mb-4">
-                    <div class="d-flex align-items-start">
-                        <i class="fas fa-users text-primary me-3 mt-1"></i>
-                        <div>
-                            <h5 class="fw-semibold mb-2">Growing User Base</h5>
-                            <p class="text-muted">
-                                Access to 1,000+ active traders and $1.5M+ in assets under management
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mb-4">
-                    <div class="d-flex align-items-start">
-                        <i class="fas fa-rocket text-primary me-3 mt-1"></i>
-                        <div>
-                            <h5 class="fw-semibold mb-2">Innovation Focus</h5>
-                            <p class="text-muted">
-                                Collaborate on cutting-edge AI and machine learning technologies
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mb-4">
-                    <div class="d-flex align-items-start">
-                        <i class="fas fa-globe text-primary me-3 mt-1"></i>
-                        <div>
-                            <h5 class="fw-semibold mb-2">Global Reach</h5>
-                            <p class="text-muted">
-                                Expand your services to international markets through our platform
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                
-                <a href="#contact" class="btn btn-primary btn-lg px-4 py-3 rounded-pill">
-                    Become a Partner
-                </a>
-            </div>
-            <div class="col-lg-6">
-                <div class="text-center">
-                    <img src="{{ url_for('static', filename='img/partnerships.svg') }}" 
-                         alt="Partnerships" class="img-fluid" style="max-width: 450px;">
-                </div>
-            </div>
-        </div>
+<!-- How it works -->
+<section style="padding:80px 0;background:#f8f9fb;">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="fw-bold text-dark mb-3">Partner Journey</h2>
+      <p class="text-muted">From registration to your first payout in 4 simple steps</p>
     </div>
+    <div class="row g-4">
+      {% set steps = [
+        ('1','fas fa-user-plus','Register','Sign up as a partner, choose your type, and submit your application.','~1–2 business days for approval'),
+        ('2','fas fa-share-alt','Share','Get your unique referral code and link. Share via WhatsApp, social, or email.','Referral link tracks automatically'),
+        ('3','fas fa-rupee-sign','Earn','When a referred trader buys any plan, commission is queued.','7-day hold, then credited to wallet'),
+        ('4','fas fa-university','Withdraw','Request payout from your wallet. Admin reviews and transfers.','Min. ₹1,000 withdrawal'),
+      ] %}
+      {% for num, icon, title, desc, note in steps %}
+      <div class="col-md-6 col-lg-3">
+        <div class="text-center px-2">
+          <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 shadow"
+               style="width:64px;height:64px;background:linear-gradient(135deg,#00091a,#0d47a1);color:white;font-size:22px;font-weight:700;">
+            {{ num }}
+          </div>
+          <h6 class="fw-bold mb-2">{{ title }}</h6>
+          <p class="text-muted small mb-1">{{ desc }}</p>
+          <span class="badge bg-light text-muted border" style="font-size:11px;">{{ note }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
 </section>
 
-<!-- Partnership Types -->
-<section class="bg-light" style="padding: 80px 0;">
-    <div class="container">
-        <div class="row">
-            <div class="col-12 text-center mb-5">
-                <h2 class="fw-bold text-dark mb-3">Partnership Opportunities</h2>
-                <p class="text-muted">Multiple ways to collaborate and grow together</p>
-            </div>
+<!-- Commission plan table -->
+<section style="padding:80px 0;background:#fff;">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-7">
+        <div class="text-center mb-5">
+          <h2 class="fw-bold text-dark mb-3">Commission by Plan</h2>
+          <p class="text-muted">Commission calculated on net revenue (after ~2% payment gateway fee)</p>
         </div>
-        
-        <div class="row g-4">
-            <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100 text-center" style="border-radius: 16px;">
-                    <div class="card-body p-4">
-                        <div class="mb-3">
-                            <i class="fas fa-handshake text-primary" style="font-size: 3rem;"></i>
-                        </div>
-                        <h4 class="fw-bold mb-3">Technology Integration</h4>
-                        <p class="text-muted mb-4">
-                            Integrate your APIs, data feeds, or services into our platform. 
-                            White-label solutions and co-development opportunities available.
-                        </p>
-                        <a href="#contact" class="btn btn-outline-primary">Learn More</a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100 text-center" style="border-radius: 16px;">
-                    <div class="card-body p-4">
-                        <div class="mb-3">
-                            <i class="fas fa-store text-primary" style="font-size: 3rem;"></i>
-                        </div>
-                        <h4 class="fw-bold mb-3">Reseller Program</h4>
-                        <p class="text-muted mb-4">
-                            Offer Target Capital's AI trading platform to your clients. 
-                            Competitive margins, marketing support, and dedicated partner success team.
-                        </p>
-                        <a href="#contact" class="btn btn-outline-primary">Apply Now</a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100 text-center" style="border-radius: 16px;">
-                    <div class="card-body p-4">
-                        <div class="mb-3">
-                            <i class="fas fa-building text-primary" style="font-size: 3rem;"></i>
-                        </div>
-                        <h4 class="fw-bold mb-3">Enterprise Solutions</h4>
-                        <p class="text-muted mb-4">
-                            Custom AI trading solutions for financial institutions. 
-                            Enterprise licensing, on-premise deployment, and dedicated support.
-                        </p>
-                        <a href="#contact" class="btn btn-outline-primary">Contact Sales</a>
-                    </div>
-                </div>
-            </div>
+        <div class="card border-0 shadow">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead style="background:linear-gradient(135deg,#00091a,#0d47a1);color:white;">
+                <tr>
+                  <th class="ps-4 py-3">Plan</th>
+                  <th class="py-3">Price (₹)</th>
+                  <th class="py-3">Net Revenue</th>
+                  <th class="py-3">Your Earning</th>
+                  <th class="py-3">Payout Trigger</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for plan, price in [('Growth', 1499), ('Pro', 2499), ('Elite', 4999)] %}
+                {% set net = (price * 0.98) | int %}
+                {% set comm = (net * 0.20) | int %}
+                <tr>
+                  <td class="ps-4 fw-semibold">{{ plan }}</td>
+                  <td>₹{{ '{:,}'.format(price) }}</td>
+                  <td>₹{{ '{:,}'.format(net) }}</td>
+                  <td class="fw-bold text-success">₹{{ '{:,}'.format(comm) }}</td>
+                  <td class="text-muted small">Verified paid subscription</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
+        <p class="text-muted small text-center mt-3">
+          <i class="fas fa-info-circle me-1"></i>
+          Commissions are held for 7 days to cover the refund window, then credited to your wallet.
+          TDS applies as per Indian IT Act Section 194H for payouts above ₹20,000/year.
+        </p>
+      </div>
     </div>
+  </div>
 </section>
 
-<!-- Contact Section -->
-<section id="contact" class="bg-primary text-white" style="padding: 80px 0;">
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-8 mx-auto text-center">
-                <h2 class="fw-bold mb-4">Ready to Partner with Us?</h2>
-                <p class="lead mb-5 text-white">
-                    Join our ecosystem of partners and help democratize AI-powered trading for millions of investors.
-                </p>
-                
-                <div class="row g-4 mb-5">
-                    <div class="col-md-6">
-                        <div class="text-center">
-                            <i class="fas fa-envelope mb-3" style="font-size: 2rem;"></i>
-                            <h5 class="fw-bold mb-2">Business Development</h5>
-                            <p class="opacity-75">sales@targetcapital.ai</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="text-center">
-                            <i class="fas fa-phone mb-3" style="font-size: 2rem;"></i>
-                            <h5 class="fw-bold mb-2">Enterprise Sales</h5>
-                            <p class="opacity-75">+91 72001 89076</p>
-                        </div>
-                    </div>
-                </div>
+<!-- Referral flow explainer -->
+<section style="padding:60px 0;background:#f8f9fb;">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8 text-center">
+        <h2 class="fw-bold mb-4">How Referral Codes Work</h2>
+        <div class="card border-0 shadow-sm p-4 text-start mb-4">
+          <div class="row g-3 align-items-center">
+            <div class="col-md-4 text-center">
+              <div class="fw-bold text-primary mb-1" style="font-size:13px;letter-spacing:1px;">YOUR REFERRAL CODE</div>
+              <div class="display-6 fw-bold font-monospace text-dark" style="letter-spacing:4px;">TOP-UDAY25</div>
             </div>
+            <div class="col-md-8">
+              <p class="text-muted mb-2">Traders can apply your code in two ways:</p>
+              <ul class="list-unstyled mb-0">
+                <li class="mb-2 d-flex align-items-start gap-2">
+                  <span class="badge bg-primary rounded-circle" style="min-width:22px;min-height:22px;line-height:22px;">1</span>
+                  <span class="small"><strong>During sign-up</strong> — visit <code>targetcapital.ai/register?ref=TOP-UDAY25</code> or enter code in the registration form.</span>
+                </li>
+                <li class="d-flex align-items-start gap-2">
+                  <span class="badge bg-primary rounded-circle" style="min-width:22px;min-height:22px;line-height:22px;">2</span>
+                  <span class="small"><strong>From their profile page</strong> — traders can apply a code once at any time before their first purchase.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
+        <p class="text-muted small">Referral codes are <strong>locked after first successful application</strong> — traders cannot switch codes later, preventing abuse.</p>
+      </div>
     </div>
+  </div>
 </section>
 
+<!-- CTA -->
+<section style="padding:80px 0;background:linear-gradient(135deg,#00091a,#0d47a1);color:white;text-align:center;">
+  <div class="container">
+    <div class="col-lg-6 mx-auto">
+      <h2 class="fw-bold mb-3">Ready to Start Earning?</h2>
+      <p class="opacity-90 mb-5">Join hundreds of partners already earning with Target Capital. Free to join, no targets, no pressure.</p>
+      <div class="d-flex gap-3 justify-content-center flex-wrap">
+        <a href="{{ url_for('partner.register') }}" class="btn btn-light btn-lg fw-bold px-5"
+           style="border-radius:50px;">
+          <i class="fas fa-rocket me-2 text-primary"></i>Join the Network
+        </a>
+        <a href="{{ url_for('partner.login') }}" class="btn btn-outline-light btn-lg px-4"
+           style="border-radius:50px;">
+          <i class="fas fa-sign-in-alt me-2"></i>Sign In
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
 {% endblock %}

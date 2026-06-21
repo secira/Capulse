@@ -1478,10 +1478,32 @@ def register():
         except Exception as e:
             logging.error(f"Failed to send welcome email: {e}")
         
+        # Partner Network: link trader to partner if ref code provided
+        ref_code = request.form.get('ref_code', '').strip().upper() or \
+                   request.args.get('ref', '').strip().upper()
+        if ref_code:
+            try:
+                from models_partner import Partner, TraderReferral, _gen_uuid
+                partner = Partner.query.filter_by(partner_code=ref_code, status='active').first()
+                if partner:
+                    tr = TraderReferral(
+                        id=_gen_uuid(),
+                        trader_id=user.id,
+                        partner_id=partner.id,
+                        referral_code=ref_code,
+                        referral_locked=True,
+                        attribution_source='signup_code',
+                    )
+                    db.session.add(tr)
+                    db.session.commit()
+            except Exception as _ref_err:
+                logging.warning(f"Referral link failed (non-fatal): {_ref_err}")
+
         flash('Registration successful! You can now log in.', 'success')
         return redirect(url_for('login'))
-    
-    return render_template('auth/register.html')
+
+    ref = request.args.get('ref', '')
+    return render_template('auth/register.html', prefill_ref=ref)
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -7235,11 +7257,23 @@ def account_profile():
     from models import TradingSignal
     from datetime import datetime as _dt
     trading_signals_count = TradingSignal.query.count()
+
+    # Partner referral linkage (non-fatal)
+    partner_ref = None
+    try:
+        from models_partner import TraderReferral
+        partner_ref = TraderReferral.query.filter_by(
+            trader_id=current_user.id
+        ).first()
+    except Exception:
+        pass
+
     return render_template('account/profile.html',
                          active_section='profile',
                          trading_signals_count=trading_signals_count,
                          PricingPlan=PricingPlan,
-                         now=_dt.utcnow())
+                         now=_dt.utcnow(),
+                         partner_ref=partner_ref)
 
 @app.route('/account/profile', methods=['POST'])
 @login_required
@@ -7284,6 +7318,47 @@ def update_profile():
         flash('Error updating profile. Please try again.', 'error')
         
     return redirect(url_for('account_profile'))
+
+@app.route('/account/apply-partner-code', methods=['POST'])
+@login_required
+def apply_partner_code():
+    """Allow a trader to apply a partner referral code from their profile page."""
+    try:
+        code = request.form.get('partner_code', '').strip().upper()
+        if not code:
+            flash('Please enter a referral code.', 'error')
+            return redirect(url_for('account_profile'))
+
+        from models_partner import Partner, TraderReferral, _gen_uuid
+        # Check already linked
+        existing = TraderReferral.query.filter_by(trader_id=current_user.id).first()
+        if existing:
+            flash('You have already applied a referral code. It cannot be changed.', 'warning')
+            return redirect(url_for('account_profile'))
+
+        partner = Partner.query.filter_by(partner_code=code, status='active').first()
+        if not partner:
+            flash('Invalid or inactive referral code. Please check and try again.', 'error')
+            return redirect(url_for('account_profile'))
+
+        tr = TraderReferral(
+            id=_gen_uuid(),
+            trader_id=current_user.id,
+            partner_id=partner.id,
+            referral_code=code,
+            referral_locked=True,
+            attribution_source='profile_code',
+        )
+        db.session.add(tr)
+        db.session.commit()
+        flash(f'Referral code {code} applied successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Apply partner code error: {e}")
+        flash('Could not apply referral code. Please try again.', 'error')
+
+    return redirect(url_for('account_profile'))
+
 
 @app.route('/account/extend-trial', methods=['POST'])
 @login_required

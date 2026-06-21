@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Partner Profile — {{ partner.name }} | Target Capital{% endblock %}
+
+{% block content %}
+<div style="background:#f8f9fb;min-height:100vh;padding-top:90px;">
+<div class="container py-4">
+
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <h5 class="fw-bold mb-0">Partner Profile</h5>
+    <a href="{{ url_for('partner.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="fas fa-arrow-left me-1"></i>Dashboard
+    </a>
+  </div>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}
+    <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show">
+      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="row g-4">
+    <!-- Identity -->
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm text-center p-4 h-100">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-circle mx-auto mb-3"
+             style="width:72px;height:72px;background:linear-gradient(135deg,#00091a,#0d47a1);">
+          <i class="fas fa-handshake text-white fs-3"></i>
+        </div>
+        <h5 class="fw-bold mb-1">{{ partner.name }}</h5>
+        <p class="text-muted small mb-2">{{ partner_types.get(partner.partner_type, partner.partner_type) }}</p>
+        <span class="badge bg-{{ 'success' if partner.status == 'active' else 'warning text-dark' }} mb-3">
+          {{ partner.status | title }}
+        </span>
+        <hr>
+        <div class="text-start">
+          <div class="mb-2"><span class="text-muted small">Partner ID</span><br>
+            <span class="fw-semibold font-monospace">{{ partner.partner_display_id }}</span></div>
+          <div class="mb-2"><span class="text-muted small">Referral Code</span><br>
+            <span class="fw-bold text-primary font-monospace">{{ partner.partner_code }}</span></div>
+          <div class="mb-2"><span class="text-muted small">Commission Rate</span><br>
+            <span class="fw-semibold text-success">{{ partner.commission_percentage }}%</span></div>
+          <div class="mb-2"><span class="text-muted small">KYC Status</span><br>
+            <span class="badge bg-{{ 'success' if partner.kyc_status == 'verified' else 'warning text-dark' }}">
+              {{ partner.kyc_status | title }}
+            </span></div>
+          <div><span class="text-muted small">Member Since</span><br>
+            <span class="small">{{ partner.created_at.strftime('%d %b %Y') }}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Editable fields -->
+    <div class="col-md-8">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-4">Update Profile</h6>
+          <form method="POST" action="{{ url_for('partner.profile') }}">
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Mobile Number</label>
+                <input type="tel" name="mobile" class="form-control" value="{{ partner.mobile }}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">PAN Number</label>
+                <input type="text" name="pan_number" class="form-control text-uppercase"
+                       placeholder="ABCDE1234F" value="{{ partner.pan_number or '' }}" maxlength="10">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">GST Number</label>
+                <input type="text" name="gst_number" class="form-control text-uppercase"
+                       value="{{ partner.gst_number or '' }}" maxlength="15">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">UPI ID</label>
+                <input type="text" name="upi_id" class="form-control"
+                       placeholder="name@upi" value="{{ partner.upi_id or '' }}">
+              </div>
+
+              <div class="col-12"><hr class="my-1"></div>
+              <div class="col-12">
+                <p class="text-muted small mb-2"><i class="fas fa-lock me-1"></i>Bank details are stored securely and used only for payouts.</p>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Bank Account Number</label>
+                <input type="text" name="bank_account" class="form-control"
+                       placeholder="Account number"
+                       value="{{ '••••' + (partner.bank_account_number[-4:] if partner.bank_account_number and partner.bank_account_number|length >= 4 else partner.bank_account_number or '') }}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">IFSC Code</label>
+                <input type="text" name="bank_ifsc" class="form-control text-uppercase"
+                       placeholder="SBIN0001234" value="{{ partner.bank_ifsc or '' }}" maxlength="11">
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <button type="submit" class="btn btn-primary fw-semibold px-4">
+                <i class="fas fa-save me-2"></i>Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Partner Login — Target Capital{% endblock %}
+
+{% block content %}
+<section class="py-5" style="min-height:80vh;background:#f8f9fb;padding-top:120px!important;">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-5">
+
+        <div class="text-center mb-4">
+          <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+               style="width:64px;height:64px;background:linear-gradient(135deg,#00091a,#0d47a1);">
+            <i class="fas fa-handshake text-white fs-4"></i>
+          </div>
+          <h3 class="fw-bold text-dark">Partner Portal</h3>
+          <p class="text-muted mb-0">Sign in to your partner account</p>
+        </div>
+
+        {% with msgs = get_flashed_messages(with_categories=true) %}
+          {% for cat, msg in msgs %}
+            <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show" role="alert">
+              {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        {% endwith %}
+
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4">
+            <form method="POST" action="{{ url_for('partner.login') }}">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Email Address</label>
+                <input type="email" name="email" class="form-control" placeholder="partner@email.com" required>
+              </div>
+              <div class="mb-4">
+                <label class="form-label fw-semibold">Password</label>
+                <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+              </div>
+              <button type="submit" class="btn btn-primary w-100 fw-semibold py-2">
+                <i class="fas fa-sign-in-alt me-2"></i>Sign In
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <p class="text-center mt-3 text-muted small">
+          Not a partner yet?
+          <a href="{{ url_for('partner.register') }}" class="fw-semibold text-primary">Join the Partner Network</a>
+        </p>
+        <p class="text-center text-muted small">
+          <a href="{{ url_for('partners') }}" class="text-muted">← Back to Partner Network</a>
+        </p>
+
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -347,6 +347,7 @@ with app.app_context():
     import models_broker  # Import broker models too
     import models_vector  # Import vector database models for RAG
     import models_partner_api  # B2B partner API models (ApiPartner / ApiSubscription / ApiAlertLog)
+    import models_partner      # Partner Network models
     import routes_mobile  # Import mobile OTP routes
     
     # In production, all tables already exist and are populated — DO NOT call
@@ -906,6 +907,80 @@ with app.app_context():
         # Trader Intelligence Profiling tables (trader_profile / trader_answer /
         # trader_progression) are now created unconditionally in `_always_create`
         # above — they must exist on every boot, not gated behind RUN_MIGRATIONS=1.
+        # ── Partner Network tables ────────────────────────────────────────
+        '''CREATE TABLE IF NOT EXISTS partners (
+            id VARCHAR(36) PRIMARY KEY,
+            partner_display_id VARCHAR(20) UNIQUE,
+            partner_code VARCHAR(30) UNIQUE NOT NULL,
+            user_id INTEGER REFERENCES "user"(id),
+            name VARCHAR(200) NOT NULL,
+            mobile VARCHAR(15) NOT NULL,
+            email VARCHAR(200) NOT NULL,
+            partner_type VARCHAR(20) NOT NULL DEFAULT 'individual',
+            commission_percentage NUMERIC(5,2) NOT NULL DEFAULT 20.00,
+            pan_number VARCHAR(10),
+            gst_number VARCHAR(15),
+            kyc_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            bank_account_number VARCHAR(60),
+            bank_ifsc VARCHAR(11),
+            upi_id VARCHAR(100),
+            wallet_balance NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+            parent_partner_id VARCHAR(36) REFERENCES partners(id),
+            admin_notes TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )''',
+        '''CREATE TABLE IF NOT EXISTS trader_referrals (
+            id VARCHAR(36) PRIMARY KEY,
+            trader_id INTEGER NOT NULL UNIQUE REFERENCES "user"(id),
+            partner_id VARCHAR(36) NOT NULL REFERENCES partners(id),
+            referral_code VARCHAR(30) NOT NULL,
+            referral_locked BOOLEAN NOT NULL DEFAULT TRUE,
+            linked_date TIMESTAMP DEFAULT NOW(),
+            attribution_source VARCHAR(30) DEFAULT 'signup_code'
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_trader_referrals_partner ON trader_referrals (partner_id)',
+        '''CREATE TABLE IF NOT EXISTS partner_commissions (
+            id VARCHAR(36) PRIMARY KEY,
+            partner_id VARCHAR(36) NOT NULL REFERENCES partners(id),
+            trader_id INTEGER NOT NULL REFERENCES "user"(id),
+            subscription_id VARCHAR(100),
+            gross_amount NUMERIC(10,2) NOT NULL,
+            gateway_fee NUMERIC(10,2) NOT NULL DEFAULT 0,
+            net_amount NUMERIC(10,2) NOT NULL,
+            commission_percent NUMERIC(5,2) NOT NULL,
+            commission_amount NUMERIC(10,2) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending_hold',
+            hold_until TIMESTAMP,
+            plan_type VARCHAR(30),
+            created_at TIMESTAMP DEFAULT NOW(),
+            approved_at TIMESTAMP,
+            paid_at TIMESTAMP,
+            clawback_reason VARCHAR(255)
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_partner_commissions_partner ON partner_commissions (partner_id)',
+        'CREATE INDEX IF NOT EXISTS ix_partner_commissions_status ON partner_commissions (status, hold_until)',
+        '''CREATE TABLE IF NOT EXISTS payout_requests (
+            id VARCHAR(36) PRIMARY KEY,
+            partner_id VARCHAR(36) NOT NULL REFERENCES partners(id),
+            amount NUMERIC(10,2) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'requested',
+            requested_at TIMESTAMP DEFAULT NOW(),
+            reviewed_at TIMESTAMP,
+            paid_at TIMESTAMP,
+            payment_reference VARCHAR(100),
+            rejection_reason VARCHAR(255),
+            reviewed_by_note VARCHAR(255)
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_payout_requests_partner ON payout_requests (partner_id)',
+        '''CREATE TABLE IF NOT EXISTS broker_details_partner (
+            id VARCHAR(36) PRIMARY KEY,
+            broker_partner_id VARCHAR(36) NOT NULL REFERENCES partners(id),
+            broker_code VARCHAR(20) NOT NULL,
+            active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )''',
     ]
     # Run column migrations on EVERY boot (dev and prod).  All statements use
     # IF NOT EXISTS / ON CONFLICT and are idempotent, so on a healthy DB this
@@ -980,6 +1055,12 @@ try:
 except Exception as e:
     logging.warning(f"F&O blueprint not available: {e}", exc_info=True)
 
+try:
+    from routes_partner import partner_bp
+    app.register_blueprint(partner_bp)
+except Exception as e:
+    logging.warning(f"Partner blueprint not available: {e}", exc_info=True)
+
 # Guard: seed/migration subprocesses set SKIP_SCHEDULER=1 so that APScheduler
 # (which spawns non-daemon threads) never starts inside them.  Without this
 # guard the seed process can never exit, entrypoint.sh hangs forever, and
@@ -1013,6 +1094,21 @@ if not os.environ.get("SKIP_SCHEDULER"):
         start_broker_health(app)
     except Exception as e:
         logging.warning(f"Broker health monitor not started: {e}")
+
+    # Partner Network: daily job to release held commissions → partner wallets
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        _partner_scheduler = BackgroundScheduler()
+        def _release_partner_commissions():
+            with app.app_context():
+                from routes_partner import release_held_commissions
+                release_held_commissions()
+        _partner_scheduler.add_job(_release_partner_commissions, 'cron',
+                                   hour=1, minute=30, id='release_partner_commissions')
+        _partner_scheduler.start()
+        logging.info("Partner commission release scheduler started (daily 01:30 UTC)")
+    except Exception as e:
+        logging.warning(f"Partner commission scheduler not started: {e}")
 
 
 # WebSocket Server Management

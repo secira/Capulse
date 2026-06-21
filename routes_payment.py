@@ -181,6 +181,18 @@ def verify_payment():
         except Exception as _mail_err:
             logger.warning(f"Subscription email failed (non-fatal): {_mail_err}")
 
+        # Partner Network: calculate commission for referred traders (non-fatal)
+        try:
+            from routes_partner import calculate_and_record_commission
+            calculate_and_record_commission(
+                user_id=current_user.id,
+                razorpay_payment_id=razorpay_payment_id,
+                plan_type=plan_type,
+                gross_amount=float(amount) / 100,  # Razorpay amount is in paise
+            )
+        except Exception as _comm_err:
+            logger.warning(f"Partner commission calculation failed (non-fatal): {_comm_err}")
+
         return jsonify({
             'success': True,
             'message': 'Payment successful! Your subscription has been activated.',

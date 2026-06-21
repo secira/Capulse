@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}My Commissions — Partner Portal | Target Capital{% endblock %}
+
+{% block content %}
+<div style="background:#f8f9fb;min-height:100vh;padding-top:90px;">
+<div class="container py-4">
+
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h5 class="fw-bold mb-0">Commission History</h5>
+      <p class="text-muted small mb-0">{{ partner.partner_display_id }}</p>
+    </div>
+    <a href="{{ url_for('partner.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="fas fa-arrow-left me-1"></i>Dashboard
+    </a>
+  </div>
+
+  <!-- Filter -->
+  <form method="GET" class="mb-3 d-flex gap-2 align-items-center">
+    <select name="status" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+      <option value="" {% if not status %}selected{% endif %}>All Statuses</option>
+      {% for s in ['pending_hold','approved','paid','clawed_back','cancelled'] %}
+      <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s.replace('_',' ')|title }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      {% if rows.items %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Date</th>
+              <th>Plan</th>
+              <th>Gross (₹)</th>
+              <th>Gateway Fee</th>
+              <th>Net (₹)</th>
+              <th>Rate</th>
+              <th>Commission (₹)</th>
+              <th>Hold Until</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in rows.items %}
+            {% set sc = {'pending_hold':'warning text-dark','approved':'success','paid':'info','clawed_back':'danger','cancelled':'secondary'} %}
+            <tr>
+              <td class="ps-3 small text-muted">{{ c.created_at.strftime('%d %b %Y') }}</td>
+              <td><span class="badge bg-primary bg-opacity-10 text-primary">{{ c.plan_type or '—' }}</span></td>
+              <td>{{ '{:,.2f}'.format(c.gross_amount) }}</td>
+              <td class="text-muted small">{{ '{:,.2f}'.format(c.gateway_fee) }}</td>
+              <td>{{ '{:,.2f}'.format(c.net_amount) }}</td>
+              <td>{{ c.commission_percent }}%</td>
+              <td class="fw-semibold text-success">{{ '{:,.2f}'.format(c.commission_amount) }}</td>
+              <td class="small text-muted">
+                {% if c.hold_until %}{{ c.hold_until.strftime('%d %b') }}{% else %}—{% endif %}
+              </td>
+              <td>
+                <span class="badge bg-{{ sc.get(c.status,'secondary') }}">
+                  {{ c.status.replace('_',' ') | title }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <!-- Pagination -->
+      {% if rows.pages > 1 %}
+      <div class="d-flex justify-content-center py-3">
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            {% if rows.has_prev %}
+            <li class="page-item"><a class="page-link" href="?page={{ rows.prev_num }}&status={{ status }}">«</a></li>
+            {% endif %}
+            {% for p in rows.iter_pages() %}
+            <li class="page-item {% if p == rows.page %}active{% endif %}">
+              {% if p %}<a class="page-link" href="?page={{ p }}&status={{ status }}">{{ p }}</a>
+              {% else %}<span class="page-link">…</span>{% endif %}
+            </li>
+            {% endfor %}
+            {% if rows.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ rows.next_num }}&status={{ status }}">»</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+      {% else %}
+      <div class="text-center py-5 text-muted">
+        <i class="fas fa-coins fa-2x mb-2 opacity-25"></i>
+        <p class="mb-0">No commissions found.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+</div>
+{% endblock %}
