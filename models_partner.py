@@ -195,7 +195,7 @@ class PayoutRequest(db.Model):
 
 class BrokerDetail(db.Model):
     """Extended info for Broker-type partners."""
-    __tablename__ = 'broker_details'
+    __tablename__ = 'broker_details_partner'
 
     id                = db.Column(db.String(36), primary_key=True, default=_gen_uuid)
     broker_partner_id = db.Column(db.String(36), db.ForeignKey('partners.id'), nullable=False)

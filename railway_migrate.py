@@ -191,6 +191,89 @@ def ensure_raw_tables(session):
         )""", "trader_progression"),
         ("CREATE INDEX IF NOT EXISTS ix_trader_progression_user ON trader_progression (user_id)",
          "ix_trader_progression_user"),
+
+        # ── Partner Network tables ───────────────────────────────────────────
+        ("""CREATE TABLE IF NOT EXISTS partners (
+            id VARCHAR(36) PRIMARY KEY,
+            partner_display_id VARCHAR(20) UNIQUE,
+            partner_code VARCHAR(30) UNIQUE NOT NULL,
+            user_id INTEGER REFERENCES "user"(id),
+            name VARCHAR(200) NOT NULL,
+            mobile VARCHAR(15) NOT NULL,
+            email VARCHAR(200) NOT NULL,
+            partner_type VARCHAR(20) NOT NULL DEFAULT 'individual',
+            commission_percentage NUMERIC(5,2) NOT NULL DEFAULT 20.00,
+            pan_number VARCHAR(10),
+            gst_number VARCHAR(15),
+            kyc_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            bank_account_number VARCHAR(60),
+            bank_ifsc VARCHAR(11),
+            upi_id VARCHAR(100),
+            wallet_balance NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+            parent_partner_id VARCHAR(36) REFERENCES partners(id),
+            admin_notes TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )""", "partners"),
+
+        ("""CREATE TABLE IF NOT EXISTS trader_referrals (
+            id VARCHAR(36) PRIMARY KEY,
+            trader_id INTEGER NOT NULL UNIQUE REFERENCES "user"(id),
+            partner_id VARCHAR(36) NOT NULL REFERENCES partners(id),
+            referral_code VARCHAR(30) NOT NULL,
+            referral_locked BOOLEAN NOT NULL DEFAULT TRUE,
+            linked_date TIMESTAMP DEFAULT NOW(),
+            attribution_source VARCHAR(30) DEFAULT 'signup_code'
+        )""", "trader_referrals"),
+        ("CREATE INDEX IF NOT EXISTS ix_trader_referrals_partner ON trader_referrals (partner_id)",
+         "ix_trader_referrals_partner"),
+
+        ("""CREATE TABLE IF NOT EXISTS partner_commissions (
+            id VARCHAR(36) PRIMARY KEY,
+            partner_id VARCHAR(36) NOT NULL REFERENCES partners(id),
+            trader_id INTEGER NOT NULL REFERENCES "user"(id),
+            subscription_id VARCHAR(100),
+            gross_amount NUMERIC(10,2) NOT NULL,
+            gateway_fee NUMERIC(10,2) NOT NULL DEFAULT 0,
+            net_amount NUMERIC(10,2) NOT NULL,
+            commission_percent NUMERIC(5,2) NOT NULL,
+            commission_amount NUMERIC(10,2) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending_hold',
+            hold_until TIMESTAMP,
+            plan_type VARCHAR(30),
+            created_at TIMESTAMP DEFAULT NOW(),
+            approved_at TIMESTAMP,
+            paid_at TIMESTAMP,
+            clawback_reason VARCHAR(255)
+        )""", "partner_commissions"),
+        ("CREATE INDEX IF NOT EXISTS ix_partner_commissions_partner ON partner_commissions (partner_id)",
+         "ix_partner_commissions_partner"),
+        ("CREATE INDEX IF NOT EXISTS ix_partner_commissions_status ON partner_commissions (status, hold_until)",
+         "ix_partner_commissions_status"),
+
+        ("""CREATE TABLE IF NOT EXISTS payout_requests (
+            id VARCHAR(36) PRIMARY KEY,
+            partner_id VARCHAR(36) NOT NULL REFERENCES partners(id),
+            amount NUMERIC(10,2) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'requested',
+            requested_at TIMESTAMP DEFAULT NOW(),
+            reviewed_at TIMESTAMP,
+            paid_at TIMESTAMP,
+            payment_reference VARCHAR(100),
+            rejection_reason VARCHAR(255),
+            reviewed_by_note VARCHAR(255)
+        )""", "payout_requests"),
+        ("CREATE INDEX IF NOT EXISTS ix_payout_requests_partner ON payout_requests (partner_id)",
+         "ix_payout_requests_partner"),
+
+        ("""CREATE TABLE IF NOT EXISTS broker_details_partner (
+            id VARCHAR(36) PRIMARY KEY,
+            broker_partner_id VARCHAR(36) NOT NULL REFERENCES partners(id),
+            broker_code VARCHAR(20) NOT NULL,
+            active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )""", "broker_details_partner"),
     ]
 
     for ddl, label in raw_tables:
