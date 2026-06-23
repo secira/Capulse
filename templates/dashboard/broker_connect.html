@@ -801,4 +801,30 @@
   </div>
 </div>
 
+<script>
+function syncAccount(accountId, btn) {
+    var icon = btn.querySelector('i');
+    btn.disabled = true;
+    if (icon) icon.classList.add('fa-spin');
+    fetch('/api/broker/sync-account/' + accountId, { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                btn.classList.remove('btn-outline-success');
+                btn.classList.add('btn-success');
+                setTimeout(function() { location.reload(); }, 1000);
+            } else {
+                alert('Sync failed: ' + (data.message || 'Unknown error'));
+                btn.disabled = false;
+                if (icon) icon.classList.remove('fa-spin');
+            }
+        })
+        .catch(function() {
+            alert('Sync request failed. Please try again.');
+            btn.disabled = false;
+            if (icon) icon.classList.remove('fa-spin');
+        });
+}
+</script>
+
 {% endblock %}

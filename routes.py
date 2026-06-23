@@ -5825,6 +5825,7 @@ def api_live_data_status():
     BrokerAccount/DataApiBroker/AdminDataBroker query. The banner refreshes
     every minute anyway, so a 60s cache per user is safe.
     """
+    from datetime import datetime, timezone, timedelta
     import time
     _ck = current_user.id
     _entry = _LIVE_DATA_STATUS_CACHE.get(_ck)
@@ -5838,8 +5839,6 @@ def api_live_data_status():
         _me = _now_ist.replace(hour=15, minute=30, second=0, microsecond=0)
         _resp['market_open'] = (_wd < 5) and (_ms <= _now_ist <= _me)
         return jsonify(_resp)
-
-    from datetime import datetime, timezone, timedelta
     from models_broker import BrokerAccount, DataApiBroker
 
     IST = timezone(timedelta(hours=5, minutes=30))
