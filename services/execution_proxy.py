@@ -444,14 +444,15 @@ def place_order(broker_account, order_data: Dict[str, Any],
                 request_id: Optional[str] = None) -> Dict[str, Any]:
     """Place an order via the TC Execution Engine.
 
-    The engine looks up broker credentials using user_broker_id, so we
-    only need to send identifiers + trade parameters — no raw credentials
-    in the payload.
+    Credentials are decrypted from TC's DB and included in every request
+    so the engine always uses the freshest token — it never needs to rely
+    on its own credential store (which can become stale after token rotation).
 
     Engine's PlaceOrderRequest (flat body):
-        user_id, user_broker_id, symbol, exchange, security_id,
-        transaction_type, quantity, order_type, product_type,
-        price, trigger_price, validity, tenant_id, tag
+        user_id, user_broker_id, broker_type, client_id, access_token,
+        symbol, exchange, security_id, transaction_type, quantity,
+        order_type, product_type, price, trigger_price, validity,
+        tenant_id, tag
     """
     if broker_account is None:
         raise ExecutionProxyError('validation_error',
@@ -480,9 +481,28 @@ def place_order(broker_account, order_data: Dict[str, Any],
 
     security_id = _resolve_security_id(order_data, symbol, exchange)
 
+    # Decrypt fresh credentials from TC's DB so the engine always uses the
+    # current token — it must NOT fall back to its own (possibly stale) store.
+    creds: Dict[str, Any] = {}
+    try:
+        raw = broker_account.get_credentials()
+        creds = {k: v for k, v in (raw or {}).items() if v}
+    except Exception as _ce:
+        logger.warning("execution_proxy: could not decrypt broker credentials: %s", _ce)
+
+    broker_name = (
+        getattr(broker_account, 'broker_name', None) or
+        getattr(broker_account, 'broker_type', None) or
+        'dhan'
+    )
+
     payload: Dict[str, Any] = {
         'user_id':          uid,
         'user_broker_id':   int(broker_account.id),
+        'broker_type':      broker_name.lower(),
+        # Fresh credentials — engine must prefer these over its own store.
+        'client_id':        creds.get('client_id', ''),
+        'access_token':     creds.get('access_token', ''),
         'symbol':           symbol,
         'trading_symbol':   trading_symbol,
         'exchange':         exchange,
@@ -499,17 +519,25 @@ def place_order(broker_account, order_data: Dict[str, Any],
         'tag':              'tc-app',
     }
 
+    # Include api_secret / totp_secret when present (needed for some brokers).
+    if creds.get('api_secret'):
+        payload['api_secret'] = creds['api_secret']
+    if creds.get('totp_secret'):
+        payload['totp_secret'] = creds['totp_secret']
+
     logger.info(
         "execution_proxy place_order user=%s broker_account=%s symbol=%s "
-        "exchange=%s security_id=%s qty=%s side=%s order_type=%s product=%s",
+        "exchange=%s security_id=%s qty=%s side=%s order_type=%s product=%s "
+        "creds_injected=%s",
         uid, broker_account.id, symbol, exchange, security_id,
         payload['quantity'], payload['transaction_type'],
         order_type, product_type,
+        bool(creds.get('access_token')),
     )
 
     return _request(
         'POST', '/v1/orders', payload, idempotency_key, request_id,
-        broker_name=getattr(broker_account, 'broker_name', None),
+        broker_name=broker_name,
     )
 
 
