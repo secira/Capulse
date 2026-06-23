@@ -393,12 +393,18 @@ def _resolve_security_id(order_data: Dict[str, Any], symbol: str,
     if sid:
         return sid
 
-    # Try instrument master (covers all NSE EQ and FNO symbols)
+    # Try instrument master — only if already loaded in this process.
+    # Deliberately skip if _SECID_LOADED is False: the 30 MB CSV download
+    # would block the worker thread for 10-30 s and timeout the trade request.
+    # The in-process fallback (BrokerService) resolves symbols itself.
     try:
-        from services.dhan_service import get_security_id as _dsid
-        found = _dsid(symbol)
-        if found:
-            return str(found)
+        from services.dhan_service import _SECID_LOADED, get_security_id as _dsid
+        if _SECID_LOADED:
+            found = _dsid(symbol)
+            if found:
+                return str(found)
+        else:
+            logger.debug("execution_proxy: instrument master not yet loaded — skipping security_id lookup")
     except Exception as _e:
         logger.debug("execution_proxy dhan_master lookup failed: %s", _e)
 

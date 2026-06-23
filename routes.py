@@ -5843,11 +5843,15 @@ def api_trade_execute_confirmed():
                     getattr(broker_account, 'connection_status', None)
                     in ('connected', 'CONNECTED')
                 )
-                if ep_err.bucket in _auth_buckets and _broker_is_live:
+                _secid_miss = (
+                    ep_err.bucket == 'validation_error' and
+                    'security' in (ep_err.message or '').lower()
+                )
+                if (_secid_miss or (ep_err.bucket in _auth_buckets and _broker_is_live)):
                     logger.warning(
-                        f"Remote exec (confirmed) credential mismatch — "
-                        f"falling back to in-process Dhan call "
-                        f"user={current_user.id} bucket={ep_err.bucket}"
+                        f"Remote exec (confirmed) fallback to in-process: "
+                        f"user={current_user.id} bucket={ep_err.bucket} "
+                        f"secid_miss={_secid_miss}"
                     )
                     # Fall through to in-process path below.
                 else:
@@ -6398,11 +6402,15 @@ def api_trade_execute_signal():
                     getattr(selected_broker, 'connection_status', None)
                     in ('connected', 'CONNECTED')
                 )
-                if ep_err.bucket in _auth_buckets and _broker_is_live:
+                _secid_miss = (
+                    ep_err.bucket == 'validation_error' and
+                    'security' in (ep_err.message or '').lower()
+                )
+                if (_secid_miss or (ep_err.bucket in _auth_buckets and _broker_is_live)):
                     logger.warning(
-                        f"Remote exec credential mismatch (engine stale?) — "
-                        f"falling back to in-process Dhan call "
+                        f"Remote exec fallback to in-process: "
                         f"user={current_user.id} bucket={ep_err.bucket} "
+                        f"secid_miss={_secid_miss} "
                         f"request_id={ep_err.request_id}"
                     )
                     # Fall through to the in-process path below.

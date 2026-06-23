@@ -32,38 +32,104 @@ _QUOTE_CACHE_LOCK = threading.Lock()
 _QUOTE_CACHE: Dict[str, tuple] = {}  # symbol → (timestamp: float, data: dict)
 
 
+_DISK_CACHE_PATH = "/tmp/dhan_instrument_master.pkl"
+_DISK_CACHE_MAX_AGE_HOURS = 20  # refresh once per trading day
+
+
 def _load_security_id_map() -> Dict[str, int]:
     """
     Download the Dhan instrument master CSV (NSE_EQ equities only) and
-    build a dict {trading_symbol → security_id}.  Cached for the process
-    lifetime — call once per startup.
+    build a dict {trading_symbol → security_id}.
+
+    Caching strategy (avoids all 8 Gunicorn workers hitting Dhan's CDN
+    simultaneously — each download is 30 MB and blocks the worker thread):
+      1. In-process cache (_SECID_MAP) — check first (zero cost).
+      2. Disk pickle (/tmp/dhan_instrument_master.pkl) — shared across all
+         workers; fresh if written within the last 20 hours.
+      3. CDN download — only if the disk cache is missing or stale.  A
+         cross-process file lock (_DISK_CACHE_PATH + ".lock") prevents
+         concurrent downloads; workers that lose the lock wait then read
+         from the file the winner just wrote.
     """
     global _SECID_MAP, _SECID_LOADED
     with _SECID_LOCK:
         if _SECID_LOADED:
             return _SECID_MAP
+
+        import os, pickle, time
+
+        # ── 1. Try disk cache ─────────────────────────────────────────────
         try:
-            import requests
+            stat = os.stat(_DISK_CACHE_PATH)
+            age_hours = (time.time() - stat.st_mtime) / 3600
+            if age_hours < _DISK_CACHE_MAX_AGE_HOURS:
+                with open(_DISK_CACHE_PATH, "rb") as fh:
+                    mapping = pickle.load(fh)
+                if isinstance(mapping, dict) and mapping:
+                    _SECID_MAP = mapping
+                    _SECID_LOADED = True
+                    logger.info(
+                        "Dhan instrument master loaded from disk cache: "
+                        "%d symbols (age %.1fh)", len(mapping), age_hours
+                    )
+                    return _SECID_MAP
+        except Exception:
+            pass  # cache missing or corrupt — fall through to download
+
+        # ── 2. Download with cross-process file lock ──────────────────────
+        lock_path = _DISK_CACHE_PATH + ".lock"
+        lock_fh = None
+        try:
+            import fcntl
+            lock_fh = open(lock_path, "w")
+            # Non-blocking try first; if another worker holds the lock,
+            # wait up to 30 s for it to finish writing the disk cache.
+            try:
+                fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                logger.info("Dhan instrument master: waiting for another worker to finish download…")
+                fcntl.flock(lock_fh, fcntl.LOCK_EX)  # blocking wait (up to 30 s)
+                # The winner may have written the cache while we waited — re-check.
+                try:
+                    stat = os.stat(_DISK_CACHE_PATH)
+                    age_hours = (time.time() - stat.st_mtime) / 3600
+                    if age_hours < _DISK_CACHE_MAX_AGE_HOURS:
+                        with open(_DISK_CACHE_PATH, "rb") as fh:
+                            mapping = pickle.load(fh)
+                        if isinstance(mapping, dict) and mapping:
+                            _SECID_MAP = mapping
+                            _SECID_LOADED = True
+                            logger.info(
+                                "Dhan instrument master loaded after lock wait: %d symbols",
+                                len(mapping)
+                            )
+                            return _SECID_MAP
+                except Exception:
+                    pass
+        except ImportError:
+            lock_fh = None  # fcntl unavailable (Windows dev env) — skip locking
+
+        # ── 3. Actual download ────────────────────────────────────────────
+        try:
+            import requests as _req, io
             url = "https://images.dhan.co/api-data/api-scrip-master.csv"
-            resp = requests.get(url, timeout=15)
+            # (connect_timeout=10s, read_timeout=30s)
+            resp = _req.get(url, timeout=(10, 30))
             resp.raise_for_status()
-            import io
             df = pd.read_csv(io.StringIO(resp.text), low_memory=False)
-            # Keep NSE equity AND NSE F&O (options + futures) rows
             eq_mask = (
                 df["SEM_EXM_EXCH_ID"].astype(str).str.strip().str.upper().eq("NSE") &
                 df["SEM_INSTRUMENT_NAME"].astype(str).str.strip().str.upper().isin([
-                    "EQUITY", "EQLF",               # NSE equities
-                    "OPTIDX", "OPTSTK",             # NSE options (index & stock)
-                    "FUTIDX", "FUTSTK",             # NSE futures (index & stock)
+                    "EQUITY", "EQLF",
+                    "OPTIDX", "OPTSTK",
+                    "FUTIDX", "FUTSTK",
                 ])
             )
             eq = df[eq_mask].copy()
-            mapping = {}
+            mapping: Dict[str, int] = {}
             for _, row in eq.iterrows():
                 try:
                     raw_sym = str(row.get("SEM_TRADING_SYMBOL", "")).strip().upper()
-                    # Dhan equity symbols can be "RELIANCE-EQ" — strip the suffix
                     sym = raw_sym.replace("-EQ", "").replace("-BE", "").replace("-SM", "")
                     sec_id = int(row["SEM_SMST_SECURITY_ID"])
                     if sym:
@@ -72,10 +138,28 @@ def _load_security_id_map() -> Dict[str, int]:
                     continue
             _SECID_MAP = mapping
             _SECID_LOADED = True
-            logger.info(f"Dhan instrument master loaded: {len(mapping)} NSE equity+FNO symbols")
+            logger.info("Dhan instrument master loaded from CDN: %d NSE equity+FNO symbols", len(mapping))
+
+            # Persist to disk so other workers skip the download.
+            try:
+                import pickle
+                with open(_DISK_CACHE_PATH, "wb") as fh:
+                    pickle.dump(mapping, fh, protocol=pickle.HIGHEST_PROTOCOL)
+            except Exception as cache_err:
+                logger.debug("Dhan instrument master disk cache write failed: %s", cache_err)
+
         except Exception as e:
-            logger.warning(f"Dhan instrument master load failed: {e} — will fall back to yfinance")
-            _SECID_LOADED = True  # mark as attempted so we don't retry on every call
+            logger.warning("Dhan instrument master load failed: %s — security_id lookups will fall back", e)
+            _SECID_LOADED = True  # don't retry on every call
+        finally:
+            if lock_fh is not None:
+                try:
+                    import fcntl
+                    fcntl.flock(lock_fh, fcntl.LOCK_UN)
+                    lock_fh.close()
+                except Exception:
+                    pass
+
         return _SECID_MAP
 
 
