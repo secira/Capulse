@@ -244,6 +244,28 @@ def _extract_error(body: Any, status_code: int) -> Tuple[str, str]:
         else:
             bucket = 'broker_error'
 
+    # 5) Reclassify broker_error as expired_token when the message
+    #    contains well-known broker auth error signatures.  The engine
+    #    currently surfaces these inside the broker_error bucket because it
+    #    doesn't map every broker error code — we do it client-side instead.
+    if bucket == 'broker_error':
+        msg_lower = message.lower()
+        _AUTH_SIGNATURES = (
+            'invalid_authentication', 'invalid authentication',
+            'dh-901',                   # Dhan: invalid/expired token
+            'dh-902',                   # Dhan: session expired
+            'access token',             # generic access-token mention
+            'token expired', 'token invalid',
+            'session expired', 'session invalid',
+            'unauthorised', 'unauthorized',
+            'invalid client',
+            'ab1010',                   # Zerodha: invalid token
+            'invalid api key',
+            'authentication failed', 'auth failed',
+        )
+        if any(sig in msg_lower for sig in _AUTH_SIGNATURES):
+            bucket = 'expired_token'
+
     return bucket, message
 
 
@@ -262,8 +284,10 @@ def _request(method: str, path: str, payload: Optional[Dict[str, Any]] = None,
     raw_body = json.dumps(payload or {}, separators=(',', ':'), sort_keys=True).encode('utf-8')
     headers, idem, rid = _headers(raw_body, idempotency_key, request_id)
 
-    broker_type = ((payload or {}).get('broker') or {}).get('broker_type', '?')
-    tc_ctx = (payload or {}).get('context') or {}
+    # Flat format: broker_type and user IDs are top-level in the payload.
+    broker_type = (payload or {}).get('broker_type', '?')
+    tc_user = (payload or {}).get('user_id', '?')
+    tc_broker_account = (payload or {}).get('user_broker_id', '?')
 
     started = time.time()
     try:
@@ -283,7 +307,7 @@ def _request(method: str, path: str, payload: Optional[Dict[str, Any]] = None,
         "execution_proxy %s %s status=%s latency_ms=%d request_id=%s idem=%s "
         "broker_type=%s tc_user=%s tc_broker_account=%s",
         method, path, resp.status_code, latency_ms, rid, idem,
-        broker_type, tc_ctx.get('tc_user_id'), tc_ctx.get('tc_broker_account_id'),
+        broker_type, tc_user, tc_broker_account,
     )
 
     try:

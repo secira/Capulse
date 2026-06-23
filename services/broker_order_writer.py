@@ -152,7 +152,29 @@ def record_engine_order(
 
 # ─── failure path ───────────────────────────────────────────────────────────
 
-_AUTH_BUCKETS = {'invalid_credentials', 'expired_token', 'token_expired'}
+_AUTH_BUCKETS = {'invalid_credentials', 'expired_token', 'token_expired', 'auth_error'}
+
+# Broker-specific error codes / phrases that signal an expired or invalid
+# access token even when the engine classifies the error as broker_error.
+_AUTH_MESSAGE_SIGNATURES = (
+    'invalid_authentication', 'invalid authentication',
+    'dh-901', 'dh-902',          # Dhan: bad/expired token
+    'token expired', 'token invalid',
+    'session expired', 'session invalid',
+    'unauthorised', 'unauthorized',
+    'authentication failed', 'auth failed',
+    'invalid client', 'invalid api key',
+    'ab1010',                    # Zerodha: invalid token
+)
+
+
+def _is_auth_failure(bucket: str, message: str) -> bool:
+    """Return True if the failure represents an expired or invalid credential."""
+    b = (bucket or '').lower()
+    if b in _AUTH_BUCKETS:
+        return True
+    msg_lower = (message or '').lower()
+    return any(sig in msg_lower for sig in _AUTH_MESSAGE_SIGNATURES)
 
 
 def handle_engine_failure(broker_account: BrokerAccount, bucket: str,
@@ -163,9 +185,10 @@ def handle_engine_failure(broker_account: BrokerAccount, bucket: str,
 
     Non-auth failures (broker_error, validation_error, network_error)
     don't touch the connection_status — those are transient.
+    Auth detection is done both by bucket name AND by scanning the error
+    message for broker-specific auth error codes (e.g. DH-901 from Dhan).
     """
-    b = (bucket or '').lower()
-    if b not in _AUTH_BUCKETS:
+    if not _is_auth_failure(bucket, message):
         return
     try:
         broker_account.connection_status = ConnectionStatus.EXPIRED.value
