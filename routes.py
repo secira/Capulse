@@ -5833,25 +5833,39 @@ def api_trade_execute_confirmed():
                     'via': 'remote_engine',
                 })
             except _ep.ExecutionProxyError as ep_err:
-                try:
-                    from services import broker_order_writer
-                    broker_order_writer.handle_engine_failure(
-                        broker_account, ep_err.bucket, ep_err.message,
-                    )
-                except Exception:
-                    pass
                 logger.error(
                     f"Remote exec (confirmed) FAILED user={current_user.id} "
                     f"bucket={ep_err.bucket} err={ep_err.message}"
                 )
-                return jsonify({
-                    'success': False,
-                    'error': ep_err.user_message(),
-                    'technical_error': ep_err.message,
-                    'bucket': ep_err.bucket,
-                    'request_id': ep_err.request_id,
-                    'via': 'remote_engine',
-                }), _ep.map_bucket_to_status(ep_err.bucket)
+                _auth_buckets = {'expired_token', 'token_expired',
+                                 'invalid_credentials', 'auth_error'}
+                _broker_is_live = (
+                    getattr(broker_account, 'connection_status', None)
+                    in ('connected', 'CONNECTED')
+                )
+                if ep_err.bucket in _auth_buckets and _broker_is_live:
+                    logger.warning(
+                        f"Remote exec (confirmed) credential mismatch — "
+                        f"falling back to in-process Dhan call "
+                        f"user={current_user.id} bucket={ep_err.bucket}"
+                    )
+                    # Fall through to in-process path below.
+                else:
+                    try:
+                        from services import broker_order_writer
+                        broker_order_writer.handle_engine_failure(
+                            broker_account, ep_err.bucket, ep_err.message,
+                        )
+                    except Exception:
+                        pass
+                    return jsonify({
+                        'success': False,
+                        'error': ep_err.user_message(),
+                        'technical_error': ep_err.message,
+                        'bucket': ep_err.bucket,
+                        'request_id': ep_err.request_id,
+                        'via': 'remote_engine',
+                    }), _ep.map_bucket_to_status(ep_err.bucket)
 
         # Execute order through broker (in-process fallback)
         order_result = BrokerService.place_order_via_broker(broker_account, order_data)
@@ -6363,15 +6377,6 @@ def api_trade_execute_signal():
                     'via': 'remote_engine',
                 })
             except execution_proxy.ExecutionProxyError as ep_err:
-                # Mark broker as EXPIRED on auth/credential failures so
-                # the user is prompted to reconnect.
-                try:
-                    from services import broker_order_writer
-                    broker_order_writer.handle_engine_failure(
-                        selected_broker, ep_err.bucket, ep_err.message,
-                    )
-                except Exception:
-                    pass
                 logger.error(
                     f"Remote exec FAILED user={current_user.id} "
                     f"broker={selected_broker.broker_name} "
@@ -6379,14 +6384,46 @@ def api_trade_execute_signal():
                     f"bucket={ep_err.bucket} status={ep_err.status_code} "
                     f"request_id={ep_err.request_id} err={ep_err.message}"
                 )
-                return jsonify({
-                    'success': False,
-                    'error': ep_err.user_message(),
-                    'technical_error': ep_err.message,
-                    'bucket': ep_err.bucket,
-                    'request_id': ep_err.request_id,
-                    'via': 'remote_engine',
-                }), execution_proxy.map_bucket_to_status(ep_err.bucket)
+
+                # ── Credential-mismatch fallback ──────────────────────────
+                # The engine maintains its own credential store which may be
+                # stale (e.g. user reconnected broker in TC but engine wasn't
+                # updated). If TC's own broker account is still marked
+                # "connected" the live token lives in TC's DB — fall through
+                # to the in-process broker call which decrypts and uses it
+                # directly instead of showing an auth error to the user.
+                _auth_buckets = {'expired_token', 'token_expired',
+                                 'invalid_credentials', 'auth_error'}
+                _broker_is_live = (
+                    getattr(selected_broker, 'connection_status', None)
+                    in ('connected', 'CONNECTED')
+                )
+                if ep_err.bucket in _auth_buckets and _broker_is_live:
+                    logger.warning(
+                        f"Remote exec credential mismatch (engine stale?) — "
+                        f"falling back to in-process Dhan call "
+                        f"user={current_user.id} bucket={ep_err.bucket} "
+                        f"request_id={ep_err.request_id}"
+                    )
+                    # Fall through to the in-process path below.
+                else:
+                    # Non-credential errors OR broker is actually expired:
+                    # mark account + surface the error to the user.
+                    try:
+                        from services import broker_order_writer
+                        broker_order_writer.handle_engine_failure(
+                            selected_broker, ep_err.bucket, ep_err.message,
+                        )
+                    except Exception:
+                        pass
+                    return jsonify({
+                        'success': False,
+                        'error': ep_err.user_message(),
+                        'technical_error': ep_err.message,
+                        'bucket': ep_err.bucket,
+                        'request_id': ep_err.request_id,
+                        'via': 'remote_engine',
+                    }), execution_proxy.map_bucket_to_status(ep_err.bucket)
         # ────────────────────────────────────────────────────────────────────
 
         try:
