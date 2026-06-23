@@ -393,18 +393,48 @@ def _resolve_security_id(order_data: Dict[str, Any], symbol: str,
     if sid:
         return sid
 
-    # Try instrument master — only if already loaded in this process.
-    # Deliberately skip if _SECID_LOADED is False: the 30 MB CSV download
-    # would block the worker thread for 10-30 s and timeout the trade request.
-    # The in-process fallback (BrokerService) resolves symbols itself.
+    # Try instrument master.
+    # Priority:
+    #   a) Already loaded in memory (zero cost).
+    #   b) Disk cache (shared by all workers — fast pickle read, ≤300 ms,
+    #      no network). Written by the first worker to download the CSV.
+    #   c) Skip entirely (would trigger a 30 MB CDN download that blocks
+    #      the worker thread for 10–30 s).
     try:
-        from services.dhan_service import _SECID_LOADED, get_security_id as _dsid
+        from services.dhan_service import (
+            _SECID_LOADED, _DISK_CACHE_PATH, _DISK_CACHE_MAX_AGE_HOURS,
+            get_security_id as _dsid,
+        )
+        import os as _os, time as _time
+
         if _SECID_LOADED:
             found = _dsid(symbol)
             if found:
                 return str(found)
         else:
-            logger.debug("execution_proxy: instrument master not yet loaded — skipping security_id lookup")
+            # Not loaded in-memory yet — try the disk cache instead.
+            try:
+                _stat = _os.stat(_DISK_CACHE_PATH)
+                _age_h = (_time.time() - _stat.st_mtime) / 3600
+                if _age_h < _DISK_CACHE_MAX_AGE_HOURS:
+                    import pickle as _pk
+                    with open(_DISK_CACHE_PATH, "rb") as _fh:
+                        _mapping = _pk.load(_fh)
+                    _sym = symbol.upper().replace("-EQ", "").replace("-BE", "").replace("-SM", "")
+                    _found = _mapping.get(_sym)
+                    if _found:
+                        logger.info(
+                            "execution_proxy: resolved %s → %s from disk cache (age %.1fh)",
+                            symbol, _found, _age_h,
+                        )
+                        return str(_found)
+                    logger.debug("execution_proxy: %s not in disk cache", symbol)
+                else:
+                    logger.debug("execution_proxy: disk cache stale (%.1fh) — skipping", _age_h)
+            except FileNotFoundError:
+                logger.debug("execution_proxy: disk cache not yet written — skipping security_id lookup")
+            except Exception as _de:
+                logger.debug("execution_proxy disk cache lookup failed: %s", _de)
     except Exception as _e:
         logger.debug("execution_proxy dhan_master lookup failed: %s", _e)
 

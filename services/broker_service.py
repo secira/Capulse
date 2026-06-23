@@ -249,7 +249,22 @@ class DhanBrokerClient(BaseBrokerClient):
                 outbound_ip = 'unknown'
             logger.info(f"Dhan order outbound IP at execution time: {outbound_ip}")
 
-            result = self._client.place_order(**dhan_order)
+            # Hard 12-second timeout — Dhan's firewall silently drops packets
+            # from non-whitelisted IPs (DH-905), causing the SDK to hang
+            # indefinitely.  ThreadPoolExecutor lets us enforce a wall-clock
+            # deadline without patching the SDK's requests session.
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
+                _future = _pool.submit(self._client.place_order, **dhan_order)
+                try:
+                    result = _future.result(timeout=12)
+                except _cf.TimeoutError:
+                    raise BrokerAPIError(
+                        f"Dhan order API timed out (>12 s). "
+                        f"Server IP: {outbound_ip}. "
+                        f"If this is a new token, ensure {outbound_ip} is in "
+                        f"Dhan's IP whitelist before generating the token."
+                    )
             logger.info(f"Dhan place_order response: {result}")
 
             if isinstance(result, dict) and result.get('status') == 'failure':
