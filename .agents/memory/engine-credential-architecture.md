@@ -5,39 +5,31 @@ description: How the execution engine at 54.225.202.78:8080 gets broker credenti
 
 ## The engine has its own credential store
 
-The TC Execution Engine (`http://54.225.202.78:8080`) maintains its **own** copy of broker credentials — separate from TC's encrypted `user_brokers` table. It is NOT a pure stateless proxy (despite the old docstring in `execution_proxy.py` claiming it is).
+The TC Execution Engine (`http://54.225.202.78:8080`) maintains its **own** copy of broker credentials — separate from TC's encrypted `user_brokers` table. It is NOT a pure stateless proxy.
 
-**PlaceOrderRequest schema**: only sends `user_id` + `user_broker_id` (no raw credentials). Engine looks these up from its own DB by `user_broker_id`.
+**PlaceOrderRequest schema**: sends `user_id`, `user_broker_id`, `broker_type`, `client_id`, `access_token` — but the engine **ignores** the credential fields and uses its own DB lookup by `user_broker_id`. DH-901 still fires with stale stored creds even when fresh creds are in payload.
 
-**The mismatch problem**: When a user reconnects a broker in TC (getting a fresh token), TC updates its own `user_brokers` table. But the engine's credential store is NOT automatically updated. The engine continues to use its stale token → Dhan returns DH-901.
+**The mismatch problem**: When a user regenerates a Dhan token in TC, TC updates its own `user_brokers` table. But the engine's credential store is NOT automatically updated.
 
-## How to detect the mismatch
+## IP whitelist (Dhan)
 
-- TC broker health check → LIVE ✓ (TC's own live credentials)
-- Engine order call → DH-901 (engine's stale credentials)
-- The `connection_status` on the `BrokerAccount` row stays `connected`
+Only `54.225.202.78` (TC Engine) needs to be whitelisted in Dhan. Replit's outbound IPs (`34.73.12.59` etc.) must NOT call Dhan's order API — Dhan silently drops packets from non-whitelisted IPs (no HTTP response, TCP stall = worker hangs). The 12-second `ThreadPoolExecutor` timeout in `DhanBroker.place_order` is the safety net against this hang.
 
-## Fallback solution (implemented)
+## Credential sync (implemented)
 
-In `api_trade_execute_signal` and `api_trade_execute_confirmed` in `routes.py`:
+`services/execution_proxy.push_broker_credentials(broker_account)` pushes decrypted creds to engine:
+1. `PUT /admin/api/broker-accounts/{bid}` (with `X-TC-Admin-Token` if env var set)
+2. `POST /admin/api/broker-accounts` (fallback)
 
-When the engine returns `expired_token` / `invalid_credentials` / `auth_error` bucket AND TC's own `BrokerAccount.connection_status == 'connected'`, TC falls through to the **in-process Dhan path** instead of returning an error. The in-process path decrypts TC's live token and calls Dhan directly.
+Called automatically from `routes.update_broker()` after `db.session.commit()` when `USE_REMOTE_EXEC=true`. User triggers it by going to Broker Settings → Edit Dhan → Save.
 
-**Why:** If the broker is connected in TC but the engine rejects, it's an engine credential staleness issue, not an actual expired token. The in-process path always has the live credentials.
+## In-process fallback rules (routes.py, both trade routes)
 
-## Long-term fix needed (engine-side)
+- `_secid_miss` (validation_error + "security" in message): falls through to in-process. OK only when instrument master disk cache is missing.
+- Auth errors (`expired_token`, DH-901): **do NOT fall through** — engine error is surfaced directly. In-process Dhan from Replit's IP always fails (IP not whitelisted).
 
-The engine admin token (`X-TC-Admin-Token`) is NOT the same as `EXECUTION_HMAC_SECRET`. The admin endpoint `GET /admin/api/broker-accounts` requires this token. To update engine credentials, TC needs:
-1. The engine's admin token, OR
-2. A credential sync endpoint added to the engine API
+## Engine admin API
 
-Until then, the fallback keeps orders working.
-
-## Engine API endpoints
-
-- `GET /healthz`, `GET /version`
-- `POST /v1/orders` — PlaceOrderRequest (user_id, user_broker_id, symbol, exchange, security_id, transaction_type, quantity, order_type, product_type)
-- `POST /v1/orders/{id}/cancel`
-- `GET /v1/orders/{id}`
-- `GET|PUT /v1/halt`
-- `GET /admin/api/status`, `GET /admin/api/broker-accounts`, `GET /admin/api/trades`, `POST /admin/api/halt`, `POST /admin/api/test-order` — all require `X-TC-Admin-Token` header
+- `GET /admin/api/broker-accounts`, `POST /admin/api/broker-accounts`, `PUT /admin/api/broker-accounts/{id}` — require `X-TC-Admin-Token` header (set via `EXECUTION_ADMIN_TOKEN` env var; different from `EXECUTION_HMAC_SECRET`)
+- `POST /v1/orders`, `POST /v1/orders/{id}/cancel`, `GET /v1/orders/{id}`
+- `GET|PUT /v1/halt`, `GET /healthz`, `GET /version`

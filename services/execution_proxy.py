@@ -714,6 +714,94 @@ def set_halt(halted: bool, admin_token: Optional[str] = None) -> Dict[str, Any]:
         return {'ok': False, 'error': str(e)}
 
 
+# ─── Engine credential sync ──────────────────────────────────────────────────
+
+def push_broker_credentials(broker_account) -> Dict[str, Any]:
+    """Push decrypted broker credentials to the engine's admin store.
+
+    The engine has its own credential DB and ignores `access_token` injected
+    in order payloads.  This function syncs TC's live token to the engine
+    every time the user saves broker settings, so the engine never uses
+    stale credentials.
+
+    Tries two endpoint conventions (upsert / update) and returns a result
+    dict with {ok, status_code, body, error}.  Always safe to call —
+    failures are logged but never raise.
+    """
+    result: Dict[str, Any] = {'ok': False, 'error': 'not attempted'}
+    try:
+        creds = broker_account.get_credentials() or {}
+        uid   = int(broker_account.user_id)
+        bid   = int(broker_account.id)
+        bname = (
+            getattr(broker_account, 'broker_name', None) or
+            getattr(broker_account, 'broker_type', None) or 'dhan'
+        ).lower()
+
+        payload = {
+            'user_id':        uid,
+            'user_broker_id': bid,
+            'broker_type':    bname,
+            'client_id':      creds.get('client_id', ''),
+            'access_token':   creds.get('access_token', ''),
+        }
+        if creds.get('api_secret'):
+            payload['api_secret'] = creds['api_secret']
+
+        raw_body = json.dumps(payload, separators=(',', ':'), sort_keys=True).encode('utf-8')
+
+        admin_token = os.environ.get('EXECUTION_ADMIN_TOKEN', '')
+        base_url = _engine_url()  # raises ExecutionProxyError if not configured
+
+        # Try the two most common engine admin endpoint patterns.
+        for path in (f'/admin/api/broker-accounts/{bid}',
+                     '/admin/api/broker-accounts'):
+            url = f"{base_url}{path}"
+            headers: Dict[str, str] = {
+                'Content-Type': 'application/json',
+                'X-Request-ID': str(uuid.uuid4()),
+            }
+            if admin_token:
+                headers['X-TC-Admin-Token'] = admin_token
+
+            try:
+                resp = requests.request(
+                    'PUT' if str(bid) in path else 'POST',
+                    url, data=raw_body, headers=headers, timeout=8,
+                )
+                body_text = resp.text[:400]
+                try:
+                    body = resp.json()
+                except ValueError:
+                    body = {'raw': body_text}
+
+                if resp.status_code < 400:
+                    logger.info(
+                        "push_broker_credentials: synced user=%s broker=%s to engine "
+                        "path=%s status=%s",
+                        uid, bid, path, resp.status_code,
+                    )
+                    return {'ok': True, 'status_code': resp.status_code, 'body': body}
+
+                logger.warning(
+                    "push_broker_credentials: engine path=%s status=%s body=%s",
+                    path, resp.status_code, body_text,
+                )
+                result = {'ok': False, 'status_code': resp.status_code, 'body': body}
+
+            except requests.RequestException as _re:
+                logger.warning("push_broker_credentials: network error path=%s err=%s", path, _re)
+                result = {'ok': False, 'error': str(_re)}
+
+    except ExecutionProxyError as _ee:
+        result = {'ok': False, 'error': _ee.message}
+    except Exception as _e:
+        logger.warning("push_broker_credentials unexpected error: %s", _e)
+        result = {'ok': False, 'error': str(_e)}
+
+    return result
+
+
 # ─── Routing helpers ─────────────────────────────────────────────────────────
 
 def env_switch_on() -> bool:

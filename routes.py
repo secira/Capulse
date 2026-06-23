@@ -1044,9 +1044,25 @@ def update_broker():
             
         broker.updated_at = datetime.utcnow()
         db.session.commit()
-        
+
         flash(f'{broker.broker_name} credentials updated securely!', 'success')
         logging.info(f"User {current_user.id} updated broker {broker.broker_name} credentials")
+
+        # Sync fresh credentials to the TC Execution Engine so it never
+        # uses a stale token.  Fire-and-forget — don't block the redirect.
+        try:
+            from services.execution_proxy import push_broker_credentials, env_switch_on
+            if env_switch_on():
+                sync_result = push_broker_credentials(broker)
+                if sync_result.get('ok'):
+                    logging.info(f"Engine credential sync succeeded for broker {broker.id}")
+                else:
+                    logging.warning(
+                        f"Engine credential sync failed for broker {broker.id}: "
+                        f"{sync_result.get('error') or sync_result.get('body')}"
+                    )
+        except Exception as _sync_err:
+            logging.warning(f"Engine credential sync error (non-fatal): {_sync_err}")
         
     except Exception as e:
         db.session.rollback()
@@ -5837,21 +5853,20 @@ def api_trade_execute_confirmed():
                     f"Remote exec (confirmed) FAILED user={current_user.id} "
                     f"bucket={ep_err.bucket} err={ep_err.message}"
                 )
-                _auth_buckets = {'expired_token', 'token_expired',
-                                 'invalid_credentials', 'auth_error'}
-                _broker_is_live = (
-                    getattr(broker_account, 'connection_status', None)
-                    in ('connected', 'CONNECTED')
-                )
                 _secid_miss = (
                     ep_err.bucket == 'validation_error' and
                     'security' in (ep_err.message or '').lower()
                 )
-                if (_secid_miss or (ep_err.bucket in _auth_buckets and _broker_is_live)):
+                # Auth errors (DH-901 etc.) from the engine mean the engine's
+                # credential store is stale.  For Dhan, in-process fallback
+                # will ALSO fail (Replit's IP is not whitelisted — only the
+                # engine's IP 54.225.202.78 is).  Surface the engine error
+                # directly and let the user re-save their token to push it.
+                if _secid_miss:
                     logger.warning(
                         f"Remote exec (confirmed) fallback to in-process: "
                         f"user={current_user.id} bucket={ep_err.bucket} "
-                        f"secid_miss={_secid_miss}"
+                        f"secid_miss=True"
                     )
                     # Fall through to in-process path below.
                 else:
@@ -6391,26 +6406,20 @@ def api_trade_execute_signal():
 
                 # ── Credential-mismatch fallback ──────────────────────────
                 # The engine maintains its own credential store which may be
-                # stale (e.g. user reconnected broker in TC but engine wasn't
-                # updated). If TC's own broker account is still marked
-                # "connected" the live token lives in TC's DB — fall through
-                # to the in-process broker call which decrypts and uses it
-                # directly instead of showing an auth error to the user.
-                _auth_buckets = {'expired_token', 'token_expired',
-                                 'invalid_credentials', 'auth_error'}
-                _broker_is_live = (
-                    getattr(selected_broker, 'connection_status', None)
-                    in ('connected', 'CONNECTED')
-                )
                 _secid_miss = (
                     ep_err.bucket == 'validation_error' and
                     'security' in (ep_err.message or '').lower()
                 )
-                if (_secid_miss or (ep_err.bucket in _auth_buckets and _broker_is_live)):
+                # Auth errors (DH-901 etc.) from the engine mean the engine's
+                # credential store is stale.  For Dhan, in-process fallback
+                # will ALSO fail (Replit's IP is not whitelisted — only the
+                # engine's IP 54.225.202.78 is).  Surface the engine error
+                # directly and let the user re-save their token to push it.
+                if _secid_miss:
                     logger.warning(
                         f"Remote exec fallback to in-process: "
                         f"user={current_user.id} bucket={ep_err.bucket} "
-                        f"secid_miss={_secid_miss} "
+                        f"secid_miss=True "
                         f"request_id={ep_err.request_id}"
                     )
                     # Fall through to the in-process path below.
