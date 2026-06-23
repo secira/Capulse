@@ -427,13 +427,13 @@ def place_order(broker_account, order_data: Dict[str, Any],
         raise ExecutionProxyError('validation_error',
                                   'broker_account is required for remote execution')
 
+    uid = int(user_id) if user_id is not None else int(broker_account.user_id)
+
     symbol = (order_data.get('symbol') or order_data.get('trading_symbol') or '').strip()
     trading_symbol = (order_data.get('trading_symbol') or symbol).strip()
 
     ex_raw = (order_data.get('exchange') or 'NSE').upper().strip()
     exchange = _EXCHANGE_MAP.get(ex_raw, ex_raw)
-
-    security_id = _resolve_security_id(order_data, symbol, exchange)
 
     ot_raw = (order_data.get('order_type') or 'MARKET').upper().strip()
     order_type = _ORDER_TYPE_MAP.get(ot_raw, 'MARKET')
@@ -441,7 +441,14 @@ def place_order(broker_account, order_data: Dict[str, Any],
     pt_raw = (order_data.get('product_type') or 'MIS').upper().strip()
     product_type = _PRODUCT_TYPE_MAP.get(pt_raw, pt_raw)
 
-    uid = int(user_id) if user_id is not None else int(broker_account.user_id)
+    logger.info(
+        "execution_proxy place_order ENTER user=%s broker_account=%s symbol=%s "
+        "exchange=%s order_type=%s product=%s qty=%s side=%s",
+        uid, broker_account.id, symbol, exchange, order_type, product_type,
+        order_data.get('quantity'), (order_data.get('transaction_type') or 'BUY').upper(),
+    )
+
+    security_id = _resolve_security_id(order_data, symbol, exchange)
 
     payload: Dict[str, Any] = {
         'user_id':          uid,

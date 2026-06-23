@@ -5788,7 +5788,72 @@ def api_trade_execute_confirmed():
             'exchange': 'NSE'
         }
         
-        # Execute order through broker
+        # ── Remote execution engine seam ────────────────────────────────────
+        try:
+            from services import execution_proxy as _ep
+        except ImportError:
+            _ep = None  # type: ignore[assignment]
+
+        if _ep is not None and _ep.is_enabled_for_user(current_user):
+            try:
+                eng_resp = _ep.place_order(
+                    broker_account=broker_account,
+                    order_data=order_data,
+                    user_id=current_user.id,
+                )
+                logger.info(
+                    f"Remote exec OK (confirmed) user={current_user.id} "
+                    f"broker={broker_account.broker_name} "
+                    f"broker_order_id={eng_resp.get('broker_order_id')} "
+                    f"request_id={eng_resp.get('request_id')}"
+                )
+                tc_order_id = None
+                order_status = eng_resp.get('status', 'SUBMITTED')
+                try:
+                    from services import broker_order_writer
+                    persisted = broker_order_writer.record_engine_order(
+                        broker_account=broker_account,
+                        order_data=order_data,
+                        engine_response=eng_resp,
+                    )
+                    tc_order_id = persisted.id
+                    order_status = (persisted.order_status.value
+                                    if persisted.order_status else order_status)
+                except Exception as _we:
+                    logger.error(f"Remote exec (confirmed) WRITE FAILED: {_we}")
+
+                _invalidate_portfolio_page_cache(current_user.id)
+                return jsonify({
+                    'success': True,
+                    'order_id': tc_order_id,
+                    'broker_order_id': eng_resp.get('broker_order_id', 'PENDING'),
+                    'status': order_status,
+                    'message': f'Order placed successfully with {broker_account.broker_name}',
+                    'request_id': eng_resp.get('request_id'),
+                    'via': 'remote_engine',
+                })
+            except _ep.ExecutionProxyError as ep_err:
+                try:
+                    from services import broker_order_writer
+                    broker_order_writer.handle_engine_failure(
+                        broker_account, ep_err.bucket, ep_err.message,
+                    )
+                except Exception:
+                    pass
+                logger.error(
+                    f"Remote exec (confirmed) FAILED user={current_user.id} "
+                    f"bucket={ep_err.bucket} err={ep_err.message}"
+                )
+                return jsonify({
+                    'success': False,
+                    'error': ep_err.user_message(),
+                    'technical_error': ep_err.message,
+                    'bucket': ep_err.bucket,
+                    'request_id': ep_err.request_id,
+                    'via': 'remote_engine',
+                }), _ep.map_bucket_to_status(ep_err.bucket)
+
+        # Execute order through broker (in-process fallback)
         order_result = BrokerService.place_order_via_broker(broker_account, order_data)
 
         # Drop the cached portfolio page bundle so the next page load
@@ -6242,85 +6307,86 @@ def api_trade_execute_signal():
         logger.info(f"Executing trade for user {current_user.id} via {selected_broker.broker_name}: {order_data}")
 
         # ── Remote execution engine seam ────────────────────────────────────
-        # When USE_REMOTE_EXEC env var is on AND the per-user opt-in flag is
-        # set, route the order via the tc-execution-engine over HMAC-signed
-        # HTTPS. Otherwise fall through to the existing in-process broker call
-        # below — default behaviour is unchanged.
+        # When USE_REMOTE_EXEC env var is on, route the order via the
+        # tc-execution-engine over HMAC-signed HTTP. Otherwise fall through
+        # to the existing in-process broker call below.
         try:
             from services import execution_proxy
-            from services import broker_order_writer
-            if execution_proxy.is_enabled_for_user(current_user):
+        except ImportError:
+            execution_proxy = None  # type: ignore[assignment]
+
+        if execution_proxy is not None and execution_proxy.is_enabled_for_user(current_user):
+            try:
+                eng_resp = execution_proxy.place_order(
+                    broker_account=selected_broker,
+                    order_data=order_data,
+                    user_id=current_user.id,
+                )
+                logger.info(
+                    f"Remote exec OK user={current_user.id} "
+                    f"broker={selected_broker.broker_name} "
+                    f"broker_type={selected_broker.broker_type} "
+                    f"request_id={eng_resp.get('request_id')} "
+                    f"latency_ms={eng_resp.get('latency_ms')} "
+                    f"broker_order_id={eng_resp.get('broker_order_id')}"
+                )
+                # Persist into broker_orders (idempotent on broker_order_id)
+                tc_order_id = None
+                order_status = eng_resp.get('status', 'SUBMITTED')
                 try:
-                    eng_resp = execution_proxy.place_order(
+                    from services import broker_order_writer
+                    persisted = broker_order_writer.record_engine_order(
                         broker_account=selected_broker,
                         order_data=order_data,
-                        user_id=current_user.id,
+                        engine_response=eng_resp,
                     )
-                    logger.info(
-                        f"Remote exec OK user={current_user.id} "
-                        f"broker={selected_broker.broker_name} "
-                        f"broker_type={selected_broker.broker_type} "
-                        f"request_id={eng_resp.get('request_id')} "
-                        f"latency_ms={eng_resp.get('latency_ms')} "
-                        f"broker_order_id={eng_resp.get('broker_order_id')}"
-                    )
-                    # Persist into broker_orders (idempotent on broker_order_id)
-                    try:
-                        persisted = broker_order_writer.record_engine_order(
-                            broker_account=selected_broker,
-                            order_data=order_data,
-                            engine_response=eng_resp,
-                        )
-                        tc_order_id = persisted.id
-                        order_status = (persisted.order_status.value
-                                        if persisted.order_status else 'pending')
-                    except Exception as write_err:
-                        logger.error(
-                            f"Remote exec WRITE FAILED user={current_user.id} "
-                            f"request_id={eng_resp.get('request_id')} err={write_err}"
-                        )
-                        tc_order_id = None
-                        order_status = eng_resp.get('order_status', 'SUBMITTED')
-
-                    _mark_fno_signal_executed(data, current_user.id, tc_order_id)
-                    _invalidate_portfolio_page_cache(current_user.id)
-
-                    return jsonify({
-                        'success': True,
-                        'order_id': tc_order_id,
-                        'broker_order_id': eng_resp.get('broker_order_id', 'PENDING'),
-                        'status': order_status,
-                        'message': (f'Order placed successfully with '
-                                    f'{selected_broker.broker_name}'),
-                        'request_id': eng_resp.get('request_id'),
-                        'via': 'remote_engine',
-                    })
-                except execution_proxy.ExecutionProxyError as ep_err:
-                    # Mark broker as EXPIRED on auth/credential failures so
-                    # the user is prompted to reconnect.
-                    try:
-                        broker_order_writer.handle_engine_failure(
-                            selected_broker, ep_err.bucket, ep_err.message,
-                        )
-                    except Exception:
-                        pass
+                    tc_order_id = persisted.id
+                    order_status = (persisted.order_status.value
+                                    if persisted.order_status else order_status)
+                except Exception as write_err:
                     logger.error(
-                        f"Remote exec FAILED user={current_user.id} "
-                        f"broker={selected_broker.broker_name} "
-                        f"broker_type={selected_broker.broker_type} "
-                        f"bucket={ep_err.bucket} status={ep_err.status_code} "
-                        f"request_id={ep_err.request_id} err={ep_err.message}"
+                        f"Remote exec WRITE FAILED user={current_user.id} "
+                        f"request_id={eng_resp.get('request_id')} err={write_err}"
                     )
-                    return jsonify({
-                        'success': False,
-                        'error': ep_err.user_message(),
-                        'technical_error': ep_err.message,
-                        'bucket': ep_err.bucket,
-                        'request_id': ep_err.request_id,
-                        'via': 'remote_engine',
-                    }), execution_proxy.map_bucket_to_status(ep_err.bucket)
-        except ImportError:
-            pass  # execution_proxy not present — fall through to in-process path
+
+                _mark_fno_signal_executed(data, current_user.id, tc_order_id)
+                _invalidate_portfolio_page_cache(current_user.id)
+
+                return jsonify({
+                    'success': True,
+                    'order_id': tc_order_id,
+                    'broker_order_id': eng_resp.get('broker_order_id', 'PENDING'),
+                    'status': order_status,
+                    'message': (f'Order placed successfully with '
+                                f'{selected_broker.broker_name}'),
+                    'request_id': eng_resp.get('request_id'),
+                    'via': 'remote_engine',
+                })
+            except execution_proxy.ExecutionProxyError as ep_err:
+                # Mark broker as EXPIRED on auth/credential failures so
+                # the user is prompted to reconnect.
+                try:
+                    from services import broker_order_writer
+                    broker_order_writer.handle_engine_failure(
+                        selected_broker, ep_err.bucket, ep_err.message,
+                    )
+                except Exception:
+                    pass
+                logger.error(
+                    f"Remote exec FAILED user={current_user.id} "
+                    f"broker={selected_broker.broker_name} "
+                    f"broker_type={selected_broker.broker_type} "
+                    f"bucket={ep_err.bucket} status={ep_err.status_code} "
+                    f"request_id={ep_err.request_id} err={ep_err.message}"
+                )
+                return jsonify({
+                    'success': False,
+                    'error': ep_err.user_message(),
+                    'technical_error': ep_err.message,
+                    'bucket': ep_err.bucket,
+                    'request_id': ep_err.request_id,
+                    'via': 'remote_engine',
+                }), execution_proxy.map_bucket_to_status(ep_err.bucket)
         # ────────────────────────────────────────────────────────────────────
 
         try:
