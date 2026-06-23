@@ -1385,18 +1385,8 @@ function _preflightBrokerSession(callback) {
 }
 
 function executeTrade() {
-    // Re-entrancy guard: even if the user manages to double-click the modal
-    // Execute button before it disables, only one in-flight request goes out.
+    // Re-entrancy guard: prevent double-fire if user clicks twice quickly.
     if (window.__tradeExecInFlight) return;
-    if (!window.__tradeExecPreflightDone) {
-        window.__tradeExecPreflightDone = true;
-        _preflightBrokerSession(function(){
-            window.__tradeExecPreflightDone = false;
-            executeTrade();
-        });
-        return;
-    }
-    window.__tradeExecPreflightDone = false;
     window.__tradeExecInFlight = true;
 
     var urlParams   = new URLSearchParams(window.location.search);
@@ -1433,9 +1423,13 @@ function executeTrade() {
         mainCta.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Waiting for broker…';
     }
 
+    var _execCtrl = new AbortController();
+    var _execTimer = setTimeout(function(){ _execCtrl.abort(); }, 30000);
+
     fetch('/api/trade/execute-signal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: _execCtrl.signal,
         body: JSON.stringify({
             symbol:        symbol,
             action:        action,
@@ -1457,8 +1451,21 @@ function executeTrade() {
             broker_id:     document.getElementById('brokerSelect') ? document.getElementById('brokerSelect').value : null
         })
     })
-    .then(function(r) { return r.json().then(function(j){ return { status: r.status, body: j }; }); })
+    .then(function(r) {
+        // Use text() first so we don't crash if the server returns HTML
+        // (e.g. a 500 error page) instead of JSON.
+        return r.text().then(function(text) {
+            var body;
+            try { body = JSON.parse(text); }
+            catch(e) {
+                // Server returned non-JSON (HTML error page) — surface a safe message
+                body = { success: false, error: 'Server error (HTTP ' + r.status + '). Please try again or contact support if the issue persists.' };
+            }
+            return { status: r.status, body: body };
+        });
+    })
     .then(function(resp) {
+        clearTimeout(_execTimer);
         var data = resp.body || {};
         if (data.success) {
             // Show the REAL engine response — status, broker order id, request id —
@@ -1485,7 +1492,13 @@ function executeTrade() {
             showTradeResult(false, errLines.join('\n'), data.broker_settings_url || null);
         }
     })
-    .catch(function(err) { showTradeResult(false, 'Network error: ' + err.message); })
+    .catch(function(err) {
+        clearTimeout(_execTimer);
+        var msg = (err && err.name === 'AbortError')
+            ? 'Request timed out after 30 seconds. The order may or may not have been placed — please check your broker app to confirm.'
+            : 'Could not reach the server. Check your connection and try again.';
+        showTradeResult(false, msg);
+    })
     .finally(function() {
         // Always restore the main CTA so the user can fix and retry without a reload.
         if (mainCta) {
