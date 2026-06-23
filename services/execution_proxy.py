@@ -312,183 +312,220 @@ def _request(method: str, path: str, payload: Optional[Dict[str, Any]] = None,
     return body
 
 
-# ─── Public API ──────────────────────────────────────────────────────────────
+# ─── Field-mapping helpers ────────────────────────────────────────────────────
 
-_TRADE_FIELD_ALIASES = {
-    'side': 'transaction_type',
-    'qty': 'quantity',
-    'product': 'product_type',
+# Exchange aliases → engine/Dhan segment string
+_EXCHANGE_MAP: Dict[str, str] = {
+    'NSE':          'NSE_EQ',
+    'NSE_EQ':       'NSE_EQ',
+    'BSE':          'BSE_EQ',
+    'BSE_EQ':       'BSE_EQ',
+    'NFO':          'NSE_FNO',
+    'NSE_FNO':      'NSE_FNO',
+    'BFO':          'BSE_FNO',
+    'BSE_FNO':      'BSE_FNO',
+    'CDS':          'NSE_CURRENCY',
+    'NSE_CURRENCY': 'NSE_CURRENCY',
+    'MCX':          'NSE_COMM',
+    'NSE_COMM':     'NSE_COMM',
+    'IDX_I':        'IDX_I',
 }
 
-# Fields routed into the `asset` block (everything else goes into `trade`)
-_ASSET_FIELDS = {
-    'symbol', 'trading_symbol', 'exchange', 'security_id',
-    'instrument_type', 'expiry', 'strike', 'option_type', 'lot_size',
+# Order-type aliases → engine enum (MARKET | LIMIT | SL | SL_M)
+_ORDER_TYPE_MAP: Dict[str, str] = {
+    'MARKET':           'MARKET',
+    'LIMIT':            'LIMIT',
+    'SL':               'SL',
+    'SL-M':             'SL_M',
+    'SLM':              'SL_M',
+    'SL_M':             'SL_M',
+    'STOP_LOSS':        'SL',
+    'STOP_LOSS_MARKET': 'SL_M',
+}
+
+# Product-type aliases → engine enum (INTRADAY | DELIVERY | CNC | MIS)
+_PRODUCT_TYPE_MAP: Dict[str, str] = {
+    'INTRADAY':  'INTRADAY',
+    'DELIVERY':  'DELIVERY',
+    'CNC':       'CNC',
+    'MIS':       'MIS',
+    'BO':        'MIS',
+    'CO':        'MIS',
 }
 
 
-# Per-broker required-credential matrix.
-# Engine maps these canonical fields to broker-SDK fields on its side.
-# If any required field is missing/empty we raise BEFORE calling the engine
-# so the user gets an actionable error and we don't burn an engine call.
-_BROKER_REQUIRED_FIELDS: Dict[str, Tuple[str, ...]] = {
-    'dhan':           ('client_id', 'access_token'),
-    'zerodha':        ('client_id', 'access_token'),
-    'upstox':         ('access_token',),
-    'fyers':          ('client_id', 'access_token', 'api_secret'),
-    '5paisa':         ('client_id', 'access_token'),
-    'alice_blue':     ('client_id', 'access_token'),
-    'shoonya':        ('client_id', 'access_token', 'api_secret'),
-    'angel_broking':  ('client_id', 'api_secret', 'totp_secret'),
-}
+def _resolve_security_id(order_data: Dict[str, Any], symbol: str,
+                          exchange: str) -> str:
+    """Return a non-empty security_id string.
 
-
-def _build_broker_block(broker_account) -> Dict[str, Any]:
-    """Decrypt the credentials on a BrokerAccount row and shape them for
-    the engine. Engine is stateless: it uses these creds inline, never
-    stores them.
-
-    For Angel One the api_secret field is stored as `"<api_secret>|<totp>"`
-    after decryption — we split it back out here.
-
-    Validates against the per-broker required-field matrix and raises
-    BrokerCredentialError with a clear message when something is missing.
+    Priority:
+      1. Already present in order_data (caller supplied it or in-process
+         lookup ran first).
+      2. Dhan instrument master (NSE EQ + FNO, loaded at startup).
+      3. BrokerHolding / BrokerPosition tables (user must have synced).
+    Raises ExecutionProxyError(validation_error) if nothing works.
     """
-    if broker_account is None:
-        raise ExecutionProxyError(
-            'validation_error',
-            'broker_account is required for remote execution',
-        )
+    sid = str(order_data.get('security_id') or '').strip()
+    if sid:
+        return sid
 
-    client_id = broker_account.decrypt_data(broker_account.api_key)
-    access_token = broker_account.decrypt_data(broker_account.access_token)
-    api_secret_raw = broker_account.decrypt_data(broker_account.api_secret)
+    # Try instrument master (covers all NSE EQ and FNO symbols)
+    try:
+        from services.dhan_service import get_security_id as _dsid
+        found = _dsid(symbol)
+        if found:
+            return str(found)
+    except Exception as _e:
+        logger.debug("execution_proxy dhan_master lookup failed: %s", _e)
 
-    api_secret: Optional[str] = api_secret_raw
-    totp_secret: Optional[str] = None
-    if api_secret_raw and '|' in api_secret_raw:
-        api_secret, totp_secret = api_secret_raw.split('|', 1)
+    # Try synced holdings / positions as last resort
+    try:
+        from models_broker import BrokerHolding, BrokerPosition
+        sym_upper = symbol.upper().strip()
+        h = (BrokerHolding.query
+             .filter(BrokerHolding.trading_symbol.ilike(sym_upper) |
+                     BrokerHolding.symbol.ilike(sym_upper))
+             .filter(BrokerHolding.security_id.isnot(None))
+             .first())
+        if h and h.security_id:
+            return str(h.security_id)
+        p = (BrokerPosition.query
+             .filter(BrokerPosition.trading_symbol.ilike(sym_upper) |
+                     BrokerPosition.symbol.ilike(sym_upper))
+             .filter(BrokerPosition.security_id.isnot(None))
+             .first())
+        if p and p.security_id:
+            return str(p.security_id)
+    except Exception as _e:
+        logger.debug("execution_proxy holdings lookup failed: %s", _e)
 
-    broker_type = (broker_account.broker_type or '').lower()
-    broker_name = broker_account.broker_name or broker_type
-
-    block: Dict[str, Any] = {
-        'broker_type': broker_type,
-        'broker_name': broker_name,
-        'client_id': client_id,
-        'access_token': access_token,
-        'api_secret': api_secret,
-    }
-    if totp_secret:
-        block['totp_secret'] = totp_secret
-
-    required = _BROKER_REQUIRED_FIELDS.get(broker_type)
-    if required is None:
-        raise BrokerCredentialError(
-            f"Remote execution is not yet supported for broker '{broker_type}'. "
-            f"Supported: {sorted(_BROKER_REQUIRED_FIELDS.keys())}.",
-            broker_name=broker_name,
-        )
-    missing = [f for f in required if not block.get(f)]
-    if missing:
-        logger.warning(
-            "execution_proxy missing_credentials broker_type=%s tc_broker_account=%s missing=%s",
-            broker_type, broker_account.id, missing,
-        )
-        raise BrokerCredentialError(
-            f"{broker_name} is missing required credentials: "
-            f"{', '.join(missing)}. Please reconnect this broker from "
-            f"Settings → Broker Accounts.",
-            broker_name=broker_name,
-        )
-    return block
+    raise ExecutionProxyError(
+        'validation_error',
+        f"Cannot resolve Dhan securityId for '{symbol}'. "
+        "Sync your broker account first, or check the symbol spelling.",
+    )
 
 
-def _split_order_into_asset_and_trade(order_data: Dict[str, Any]
-                                      ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Partition the flat order_data dict TC passes today into the
-    engine's `asset` and `trade` blocks, applying field-name aliases."""
-    asset: Dict[str, Any] = {}
-    trade: Dict[str, Any] = {}
-    for k, v in (order_data or {}).items():
-        if k in _ASSET_FIELDS:
-            asset[k] = v
-        else:
-            trade[_TRADE_FIELD_ALIASES.get(k, k)] = v
-    return asset, trade
-
-
-def _context_block(broker_account, user_id: Optional[int] = None,
-                   correlation_id: Optional[str] = None) -> Dict[str, Any]:
-    return {
-        'tc_user_id': int(user_id) if user_id is not None else int(broker_account.user_id),
-        'tc_broker_account_id': int(broker_account.id),
-        'tc_tenant_id': broker_account.tenant_id or 'live',
-        'correlation_id': correlation_id,
-    }
-
+# ─── Public API ──────────────────────────────────────────────────────────────
 
 def place_order(broker_account, order_data: Dict[str, Any],
                 user_id: Optional[int] = None,
                 idempotency_key: Optional[str] = None,
                 request_id: Optional[str] = None) -> Dict[str, Any]:
-    """Place an order via the remote execution engine.
+    """Place an order via the TC Execution Engine.
 
-    Sends a fully self-contained payload — broker credentials, asset
-    details, trade parameters, and TC identifiers — so the engine can
-    execute without any local state of its own.
+    The engine looks up broker credentials using user_broker_id, so we
+    only need to send identifiers + trade parameters — no raw credentials
+    in the payload.
 
-    Returns a dict with at least: order_id, broker_order_id, status,
-    request_id, latency_ms.
+    Engine's PlaceOrderRequest (flat body):
+        user_id, user_broker_id, symbol, exchange, security_id,
+        transaction_type, quantity, order_type, product_type,
+        price, trigger_price, validity, tenant_id, tag
     """
-    broker = _build_broker_block(broker_account)
-    asset, trade = _split_order_into_asset_and_trade(order_data)
-    payload = {
-        'broker': broker,
-        'asset': asset,
-        'trade': trade,
-        'context': _context_block(broker_account, user_id, request_id),
+    if broker_account is None:
+        raise ExecutionProxyError('validation_error',
+                                  'broker_account is required for remote execution')
+
+    symbol = (order_data.get('symbol') or order_data.get('trading_symbol') or '').strip()
+    trading_symbol = (order_data.get('trading_symbol') or symbol).strip()
+
+    ex_raw = (order_data.get('exchange') or 'NSE').upper().strip()
+    exchange = _EXCHANGE_MAP.get(ex_raw, ex_raw)
+
+    security_id = _resolve_security_id(order_data, symbol, exchange)
+
+    ot_raw = (order_data.get('order_type') or 'MARKET').upper().strip()
+    order_type = _ORDER_TYPE_MAP.get(ot_raw, 'MARKET')
+
+    pt_raw = (order_data.get('product_type') or 'MIS').upper().strip()
+    product_type = _PRODUCT_TYPE_MAP.get(pt_raw, pt_raw)
+
+    uid = int(user_id) if user_id is not None else int(broker_account.user_id)
+
+    payload: Dict[str, Any] = {
+        'user_id':          uid,
+        'user_broker_id':   int(broker_account.id),
+        'symbol':           symbol,
+        'trading_symbol':   trading_symbol,
+        'exchange':         exchange,
+        'security_id':      security_id,
+        'transaction_type': (order_data.get('transaction_type') or 'BUY').upper(),
+        'quantity':         int(order_data.get('quantity') or 1),
+        'order_type':       order_type,
+        'product_type':     product_type,
+        'price':            float(order_data.get('price') or 0),
+        'trigger_price':    float(order_data.get('trigger_price') or 0),
+        'validity':         (order_data.get('validity') or 'DAY').upper(),
+        'after_market_order': bool(order_data.get('after_market_order', False)),
+        'tenant_id':        getattr(broker_account, 'tenant_id', 'live') or 'live',
+        'tag':              'tc-app',
     }
+
+    logger.info(
+        "execution_proxy place_order user=%s broker_account=%s symbol=%s "
+        "exchange=%s security_id=%s qty=%s side=%s order_type=%s product=%s",
+        uid, broker_account.id, symbol, exchange, security_id,
+        payload['quantity'], payload['transaction_type'],
+        order_type, product_type,
+    )
+
     return _request(
         'POST', '/v1/orders', payload, idempotency_key, request_id,
-        broker_name=broker.get('broker_name'),
+        broker_name=getattr(broker_account, 'broker_name', None),
     )
 
 
 def cancel_order(broker_account, broker_order_id: str,
                  user_id: Optional[int] = None,
                  request_id: Optional[str] = None) -> Dict[str, Any]:
-    broker = _build_broker_block(broker_account)
+    """Cancel an existing order. Engine only needs user + broker identity."""
+    if broker_account is None:
+        raise ExecutionProxyError('validation_error',
+                                  'broker_account is required for cancel')
+    uid = int(user_id) if user_id is not None else int(broker_account.user_id)
     payload = {
-        'broker': broker,
-        'broker_order_id': broker_order_id,
-        'context': _context_block(broker_account, user_id, request_id),
+        'user_id':        uid,
+        'user_broker_id': int(broker_account.id),
     }
     return _request(
         'POST', f'/v1/orders/{broker_order_id}/cancel', payload,
         request_id=request_id,
-        broker_name=broker.get('broker_name'),
+        broker_name=getattr(broker_account, 'broker_name', None),
     )
 
 
 def get_order_status(broker_account, broker_order_id: str,
                      user_id: Optional[int] = None,
                      request_id: Optional[str] = None) -> Dict[str, Any]:
-    # NOTE: POST (not GET) is intentional. The engine is stateless and
-    # must receive the decrypted broker block to talk to the broker for
-    # status — a GET cannot carry that body safely. Same pattern as
-    # /v1/orders and /v1/orders/{id}/cancel.
-    broker = _build_broker_block(broker_account)
-    payload = {
-        'broker': broker,
-        'broker_order_id': broker_order_id,
-        'context': _context_block(broker_account, user_id, request_id),
-    }
-    return _request(
-        'POST', f'/v1/orders/{broker_order_id}/status', payload,
-        request_id=request_id,
-        broker_name=broker.get('broker_name'),
-    )
+    """Fetch order status. Engine exposes GET /v1/orders/{id} (no body)."""
+    raw_body = b''
+    try:
+        headers, _, rid = _headers(raw_body, request_id=request_id)
+        url = f"{_engine_url()}/v1/orders/{broker_order_id}"
+    except ExecutionProxyError:
+        raise
+    started = time.time()
+    try:
+        resp = requests.get(url, data=raw_body, headers=headers,
+                            timeout=DEFAULT_TIMEOUT)
+    except requests.RequestException as e:
+        raise ExecutionProxyError('network_error', f'Engine unreachable: {e}',
+                                  broker_name=getattr(broker_account, 'broker_name', None)) from e
+    latency_ms = int((time.time() - started) * 1000)
+    try:
+        body = resp.json()
+    except ValueError:
+        raise ExecutionProxyError('broker_error',
+                                  f'Engine returned non-JSON (status {resp.status_code})',
+                                  broker_name=getattr(broker_account, 'broker_name', None))
+    if resp.status_code >= 400:
+        bucket, message = _extract_error(body, resp.status_code)
+        raise ExecutionProxyError(bucket, message, rid, resp.status_code,
+                                  broker_name=getattr(broker_account, 'broker_name', None))
+    body.setdefault('request_id', rid)
+    body.setdefault('latency_ms', latency_ms)
+    return body
 
 
 def healthz() -> Dict[str, Any]:
