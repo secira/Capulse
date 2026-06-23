@@ -49,17 +49,21 @@ def _load_security_id_map() -> Dict[str, int]:
             resp.raise_for_status()
             import io
             df = pd.read_csv(io.StringIO(resp.text), low_memory=False)
-            # Keep only NSE equity segment rows
+            # Keep NSE equity AND NSE F&O (options + futures) rows
             eq_mask = (
                 df["SEM_EXM_EXCH_ID"].astype(str).str.strip().str.upper().eq("NSE") &
-                df["SEM_INSTRUMENT_NAME"].astype(str).str.strip().str.upper().isin(["EQUITY", "EQLF"])
+                df["SEM_INSTRUMENT_NAME"].astype(str).str.strip().str.upper().isin([
+                    "EQUITY", "EQLF",               # NSE equities
+                    "OPTIDX", "OPTSTK",             # NSE options (index & stock)
+                    "FUTIDX", "FUTSTK",             # NSE futures (index & stock)
+                ])
             )
             eq = df[eq_mask].copy()
             mapping = {}
             for _, row in eq.iterrows():
                 try:
                     raw_sym = str(row.get("SEM_TRADING_SYMBOL", "")).strip().upper()
-                    # Dhan symbols can be "RELIANCE-EQ" — strip the suffix
+                    # Dhan equity symbols can be "RELIANCE-EQ" — strip the suffix
                     sym = raw_sym.replace("-EQ", "").replace("-BE", "").replace("-SM", "")
                     sec_id = int(row["SEM_SMST_SECURITY_ID"])
                     if sym:
@@ -68,7 +72,7 @@ def _load_security_id_map() -> Dict[str, int]:
                     continue
             _SECID_MAP = mapping
             _SECID_LOADED = True
-            logger.info(f"Dhan instrument master loaded: {len(mapping)} NSE equity symbols")
+            logger.info(f"Dhan instrument master loaded: {len(mapping)} NSE equity+FNO symbols")
         except Exception as e:
             logger.warning(f"Dhan instrument master load failed: {e} — will fall back to yfinance")
             _SECID_LOADED = True  # mark as attempted so we don't retry on every call

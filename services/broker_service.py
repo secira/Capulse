@@ -492,15 +492,19 @@ class DhanBrokerClient(BaseBrokerClient):
         }
 
     def _lookup_dhan_security_id(self, symbol: str, exchange_segment: str) -> Optional[str]:
-        """Look up Dhan securityId from already-synced BrokerHolding or BrokerPosition rows.
+        """Look up Dhan securityId.
+        Priority: synced BrokerHolding → BrokerPosition → instrument master CSV.
+        The instrument master covers all NSE EQ + F&O symbols and is loaded at
+        startup, so this works even for stocks the user doesn't hold yet and for
+        options/futures that are never in holdings.
         Returns the securityId string, or None if not found."""
         if not symbol:
             return None
+        symbol_upper = symbol.upper().strip()
         try:
             from models_broker import BrokerHolding, BrokerPosition
-            symbol_upper = symbol.upper().strip()
             account_id = self.broker_account.id
-            # Check holdings first
+            # 1. Check synced holdings
             holding = (
                 BrokerHolding.query
                 .filter_by(broker_account_id=account_id)
@@ -512,7 +516,7 @@ class DhanBrokerClient(BaseBrokerClient):
             )
             if holding and holding.security_id:
                 return str(holding.security_id)
-            # Then positions
+            # 2. Check synced positions
             position = (
                 BrokerPosition.query
                 .filter_by(broker_account_id=account_id)
@@ -525,7 +529,16 @@ class DhanBrokerClient(BaseBrokerClient):
             if position and position.security_id:
                 return str(position.security_id)
         except Exception as e:
-            logger.debug(f"Security ID lookup failed: {e}")
+            logger.debug(f"Security ID DB lookup failed: {e}")
+        # 3. Fallback: Dhan instrument master (NSE EQ + FNO loaded from CSV at startup)
+        try:
+            from services.dhan_service import get_security_id as _dhan_get_secid
+            sec_id = _dhan_get_secid(symbol_upper)
+            if sec_id:
+                logger.debug(f"Security ID resolved from instrument master: {symbol_upper} → {sec_id}")
+                return str(sec_id)
+        except Exception as e:
+            logger.debug(f"Dhan instrument master lookup failed: {e}")
         return None
     
     def _normalize_order_response(self, response: Dict) -> Dict:

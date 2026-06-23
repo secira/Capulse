@@ -5779,6 +5779,7 @@ def api_trade_execute_confirmed():
         order_data = {
             'symbol': execution_plan.get('symbol'),
             'trading_symbol': execution_plan.get('symbol'),
+            'security_id': execution_plan.get('security_id'),  # passed by FNO/Trade Now UI when known
             'quantity': execution_plan.get('quantity'),
             'price': execution_plan.get('entry_price'),
             'transaction_type': execution_plan.get('action'),
@@ -6213,6 +6214,7 @@ def api_trade_execute_signal():
         order_data = {
             'symbol': data.get('symbol'),
             'trading_symbol': data.get('symbol'),
+            'security_id': data.get('security_id'),   # passed by FNO/Trade Now UI when known
             'quantity': int(data.get('quantity', 1)),
             'price': float(data.get('price')) if data.get('price') else None,
             'transaction_type': data.get('action', 'BUY'),
