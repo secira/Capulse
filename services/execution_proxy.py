@@ -589,19 +589,14 @@ def env_switch_on() -> bool:
 
 
 def is_enabled_for_user(user) -> bool:
-    """Two-gate routing — both gates must explicitly be True.
+    """Route orders via the TC Execution Engine when the env switch is on.
 
     Gate 1: env-level `USE_REMOTE_EXEC` must be on.
-    Gate 2: per-user `User.use_remote_execution` must be exactly True
-            (None / missing / anything-not-True → local path).
-
-    Explicit opt-in keeps users on the proven in-process path until an
-    operator deliberately moves them to the engine — important during
-    rollout and any partial-outage of the engine.
+    Gate 2 (per-user opt-in) is bypassed — when the env switch is on ALL
+    users are routed through the engine. Set USE_REMOTE_EXEC=false/unset
+    to revert everyone back to the in-process path instantly.
     """
-    if not env_switch_on():
-        return False
-    return getattr(user, 'use_remote_execution', False) is True
+    return env_switch_on()
 
 
 def map_bucket_to_status(bucket: str) -> int:
