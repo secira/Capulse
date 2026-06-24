@@ -141,13 +141,20 @@
         </div>
         <div class="col-md-5 text-md-end">
           {% if zerodha and zerodha.account and zerodha.account.connection_status == 'expired' %}
-            <div class="alert alert-danger py-2 mb-2 small text-start">
-              <i class="fas fa-exclamation-triangle me-1"></i>
-              Your Zerodha API key was rejected. <strong>Click "Update Credentials"</strong> to fix.
+            <div class="alert alert-warning py-2 mb-2 small text-start">
+              <i class="fas fa-clock me-1"></i>
+              <strong>Daily token expired</strong> — Zerodha tokens reset every day at ~06:00 IST.
+              Click <strong>Re-login</strong> to get a fresh token (your saved API key is fine).
             </div>
             <div class="d-flex gap-2 justify-content-md-end flex-wrap">
-              <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#modal-zerodha">
-                <i class="fas fa-edit me-2"></i>Update Credentials
+              <button type="button" class="btn btn-warning"
+                      onclick="zerodhaOAuthOpen('{{ url_for('broker_oauth.reconnect_zerodha') }}', this)"
+                      title="Opens Zerodha login in a new tab — completes in ~30 seconds">
+                <i class="fas fa-sync me-2"></i>Re-login with Zerodha
+              </button>
+              <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modal-zerodha"
+                      title="Update your saved API key or secret if they changed">
+                <i class="fas fa-edit me-1"></i>Update Credentials
               </button>
               <form method="POST" action="{{ url_for('broker_oauth.disconnect_broker_oauth', broker_slug='zerodha') }}" class="d-inline">
                 <button type="submit" class="btn btn-outline-danger"><i class="fas fa-unlink me-1"></i>Disconnect</button>
