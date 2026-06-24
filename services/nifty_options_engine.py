@@ -2234,6 +2234,7 @@ class NiftyOptionsEngine:
         # Signals in thin-volume conditions have high false-positive rates — market is
         # in consolidation/chop. Only block when well below avg, not just below.
         _vol_ratio = direction.get('vol_ratio', 1.0)
+        block_reasons = []
         if entry_mode != 'NO TRADE' and _vol_ratio < 0.5 and not regime.get('vol_expansion', False):
             entry_mode = 'NO TRADE'
             block_reasons.append(
@@ -2259,7 +2260,6 @@ class NiftyOptionsEngine:
         bear_active    = direction.get('bear_active', False)
         trade_direction = direction['direction']
 
-        block_reasons = []
         if _estimated_data:
             block_reasons.append("No live option data — connect a Data API broker or check NSE connectivity")
         if market_regime == 'flat':

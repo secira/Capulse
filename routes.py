@@ -5871,16 +5871,25 @@ def api_trade_execute_confirmed():
                     ep_err.bucket == 'validation_error' and
                     'security' in (ep_err.message or '').lower()
                 )
-                # Auth errors (DH-901 etc.) from the engine mean the engine's
-                # credential store is stale.  For Dhan, in-process fallback
-                # will ALSO fail (Replit's IP is not whitelisted — only the
-                # engine's IP 54.225.202.78 is).  Surface the engine error
-                # directly and let the user re-save their token to push it.
-                if _secid_miss:
+                # Auth errors (DH-901/expired_token) from the engine: for Dhan,
+                # fall through to in-process — TC can reach api.dhan.co directly
+                # with fresh credentials from TC's own DB (confirmed by market-data
+                # calls that succeed from the same Replit IP).  For other brokers
+                # that genuinely require the engine's whitelisted IP, surface the
+                # error so the user knows to reconnect.
+                _is_auth_bucket = ep_err.bucket in (
+                    'expired_token', 'token_expired',
+                    'invalid_credentials', 'auth_error',
+                )
+                _broker_is_dhan = (
+                    getattr(broker_account, 'broker_type', '') == 'dhan' or
+                    'dhan' in (getattr(broker_account, 'broker_name', '') or '').lower()
+                )
+                if _secid_miss or (_is_auth_bucket and _broker_is_dhan):
                     logger.warning(
                         f"Remote exec (confirmed) fallback to in-process: "
                         f"user={current_user.id} bucket={ep_err.bucket} "
-                        f"secid_miss=True"
+                        f"secid_miss={_secid_miss} dhan_auth_fallback={_is_auth_bucket and _broker_is_dhan}"
                     )
                     # Fall through to in-process path below.
                 else:
@@ -6424,21 +6433,30 @@ def api_trade_execute_signal():
                     ep_err.bucket == 'validation_error' and
                     'security' in (ep_err.message or '').lower()
                 )
-                # Auth errors (DH-901 etc.) from the engine mean the engine's
-                # credential store is stale.  For Dhan, in-process fallback
-                # will ALSO fail (Replit's IP is not whitelisted — only the
-                # engine's IP 54.225.202.78 is).  Surface the engine error
-                # directly and let the user re-save their token to push it.
-                if _secid_miss:
+                # Auth errors (DH-901/expired_token) from the engine: for Dhan,
+                # fall through to in-process — TC can reach api.dhan.co directly
+                # with fresh credentials from TC's own DB (confirmed by market-data
+                # calls that succeed from the same Replit IP).  For other brokers
+                # that genuinely require the engine's whitelisted IP, surface the
+                # error so the user knows to reconnect.
+                _is_auth_bucket = ep_err.bucket in (
+                    'expired_token', 'token_expired',
+                    'invalid_credentials', 'auth_error',
+                )
+                _broker_is_dhan = (
+                    getattr(selected_broker, 'broker_type', '') == 'dhan' or
+                    'dhan' in (getattr(selected_broker, 'broker_name', '') or '').lower()
+                )
+                if _secid_miss or (_is_auth_bucket and _broker_is_dhan):
                     logger.warning(
                         f"Remote exec fallback to in-process: "
                         f"user={current_user.id} bucket={ep_err.bucket} "
-                        f"secid_miss=True "
+                        f"secid_miss={_secid_miss} dhan_auth_fallback={_is_auth_bucket and _broker_is_dhan} "
                         f"request_id={ep_err.request_id}"
                     )
                     # Fall through to the in-process path below.
                 else:
-                    # Non-credential errors OR broker is actually expired:
+                    # Non-credential errors OR broker requires engine IP:
                     # mark account + surface the error to the user.
                     try:
                         from services import broker_order_writer
