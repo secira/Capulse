@@ -543,6 +543,7 @@ with app.app_context():
         'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS asset_type VARCHAR(20) DEFAULT \'STOCK\'',
         'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS instrument_detail VARCHAR(100) DEFAULT \'\'',
         'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS sync_status VARCHAR(20) DEFAULT \'pending\'',
+        'ALTER TABLE broker_holdings ADD COLUMN IF NOT EXISTS source_broker VARCHAR(50)',
         # Fix FK constraints: use SET NULL so deleting a broker keeps holdings/positions/orders intact
         '''DO $$ BEGIN
             IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='broker_holdings_broker_account_id_fkey' AND constraint_type='FOREIGN KEY') THEN

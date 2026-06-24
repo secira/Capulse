@@ -74,6 +74,7 @@ def sync_broker_holdings(self, broker_account_id):
                     # Create new holding
                     holding = BrokerHolding(
                         broker_account_id=broker_account_id,
+                        source_broker=broker_account.broker_name,
                         symbol=holding_data['symbol'],
                         trading_symbol=holding_data['trading_symbol'],
                         exchange=holding_data['exchange'],

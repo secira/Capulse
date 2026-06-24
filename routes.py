@@ -3275,7 +3275,7 @@ def dashboard_equities():
             'unrealized_pnl': holding.pnl,
             'unrealized_pnl_percentage': pnl_pct,
             'source': 'broker',
-            'broker_name': acc_id_to_name.get(holding.broker_account_id, 'Broker'),
+            'broker_name': acc_id_to_name.get(holding.broker_account_id) or holding.source_broker or 'Broker',
             'broker_account_id': holding.broker_account_id,
             'holding_days': holding_days,
             'recommendation': rec_label,

@@ -2547,7 +2547,11 @@ class BrokerService:
         """Replace all holdings for this account with fresh broker data."""
         BrokerHolding.query.filter_by(broker_account_id=broker_account.id).delete()
         for h in holdings_data:
-            holding = BrokerHolding(broker_account_id=broker_account.id, **h)
+            holding = BrokerHolding(
+                broker_account_id=broker_account.id,
+                source_broker=broker_account.broker_name,
+                **h,
+            )
             holding.calculate_pnl()
             db.session.add(holding)
 
