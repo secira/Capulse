@@ -5892,7 +5892,7 @@ def api_trade_execute_confirmed():
             'success': True,
             'order_id': order_result.id,
             'broker_order_id': order_result.broker_order_id,
-            'status': order_result.order_status,
+            'status': order_result.order_status.value if hasattr(order_result.order_status, 'value') else order_result.order_status,
             'message': 'Order placed successfully'
         })
         
@@ -6443,7 +6443,7 @@ def api_trade_execute_signal():
                 'success': True,
                 'order_id': _tc_order_id,
                 'broker_order_id': order_result.broker_order_id if hasattr(order_result, 'broker_order_id') else 'PENDING',
-                'status': order_result.order_status if hasattr(order_result, 'order_status') else 'SUBMITTED',
+                'status': (order_result.order_status.value if hasattr(order_result.order_status, 'value') else order_result.order_status) if hasattr(order_result, 'order_status') else 'SUBMITTED',
                 'message': f'Order placed successfully with {selected_broker.broker_name}'
             })
         except Exception as broker_error:
