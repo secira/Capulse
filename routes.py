@@ -6448,7 +6448,7 @@ def api_trade_execute_signal():
             })
         except Exception as broker_error:
             err_str = str(broker_error)
-            logger.error(f"Broker execution error: {err_str}")
+            logger.error(f"Broker execution error: {err_str}", exc_info=True)
 
             if 'Invalid IP' in err_str or 'invalid ip' in err_str.lower() or 'DH-905' in err_str:
                 import requests as _req
@@ -6557,7 +6557,7 @@ def api_trade_execute_signal():
             }), 500
         
     except Exception as e:
-        logger.error(f"Trade execution error: {str(e)}")
+        logger.error(f"Trade execution error: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': f'Trade execution failed: {str(e)}'

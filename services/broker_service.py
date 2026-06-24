@@ -3062,8 +3062,9 @@ class BrokerService:
                 raise BrokerAPIError(f"Order rejected: {response.get('message')}")
 
         except Exception as e:
+            import traceback as _tb
             db.session.rollback()
-            logger.error(f"Error placing order: {e}")
+            logger.error(f"Error placing order: {e}\n{_tb.format_exc()}")
             raise BrokerAPIError(f"Failed to place order: {e}")
 
     # ── Portfolio summary ─────────────────────────────────────────────────────
