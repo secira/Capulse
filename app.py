@@ -1334,6 +1334,13 @@ _TRIAL_EXEMPT_ENDPOINTS: frozenset = frozenset({
     'extend_trial',
     # Risk disclosure acknowledgement (must never be gated by trial check)
     'risk_disclosure_ack', 'risk_disclosure',
+    # Broker OAuth flows — must always be reachable (Zerodha, Upstox, etc.)
+    'broker_oauth.auth_zerodha', 'broker_oauth.callback_zerodha',
+    'broker_oauth.reconnect_zerodha',
+    'broker_oauth.auth_upstox', 'broker_oauth.callback_upstox',
+    'broker_oauth.auth_fyers', 'broker_oauth.callback_fyers',
+    'broker_oauth.auth_alice_blue', 'broker_oauth.callback_alice_blue',
+    'broker_oauth.broker_connect', 'broker_oauth.disconnect_broker_oauth',
 })
 
 # ── SEBI Risk Disclosure gate ─────────────────────────────────────────────────
@@ -1357,6 +1364,13 @@ _RISK_DISCLOSURE_EXEMPT: frozenset = frozenset({
     # Payments
     'subscribe', 'verify_payment', 'payment_success', 'payment_failed',
     'upgrade_plan', 'razorpay_webhook',
+    # Broker OAuth flows — must always be reachable
+    'broker_oauth.auth_zerodha', 'broker_oauth.callback_zerodha',
+    'broker_oauth.reconnect_zerodha',
+    'broker_oauth.auth_upstox', 'broker_oauth.callback_upstox',
+    'broker_oauth.auth_fyers', 'broker_oauth.callback_fyers',
+    'broker_oauth.auth_alice_blue', 'broker_oauth.callback_alice_blue',
+    'broker_oauth.broker_connect', 'broker_oauth.disconnect_broker_oauth',
 })
 
 # ── BETA INVITE-ONLY GATE ─────────────────────────────────────────────────────
