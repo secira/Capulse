@@ -422,8 +422,8 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label" id="editApiKeyLabel">API Key <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" name="api_key" id="editApiKey" required>
+                        <label class="form-label" id="editApiKeyLabel">API Key</label>
+                        <input type="text" class="form-control" name="api_key" id="editApiKey">
                         <small class="form-text text-muted" id="editApiKeyHint">Leave blank to keep current value</small>
                     </div>
                     
@@ -515,17 +515,17 @@
 // Broker-specific field configuration
 var BROKER_FIELDS = {
   dhan: {
-    apiKeyLabel: 'Client ID (Numeric) <span class="text-danger">*</span>',
+    apiKeyLabel: 'Client ID (Numeric)',
     apiKeyPlaceholder: 'Your numeric Dhan Client ID, e.g. 1100012345',
-    apiKeyHint: 'Found at <strong>app.dhan.co → Profile</strong>. This is a short numeric ID, NOT the API key string.',
-    apiSecretLabel: 'API Secret (any value for Dhan)',
-    apiSecretPlaceholder: 'Enter any value — Dhan does not use API Secret',
-    apiSecretHint: 'Dhan uses Client ID + Access Token only. You can enter any placeholder here.',
-    requestTokenLabel: 'Access Token <span class="text-danger">*</span>',
-    requestTokenPlaceholder: 'Paste your Access Token from app.dhan.co',
-    requestTokenHint: 'Generate at <strong>app.dhan.co → Profile → Access Token</strong>. Regenerate if expired.',
-    infoBanner: 'Dhan uses <strong>Client ID</strong> (numeric, e.g. 1100012345) + <strong>Access Token</strong>. ' +
-                'Do NOT enter an API key string as the Client ID.'
+    apiKeyHint: 'Found at <strong>app.dhan.co → Profile</strong>. Short numeric ID — leave blank to keep current.',
+    apiSecretLabel: 'API Secret (not used by Dhan)',
+    apiSecretPlaceholder: 'Leave blank — Dhan does not use API Secret',
+    apiSecretHint: 'Dhan uses Client ID + Access Token only.',
+    requestTokenLabel: 'Access Token',
+    requestTokenPlaceholder: 'Paste your fresh Access Token from app.dhan.co',
+    requestTokenHint: 'Generate at <strong>app.dhan.co → Profile → Access Token</strong>. Leave blank to keep current token.',
+    infoBanner: 'To refresh Dhan: paste a new <strong>Access Token</strong> from app.dhan.co. ' +
+                'Client ID only needs updating if it changed.'
   },
   zerodha: {
     apiKeyLabel: 'API Key <span class="text-danger">*</span>',
