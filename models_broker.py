@@ -257,7 +257,9 @@ class BrokerAccount(db.Model):
     
     def update_connection_status(self, status, error_message=None):
         """Update connection status"""
-        self.connection_status = status
+        # connection_status column is String(20) — always store the .value string,
+        # never the raw enum, or psycopg2 raises "can't adapt type 'ConnectionStatus'".
+        self.connection_status = status.value if isinstance(status, ConnectionStatus) else status
         if status == ConnectionStatus.CONNECTED:
             self.last_connected = datetime.utcnow()
             self.connection_error = None
