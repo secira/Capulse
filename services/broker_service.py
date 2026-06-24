@@ -1181,32 +1181,60 @@ class AngelBrokerClient(BaseBrokerClient):
             raise BrokerAPIError(f"Failed to fetch orders: {e}")
     
     def place_order(self, order_data: Dict) -> Dict:
-        """Place order with Angel One"""
+        """Place order with Angel One.
+
+        We call _postRequest directly (bypassing SmartConnect.placeOrder) so that
+        the full response dict — including the error message when status=False —
+        is always available.  SmartConnect.placeOrder silently returns None on any
+        failure, which makes debugging impossible.
+        """
         if not self._client:
             raise BrokerAPIError("Not connected to Angel One")
 
         try:
-            angel_order = self._convert_to_angel_order(order_data)
-            logger.info("Angel One placeOrder params: %s", angel_order)
-            result = self._client.placeOrder(angel_order)
+            params = self._convert_to_angel_order(order_data)
 
-            if result is None:
+            # Strip None values exactly as SmartConnect.placeOrder does internally.
+            params = {k: v for k, v in params.items() if v is not None}
+
+            logger.info("Angel One placeOrder params: %s", params)
+
+            # Call the REST layer directly so we always get the full response dict.
+            response = self._client._postRequest("api.order.place", params)
+
+            if not response:
                 raise BrokerAPIError(
-                    "Angel One API returned no response. "
-                    "Check that the symbol token is correct and the account "
-                    "session is still active."
+                    "Angel One returned an empty response. "
+                    "Most likely cause: the Replit server IP is not whitelisted in "
+                    "your Angel One SmartAPI app. Log into smartapi.angelbroking.com → "
+                    "My Apps and add this server's IP to the whitelist."
                 )
 
-            if result.get('status'):
+            # Angel One uses 'status' (bool True/False) in most responses.
+            # Some error responses use 'success' instead — handle both.
+            ok = response.get('status') or response.get('success', False)
+            if ok:
+                order_id = (
+                    (response.get('data') or {}).get('orderid')
+                    or response.get('data')          # placeOrder sometimes returns just the id
+                )
                 return {
                     'status': 'success',
-                    'order_id': result.get('data', {}).get('orderid'),
-                    'message': 'Order placed successfully'
+                    'order_id': str(order_id) if order_id else None,
+                    'message': 'Order placed successfully',
                 }
             else:
-                raise BrokerAPIError(
-                    f"Angel One rejected order: {result.get('message', 'unknown error')}"
+                error_msg = (
+                    response.get('message')
+                    or response.get('errorMessage')
+                    or response.get('errorcode')
+                    or 'Unknown error'
                 )
+                error_code = response.get('errorCode') or response.get('errorcode', '')
+                raise BrokerAPIError(
+                    f"Angel One rejected order ({error_code}): {error_msg}"
+                )
+
         except BrokerAPIError:
             raise
         except Exception as e:
