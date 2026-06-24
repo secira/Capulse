@@ -5855,10 +5855,12 @@ def api_trade_execute_confirmed():
                     ep_err.bucket == 'validation_error' and
                     'security' in (ep_err.message or '').lower()
                 )
-                if _secid_miss:
+                _broker_not_supported = ep_err.bucket == 'broker_not_supported'
+                if _secid_miss or _broker_not_supported:
                     logger.warning(
                         f"Remote exec (confirmed) fallback to in-process: "
-                        f"user={current_user.id} bucket={ep_err.bucket} secid_miss=True"
+                        f"user={current_user.id} bucket={ep_err.bucket} "
+                        f"secid_miss={_secid_miss} broker_not_supported={_broker_not_supported}"
                     )
                     # Fall through to in-process path below.
                 else:
@@ -6400,11 +6402,13 @@ def api_trade_execute_signal():
                     ep_err.bucket == 'validation_error' and
                     'security' in (ep_err.message or '').lower()
                 )
-                if _secid_miss:
+                _broker_not_supported = ep_err.bucket == 'broker_not_supported'
+                if _secid_miss or _broker_not_supported:
                     logger.warning(
                         f"Remote exec fallback to in-process: "
                         f"user={current_user.id} bucket={ep_err.bucket} "
-                        f"secid_miss=True request_id={ep_err.request_id}"
+                        f"secid_miss={_secid_miss} broker_not_supported={_broker_not_supported} "
+                        f"request_id={ep_err.request_id}"
                     )
                     # Fall through to the in-process path below.
                 else:

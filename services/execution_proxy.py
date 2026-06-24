@@ -566,6 +566,22 @@ def place_order(broker_account, order_data: Dict[str, Any],
             )
     # ────────────────────────────────────────────────────────────────────────
 
+    # ── Engine broker support check ──────────────────────────────────────────
+    # The TC execution engine only has credential-management support for Dhan
+    # and Zerodha.  All other brokers (Angel One, Upstox, Fyers, Shoonya, etc.)
+    # must go through the local in-process broker_service path.  Raising with
+    # bucket='broker_not_supported' tells the caller (routes.py) to fall
+    # through to BrokerService.place_order_via_broker() immediately.
+    _ENGINE_SUPPORTED_BROKERS = {'dhan', 'zerodha'}
+    if broker_type_str not in _ENGINE_SUPPORTED_BROKERS:
+        raise ExecutionProxyError(
+            'broker_not_supported',
+            f"Broker '{broker_type_str}' is not handled by the remote execution "
+            f"engine. Falling through to in-process broker path.",
+            broker_name=broker_name,
+        )
+    # ────────────────────────────────────────────────────────────────────────
+
     logger.info(
         "execution_proxy place_order ENTER user=%s broker_account=%s symbol=%s "
         "exchange=%s order_type=%s product=%s qty=%s side=%s",
