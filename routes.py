@@ -1117,26 +1117,64 @@ def get_broker_details(broker_id):
 @app.route('/api/broker/<int:broker_id>', methods=['DELETE'])
 @login_required
 def delete_broker(broker_id):
-    """Delete broker connection"""
+    """Delete broker connection and all its child records."""
     try:
         broker = BrokerAccount.query.filter_by(
-            id=broker_id, 
+            id=broker_id,
             user_id=current_user.id
         ).first()
-        
+
         if not broker:
             return jsonify({'success': False, 'message': 'Broker not found'})
-        
+
         broker_name = broker.broker_name
+
+        # 1. Hard-delete child rows with NOT NULL FK (would block parent delete)
+        from models_broker import BrokerHolding, BrokerPosition, BrokerOrder, BrokerSyncLog
+        BrokerHolding.query.filter_by(broker_account_id=broker_id).delete()
+        BrokerPosition.query.filter_by(broker_account_id=broker_id).delete()
+        BrokerOrder.query.filter_by(broker_account_id=broker_id).delete()
+        BrokerSyncLog.query.filter_by(broker_account_id=broker_id).delete()
+
+        # ExecutedTrade also has a NOT NULL FK (broker_id)
+        try:
+            from models import ExecutedTrade
+            ExecutedTrade.query.filter_by(broker_id=broker_id).delete()
+        except Exception:
+            pass
+
+        # 2. Null out optional (nullable) FK references in other tables so we
+        #    don't lose the rows themselves, just their broker link.
+        try:
+            db.session.execute(
+                db.text("UPDATE portfolio SET broker_account_id = NULL WHERE broker_account_id = :bid"),
+                {'bid': broker_id}
+            )
+            db.session.execute(
+                db.text("UPDATE trade_history SET broker_account_id = NULL WHERE broker_account_id = :bid"),
+                {'bid': broker_id}
+            )
+            db.session.execute(
+                db.text("UPDATE active_trades SET broker_account_id = NULL WHERE broker_account_id = :bid"),
+                {'bid': broker_id}
+            )
+            db.session.execute(
+                db.text("UPDATE research_entries SET broker_account_id = NULL WHERE broker_account_id = :bid"),
+                {'bid': broker_id}
+            )
+        except Exception as null_err:
+            logging.warning(f"Non-critical null-out step error during broker delete: {null_err}")
+
+        # 3. Delete the broker account itself
         db.session.delete(broker)
         db.session.commit()
-        
-        logging.info(f"User {current_user.id} deleted broker {broker_name}")
+
+        logging.info(f"User {current_user.id} deleted broker {broker_name} (id={broker_id})")
         return jsonify({'success': True, 'message': f'{broker_name} connection deleted successfully'})
-        
+
     except Exception as e:
         db.session.rollback()
-        logging.error(f"Error deleting broker: {str(e)}")
+        logging.error(f"Error deleting broker {broker_id}: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/broker/<int:broker_id>/refresh-token', methods=['POST'])
