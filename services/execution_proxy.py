@@ -907,6 +907,24 @@ def env_switch_on() -> bool:
     return os.environ.get('USE_REMOTE_EXEC', '').lower() in ('1', 'true', 'yes', 'on')
 
 
+# Brokers whose credentials the remote execution engine understands.
+# Any broker NOT in this set is handled locally by broker_service.py.
+_ENGINE_SUPPORTED_BROKER_TYPES = frozenset({'dhan', 'zerodha'})
+
+
+def is_broker_supported(broker_account) -> bool:
+    """Return True only when the remote engine can handle this broker type.
+
+    Used as a pre-flight gate in routes.py so we never even attempt to send
+    unsupported brokers (Angel One, Upstox, Fyers, etc.) to the engine.
+    """
+    _bt = getattr(broker_account, 'broker_type', None)
+    bt_str = (
+        _bt.value if hasattr(_bt, 'value') else str(_bt or '')
+    ).lower().strip()
+    return bt_str in _ENGINE_SUPPORTED_BROKER_TYPES
+
+
 def is_enabled_for_user(user) -> bool:
     """Route orders via the TC Execution Engine when the env switch is on.
 

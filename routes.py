@@ -5808,7 +5808,8 @@ def api_trade_execute_confirmed():
         except ImportError:
             _ep = None  # type: ignore[assignment]
 
-        if _ep is not None and _ep.is_enabled_for_user(current_user):
+        if (_ep is not None and _ep.is_enabled_for_user(current_user)
+                and _ep.is_broker_supported(broker_account)):
             try:
                 eng_resp = _ep.place_order(
                     broker_account=broker_account,
@@ -6342,7 +6343,9 @@ def api_trade_execute_signal():
         except ImportError:
             execution_proxy = None  # type: ignore[assignment]
 
-        if execution_proxy is not None and execution_proxy.is_enabled_for_user(current_user):
+        if (execution_proxy is not None
+                and execution_proxy.is_enabled_for_user(current_user)
+                and execution_proxy.is_broker_supported(selected_broker)):
             try:
                 eng_resp = execution_proxy.place_order(
                     broker_account=selected_broker,
