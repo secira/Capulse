@@ -6471,9 +6471,9 @@ def api_trade_execute_signal():
                     'broker_settings_url': '/dashboard/broker-accounts'
                 }), 403
 
-            # DH-901: Invalid / expired access token — flip the broker account
-            # to EXPIRED so the dashboard prompts a reconnect, and show a
-            # short, plain-language message instead of the raw dict dump.
+            # DH-901: Invalid / expired access token — OR the engine IP is not
+            # whitelisted in the token (Dhan embeds allowed IPs at generation time).
+            # Flip the broker to EXPIRED and return actionable instructions.
             _l = err_str.lower()
             if ('DH-901' in err_str
                     or 'invalid_authentication' in _l
@@ -6489,14 +6489,21 @@ def api_trade_execute_signal():
                 return jsonify({
                     'success': False,
                     'error': (
-                        f'{selected_broker.broker_name} access token has expired.\n\n'
-                        'Your broker session is no longer valid, so the order was '
-                        'not placed. Reconnect the broker to continue trading:\n\n'
-                        '1. Open Broker Settings\n'
-                        f'2. Click "Reconnect" next to {selected_broker.broker_name}\n'
-                        '3. Generate a fresh access token from the broker portal\n'
-                        '4. Paste the new token and save\n\n'
-                        'Then come back here and retry the trade.'
+                        'Dhan rejected the order (DH-901).\n\n'
+                        'Most common cause: the execution server IP (54.225.202.78) '
+                        'is not whitelisted in your Dhan token.\n\n'
+                        'Dhan embeds allowed IPs into the token at generation time, '
+                        'so you must whitelist the IP first, then regenerate the token.\n\n'
+                        'Steps to fix:\n'
+                        '1. Open Dhan → DhanHQ APIs → your app settings\n'
+                        '2. In the IP Whitelist, add: 54.225.202.78\n'
+                        '   (also add your own IP if calling directly)\n'
+                        '3. Save the whitelist\n'
+                        '4. Click "Generate" to create a NEW Access Token\n'
+                        '   (the old token does not inherit the new whitelist)\n'
+                        '5. Go to Broker Settings → Edit Dhan → paste the new token\n\n'
+                        'If you already whitelisted that IP, the token may be genuinely '
+                        'expired — generate a fresh one from app.dhan.co.'
                     ),
                     'broker_settings_url': '/dashboard/broker-accounts',
                     'error_code': 'DH-901'
