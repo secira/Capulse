@@ -82,6 +82,22 @@ class ConnectionStatus(Enum):
     PENDING = "pending"
     EXPIRED = "expired"  # Stored creds present but access token rejected by broker
 
+
+class _ConnectionStatusType(db.TypeDecorator):
+    """SQLAlchemy column type that transparently converts ConnectionStatus enums
+    to their string value before any INSERT/UPDATE, so psycopg2 never receives
+    a raw Python Enum object regardless of which code path sets the column."""
+    impl = db.String(20)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if isinstance(value, ConnectionStatus):
+            return value.value
+        return value
+
+    def process_result_value(self, value, dialect):
+        return value
+
 class OrderStatus(Enum):
     PENDING = "pending"
     OPEN = "open"
@@ -125,7 +141,7 @@ class BrokerAccount(db.Model):
     refresh_token = db.Column(db.Text, nullable=True)
     
     # Connection details (match existing table structure)
-    connection_status = db.Column(db.String(20), default='disconnected', index=True)
+    connection_status = db.Column(_ConnectionStatusType(20), default='disconnected', index=True)
     is_primary = db.Column(db.Boolean, default=False, index=True)  # Primary broker for trading
     is_data_broker = db.Column(db.Boolean, default=False, index=True)  # Use this broker's Data API for market data
     last_connected = db.Column(db.DateTime, nullable=True)
