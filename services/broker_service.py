@@ -1180,6 +1180,51 @@ class AngelBrokerClient(BaseBrokerClient):
             logger.error(f"Error fetching Angel One orders: {e}")
             raise BrokerAPIError(f"Failed to fetch orders: {e}")
     
+    def _lookup_angel_token(self, exchange: str, tradingsymbol: str) -> str:
+        """Return Angel One's numeric symboltoken for a given symbol.
+
+        Uses SmartConnect.searchScrip (POST /order/v1/searchScrip).
+        Raises BrokerAPIError if lookup fails or symbol not found.
+        """
+        try:
+            result = self._client._postRequest(
+                "api.search.scrip",
+                {"exchange": exchange.upper(), "searchscrip": tradingsymbol.upper()},
+            )
+            if not result or not result.get("status"):
+                raise BrokerAPIError(
+                    f"Angel One symbol search failed for {tradingsymbol}: "
+                    f"{(result or {}).get('message', 'no response')}"
+                )
+            items = result.get("data") or []
+            # Prefer an exact match on tradingsymbol; fall back to first result.
+            for item in items:
+                if item.get("tradingsymbol", "").upper() == tradingsymbol.upper():
+                    token = item.get("symboltoken", "")
+                    if token:
+                        logger.info(
+                            "Angel One token lookup: %s/%s → %s",
+                            exchange, tradingsymbol, token,
+                        )
+                        return str(token)
+            # No exact match — use first result if available.
+            if items and items[0].get("symboltoken"):
+                token = str(items[0]["symboltoken"])
+                logger.warning(
+                    "Angel One token lookup: no exact match for %s, using %s (%s)",
+                    tradingsymbol, items[0].get("tradingsymbol"), token,
+                )
+                return token
+            raise BrokerAPIError(
+                f"Angel One symbol not found: {tradingsymbol} on {exchange}"
+            )
+        except BrokerAPIError:
+            raise
+        except Exception as e:
+            raise BrokerAPIError(
+                f"Angel One symbol token lookup error for {tradingsymbol}: {e}"
+            )
+
     def place_order(self, order_data: Dict) -> Dict:
         """Place order with Angel One.
 
@@ -1196,6 +1241,16 @@ class AngelBrokerClient(BaseBrokerClient):
 
             # Strip None values exactly as SmartConnect.placeOrder does internally.
             params = {k: v for k, v in params.items() if v is not None}
+
+            # ── Auto-resolve symboltoken if missing ───────────────────────
+            if not params.get("symboltoken"):
+                symbol = params.get("tradingsymbol", "")
+                exchange = params.get("exchange", "NSE")
+                if not symbol:
+                    raise BrokerAPIError(
+                        "Cannot place Angel One order: tradingsymbol is empty"
+                    )
+                params["symboltoken"] = self._lookup_angel_token(exchange, symbol)
 
             logger.info("Angel One placeOrder params: %s", params)
 
