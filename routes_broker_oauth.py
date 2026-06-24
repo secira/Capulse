@@ -166,25 +166,6 @@ def _merge_with_stored(broker_type_value: str, **form_fields) -> dict:
     return merged
 
 
-def _push_creds_if_remote(account, label: str = '') -> None:
-    """Push freshly-saved credentials to the TC Execution Engine when remote
-    execution is enabled.  Safe to call unconditionally — failures are logged
-    but never raise.  Call immediately after db.session.commit()."""
-    import os as _os
-    if _os.environ.get('USE_REMOTE_EXEC', '').lower() not in ('true', '1', 'yes', 'on'):
-        return
-    try:
-        from services.execution_proxy import push_broker_credentials
-        result = push_broker_credentials(account)
-        if result.get('ok'):
-            logger.info("Engine credential push OK broker=%s%s", account.id,
-                        f" ({label})" if label else '')
-        else:
-            logger.warning("Engine credential push FAILED broker=%s%s: %s",
-                           account.id, f" ({label})" if label else '', result)
-    except Exception as _e:
-        logger.warning("Engine push non-critical error broker=%s: %s", account.id, _e)
-
 
 def _mark_expired_if_connected(broker_type_value: str, error_msg: str = '') -> None:
     """When a reconnect/refresh fails, mark the account as 'expired' so the UI
@@ -321,7 +302,6 @@ def auth_zerodha():
         account.last_connected = datetime.utcnow()
         account.stamp_token_issued()
         db.session.commit()
-        _push_creds_if_remote(account, 'zerodha-direct-token')
 
         who = f" as {kite_user_name} ({kite_user_id})" if kite_user_id else ""
         flash(f'Zerodha connected successfully{who}!', 'success')
@@ -492,25 +472,6 @@ def callback_zerodha():
         account.last_connected = datetime.utcnow()
         account.stamp_token_issued()
         db.session.commit()
-
-        # Push fresh token to TC Execution Engine immediately.
-        # Zerodha tokens rotate daily so every OAuth login must sync the engine.
-        try:
-            from services.execution_proxy import push_broker_credentials
-            import os
-            if os.environ.get('USE_REMOTE_EXEC', '').lower() in ('true', '1'):
-                push_result = push_broker_credentials(account)
-                if push_result.get('ok'):
-                    logger.info(
-                        f"Zerodha engine credential push OK for broker={account.id}"
-                    )
-                else:
-                    logger.warning(
-                        f"Zerodha engine credential push failed for broker={account.id}: "
-                        f"{push_result}"
-                    )
-        except Exception as _pe:
-            logger.warning(f"Zerodha engine push non-critical error: {_pe}")
 
         who = f" as {kite_user_name} ({kite_user_id})" if kite_user_id else ""
         # T006 — if reconnect was launched from a Trade Now popup, render the
@@ -786,7 +747,6 @@ def auth_angel():
         account.last_connected = datetime.utcnow()
         account.stamp_token_issued()
         db.session.commit()
-        _push_creds_if_remote(account, 'angel-connect')
 
         flash('Angel One connected successfully!', 'success')
         logger.info(f"Angel One connected for user {current_user.id}")
@@ -843,7 +803,6 @@ def reconnect_angel():
         account.last_connected = datetime.utcnow()
         account.stamp_token_issued()
         db.session.commit()
-        _push_creds_if_remote(account, 'angel-reconnect')
         # T006 — popup-aware return so Trade Now closes the popup and proceeds.
         if _is_popup_request():
             return _popup_success_response(account)
@@ -1502,7 +1461,6 @@ def auth_dhan():
         account.last_connected = datetime.utcnow()
         account.stamp_token_issued()
         db.session.commit()
-        _push_creds_if_remote(account, 'dhan-connect')
         flash('Dhan connected successfully!', 'success')
         logger.info(f"Dhan connected for user {current_user.id}")
     except Exception as e:
