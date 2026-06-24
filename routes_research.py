@@ -401,9 +401,9 @@ def api_research_analyze():
                 'error': 'I-Score analysis requires Target Plus subscription or higher'
             }), 403
         
-        data = request.get_json()
+        data = request.get_json(silent=True, force=True)
         if not data:
-            return jsonify({'success': False, 'error': 'No data provided'}), 400
+            return jsonify({'success': False, 'error': 'No data provided — send JSON body with symbol and asset_type'}), 400
         
         symbol = data.get('symbol', '').upper().strip()
         asset_type = data.get('asset_type', 'stocks').lower()
