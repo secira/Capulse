@@ -1117,7 +1117,8 @@ def get_broker_details(broker_id):
 @app.route('/api/broker/<int:broker_id>', methods=['DELETE'])
 @login_required
 def delete_broker(broker_id):
-    """Delete broker connection and all its child records."""
+    """Delete broker connection. Holdings, positions and orders are preserved
+    with broker_account_id set to NULL (ON DELETE SET NULL FK behaviour)."""
     try:
         broker = BrokerAccount.query.filter_by(
             id=broker_id,
@@ -1129,43 +1130,18 @@ def delete_broker(broker_id):
 
         broker_name = broker.broker_name
 
-        # 1. Hard-delete child rows with NOT NULL FK (would block parent delete)
-        from models_broker import BrokerHolding, BrokerPosition, BrokerOrder, BrokerSyncLog
-        BrokerHolding.query.filter_by(broker_account_id=broker_id).delete()
-        BrokerPosition.query.filter_by(broker_account_id=broker_id).delete()
-        BrokerOrder.query.filter_by(broker_account_id=broker_id).delete()
-        BrokerSyncLog.query.filter_by(broker_account_id=broker_id).delete()
+        # Null out any remaining nullable FK refs not covered by DB-level SET NULL
+        for tbl in ('portfolio', 'trade_history', 'active_trades'):
+            try:
+                db.session.execute(
+                    db.text(f"UPDATE {tbl} SET broker_account_id = NULL WHERE broker_account_id = :bid"),
+                    {'bid': broker_id}
+                )
+            except Exception:
+                pass
 
-        # ExecutedTrade also has a NOT NULL FK (broker_id)
-        try:
-            from models import ExecutedTrade
-            ExecutedTrade.query.filter_by(broker_id=broker_id).delete()
-        except Exception:
-            pass
-
-        # 2. Null out optional (nullable) FK references in other tables so we
-        #    don't lose the rows themselves, just their broker link.
-        try:
-            db.session.execute(
-                db.text("UPDATE portfolio SET broker_account_id = NULL WHERE broker_account_id = :bid"),
-                {'bid': broker_id}
-            )
-            db.session.execute(
-                db.text("UPDATE trade_history SET broker_account_id = NULL WHERE broker_account_id = :bid"),
-                {'bid': broker_id}
-            )
-            db.session.execute(
-                db.text("UPDATE active_trades SET broker_account_id = NULL WHERE broker_account_id = :bid"),
-                {'bid': broker_id}
-            )
-            db.session.execute(
-                db.text("UPDATE research_entries SET broker_account_id = NULL WHERE broker_account_id = :bid"),
-                {'bid': broker_id}
-            )
-        except Exception as null_err:
-            logging.warning(f"Non-critical null-out step error during broker delete: {null_err}")
-
-        # 3. Delete the broker account itself
+        # Delete the broker — Postgres SET NULL handles broker_holdings,
+        # broker_positions, broker_orders, broker_sync_logs automatically.
         db.session.delete(broker)
         db.session.commit()
 

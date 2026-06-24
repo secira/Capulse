@@ -543,20 +543,28 @@ with app.app_context():
         'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS asset_type VARCHAR(20) DEFAULT \'STOCK\'',
         'ALTER TABLE manual_trade_imports ADD COLUMN IF NOT EXISTS instrument_detail VARCHAR(100) DEFAULT \'\'',
         'ALTER TABLE user_brokers ADD COLUMN IF NOT EXISTS sync_status VARCHAR(20) DEFAULT \'pending\'',
-        # Fix FK constraints that were created pointing to old table name 'broker_accounts' instead of 'user_brokers'
+        # Fix FK constraints: use SET NULL so deleting a broker keeps holdings/positions/orders intact
         '''DO $$ BEGIN
             IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='broker_holdings_broker_account_id_fkey' AND constraint_type='FOREIGN KEY') THEN
                 ALTER TABLE broker_holdings DROP CONSTRAINT broker_holdings_broker_account_id_fkey;
-                ALTER TABLE broker_holdings ADD CONSTRAINT broker_holdings_broker_account_id_fkey FOREIGN KEY (broker_account_id) REFERENCES user_brokers(id) ON DELETE CASCADE;
             END IF;
+            ALTER TABLE broker_holdings ALTER COLUMN broker_account_id DROP NOT NULL;
+            ALTER TABLE broker_holdings ADD CONSTRAINT broker_holdings_broker_account_id_fkey FOREIGN KEY (broker_account_id) REFERENCES user_brokers(id) ON DELETE SET NULL;
             IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='broker_positions_broker_account_id_fkey' AND constraint_type='FOREIGN KEY') THEN
                 ALTER TABLE broker_positions DROP CONSTRAINT broker_positions_broker_account_id_fkey;
-                ALTER TABLE broker_positions ADD CONSTRAINT broker_positions_broker_account_id_fkey FOREIGN KEY (broker_account_id) REFERENCES user_brokers(id) ON DELETE CASCADE;
             END IF;
+            ALTER TABLE broker_positions ALTER COLUMN broker_account_id DROP NOT NULL;
+            ALTER TABLE broker_positions ADD CONSTRAINT broker_positions_broker_account_id_fkey FOREIGN KEY (broker_account_id) REFERENCES user_brokers(id) ON DELETE SET NULL;
             IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='broker_orders_broker_account_id_fkey' AND constraint_type='FOREIGN KEY') THEN
                 ALTER TABLE broker_orders DROP CONSTRAINT broker_orders_broker_account_id_fkey;
-                ALTER TABLE broker_orders ADD CONSTRAINT broker_orders_broker_account_id_fkey FOREIGN KEY (broker_account_id) REFERENCES user_brokers(id) ON DELETE CASCADE;
             END IF;
+            ALTER TABLE broker_orders ALTER COLUMN broker_account_id DROP NOT NULL;
+            ALTER TABLE broker_orders ADD CONSTRAINT broker_orders_broker_account_id_fkey FOREIGN KEY (broker_account_id) REFERENCES user_brokers(id) ON DELETE SET NULL;
+            IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='broker_sync_logs_broker_account_id_fkey' AND constraint_type='FOREIGN KEY') THEN
+                ALTER TABLE broker_sync_logs DROP CONSTRAINT broker_sync_logs_broker_account_id_fkey;
+            END IF;
+            ALTER TABLE broker_sync_logs ALTER COLUMN broker_account_id DROP NOT NULL;
+            ALTER TABLE broker_sync_logs ADD CONSTRAINT broker_sync_logs_broker_account_id_fkey FOREIGN KEY (broker_account_id) REFERENCES user_brokers(id) ON DELETE SET NULL;
         END $$''',
         '''CREATE TABLE IF NOT EXISTS behavioural_alerts (
             id SERIAL PRIMARY KEY,
