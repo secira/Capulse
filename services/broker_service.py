@@ -939,6 +939,25 @@ class ZerodhaBrokerClient(BaseBrokerClient):
                     'Use the signal entry price as your limit price.'
                 )
 
+        # Use AMO variety outside market hours (9:15–15:30 IST).
+        # Kite rejects variety='regular' outside those hours with
+        # "Your order could not be converted to an After Market Order (AMO)."
+        variety = self._client.VARIETY_REGULAR
+        try:
+            from datetime import datetime, timezone, timedelta
+            _IST = timezone(timedelta(hours=5, minutes=30))
+            _now = datetime.now(_IST)
+            _open  = _now.replace(hour=9,  minute=15, second=0, microsecond=0)
+            _close = _now.replace(hour=15, minute=30, second=0, microsecond=0)
+            if _now.weekday() >= 5 or not (_open <= _now <= _close):
+                variety = self._client.VARIETY_AMO
+                logger.info(
+                    "broker_service Zerodha: using AMO variety (IST %s, "
+                    "outside market hours)", _now.strftime('%H:%M')
+                )
+        except Exception:
+            pass  # safe default: regular variety
+
         return {
             'tradingsymbol': order_data.get('trading_symbol'),
             'exchange': exchange,
@@ -950,7 +969,7 @@ class ZerodhaBrokerClient(BaseBrokerClient):
             'trigger_price': float(order_data.get('trigger_price') or 0),
             'disclosed_quantity': order_data.get('disclosed_quantity', 0),
             'validity': order_data.get('validity', self._client.VALIDITY_DAY),
-            'variety': self._client.VARIETY_REGULAR
+            'variety': variety
         }
     
     def _map_zerodha_product_type(self, zerodha_product: str) -> ProductType:

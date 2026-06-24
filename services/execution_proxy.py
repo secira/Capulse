@@ -466,6 +466,35 @@ def _resolve_security_id(order_data: Dict[str, Any], symbol: str,
     )
 
 
+# ─── Market hours helper ─────────────────────────────────────────────────────
+
+def _is_zerodha_amo_required(broker_type_str: str) -> bool:
+    """Return True when current IST time is outside NSE/NFO market hours.
+
+    Zerodha Kite requires variety='amo' for orders placed before 9:15 AM or
+    after 3:30 PM IST — plain variety='regular' will be rejected with
+    "Your order could not be converted to an After Market Order (AMO)."
+    We only apply this logic to Zerodha; other brokers handle AMO differently.
+
+    Market hours:  09:15 – 15:30 IST (Monday–Friday)
+    Pre-market:    09:00 – 09:15 IST (also treated as regular by Kite)
+    """
+    if broker_type_str != 'zerodha':
+        return False
+    try:
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+        now_ist = datetime.now(IST)
+        # Weekends — market closed; treat as AMO so the order queues for Monday
+        if now_ist.weekday() >= 5:
+            return True
+        market_open  = now_ist.replace(hour=9,  minute=15, second=0, microsecond=0)
+        market_close = now_ist.replace(hour=15, minute=30, second=0, microsecond=0)
+        return not (market_open <= now_ist <= market_close)
+    except Exception:
+        return False   # safe default — let the engine decide
+
+
 # ─── Public API ──────────────────────────────────────────────────────────────
 
 def place_order(broker_account, order_data: Dict[str, Any],
@@ -589,7 +618,7 @@ def place_order(broker_account, order_data: Dict[str, Any],
         'price':            float(order_data.get('price') or 0),
         'trigger_price':    float(order_data.get('trigger_price') or 0),
         'validity':         (order_data.get('validity') or 'DAY').upper(),
-        'after_market_order': bool(order_data.get('after_market_order', False)),
+        'after_market_order': bool(order_data.get('after_market_order', False)) or _is_zerodha_amo_required(broker_type_str),
         'tenant_id':        getattr(broker_account, 'tenant_id', 'live') or 'live',
         'tag':              'tc-app',
     }
