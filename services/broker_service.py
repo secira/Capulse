@@ -1184,23 +1184,34 @@ class AngelBrokerClient(BaseBrokerClient):
         """Place order with Angel One"""
         if not self._client:
             raise BrokerAPIError("Not connected to Angel One")
-        
+
         try:
-            # Convert our order format to Angel One format
             angel_order = self._convert_to_angel_order(order_data)
+            logger.info("Angel One placeOrder params: %s", angel_order)
             result = self._client.placeOrder(angel_order)
-            
+
+            if result is None:
+                raise BrokerAPIError(
+                    "Angel One API returned no response. "
+                    "Check that the symbol token is correct and the account "
+                    "session is still active."
+                )
+
             if result.get('status'):
                 return {
-                    'status': 'success', 
+                    'status': 'success',
                     'order_id': result.get('data', {}).get('orderid'),
                     'message': 'Order placed successfully'
                 }
             else:
-                raise BrokerAPIError(f"Order placement failed: {result.get('message')}")
+                raise BrokerAPIError(
+                    f"Angel One rejected order: {result.get('message', 'unknown error')}"
+                )
+        except BrokerAPIError:
+            raise
         except Exception as e:
             logger.error(f"Error placing Angel One order: {e}")
-            raise BrokerAPIError(f"Failed to place order: {e}")
+            raise BrokerAPIError(f"Failed to place Angel One order: {e}")
     
     def cancel_order(self, order_id: str) -> Dict:
         """Cancel Angel One order"""
@@ -1311,39 +1322,90 @@ class AngelBrokerClient(BaseBrokerClient):
         }
     
     def _convert_to_angel_order(self, order_data: Dict) -> Dict:
-        """Convert our order format to Angel One API format"""
-        transaction_type_map = {
-            TransactionType.BUY: "BUY",
-            TransactionType.SELL: "SELL"
+        """Convert our order format to Angel One API format.
+
+        order_data values may be plain strings (from Trade Now / F&O UI)
+        or internal enum instances (from in-process broker path).
+        Both cases are handled below.
+        """
+        # ── transaction type ──────────────────────────────────────────────
+        _tx_raw = order_data.get('transaction_type')
+        if isinstance(_tx_raw, str):
+            transaction_type = _tx_raw.upper()
+        elif hasattr(_tx_raw, 'value'):
+            transaction_type = _tx_raw.value.upper()
+        else:
+            transaction_type = {
+                TransactionType.BUY:  "BUY",
+                TransactionType.SELL: "SELL",
+            }.get(_tx_raw, "BUY")
+
+        # ── order type ────────────────────────────────────────────────────
+        _ot_raw = order_data.get('order_type')
+        _ot_str = (
+            _ot_raw if isinstance(_ot_raw, str)
+            else getattr(_ot_raw, 'value', str(_ot_raw or 'MARKET'))
+        ).upper()
+        _order_type_str_map = {
+            'MARKET':       'MARKET',
+            'LIMIT':        'LIMIT',
+            'SL':           'STOPLOSS_LIMIT',
+            'SL-M':         'STOPLOSS_MARKET',
+            'STOP_LOSS':    'STOPLOSS_LIMIT',
+            'STOP_LOSS_MARKET': 'STOPLOSS_MARKET',
         }
-        
-        order_type_map = {
-            OrderType.MARKET: "MARKET",
-            OrderType.LIMIT: "LIMIT",
-            OrderType.SL: "STOPLOSS_LIMIT",
-            OrderType.SL_M: "STOPLOSS_MARKET"
+        _order_type_enum_map = {
+            OrderType.MARKET: 'MARKET',
+            OrderType.LIMIT:  'LIMIT',
+            OrderType.SL:     'STOPLOSS_LIMIT',
+            OrderType.SL_M:   'STOPLOSS_MARKET',
         }
-        
-        product_type_map = {
-            ProductType.INTRADAY: "INTRADAY",
-            ProductType.DELIVERY: "DELIVERY",
-            ProductType.CNC: "DELIVERY",
-            ProductType.MIS: "INTRADAY"
+        order_type = (
+            _order_type_str_map.get(_ot_str)
+            or _order_type_enum_map.get(_ot_raw)
+            or 'MARKET'
+        )
+
+        # ── product type ──────────────────────────────────────────────────
+        _pt_raw = order_data.get('product_type')
+        _pt_str = (
+            _pt_raw if isinstance(_pt_raw, str)
+            else getattr(_pt_raw, 'value', str(_pt_raw or 'MIS'))
+        ).upper()
+        _product_type_str_map = {
+            'MIS':       'INTRADAY',
+            'INTRADAY':  'INTRADAY',
+            'CNC':       'DELIVERY',
+            'DELIVERY':  'DELIVERY',
+            'NRML':      'CARRYFORWARD',
         }
-        
+        _product_type_enum_map = {
+            ProductType.INTRADAY: 'INTRADAY',
+            ProductType.MIS:      'INTRADAY',
+            ProductType.DELIVERY: 'DELIVERY',
+            ProductType.CNC:      'DELIVERY',
+        }
+        product_type = (
+            _product_type_str_map.get(_pt_str)
+            or _product_type_enum_map.get(_pt_raw)
+            or 'INTRADAY'
+        )
+
+        price_val = float(order_data.get('price') or 0)
+
         return {
-            "variety": "NORMAL",
-            "tradingsymbol": order_data.get('trading_symbol'),
-            "symboltoken": order_data.get('security_id', ''),
-            "transactiontype": transaction_type_map.get(order_data.get('transaction_type')),
-            "exchange": order_data.get('exchange', 'NSE'),
-            "ordertype": order_type_map.get(order_data.get('order_type')),
-            "producttype": product_type_map.get(order_data.get('product_type')),
-            "duration": "DAY",
-            "price": str(order_data.get('price', 0)),
-            "squareoff": "0",
-            "stoploss": "0",
-            "quantity": str(order_data.get('quantity'))
+            "variety":         "NORMAL",
+            "tradingsymbol":   str(order_data.get('trading_symbol') or order_data.get('symbol') or ''),
+            "symboltoken":     str(order_data.get('security_id') or ''),
+            "transactiontype": transaction_type,
+            "exchange":        str(order_data.get('exchange') or 'NSE').upper(),
+            "ordertype":       order_type,
+            "producttype":     product_type,
+            "duration":        "DAY",
+            "price":           str(price_val if order_type != 'MARKET' else 0),
+            "squareoff":       "0",
+            "stoploss":        "0",
+            "quantity":        str(int(order_data.get('quantity') or 1)),
         }
     
     def _map_angel_product_type(self, angel_product: str) -> ProductType:
