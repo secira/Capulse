@@ -489,6 +489,25 @@ def callback_zerodha():
         account.stamp_token_issued()
         db.session.commit()
 
+        # Push fresh token to TC Execution Engine immediately.
+        # Zerodha tokens rotate daily so every OAuth login must sync the engine.
+        try:
+            from services.execution_proxy import push_broker_credentials
+            import os
+            if os.environ.get('USE_REMOTE_EXEC', '').lower() in ('true', '1'):
+                push_result = push_broker_credentials(account)
+                if push_result.get('ok'):
+                    logger.info(
+                        f"Zerodha engine credential push OK for broker={account.id}"
+                    )
+                else:
+                    logger.warning(
+                        f"Zerodha engine credential push failed for broker={account.id}: "
+                        f"{push_result}"
+                    )
+        except Exception as _pe:
+            logger.warning(f"Zerodha engine push non-critical error: {_pe}")
+
         who = f" as {kite_user_name} ({kite_user_id})" if kite_user_id else ""
         # T006 — if reconnect was launched from a Trade Now popup, render the
         # auto-closing success page so the opener can resume the order flow.

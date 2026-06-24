@@ -531,7 +531,10 @@ def place_order(broker_account, order_data: Dict[str, Any],
         'user_broker_id':   int(broker_account.id),
         'broker_type':      broker_name.lower(),
         # Fresh credentials — engine must prefer these over its own store.
-        'client_id':        creds.get('client_id', ''),
+        # api_key = App API Key (Zerodha / Upstox etc.) or client ID (Dhan)
+        'api_key':          creds.get('api_key') or creds.get('client_id', ''),
+        # client_id = broker login/user ID (e.g. ZB9220); falls back to api_key for Dhan
+        'client_id':        creds.get('broker_client_id') or creds.get('client_id', ''),
         'access_token':     creds.get('access_token', ''),
         'symbol':           symbol,
         'trading_symbol':   trading_symbol,
@@ -742,7 +745,10 @@ def push_broker_credentials(broker_account) -> Dict[str, Any]:
             'user_id':        uid,
             'user_broker_id': bid,
             'broker_type':    bname,
-            'client_id':      creds.get('client_id', ''),
+            # api_key = App API Key (Zerodha / Upstox etc.) or client ID (Dhan)
+            'api_key':        creds.get('api_key') or creds.get('client_id', ''),
+            # client_id = the broker user/login ID (e.g. ZB9220 for Zerodha)
+            'client_id':      creds.get('broker_client_id') or creds.get('client_id', ''),
             'access_token':   creds.get('access_token', ''),
         }
         if creds.get('api_secret'):
