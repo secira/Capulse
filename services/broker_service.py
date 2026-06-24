@@ -902,30 +902,52 @@ class ZerodhaBrokerClient(BaseBrokerClient):
             TransactionType.BUY: self._client.TRANSACTION_TYPE_BUY,
             TransactionType.SELL: self._client.TRANSACTION_TYPE_SELL
         }
-        
+
         order_type_map = {
             OrderType.MARKET: self._client.ORDER_TYPE_MARKET,
             OrderType.LIMIT: self._client.ORDER_TYPE_LIMIT,
             OrderType.SL: self._client.ORDER_TYPE_SL,
             OrderType.SL_M: self._client.ORDER_TYPE_SLM
         }
-        
+
         product_type_map = {
             ProductType.INTRADAY: self._client.PRODUCT_MIS,
             ProductType.DELIVERY: self._client.PRODUCT_CNC,
             ProductType.CNC: self._client.PRODUCT_CNC,
             ProductType.MIS: self._client.PRODUCT_MIS
         }
-        
+
+        raw_order_type = order_data.get('order_type')
+        exchange = order_data.get('exchange', 'NSE')
+        price = float(order_data.get('price') or 0)
+
+        # Kite API rejects MARKET orders on F&O exchanges without market protection.
+        # Convert to LIMIT using the provided price when available.
+        _FNO_EXCHANGES = {'NFO', 'BFO', 'MCX', 'CDS', 'BCD', 'NSE_FO', 'BSE_FO'}
+        if (raw_order_type == OrderType.MARKET and
+                str(exchange).upper() in _FNO_EXCHANGES):
+            if price > 0:
+                raw_order_type = OrderType.LIMIT
+                logger.info(
+                    "broker_service Zerodha: F&O MARKET→LIMIT at %.2f (exchange=%s)",
+                    price, exchange
+                )
+            else:
+                raise BrokerAPIError(
+                    'Zerodha does not allow plain Market orders on F&O (NFO/BFO). '
+                    'Please use a Limit order and set a price. '
+                    'Use the signal entry price as your limit price.'
+                )
+
         return {
             'tradingsymbol': order_data.get('trading_symbol'),
-            'exchange': order_data.get('exchange', self._client.EXCHANGE_NSE),
+            'exchange': exchange,
             'transaction_type': transaction_type_map.get(order_data.get('transaction_type')),
             'quantity': order_data.get('quantity'),
-            'order_type': order_type_map.get(order_data.get('order_type')),
+            'order_type': order_type_map.get(raw_order_type),
             'product': product_type_map.get(order_data.get('product_type')),
-            'price': order_data.get('price', 0),
-            'trigger_price': order_data.get('trigger_price', 0),
+            'price': price,
+            'trigger_price': float(order_data.get('trigger_price') or 0),
             'disclosed_quantity': order_data.get('disclosed_quantity', 0),
             'validity': order_data.get('validity', self._client.VALIDITY_DAY),
             'variety': self._client.VARIETY_REGULAR

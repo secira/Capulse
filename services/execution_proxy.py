@@ -502,6 +502,41 @@ def place_order(broker_account, order_data: Dict[str, Any],
     pt_raw = (order_data.get('product_type') or 'MIS').upper().strip()
     product_type = _PRODUCT_TYPE_MAP.get(pt_raw, pt_raw)
 
+    # ── Zerodha F&O market-protection fix ───────────────────────────────────
+    # Kite API rejects plain MARKET orders on F&O exchanges (NFO / BFO / MCX)
+    # with "Market orders without market protection are not allowed via API."
+    # Zerodha's recommended approach is to place a LIMIT order at a price
+    # slightly above LTP (buy) or below LTP (sell) — equivalent to their UI
+    # "market protection" feature.  We convert MARKET→LIMIT using the signal
+    # entry price when one is present; otherwise we block the order with a
+    # clear error so the user sets an explicit price.
+    _FNO_EXCHANGES = {'NFO', 'BFO', 'MCX', 'CDS', 'BCD', 'NSE_FO', 'BSE_FO'}
+    _bt_check = getattr(broker_account, 'broker_type', None)
+    _bt_check_str = (
+        _bt_check.value if hasattr(_bt_check, 'value') else str(_bt_check or '')
+    ).lower()
+    if _bt_check_str == 'zerodha' and order_type == 'MARKET' and exchange in _FNO_EXCHANGES:
+        _limit_price = float(order_data.get('price') or 0)
+        if _limit_price > 0:
+            # Use the signal/user-supplied price as a LIMIT order —
+            # effectively acts as market protection at that price level.
+            order_type = 'LIMIT'
+            logger.info(
+                "execution_proxy: Zerodha F&O MARKET→LIMIT at %.2f "
+                "(exchange=%s symbol=%s)", _limit_price, exchange, symbol
+            )
+        else:
+            # No price available — block order and ask user to enter one.
+            raise ExecutionProxyError(
+                'validation_error',
+                'Zerodha does not allow plain Market orders on F&O (NFO/BFO). '
+                'Please select "Limit" order type and enter a price. '
+                'Tip: use the signal\'s entry price as your limit price — '
+                'Zerodha will execute at or better than that price.',
+                broker_name=getattr(broker_account, 'broker_name', 'Zerodha'),
+            )
+    # ────────────────────────────────────────────────────────────────────────
+
     logger.info(
         "execution_proxy place_order ENTER user=%s broker_account=%s symbol=%s "
         "exchange=%s order_type=%s product=%s qty=%s side=%s",
