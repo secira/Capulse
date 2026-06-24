@@ -1050,7 +1050,16 @@ class ZerodhaBrokerClient(BaseBrokerClient):
 
 class AngelBrokerClient(BaseBrokerClient):
     """Angel One SmartAPI broker client implementation"""
-    
+
+    # Class-level scrip master cache shared across all instances.
+    # Structure: {'data': {(exch_seg, name): token, ...}, 'fetched_at': float}
+    _scrip_master_cache: Dict = {}
+    _SCRIP_MASTER_URL = (
+        "https://margincalculator.angelbroking.com"
+        "/OpenAPI_File/files/OpenAPIScripMaster.json"
+    )
+    _SCRIP_MASTER_TTL = 86400  # 24 hours
+
     def __init__(self, broker_account: BrokerAccount):
         super().__init__(broker_account)
         if not ANGEL_AVAILABLE:
@@ -1180,44 +1189,99 @@ class AngelBrokerClient(BaseBrokerClient):
             logger.error(f"Error fetching Angel One orders: {e}")
             raise BrokerAPIError(f"Failed to fetch orders: {e}")
     
+    @classmethod
+    def _load_scrip_master(cls) -> Dict:
+        """Return a (exch_seg, name) → token lookup dict, fetched from Angel One's
+        public scrip master JSON and cached for 24 hours.
+
+        The scrip master is the authoritative source of symboltoken values that
+        placeOrder actually validates against.  searchScrip can return stale or
+        mismatched tokens, so we bypass it entirely.
+        """
+        import time, requests as _req
+
+        now = time.time()
+        cached = cls._scrip_master_cache
+        if cached.get('fetched_at', 0) + cls._SCRIP_MASTER_TTL > now and cached.get('data'):
+            return cached['data']
+
+        logger.info("Fetching Angel One scrip master from %s …", cls._SCRIP_MASTER_URL)
+        try:
+            resp = _req.get(cls._SCRIP_MASTER_URL, timeout=30)
+            resp.raise_for_status()
+            records = resp.json()
+        except Exception as e:
+            raise BrokerAPIError(f"Failed to fetch Angel One scrip master: {e}")
+
+        # Build lookup tables:
+        #   primary:  (exch_seg.upper(), name.upper())  → token
+        #   fallback: (exch_seg.upper(), symbol_prefix.upper()) → token
+        #             where symbol_prefix strips the trailing "-EQ"/"-BE" suffix
+        primary: Dict = {}
+        fallback: Dict = {}
+        for rec in records:
+            exch = (rec.get('exch_seg') or '').upper()
+            name = (rec.get('name') or '').upper()
+            sym  = (rec.get('symbol') or '').upper()
+            tok  = str(rec.get('token') or '').strip()
+            if not tok or tok == '0':
+                continue
+            if exch and name:
+                # Keep first occurrence (usually the EQ / most liquid series)
+                primary.setdefault((exch, name), tok)
+            if exch and sym:
+                # Strip common suffixes so "WIPRO-EQ" → "WIPRO"
+                sym_base = sym.split('-')[0]
+                fallback.setdefault((exch, sym_base), tok)
+
+        data = {'primary': primary, 'fallback': fallback}
+        cls._scrip_master_cache = {'data': data, 'fetched_at': now}
+        logger.info("Angel One scrip master cached: %d primary entries", len(primary))
+        return data
+
     def _lookup_angel_token(self, exchange: str, tradingsymbol: str) -> str:
         """Return Angel One's numeric symboltoken for a given symbol.
 
-        Uses SmartConnect.searchScrip (POST /order/v1/searchScrip).
-        Raises BrokerAPIError if lookup fails or symbol not found.
+        Uses the publicly published scrip master JSON (the authoritative source
+        that placeOrder validates against).  Falls back to searchScrip only if
+        the scrip master fetch itself fails.
         """
+        exch = exchange.upper()
+        sym  = tradingsymbol.upper()
+
         try:
-            result = self._client._postRequest(
-                "api.search.scrip",
-                {"exchange": exchange.upper(), "searchscrip": tradingsymbol.upper()},
-            )
-            if not result or not result.get("status"):
-                raise BrokerAPIError(
-                    f"Angel One symbol search failed for {tradingsymbol}: "
-                    f"{(result or {}).get('message', 'no response')}"
-                )
-            items = result.get("data") or []
-            # Prefer an exact match on tradingsymbol; fall back to first result.
-            for item in items:
-                if item.get("tradingsymbol", "").upper() == tradingsymbol.upper():
-                    token = item.get("symboltoken", "")
-                    if token:
-                        logger.info(
-                            "Angel One token lookup: %s/%s → %s",
-                            exchange, tradingsymbol, token,
-                        )
-                        return str(token)
-            # No exact match — use first result if available.
-            if items and items[0].get("symboltoken"):
-                token = str(items[0]["symboltoken"])
-                logger.warning(
-                    "Angel One token lookup: no exact match for %s, using %s (%s)",
-                    tradingsymbol, items[0].get("tradingsymbol"), token,
-                )
+            master = self._load_scrip_master()
+            primary  = master.get('primary', {})
+            fallback = master.get('fallback', {})
+
+            # 1. Exact name match (e.g. 'WIPRO' on 'NSE')
+            token = primary.get((exch, sym))
+            if token:
+                logger.info("Angel One token (name match): %s/%s → %s", exch, sym, token)
                 return token
+
+            # 2. Symbol-prefix match (handles 'WIPRO-EQ' stored as 'WIPRO')
+            token = fallback.get((exch, sym))
+            if token:
+                logger.info("Angel One token (symbol match): %s/%s → %s", exch, sym, token)
+                return token
+
+            # 3. BSE / NFO exchange alias retries
+            alt_exchanges = {'NSE': ['BSE'], 'BSE': ['NSE'], 'NFO': ['NSE']}.get(exch, [])
+            for alt_exch in alt_exchanges:
+                token = primary.get((alt_exch, sym)) or fallback.get((alt_exch, sym))
+                if token:
+                    logger.warning(
+                        "Angel One token: %s not found on %s, using %s token %s",
+                        sym, exch, alt_exch, token,
+                    )
+                    return token
+
             raise BrokerAPIError(
-                f"Angel One symbol not found: {tradingsymbol} on {exchange}"
+                f"Angel One symbol '{tradingsymbol}' not found on {exchange} "
+                f"in scrip master. Check the symbol name matches NSE/BSE exactly."
             )
+
         except BrokerAPIError:
             raise
         except Exception as e:
