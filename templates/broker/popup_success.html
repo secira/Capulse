@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Broker session refreshed</title>
+  <title>Broker connected</title>
   <style>
     body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;
          display:flex;align-items:center;justify-content:center;
@@ -16,20 +16,27 @@
 <body>
   <div class="card">
     <div class="icon">✓</div>
-    <h3 style="margin:0">{{ broker_name or 'Broker' }} session refreshed</h3>
-    <p class="muted">This window will close automatically. Returning to Trade Now…</p>
+    <h3 style="margin:0">{{ broker_name or 'Broker' }} connected!</h3>
+    <p class="muted">{{ success_message or 'This window will close automatically.' }}</p>
+    <p class="muted">Refreshing your Target Capital tab…</p>
   </div>
   <script>
     (function(){
       try {
         if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(
-            { type: 'broker-reauth-success', account_id: {{ account_id|tojson }} },
-            '*'
-          );
+          // Reload the opener tab so it shows the updated connection status
+          window.opener.location.reload();
+          // Also post a message in case Trade Now page is listening
+          try {
+            window.opener.postMessage(
+              { type: 'broker-reauth-success', account_id: {{ account_id|tojson }} },
+              '*'
+            );
+          } catch(e) {}
         }
       } catch (e) { /* opener gone — fine */ }
-      setTimeout(function(){ try { window.close(); } catch(e){} }, 800);
+      // Close this new tab after a short delay so the user sees the success message
+      setTimeout(function(){ try { window.close(); } catch(e){} }, 1500);
     })();
   </script>
 </body>

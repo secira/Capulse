@@ -13,7 +13,7 @@ from typing import Optional
 
 import requests
 from flask import (
-    Blueprint, flash, redirect, render_template,
+    Blueprint, flash, redirect, render_template, render_template_string,
     request, session, url_for
 )
 from flask_login import current_user, login_required
@@ -396,35 +396,70 @@ def auth_zerodha():
 
 
 @broker_oauth.route('/broker/callback/zerodha')
-@login_required
 def callback_zerodha():
+    # NOTE: @login_required is intentionally NOT used here.
+    # Zerodha redirects back in a new tab opened by JS window.open().
+    # In some browsers (strict cookie policies / cross-site redirect edge
+    # cases) the session cookie may not arrive on the very first request in
+    # that new tab, causing @login_required to silently swallow the
+    # one-time request_token and redirect to /login — breaking the flow.
+    # We handle auth manually below so we can give a clear error instead.
+    callback_url = f"{request.url_root.rstrip('/')}/broker/callback/zerodha"
+
+    # ── Not logged in in this tab ─────────────────────────────────────────
+    if not current_user.is_authenticated:
+        logger.warning(
+            "Zerodha callback: user not authenticated in new tab — "
+            f"args={dict(request.args)}"
+        )
+        return render_template_string("""
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Zerodha — login required</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;
+display:flex;align-items:center;justify-content:center;height:100vh;margin:0;
+background:#0b1220;color:#e2e8f0;text-align:center}
+.card{padding:2rem 2.5rem;border-radius:12px;background:#111827;
+box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:480px}
+.warn{color:#f59e0b;font-size:2.5rem;margin-bottom:.5rem}
+a{color:#60a5fa}</style></head><body>
+<div class="card">
+  <div class="warn">⚠</div>
+  <h3 style="margin:0 0 .5rem">Session not found in this tab</h3>
+  <p style="color:#94a3b8;font-size:.95rem;margin:.5rem 0 1.5rem">
+    Please go back to your Target Capital tab, make sure you are logged in,
+    then click <strong>Re-login with Zerodha</strong> again.
+  </p>
+  <button onclick="window.close()"
+    style="background:#374151;color:#e2e8f0;border:none;border-radius:8px;
+    padding:.6rem 1.5rem;font-size:1rem;cursor:pointer">Close this tab</button>
+</div></body></html>
+"""), 401
+
     request_token = request.args.get('request_token')
     if not request_token:
-        # Kite redirects here WITHOUT a request_token when its own /finish step
-        # rejected the login. Surface the actual Kite error params so the user
-        # can see the real reason instead of a vague "cancelled" message.
+        # Kite redirects here WITHOUT a request_token when the redirect URL in
+        # the Kite Connect app doesn't match, or the user cancelled login.
         kite_status = request.args.get('status', '')
         kite_type   = request.args.get('type', '')
         kite_msg    = request.args.get('message', '') or request.args.get('error_type', '')
         logger.warning(
-            f"Zerodha callback hit without request_token — "
+            f"Zerodha callback: no request_token — "
             f"status={kite_status!r} type={kite_type!r} msg={kite_msg!r} "
             f"args={dict(request.args)}"
         )
         if kite_msg or kite_type:
             flash(
                 f'Zerodha login failed: {kite_msg or kite_type}. '
-                f'This is almost always caused by the Redirect URL in your Kite Connect app '
-                f'(developers.kite.trade) not matching '
-                f'{request.url_root.rstrip("/")}/broker/callback/zerodha exactly. '
+                f'The most common cause is the Redirect URL in your Kite Connect app '
+                f'(developers.kite.trade) not matching exactly: {callback_url} '
                 f'Also verify your Kite app Type is "Connect" and the ₹2,000/mo subscription is active.',
                 'error'
             )
         else:
             flash(
-                'Zerodha login was cancelled or rejected by Kite before reaching our server. '
-                f'Check that the Redirect URL on your Kite Connect app exactly equals '
-                f'{request.url_root.rstrip("/")}/broker/callback/zerodha (no trailing slash).',
+                f'Zerodha login was cancelled or Kite rejected it before returning to us. '
+                f'Make sure the Redirect URL in your Kite Connect app (developers.kite.trade) '
+                f'is set to exactly: {callback_url} (no trailing slash, no http vs https mismatch).',
                 'error'
             )
         return redirect(url_for('broker_oauth.broker_connect'))
@@ -435,13 +470,13 @@ def callback_zerodha():
     ).first() if account_id else None
 
     if not account:
-        # Try to find by broker_type
+        # Fallback: find by broker_type (handles session loss between tabs)
         account = BrokerAccount.query.filter_by(
             user_id=current_user.id, broker_type='zerodha', is_active=True
         ).first()
 
     if not account:
-        flash('Broker account not found. Please try again.', 'error')
+        flash('Broker account not found. Please try connecting Zerodha again.', 'error')
         return redirect(url_for('broker_oauth.broker_connect'))
 
     try:
@@ -464,8 +499,6 @@ def callback_zerodha():
             access_token=access_token,
             api_secret=api_secret,
         )
-        # Surface the Zerodha account identity in the broker_name so the UI shows
-        # "Zerodha (AB1234)" — useful when a user connects multiple brokers.
         if kite_user_id:
             account.broker_name = f"Zerodha ({kite_user_id})"
         account.connection_status = ConnectionStatus.CONNECTED.value
@@ -474,19 +507,23 @@ def callback_zerodha():
         db.session.commit()
 
         who = f" as {kite_user_name} ({kite_user_id})" if kite_user_id else ""
-        # T006 — if reconnect was launched from a Trade Now popup, render the
-        # auto-closing success page so the opener can resume the order flow.
-        if session.pop('broker_reauth_popup', False):
-            return _popup_success_response(account)
-        flash(f'Zerodha connected successfully{who}!', 'success')
         logger.info(
             f"Zerodha connected for user {current_user.id} — kite_user_id={kite_user_id}"
         )
+        # Always return the auto-close popup page — it reloads window.opener
+        # (the TC tab the user started from) and closes this new tab.
+        session.pop('broker_reauth_popup', None)
+        return render_template(
+            'broker/popup_success.html',
+            account_id=account.id,
+            broker_name=account.broker_name or 'Zerodha',
+            success_message=f'Zerodha connected successfully{who}!',
+        )
+
     except Exception as e:
         logger.error(f"Zerodha token exchange failed: {e}")
         flash(f'Zerodha connection failed: {str(e)}', 'error')
-
-    return redirect(url_for('broker_oauth.broker_connect'))
+        return redirect(url_for('broker_oauth.broker_connect'))
 
 
 # ---------------------------------------------------------------------------

@@ -494,12 +494,23 @@
             <div class="tab-pane fade show active" id="zerodha-tab-oauth" role="tabpanel">
               <div class="alert alert-info small mb-3">
                 <i class="fas fa-lightbulb me-1"></i>
-                <strong>Easiest way</strong> — just paste your two API credentials below. We redirect you
-                to Kite, you complete login + 2FA, and we save the daily access token automatically.
-                <br><br>
-                Get your API Key + Secret from
-                <a href="https://developers.kite.trade/apps" target="_blank">developers.kite.trade</a>.
-                Set the Redirect URL on your Kite app to <code>{{ request.host_url.rstrip('/') }}/broker/callback/zerodha</code>.
+                <strong>Step 1</strong> — Go to <a href="https://developers.kite.trade/apps" target="_blank">developers.kite.trade</a>,
+                open your Kite Connect app, and set the <strong>Redirect URL</strong> to exactly:
+              </div>
+              <div class="input-group mb-3">
+                <input type="text" class="form-control form-control-sm font-monospace"
+                       id="zerodha-callback-url"
+                       value="{{ request.host_url.rstrip('/') }}/broker/callback/zerodha"
+                       readonly style="font-size:.78rem;">
+                <button class="btn btn-outline-secondary btn-sm" type="button"
+                        onclick="navigator.clipboard.writeText(document.getElementById('zerodha-callback-url').value).then(function(){this.textContent='Copied!';setTimeout(function(){document.querySelector('[onclick*=zerodha-callback-url]').textContent='Copy'},1500)}.bind(this))">
+                  Copy
+                </button>
+              </div>
+              <div class="alert alert-info small mb-3">
+                <i class="fas fa-lightbulb me-1"></i>
+                <strong>Step 2</strong> — Paste your API Key + Secret below, then click Connect.
+                We open Zerodha's login in a new tab, you complete 2FA, and the tab closes automatically.
               </div>
               <div class="mb-3">
                 <label class="form-label fw-semibold">API Key <span class="text-danger">*</span></label>
