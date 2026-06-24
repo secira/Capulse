@@ -572,13 +572,15 @@ def place_order(broker_account, order_data: Dict[str, Any],
     # must go through the local in-process broker_service path.  Raising with
     # bucket='broker_not_supported' tells the caller (routes.py) to fall
     # through to BrokerService.place_order_via_broker() immediately.
+    # NOTE: reuse _bt_check_str (computed above); broker_type_str is defined
+    # later in this function after credential decryption.
     _ENGINE_SUPPORTED_BROKERS = {'dhan', 'zerodha'}
-    if broker_type_str not in _ENGINE_SUPPORTED_BROKERS:
+    if _bt_check_str not in _ENGINE_SUPPORTED_BROKERS:
         raise ExecutionProxyError(
             'broker_not_supported',
-            f"Broker '{broker_type_str}' is not handled by the remote execution "
+            f"Broker '{_bt_check_str}' is not handled by the remote execution "
             f"engine. Falling through to in-process broker path.",
-            broker_name=broker_name,
+            broker_name=getattr(broker_account, 'broker_name', _bt_check_str),
         )
     # ────────────────────────────────────────────────────────────────────────
 
