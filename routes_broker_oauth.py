@@ -380,35 +380,18 @@ def auth_zerodha():
         f"api_key={api_key!r} (len={len(api_key)}, "
         f"bytes={api_key.encode('utf-8')!r}) | url={kite_url}"
     )
-    # CRITICAL: must break out of any embedding iframe (e.g. Replit's
-    # workspace_iframe.html) before sending the browser to kite.zerodha.com.
-    # If Kite loads inside a cross-origin iframe, modern browsers block its
-    # session/CSRF cookies and the login fails with the opaque
-    # "Missing or empty field `authorize`" InputException at /finish.
-    # We return a tiny HTML shim that escapes to top-level then navigates.
-    import json as _json
-    # Keep raw '&' in href/meta-refresh (browsers tolerate; some refuse to
-    # decode '&amp;' in meta-refresh, breaking ?api_key= into ?amp;api_key=).
-    html_safe = kite_url.replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
-    js_safe = _json.dumps(kite_url)
-    html = (
-        "<!doctype html><html><head><meta charset='utf-8'>"
-        "<title>Redirecting to Zerodha Kite…</title>"
-        f'<meta http-equiv="refresh" content="0;url={html_safe}">'
-        "</head><body style='font-family:sans-serif;padding:2rem;text-align:center'>"
-        "<p>Redirecting you to Zerodha Kite login…</p>"
-        "<p>If you are not redirected, "
-        f'<a href="{html_safe}" target="_top" rel="noopener">click here</a>.</p>'
-        "<script>"
-        f"var u={js_safe};"
-        "try{if(window.top&&window.top!==window.self){window.top.location.href=u;}"
-        "else{window.location.href=u;}}catch(e){window.location.href=u;}"
-        "</script></body></html>"
-    )
-    from flask import make_response
-    resp = make_response(html)
-    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
-    return resp
+    # Return JSON for fetch/XHR callers (JS opens Kite in a new tab from a
+    # user-gesture context, which is the only reliable way to avoid the
+    # "Missing or empty field `authorize`" error caused by Kite running inside
+    # a cross-origin iframe where browsers block its session cookies).
+    from flask import jsonify as _jsonify
+    if (request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+            'application/json' in request.headers.get('Accept', '')):
+        return _jsonify({'ok': True, 'kite_url': kite_url})
+
+    # Fallback for plain form POST (rare): return a redirect directly so the
+    # browser navigates to Kite at the top level.
+    return redirect(kite_url)
 
 
 @broker_oauth.route('/broker/callback/zerodha')
@@ -958,6 +941,10 @@ def reconnect_zerodha():
     db.session.commit()
 
     kite_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={api_key}"
+    from flask import jsonify as _jsonify
+    if (request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+            'application/json' in request.headers.get('Accept', '')):
+        return _jsonify({'ok': True, 'kite_url': kite_url})
     return redirect(kite_url)
 
 

@@ -165,11 +165,10 @@
               <a href="{{ url_for('dashboard_my_portfolio') }}" class="btn btn-primary">
                 <i class="fas fa-chart-line me-2"></i>View Portfolio
               </a>
-              <form method="POST" action="{{ url_for('broker_oauth.reconnect_zerodha') }}" class="d-inline">
-                <button type="submit" class="btn btn-outline-warning" title="Zerodha tokens expire daily — click to re-login">
-                  <i class="fas fa-sync me-1"></i>Re-login
-                </button>
-              </form>
+              <button type="button" class="btn btn-outline-warning" title="Zerodha tokens expire daily — click to re-login"
+                      onclick="zerodhaOAuthOpen('{{ url_for('broker_oauth.reconnect_zerodha') }}', this)">
+                <i class="fas fa-sync me-1"></i>Re-login
+              </button>
               <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modal-zerodha" title="Update saved API key / secret">
                 <i class="fas fa-edit me-1"></i>Edit Credentials
               </button>
@@ -464,7 +463,8 @@
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <form method="POST" action="{{ url_for('broker_oauth.auth_zerodha') }}">
+      <form id="zerodha-connect-form" action="{{ url_for('broker_oauth.auth_zerodha') }}"
+            onsubmit="return zerodhaFormSubmit(event, this)">
         <div class="modal-body">
           {{ saved_notice('zerodha') }}
 
@@ -802,6 +802,103 @@
 </div>
 
 <script>
+/* ── Zerodha OAuth: open Kite in a new tab from a user-gesture context ──────
+   Kite's /finish step fails with "Missing or empty field `authorize`" when
+   the login page loads inside a cross-origin iframe, because browsers block
+   its session cookies. Opening Kite in a brand-new tab (from a click handler)
+   bypasses all iframe restrictions. */
+function zerodhaOAuthOpen(endpoint, btn) {
+    var orig = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Opening…'; }
+
+    // Open a placeholder tab immediately — must happen synchronously inside
+    // the click handler so popup blockers allow it.
+    var tab = window.open('', '_blank');
+    if (!tab) {
+        alert('Popup blocked. Please allow popups for this site and try again.');
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+        return;
+    }
+    tab.document.write('<p style="font-family:sans-serif;padding:2rem;">Connecting to Zerodha Kite…</p>');
+
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name=csrf-token]') ?
+                document.querySelector('meta[name=csrf-token]').content : ''
+        }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok && data.kite_url) {
+            tab.location.href = data.kite_url;
+        } else {
+            tab.close();
+            alert(data.message || data.error || 'Could not start Zerodha login. Please try again.');
+        }
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    })
+    .catch(function(err) {
+        tab.close();
+        alert('Request failed. Please try again.');
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    });
+}
+
+function zerodhaFormSubmit(event, form) {
+    // Direct Token tab (pastes access_token directly) — allow normal POST.
+    var directToken = form.querySelector('[name="access_token_direct"]');
+    if (directToken && directToken.value.trim()) {
+        return true; // let the form submit normally
+    }
+    event.preventDefault();
+
+    var btn = form.querySelector('[type="submit"]');
+    var formData = new FormData(form);
+
+    var orig = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Opening…'; }
+
+    var tab = window.open('', '_blank');
+    if (!tab) {
+        alert('Popup blocked. Please allow popups for this site and try again.');
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+        return false;
+    }
+    tab.document.write('<p style="font-family:sans-serif;padding:2rem;">Connecting to Zerodha Kite…</p>');
+
+    fetch(form.action, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        },
+        body: formData
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok && data.kite_url) {
+            tab.location.href = data.kite_url;
+            // After successful auth Kite redirects back to our callback in the
+            // new tab. Close the modal so the user can see the new tab.
+            var modal = form.closest('.modal');
+            if (modal) { bootstrap.Modal.getInstance(modal).hide(); }
+        } else {
+            tab.close();
+            alert(data.message || data.error || 'Could not start Zerodha login. Please try again.');
+        }
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    })
+    .catch(function() {
+        tab.close();
+        alert('Request failed. Please try again.');
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    });
+    return false;
+}
+
 function syncAccount(accountId, btn) {
     var icon = btn.querySelector('i');
     btn.disabled = true;
