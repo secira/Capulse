@@ -526,10 +526,17 @@ def place_order(broker_account, order_data: Dict[str, Any],
         'dhan'
     )
 
+    # broker_type must be the raw type identifier ('zerodha', 'dhan', etc.),
+    # NOT broker_name which may contain the display name e.g. "Zerodha (ZB9220)".
+    _bt = getattr(broker_account, 'broker_type', None)
+    broker_type_str = (
+        _bt.value if hasattr(_bt, 'value') else str(_bt)
+    ).lower().strip() if _bt else 'dhan'
+
     payload: Dict[str, Any] = {
         'user_id':          uid,
         'user_broker_id':   int(broker_account.id),
-        'broker_type':      broker_name.lower(),
+        'broker_type':      broker_type_str,
         # Fresh credentials — engine must prefer these over its own store.
         # api_key = App API Key (Zerodha / Upstox etc.) or client ID (Dhan)
         'api_key':          creds.get('api_key') or creds.get('client_id', ''),
@@ -739,12 +746,16 @@ def push_broker_credentials(broker_account) -> Dict[str, Any]:
         bname = (
             getattr(broker_account, 'broker_name', None) or
             getattr(broker_account, 'broker_type', None) or 'dhan'
-        ).lower()
+        )
+        _bt2 = getattr(broker_account, 'broker_type', None)
+        btype = (
+            _bt2.value if hasattr(_bt2, 'value') else str(_bt2)
+        ).lower().strip() if _bt2 else 'dhan'
 
         payload = {
             'user_id':        uid,
             'user_broker_id': bid,
-            'broker_type':    bname,
+            'broker_type':    btype,
             # api_key = App API Key (Zerodha / Upstox etc.) or client ID (Dhan)
             'api_key':        creds.get('api_key') or creds.get('client_id', ''),
             # client_id = the broker user/login ID (e.g. ZB9220 for Zerodha)
