@@ -183,7 +183,9 @@ def plan_required(*allowed_plans):
 
 @app.route('/')
 def index():
-    """Home page route"""
+    """Home page route — redirect logged-in users straight to dashboard."""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
     # Get featured testimonials with error handling
     try:
         testimonials = Testimonial.query.limit(3).all()

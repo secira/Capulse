@@ -124,14 +124,17 @@ limiter = Limiter(
 
 if secure_config and "security_settings" in secure_config:
     security_settings = secure_config["security_settings"]
-    app.config['SESSION_COOKIE_SECURE'] = security_settings.get('session_cookie_secure', is_production)
+    app.config['SESSION_COOKIE_SECURE'] = security_settings.get('session_cookie_secure', True)
     app.config['SESSION_COOKIE_HTTPONLY'] = security_settings.get('session_cookie_httponly', True)
-    app.config['SESSION_COOKIE_SAMESITE'] = security_settings.get('session_cookie_samesite', 'Lax')  # Lax for OAuth compatibility
+    # SameSite=None required so login works when the app is embedded in the
+    # Replit preview iframe (cross-site context). Requires Secure=True.
+    app.config['SESSION_COOKIE_SAMESITE'] = security_settings.get('session_cookie_samesite', 'None')
 else:
     # Fallback secure configuration
-    app.config['SESSION_COOKIE_SECURE'] = is_production
+    app.config['SESSION_COOKIE_SECURE'] = True   # always HTTPS on Replit/Railway
     app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Lax for OAuth compatibility
+    # SameSite=None lets the session cookie work inside the Replit preview iframe
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 
 # Initialize security headers with Talisman
 if is_production:
