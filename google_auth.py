@@ -31,8 +31,6 @@ else:
 4. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables
 """)
 
-client = WebApplicationClient(GOOGLE_CLIENT_ID) if GOOGLE_CLIENT_ID else None
-
 google_auth = Blueprint("google_auth", __name__)
 
 
@@ -60,16 +58,17 @@ It must appear word-for-word in your Google Cloud Console → Authorized redirec
 
 @google_auth.route("/google_login")
 def login():
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET or not client:
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         logger.error("Google OAuth not configured")
         flash('Google authentication is not configured. Please contact support.', 'error')
         return redirect(url_for('login'))
-    
+
     try:
         google_provider_cfg = requests.get(GOOGLE_DISCOVERY_URL).json()
         authorization_endpoint = google_provider_cfg["authorization_endpoint"]
 
-        request_uri = client.prepare_request_uri(
+        _client = WebApplicationClient(GOOGLE_CLIENT_ID)
+        request_uri = _client.prepare_request_uri(
             authorization_endpoint,
             redirect_uri=REDIRECT_URL,
             scope=["openid", "email", "profile"],
@@ -77,29 +76,38 @@ def login():
         logger.info(f"Redirecting to Google — redirect_uri={REDIRECT_URL}")
         return redirect(request_uri)
     except Exception as e:
-        logger.error(f"Error during Google login: {str(e)}")
+        logger.error(f"Error during Google login: {str(e)}", exc_info=True)
         flash('An error occurred during Google authentication. Please try again.', 'error')
         return redirect(url_for('login'))
 
 
 @google_auth.route("/google_login/callback")
 def callback():
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET or not client:
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         logger.error("Google OAuth not configured for callback")
         flash('Google authentication is not configured.', 'error')
         return redirect(url_for('login'))
-    
+
+    # Log any error Google sent back (e.g. redirect_uri_mismatch)
+    error = request.args.get("error")
+    if error:
+        error_desc = request.args.get("error_description", "no description")
+        logger.error(f"Google OAuth error returned: {error} — {error_desc}")
+        flash(f'Google sign-in was rejected: {error}. Please try again.', 'error')
+        return redirect(url_for('login'))
+
     try:
         code = request.args.get("code")
         if not code:
-            logger.warning("No authorization code received from Google")
+            logger.warning(f"No code in callback. Args: {dict(request.args)}")
             flash('Authorization failed. Please try again.', 'error')
             return redirect(url_for('login'))
-        
+
         google_provider_cfg = requests.get(GOOGLE_DISCOVERY_URL).json()
         token_endpoint = google_provider_cfg["token_endpoint"]
 
-        token_url, headers, body = client.prepare_token_request(
+        _client = WebApplicationClient(GOOGLE_CLIENT_ID)
+        token_url, headers, body = _client.prepare_token_request(
             token_endpoint,
             authorization_response=request.url.replace("http://", "https://"),
             redirect_url=REDIRECT_URL,
@@ -111,16 +119,16 @@ def callback():
             data=body,
             auth=(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET),
         )
-        
+
         if token_response.status_code != 200:
             logger.error(f"Token exchange failed: {token_response.text}")
             flash('Failed to authenticate with Google. Please try again.', 'error')
             return redirect(url_for('login'))
 
-        client.parse_request_body_response(json.dumps(token_response.json()))
+        _client.parse_request_body_response(json.dumps(token_response.json()))
 
         userinfo_endpoint = google_provider_cfg["userinfo_endpoint"]
-        uri, headers, body = client.add_token(userinfo_endpoint)
+        uri, headers, body = _client.add_token(userinfo_endpoint)
         userinfo_response = requests.get(uri, headers=headers, data=body)
 
         userinfo = userinfo_response.json()
