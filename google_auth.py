@@ -49,10 +49,10 @@ def login():
 
         request_uri = client.prepare_request_uri(
             authorization_endpoint,
-            redirect_uri=request.base_url.replace("http://", "https://") + "/callback",
+            redirect_uri=REDIRECT_URL,
             scope=["openid", "email", "profile"],
         )
-        logger.info(f"Redirecting to Google authorization endpoint")
+        logger.info(f"Redirecting to Google — redirect_uri={REDIRECT_URL}")
         return redirect(request_uri)
     except Exception as e:
         logger.error(f"Error during Google login: {str(e)}")
@@ -80,7 +80,7 @@ def callback():
         token_url, headers, body = client.prepare_token_request(
             token_endpoint,
             authorization_response=request.url.replace("http://", "https://"),
-            redirect_url=request.base_url.replace("http://", "https://"),
+            redirect_url=REDIRECT_URL,
             code=code,
         )
         token_response = requests.post(
