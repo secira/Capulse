@@ -89,14 +89,18 @@ def login():
         state = secrets.token_urlsafe(32)
         session['oauth_state'] = state
 
+        # Build redirect_uri from the actual request host so it matches whichever
+        # domain the user is on (targetcapital.ai, Replit preview, etc.).
+        dynamic_redirect = request.base_url.replace("http://", "https://") + "/callback"
+
         _client = WebApplicationClient(GOOGLE_CLIENT_ID)
         request_uri = _client.prepare_request_uri(
             authorization_endpoint,
-            redirect_uri=REDIRECT_URL,
+            redirect_uri=dynamic_redirect,
             scope=["openid", "email", "profile"],
             state=state,
         )
-        logger.info(f"Redirecting to Google — redirect_uri={REDIRECT_URL}")
+        logger.info(f"Redirecting to Google — redirect_uri={dynamic_redirect}")
         return redirect(request_uri)
     except Exception as e:
         logger.error(f"Error during Google login: {str(e)}", exc_info=True)
@@ -137,11 +141,14 @@ def callback():
         google_provider_cfg = _get_google_provider_cfg()
         token_endpoint = google_provider_cfg["token_endpoint"]
 
+        # Must match the redirect_uri used in login() exactly — derive from request.
+        dynamic_redirect = request.base_url.replace("http://", "https://")
+
         _client = WebApplicationClient(GOOGLE_CLIENT_ID)
         token_url, headers, body = _client.prepare_token_request(
             token_endpoint,
             authorization_response=request.url.replace("http://", "https://"),
-            redirect_url=REDIRECT_URL,
+            redirect_url=dynamic_redirect,
             code=code,
         )
         token_response = requests.post(

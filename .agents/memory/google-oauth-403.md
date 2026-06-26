@@ -16,10 +16,29 @@ and any personal/external Gmail gets this page.
 - Only `email`/`profile`/`openid` scopes are used, so no Google verification review is needed; publishing is instant.
 - Alternatively keep Testing mode and add the tester's Gmail under **Test users**.
 
+**CRITICAL — redirect_uri must be dynamic, not static:**
+Always derive `redirect_uri` in `login()` and `redirect_url` in `callback()` from
+`request.base_url` at runtime:
+
+```python
+# login()
+dynamic_redirect = request.base_url.replace("http://", "https://") + "/callback"
+
+# callback()
+dynamic_redirect = request.base_url.replace("http://", "https://")
+```
+
+Never use a module-level constant (e.g. built from `REPLIT_DEV_DOMAIN`) for the actual
+OAuth calls. A static constant always sends one fixed domain (e.g. `.worf.replit.dev`)
+even when the user is on `www.targetcapital.ai` — Google sees a redirect_uri_mismatch
+and returns its generic 403 page. The dynamic approach auto-matches whichever registered
+domain the user is actually using.
+
 **How to tell where the failure is:** the app logs `Redirecting to Google — redirect_uri=...`
 and the matching `/google_login` 302. If `/google_login/callback` is **never** hit afterward,
-Google rejected the request on its side → it's a Console config issue, not app code.
+Google rejected the request on its side → check that the redirect_uri in the log matches
+one of the URIs registered in Google Console exactly.
 
-**Why this matters:** we burned several iterations assuming a redirect_uri mismatch /
-code bug. The redirect URI was correct the whole time; the blocker was the consent
-screen audience setting.
+**Why this matters:** the generic Google 403 "you do not have access to this page" is shown
+for both consent-screen audience issues AND redirect_uri_mismatch. Don't assume it's only
+a Console config problem — check the actual redirect_uri being sent first.
