@@ -1320,7 +1320,7 @@ _TRIAL_EXEMPT_ENDPOINTS: frozenset = frozenset({
     'trading_signals', 'daily_signals_feature', 'live_market',
     # Auth
     'login', 'register', 'logout',
-    'google_auth.login', 'google_auth.callback', 'google_auth.logout',
+    'google_auth.login', 'google_auth.callback', 'google_auth.logout', 'google_auth.oauth_check',
     # OTP / mobile auth
     'send_otp', 'verify_otp', 'resend_otp', 'mobile_login',
     # Password reset (must be reachable without login or active trial)
@@ -1356,7 +1356,7 @@ _RISK_DISCLOSURE_EXEMPT: frozenset = frozenset({
     'cancellation_refund_policy',
     # Auth
     'login', 'register', 'logout',
-    'google_auth.login', 'google_auth.callback', 'google_auth.logout',
+    'google_auth.login', 'google_auth.callback', 'google_auth.logout', 'google_auth.oauth_check',
     'send_otp', 'verify_otp', 'resend_otp', 'mobile_login',
     'forgot_password', 'reset_password',
     # The disclosure page itself

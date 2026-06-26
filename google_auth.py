@@ -4,7 +4,7 @@ import logging
 
 import requests
 from app import db
-from flask import Blueprint, redirect, request, url_for, flash
+from flask import Blueprint, redirect, request, url_for, flash, render_template_string
 from flask_login import login_required, login_user, logout_user
 from models import User
 from middleware.tenant_middleware import get_current_tenant_id, TenantQuery, create_for_tenant
@@ -34,6 +34,28 @@ else:
 client = WebApplicationClient(GOOGLE_CLIENT_ID) if GOOGLE_CLIENT_ID else None
 
 google_auth = Blueprint("google_auth", __name__)
+
+
+@google_auth.route("/oauth-check")
+def oauth_check():
+    """Public debug page — shows the exact redirect URI this app sends to Google."""
+    html = f"""<!doctype html>
+<html><head><title>OAuth Check</title>
+<style>body{{font-family:monospace;padding:40px;background:#f5f5f5}}
+.box{{background:#fff;border:2px solid #333;padding:20px;max-width:700px;word-break:break-all}}
+h2{{color:#d00}}</style></head><body>
+<h2>Google OAuth Redirect URI Check</h2>
+<p>This is the <strong>exact</strong> redirect URI the app sends to Google.<br>
+It must appear word-for-word in your Google Cloud Console → Authorized redirect URIs.</p>
+<div class="box">{REDIRECT_URL}</div>
+<br>
+<p>Steps to fix:<br>
+1. Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console → Credentials</a><br>
+2. Open your OAuth 2.0 Client ID<br>
+3. Under <strong>Authorized redirect URIs</strong>, delete any existing Replit URIs and add exactly the URI shown above<br>
+4. Click Save and wait 2–5 minutes</p>
+</body></html>"""
+    return html
 
 
 @google_auth.route("/google_login")
