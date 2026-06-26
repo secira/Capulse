@@ -2,3 +2,4 @@
 - [Market Data Gateway](market-data-gateway.md) — uniform fallback chain for all market data: Admin Pool → TrueData → System Dhan → NSEPython → yfinance. One entry point at services/market_data_gateway.py.
 - [Perplexity replaced by Claude](perplexity-to-claude.md) — Perplexity key is 401 (no credits); Claude is now primary across all 7 AI service files.
 - [Engine credential architecture](engine-credential-architecture.md) — engine ignores creds in payload; has own DB; push via update_broker route; only 54.225.202.78 whitelisted in Dhan; never call Dhan in-process from Replit.
+- [Google OAuth generic 403](google-oauth-403.md) — "you do not have access" 403 = consent screen User Type is Internal, not a redirect_uri/code bug; fix is Console-side (set External + publish).

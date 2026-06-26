@@ -1,10 +1,12 @@
 import json
 import os
+import time
+import secrets
 import logging
 
 import requests
 from app import db
-from flask import Blueprint, redirect, request, url_for, flash, render_template_string
+from flask import Blueprint, redirect, request, url_for, flash, render_template_string, session
 from flask_login import login_required, login_user, logout_user
 from models import User
 from middleware.tenant_middleware import get_current_tenant_id, TenantQuery, create_for_tenant
@@ -32,6 +34,21 @@ else:
 """)
 
 google_auth = Blueprint("google_auth", __name__)
+
+# Cache Google's OpenID discovery document (it rarely changes) to avoid a slow
+# network round-trip on every login/callback request.
+_DISCOVERY_CACHE = {"data": None, "ts": 0.0}
+_DISCOVERY_TTL = 3600  # seconds
+
+
+def _get_google_provider_cfg():
+    now = time.time()
+    if _DISCOVERY_CACHE["data"] and (now - _DISCOVERY_CACHE["ts"]) < _DISCOVERY_TTL:
+        return _DISCOVERY_CACHE["data"]
+    cfg = requests.get(GOOGLE_DISCOVERY_URL, timeout=5).json()
+    _DISCOVERY_CACHE["data"] = cfg
+    _DISCOVERY_CACHE["ts"] = now
+    return cfg
 
 
 @google_auth.route("/oauth-check")
@@ -64,14 +81,20 @@ def login():
         return redirect(url_for('login'))
 
     try:
-        google_provider_cfg = requests.get(GOOGLE_DISCOVERY_URL).json()
+        google_provider_cfg = _get_google_provider_cfg()
         authorization_endpoint = google_provider_cfg["authorization_endpoint"]
+
+        # CSRF protection: generate a random state, store it in the session,
+        # and verify it matches when Google redirects back to the callback.
+        state = secrets.token_urlsafe(32)
+        session['oauth_state'] = state
 
         _client = WebApplicationClient(GOOGLE_CLIENT_ID)
         request_uri = _client.prepare_request_uri(
             authorization_endpoint,
             redirect_uri=REDIRECT_URL,
             scope=["openid", "email", "profile"],
+            state=state,
         )
         logger.info(f"Redirecting to Google — redirect_uri={REDIRECT_URL}")
         return redirect(request_uri)
@@ -96,6 +119,14 @@ def callback():
         flash(f'Google sign-in was rejected: {error}. Please try again.', 'error')
         return redirect(url_for('login'))
 
+    # CSRF protection: verify the state matches what we stored before redirecting.
+    expected_state = session.pop('oauth_state', None)
+    returned_state = request.args.get("state")
+    if not expected_state or returned_state != expected_state:
+        logger.warning("OAuth state mismatch — possible CSRF or expired session")
+        flash('Your sign-in session expired. Please try again.', 'error')
+        return redirect(url_for('login'))
+
     try:
         code = request.args.get("code")
         if not code:
@@ -103,7 +134,7 @@ def callback():
             flash('Authorization failed. Please try again.', 'error')
             return redirect(url_for('login'))
 
-        google_provider_cfg = requests.get(GOOGLE_DISCOVERY_URL).json()
+        google_provider_cfg = _get_google_provider_cfg()
         token_endpoint = google_provider_cfg["token_endpoint"]
 
         _client = WebApplicationClient(GOOGLE_CLIENT_ID)
@@ -118,6 +149,7 @@ def callback():
             headers=headers,
             data=body,
             auth=(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET),
+            timeout=10,
         )
 
         if token_response.status_code != 200:
@@ -129,7 +161,7 @@ def callback():
 
         userinfo_endpoint = google_provider_cfg["userinfo_endpoint"]
         uri, headers, body = _client.add_token(userinfo_endpoint)
-        userinfo_response = requests.get(uri, headers=headers, data=body)
+        userinfo_response = requests.get(uri, headers=headers, data=body, timeout=10)
 
         userinfo = userinfo_response.json()
         if userinfo.get("email_verified"):
