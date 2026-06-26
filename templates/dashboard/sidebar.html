@@ -93,19 +93,30 @@
             </div>
         {% endif %}
 
-        <!-- Full navigation menu for all users -->
-        <div class="sidebar-menu">
+        <!-- ── HOME ── -->
+        <div class="sidebar-menu" style="padding-top:4px;">
             <ul class="nav-list">
-
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard' else '' }}"
                        href="{{ url_for('dashboard') }}">
-                        <i class="nav-icon fas fa-tachometer-alt"></i>
+                        <i class="nav-icon fas fa-home"></i>
                         <span class="nav-text">Home</span>
                     </a>
                 </li>
+            </ul>
+        </div>
+
+        <!-- ══════════════════════════════════════════ -->
+        <!-- 1. RESEARCH                               -->
+        <!-- ══════════════════════════════════════════ -->
+        <div class="sidebar-section-label" style="display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-search" style="font-size:9px;opacity:.7;"></i> RESEARCH
+        </div>
+        <div class="sidebar-menu">
+            <ul class="nav-list">
 
                 {% if current_user.is_authenticated %}
+                <!-- Market Intelligence -->
                 <li class="nav-item">
                     <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['live_market', 'fno.fno_premarket'] else '' }}"
                          onclick="toggleMarketIntelMenu()">
@@ -133,23 +144,7 @@
                 </li>
                 {% endif %}
 
-                {% if current_user.is_authenticated %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_my_portfolio' else '' }}"
-                       href="{{ url_for('dashboard_my_portfolio') }}">
-                        <i class="nav-icon fas fa-briefcase"></i>
-                        <span class="nav-text">Portfolio & Risk</span>
-                    </a>
-                </li>
-                {% endif %}
-
-            </ul>
-        </div>
-
-        <!-- Full menu (all authenticated users) -->
-        <div class="sidebar-menu">
-            <ul class="nav-list">
-
+                <!-- Stock Research -->
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if 'research' in request.endpoint else '' }}"
                        href="{{ url_for('research_dashboard') }}">
@@ -158,10 +153,12 @@
                     </a>
                 </li>
 
+                <!-- F&O Research -->
                 <li class="nav-item">
-                    <div class="nav-link collapsible-header" onclick="toggleFnoMenu()">
+                    <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['fno.fno_nifty','fno.fno_banknifty','fno.fno_finnifty','fno.fno_sensex','fno.fno_pnl_analysis','our_signals','daily_signals_analysis'] else '' }}"
+                         onclick="toggleFnoMenu()">
                         <i class="nav-icon fas fa-chart-area"></i>
-                        <span class="nav-text">F&O Research</span>
+                        <span class="nav-text">F&amp;O Research</span>
                         <span class="nav-badge-new">NEW</span>
                         <i class="fas fa-chevron-down toggle-icon" id="fnoMenuToggle"></i>
                     </div>
@@ -211,22 +208,59 @@
                     </ul>
                 </li>
 
+            </ul>
+        </div>
+
+        <!-- ══════════════════════════════════════════ -->
+        <!-- 2. INVEST & TRADE                         -->
+        <!-- ══════════════════════════════════════════ -->
+        <div class="sidebar-section-label" style="display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-bolt" style="font-size:9px;opacity:.7;"></i> INVEST &amp; TRADE
+        </div>
+        <div class="sidebar-menu">
+            <ul class="nav-list">
+
+                <!-- Trading Execution -->
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_trade_now' else '' }}"
                        href="{{ url_for('dashboard_trade_now') }}">
                         <i class="nav-icon fas fa-exchange-alt"></i>
-                        <span class="nav-text">Trade Execution</span>
+                        <span class="nav-text">Trading Execution</span>
                     </a>
                 </li>
 
+            </ul>
+        </div>
+
+        <!-- ══════════════════════════════════════════ -->
+        <!-- 3. BUILD WEALTH                           -->
+        <!-- ══════════════════════════════════════════ -->
+        <div class="sidebar-section-label" style="display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-coins" style="font-size:9px;opacity:.7;"></i> BUILD WEALTH
+        </div>
+        <div class="sidebar-menu">
+            <ul class="nav-list">
+
+                <!-- Portfolio & Risk -->
+                {% if current_user.is_authenticated %}
                 <li class="nav-item">
-                    <div class="nav-link collapsible-header" onclick="toggleBehaviourMenu()">
+                    <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_my_portfolio' else '' }}"
+                       href="{{ url_for('dashboard_my_portfolio') }}">
+                        <i class="nav-icon fas fa-briefcase"></i>
+                        <span class="nav-text">Portfolio &amp; Risk</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- Behavioural Analysis -->
+                <li class="nav-item">
+                    <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['behavioural_insights','behavioural_trading','behavioural_portfolio','behavioural_risk','behavioural_performance','trader_intelligence','trader_intelligence_result','behavioural_psychology'] else '' }}"
+                         onclick="toggleBehaviourMenu()">
                         <i class="nav-icon fas fa-brain"></i>
                         <span class="nav-text">Behavioural Analysis</span>
                         <span class="nav-badge-new">USP</span>
                         <i class="fas fa-chevron-down toggle-icon" id="behaviourToggle"></i>
                     </div>
-
                     <ul class="nav-list submenu-list" id="behaviourMenu" style="display: none;">
                         <li class="nav-item submenu-item">
                             <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_insights' else '' }}"
@@ -264,20 +298,14 @@
                     </ul>
                 </li>
 
-            </ul>
-        </div>
-
-        <!-- Portfolio Hub Section (paid only) -->
-        <div class="sidebar-section-label">PORTFOLIO HUB</div>
-        <div class="sidebar-menu">
-            <ul class="nav-list">
+                <!-- Portfolio Hub -->
                 <li class="nav-item">
-                    <div class="nav-link collapsible-header" onclick="togglePortfolioHub()">
+                    <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['broker_oauth.broker_connect','dashboard_data_api_broker','dashboard_banks','dashboard_insurance','dashboard_equities','dashboard_mutual_funds','dashboard_futures_options','dashboard_commodities'] else '' }}"
+                         onclick="togglePortfolioHub()">
                         <i class="nav-icon fas fa-layer-group"></i>
                         <span class="nav-text">Portfolio Hub</span>
                         <i class="fas fa-chevron-down toggle-icon" id="portfolioHubToggle"></i>
                     </div>
-
                     <ul class="nav-list submenu-list" id="portfolioHubMenu" style="display: none;">
 
                         <li class="nav-item submenu-item">
@@ -347,7 +375,7 @@
                             <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'dashboard_futures_options' else '' }}"
                                href="{{ url_for('dashboard_futures_options') }}">
                                 <i class="nav-icon fas fa-chart-area"></i>
-                                <span class="nav-text">F&O</span>
+                                <span class="nav-text">F&amp;O</span>
                             </a>
                         </li>
 
@@ -356,13 +384,14 @@
                             <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'dashboard_commodities' else '' }}"
                                href="{{ url_for('dashboard_commodities') }}">
                                 <i class="nav-icon fas fa-gem"></i>
-                                <span class="nav-text">Gold & Commodities</span>
+                                <span class="nav-text">Gold &amp; Commodities</span>
                             </a>
                         </li>
                         {% endif %}
 
                     </ul>
                 </li>
+
             </ul>
         </div>
 
@@ -407,6 +436,20 @@
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'admin.data_api_plan' else '' }}"
+                               href="{{ url_for('admin.data_api_plan') }}">
+                                <i class="nav-icon fas fa-satellite-dish"></i>
+                                <span class="nav-text">Data API Plan</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'admin.fno_config' else '' }}"
+                               href="{{ url_for('admin.fno_config') }}">
+                                <i class="nav-icon fas fa-sliders-h"></i>
+                                <span class="nav-text">F&amp;O Config</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
                             <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'admin.account_handling' else '' }}"
                                href="{{ url_for('admin.account_handling') }}">
                                 <i class="nav-icon fas fa-user-tie"></i>
@@ -447,8 +490,12 @@
         </div>
         {% endif %}
 
-        <!-- Settings Section (all users) -->
-        <div class="sidebar-section-label">SETTINGS</div>
+        <!-- ══════════════════════════════════════════ -->
+        <!-- SETTINGS                                  -->
+        <!-- ══════════════════════════════════════════ -->
+        <div class="sidebar-section-label" style="display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-cog" style="font-size:9px;opacity:.7;"></i> SETTINGS
+        </div>
         <div class="sidebar-menu">
             <ul class="nav-list">
                 <li class="nav-item">
@@ -459,17 +506,17 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ 'active' if request.endpoint == 'account_settings' else '' }}"
-                       href="{{ url_for('account_settings') }}">
-                        <i class="nav-icon fas fa-cog"></i>
-                        <span class="nav-text">Account Settings</span>
-                    </a>
-                </li>
-                <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'account_billing' else '' }}"
                        href="{{ url_for('account_billing') }}">
                         <i class="nav-icon fas fa-credit-card"></i>
                         <span class="nav-text">Subscription</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint == 'account_settings' else '' }}"
+                       href="{{ url_for('account_settings') }}">
+                        <i class="nav-icon fas fa-cog"></i>
+                        <span class="nav-text">Account Settings</span>
                     </a>
                 </li>
             </ul>
