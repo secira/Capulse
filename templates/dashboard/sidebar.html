@@ -220,12 +220,12 @@
         <div class="sidebar-menu">
             <ul class="nav-list">
 
-                <!-- Trading Execution -->
+                <!-- Trading Centre -->
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_trade_now' else '' }}"
                        href="{{ url_for('dashboard_trade_now') }}">
                         <i class="nav-icon fas fa-exchange-alt"></i>
-                        <span class="nav-text">Trading Execution</span>
+                        <span class="nav-text">Trading Centre</span>
                     </a>
                 </li>
 
@@ -263,23 +263,23 @@
         <div class="sidebar-menu">
             <ul class="nav-list">
 
-                <!-- Portfolio & Risk -->
+                <!-- Wealth Hub -->
                 {% if current_user.is_authenticated %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_my_portfolio' else '' }}"
                        href="{{ url_for('dashboard_my_portfolio') }}">
                         <i class="nav-icon fas fa-briefcase"></i>
-                        <span class="nav-text">Portfolio &amp; Risk</span>
+                        <span class="nav-text">Wealth Hub</span>
                     </a>
                 </li>
                 {% endif %}
 
-                <!-- Behavioural Analysis -->
+                <!-- Behavioural AI -->
                 <li class="nav-item">
                     <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['behavioural_insights','behavioural_trading','behavioural_portfolio','behavioural_risk','behavioural_performance','trader_intelligence','trader_intelligence_result','behavioural_psychology'] else '' }}"
                          onclick="toggleBehaviourMenu()">
                         <i class="nav-icon fas fa-brain"></i>
-                        <span class="nav-text">Behavioural Analysis</span>
+                        <span class="nav-text">Behavioural AI</span>
                         <span class="nav-badge-new">USP</span>
                         <i class="fas fa-chevron-down toggle-icon" id="behaviourToggle"></i>
                     </div>
@@ -320,12 +320,12 @@
                     </ul>
                 </li>
 
-                <!-- Portfolio Hub -->
+                <!-- Portfolio Holdings -->
                 <li class="nav-item">
                     <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['dashboard_banks','dashboard_insurance','dashboard_equities','dashboard_mutual_funds','dashboard_futures_options','dashboard_commodities'] else '' }}"
                          onclick="togglePortfolioHub()">
                         <i class="nav-icon fas fa-layer-group"></i>
-                        <span class="nav-text">Portfolio Hub</span>
+                        <span class="nav-text">Portfolio Holdings</span>
                         <i class="fas fa-chevron-down toggle-icon" id="portfolioHubToggle"></i>
                     </div>
                     <ul class="nav-list submenu-list" id="portfolioHubMenu" style="display: none;">

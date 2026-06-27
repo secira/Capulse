@@ -1,7 +1,7 @@
 {% extends "dashboard/dashboard_base.html" %}
 
-{% block title %}Behavioural Analysis - Target Capital{% endblock %}
-{% block dashboard_title %}Behavioural Analysis Dashboard{% endblock %}
+{% block title %}Behavioural AI - Target Capital{% endblock %}
+{% block dashboard_title %}Behavioural AI Dashboard{% endblock %}
 {% block dashboard_subtitle %}Your trading psychology analyzed across 20 modules — powered by the Scentric AI Decision Engine{% endblock %}
 
 {% set connected_brokers = broker_accounts | selectattr('connection_status', 'equalto', 'connected') | list if broker_accounts else [] %}
