@@ -5910,27 +5910,32 @@ def api_trade_execute_confirmed():
                     }), _ep.map_bucket_to_status(ep_err.bucket)
 
         # Execute order through broker (in-process fallback)
+        # IMPORTANT: do NOT use "with ThreadPoolExecutor() as pool:" here.
+        # The context-manager __exit__ calls shutdown(wait=True), which blocks
+        # forever on a hung broker SDK thread even after TimeoutError is raised.
         import concurrent.futures as _cf2
         _IN_PROC_TIMEOUT2 = 22
-        with _cf2.ThreadPoolExecutor(max_workers=1) as _pool2:
-            _fut2 = _pool2.submit(BrokerService.place_order_via_broker, broker_account, order_data)
-            try:
-                order_result = _fut2.result(timeout=_IN_PROC_TIMEOUT2)
-            except _cf2.TimeoutError:
-                logger.error(
-                    f"In-process broker call (confirmed) timed out after {_IN_PROC_TIMEOUT2}s "
-                    f"user={current_user.id} broker={broker_account.broker_name}"
-                )
-                return jsonify({
-                    'success': False,
-                    'error': (
-                        f'{broker_account.broker_name} did not respond within '
-                        f'{_IN_PROC_TIMEOUT2} seconds. The order was NOT placed.\n\n'
-                        'This usually means the execution server IP is not whitelisted '
-                        f'in your {broker_account.broker_name} account.'
-                    ),
-                    'broker_settings_url': '/dashboard/broker-accounts',
-                }), 504
+        _pool2 = _cf2.ThreadPoolExecutor(max_workers=1)
+        _fut2 = _pool2.submit(BrokerService.place_order_via_broker, broker_account, order_data)
+        try:
+            order_result = _fut2.result(timeout=_IN_PROC_TIMEOUT2)
+            _pool2.shutdown(wait=False)
+        except _cf2.TimeoutError:
+            _pool2.shutdown(wait=False)  # release thread — don't block on hung SDK
+            logger.error(
+                f"In-process broker call (confirmed) timed out after {_IN_PROC_TIMEOUT2}s "
+                f"user={current_user.id} broker={broker_account.broker_name}"
+            )
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'{broker_account.broker_name} did not respond within '
+                    f'{_IN_PROC_TIMEOUT2} seconds. The order was NOT placed.\n\n'
+                    'This usually means the execution server IP is not whitelisted '
+                    f'in your {broker_account.broker_name} account.'
+                ),
+                'broker_settings_url': '/dashboard/broker-accounts',
+            }), 504
 
         # Drop the cached portfolio page bundle so the next page load
         # reflects the new position immediately instead of waiting up to 180s.
@@ -6513,29 +6518,35 @@ def api_trade_execute_signal():
 
         try:
             import concurrent.futures as _cf
-            _IN_PROC_TIMEOUT = 22  # seconds — leaves 8s buffer before the 30s client abort
+            _IN_PROC_TIMEOUT = 22  # seconds — leaves 33s buffer before 55s client abort
 
-            with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
-                _fut = _pool.submit(BrokerService.place_order_via_broker, selected_broker, order_data)
-                try:
-                    order_result = _fut.result(timeout=_IN_PROC_TIMEOUT)
-                except _cf.TimeoutError:
-                    logger.error(
-                        f"In-process broker call timed out after {_IN_PROC_TIMEOUT}s "
-                        f"user={current_user.id} broker={selected_broker.broker_name}"
-                    )
-                    return jsonify({
-                        'success': False,
-                        'error': (
-                            f'{selected_broker.broker_name} did not respond within '
-                            f'{_IN_PROC_TIMEOUT} seconds. The order was NOT placed.\n\n'
-                            'This usually means the execution server IP is not whitelisted '
-                            f'in your {selected_broker.broker_name} account. Please:\n'
-                            '1. Check your broker app — no order should appear\n'
-                            '2. Contact support with this error if it repeats'
-                        ),
-                        'broker_settings_url': '/dashboard/broker-accounts',
-                    }), 504
+            # IMPORTANT: do NOT use "with ThreadPoolExecutor() as pool:" here.
+            # The context-manager __exit__ calls shutdown(wait=True), which blocks
+            # forever on a hung broker SDK thread even after TimeoutError is raised.
+            # We call shutdown(wait=False) manually so the thread is orphaned instead.
+            _pool = _cf.ThreadPoolExecutor(max_workers=1)
+            _fut = _pool.submit(BrokerService.place_order_via_broker, selected_broker, order_data)
+            try:
+                order_result = _fut.result(timeout=_IN_PROC_TIMEOUT)
+                _pool.shutdown(wait=False)
+            except _cf.TimeoutError:
+                _pool.shutdown(wait=False)  # release thread — don't block on hung SDK
+                logger.error(
+                    f"In-process broker call timed out after {_IN_PROC_TIMEOUT}s "
+                    f"user={current_user.id} broker={selected_broker.broker_name}"
+                )
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'{selected_broker.broker_name} did not respond within '
+                        f'{_IN_PROC_TIMEOUT} seconds. The order was NOT placed.\n\n'
+                        'This usually means the execution server IP is not whitelisted '
+                        f'in your {selected_broker.broker_name} account. Please:\n'
+                        '1. Check your broker app — no order should appear\n'
+                        '2. Contact support with this error if it repeats'
+                    ),
+                    'broker_settings_url': '/dashboard/broker-accounts',
+                }), 504
 
             _tc_order_id = order_result.id if hasattr(order_result, 'id') else None
             _mark_fno_signal_executed(data, current_user.id, _tc_order_id)
