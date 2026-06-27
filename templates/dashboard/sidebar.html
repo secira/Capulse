@@ -309,7 +309,7 @@
                             <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['trader_intelligence', 'trader_intelligence_result', 'behavioural_psychology'] else '' }}"
                                href="{{ url_for('trader_intelligence_result') if trader_profile_badge else url_for('trader_intelligence') }}">
                                 <i class="nav-icon fas fa-dna"></i>
-                                <span class="nav-text">Trader DNA &amp; Psychology</span>
+                                <span class="nav-text">Behavioural Score</span>
                                 {% if trader_profile_badge %}
                                 <span class="nav-badge-new" style="background:{{ trader_profile_badge.level_color }};">{{ trader_profile_badge.level }}</span>
                                 {% else %}
