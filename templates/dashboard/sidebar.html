@@ -229,6 +229,28 @@
                     </a>
                 </li>
 
+                <!-- Connect Broker -->
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint == 'broker_oauth.broker_connect' else '' }}"
+                       href="{{ url_for('broker_oauth.broker_connect') }}">
+                        <i class="nav-icon fas fa-plug"></i>
+                        <span class="nav-text">Connect Broker</span>
+                        {% set connected_brokers = broker_accounts|selectattr('connection_status', 'equalto', 'connected')|list if broker_accounts else [] %}
+                        {% if connected_brokers %}
+                        <span class="nav-count">{{ connected_brokers|length }}</span>
+                        {% endif %}
+                    </a>
+                </li>
+
+                <!-- Data API Broker -->
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint == 'dashboard_data_api_broker' else '' }}"
+                       href="{{ url_for('dashboard_data_api_broker') }}">
+                        <i class="nav-icon fas fa-database"></i>
+                        <span class="nav-text">Data API Broker</span>
+                    </a>
+                </li>
+
             </ul>
         </div>
 
@@ -300,33 +322,13 @@
 
                 <!-- Portfolio Hub -->
                 <li class="nav-item">
-                    <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['broker_oauth.broker_connect','dashboard_data_api_broker','dashboard_banks','dashboard_insurance','dashboard_equities','dashboard_mutual_funds','dashboard_futures_options','dashboard_commodities'] else '' }}"
+                    <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['dashboard_banks','dashboard_insurance','dashboard_equities','dashboard_mutual_funds','dashboard_futures_options','dashboard_commodities'] else '' }}"
                          onclick="togglePortfolioHub()">
                         <i class="nav-icon fas fa-layer-group"></i>
                         <span class="nav-text">Portfolio Hub</span>
                         <i class="fas fa-chevron-down toggle-icon" id="portfolioHubToggle"></i>
                     </div>
                     <ul class="nav-list submenu-list" id="portfolioHubMenu" style="display: none;">
-
-                        <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'broker_oauth.broker_connect' else '' }}"
-                               href="{{ url_for('broker_oauth.broker_connect') }}">
-                                <i class="nav-icon fas fa-plug"></i>
-                                <span class="nav-text">Connect Broker</span>
-                                {% set connected_brokers = broker_accounts|selectattr('connection_status', 'equalto', 'connected')|list if broker_accounts else [] %}
-                                {% if connected_brokers %}
-                                <span class="nav-count">{{ connected_brokers|length }}</span>
-                                {% endif %}
-                            </a>
-                        </li>
-
-                        <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'dashboard_data_api_broker' else '' }}"
-                               href="{{ url_for('dashboard_data_api_broker') }}">
-                                <i class="nav-icon fas fa-database"></i>
-                                <span class="nav-text">Data API Broker</span>
-                            </a>
-                        </li>
 
                         {% set portfolio_flags = tenant_config.get('portfolio_hub', {}) if tenant_config else {} %}
 
