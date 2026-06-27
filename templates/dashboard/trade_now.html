@@ -1424,7 +1424,7 @@ function executeTrade() {
     }
 
     var _execCtrl = new AbortController();
-    var _execTimer = setTimeout(function(){ _execCtrl.abort(); }, 30000);
+    var _execTimer = setTimeout(function(){ _execCtrl.abort(); }, 55000);
 
     fetch('/api/trade/execute-signal', {
         method: 'POST',

@@ -5859,6 +5859,32 @@ def api_trade_execute_confirmed():
                     'security' in (ep_err.message or '').lower()
                 )
                 _broker_not_supported = ep_err.bucket == 'broker_not_supported'
+
+                # Block Dhan in-process fallback — Railway/Replit IPs are not
+                # whitelisted; the SDK call would stall the TCP connection indefinitely.
+                _bt_str_c = ''
+                try:
+                    _bt_c = getattr(broker_account, 'broker_type', None)
+                    _bt_str_c = (_bt_c.value if hasattr(_bt_c, 'value') else str(_bt_c or '')).lower()
+                except Exception:
+                    pass
+                if _secid_miss and _bt_str_c == 'dhan':
+                    return jsonify({
+                        'success': False,
+                        'error': (
+                            'Cannot resolve Dhan security ID for this symbol.\n\n'
+                            'Fix: Go to Broker Management → Sync your Dhan account. '
+                            'Once synced, holdings populate the security ID lookup and '
+                            'the trade will go through the execution engine directly.\n\n'
+                            f'Technical: {ep_err.message}'
+                        ),
+                        'technical_error': ep_err.message,
+                        'bucket': ep_err.bucket,
+                        'request_id': ep_err.request_id,
+                        'via': 'remote_engine',
+                        'broker_settings_url': '/dashboard/broker-accounts',
+                    }), 400
+
                 if _secid_miss or _broker_not_supported:
                     logger.warning(
                         f"Remote exec (confirmed) fallback to in-process: "
@@ -5884,7 +5910,27 @@ def api_trade_execute_confirmed():
                     }), _ep.map_bucket_to_status(ep_err.bucket)
 
         # Execute order through broker (in-process fallback)
-        order_result = BrokerService.place_order_via_broker(broker_account, order_data)
+        import concurrent.futures as _cf2
+        _IN_PROC_TIMEOUT2 = 22
+        with _cf2.ThreadPoolExecutor(max_workers=1) as _pool2:
+            _fut2 = _pool2.submit(BrokerService.place_order_via_broker, broker_account, order_data)
+            try:
+                order_result = _fut2.result(timeout=_IN_PROC_TIMEOUT2)
+            except _cf2.TimeoutError:
+                logger.error(
+                    f"In-process broker call (confirmed) timed out after {_IN_PROC_TIMEOUT2}s "
+                    f"user={current_user.id} broker={broker_account.broker_name}"
+                )
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'{broker_account.broker_name} did not respond within '
+                        f'{_IN_PROC_TIMEOUT2} seconds. The order was NOT placed.\n\n'
+                        'This usually means the execution server IP is not whitelisted '
+                        f'in your {broker_account.broker_name} account.'
+                    ),
+                    'broker_settings_url': '/dashboard/broker-accounts',
+                }), 504
 
         # Drop the cached portfolio page bundle so the next page load
         # reflects the new position immediately instead of waiting up to 180s.
@@ -6408,6 +6454,37 @@ def api_trade_execute_signal():
                     'security' in (ep_err.message or '').lower()
                 )
                 _broker_not_supported = ep_err.bucket == 'broker_not_supported'
+
+                # Dhan requires the execution engine's whitelisted IP (54.225.202.78).
+                # Falling through to in-process from Railway/Replit will stall the
+                # TCP connection because Dhan silently drops packets from unknown IPs,
+                # causing the worker to hang until the client's 30-second timeout fires.
+                # Instead we surface a clear actionable error.
+                _bt_str = ''
+                try:
+                    _bt = getattr(selected_broker, 'broker_type', None)
+                    _bt_str = (_bt.value if hasattr(_bt, 'value') else str(_bt or '')).lower()
+                except Exception:
+                    pass
+                _dhan_secid_miss = _secid_miss and _bt_str == 'dhan'
+
+                if _dhan_secid_miss:
+                    return jsonify({
+                        'success': False,
+                        'error': (
+                            'Cannot resolve Dhan security ID for this symbol.\n\n'
+                            'Fix: Go to Broker Management → Sync your Dhan account. '
+                            'Once synced, holdings populate the security ID lookup and '
+                            'the trade will go through the execution engine directly.\n\n'
+                            f'Technical: {ep_err.message}'
+                        ),
+                        'technical_error': ep_err.message,
+                        'bucket': ep_err.bucket,
+                        'request_id': ep_err.request_id,
+                        'via': 'remote_engine',
+                        'broker_settings_url': '/dashboard/broker-accounts',
+                    }), 400
+
                 if _secid_miss or _broker_not_supported:
                     logger.warning(
                         f"Remote exec fallback to in-process: "
@@ -6435,7 +6512,30 @@ def api_trade_execute_signal():
         # ────────────────────────────────────────────────────────────────────
 
         try:
-            order_result = BrokerService.place_order_via_broker(selected_broker, order_data)
+            import concurrent.futures as _cf
+            _IN_PROC_TIMEOUT = 22  # seconds — leaves 8s buffer before the 30s client abort
+
+            with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
+                _fut = _pool.submit(BrokerService.place_order_via_broker, selected_broker, order_data)
+                try:
+                    order_result = _fut.result(timeout=_IN_PROC_TIMEOUT)
+                except _cf.TimeoutError:
+                    logger.error(
+                        f"In-process broker call timed out after {_IN_PROC_TIMEOUT}s "
+                        f"user={current_user.id} broker={selected_broker.broker_name}"
+                    )
+                    return jsonify({
+                        'success': False,
+                        'error': (
+                            f'{selected_broker.broker_name} did not respond within '
+                            f'{_IN_PROC_TIMEOUT} seconds. The order was NOT placed.\n\n'
+                            'This usually means the execution server IP is not whitelisted '
+                            f'in your {selected_broker.broker_name} account. Please:\n'
+                            '1. Check your broker app — no order should appear\n'
+                            '2. Contact support with this error if it repeats'
+                        ),
+                        'broker_settings_url': '/dashboard/broker-accounts',
+                    }), 504
 
             _tc_order_id = order_result.id if hasattr(order_result, 'id') else None
             _mark_fno_signal_executed(data, current_user.id, _tc_order_id)
