@@ -65,6 +65,13 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 | Variable | Description |
 |----------|-------------|
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google sign-in |
+| `APP_DOMAIN` | Your Railway/custom domain (e.g. `targetcapital.ai`). Shown in `/oauth-check` so you know exactly which URI to register in Google Console. Not required for OAuth to work — the app uses `request.base_url` dynamically — but recommended for clarity. |
+
+### Admin
+| Variable | Description |
+|----------|-------------|
+| `ADMIN_EMAILS` | Comma-separated list of email addresses that are auto-promoted to admin on first Google/email login (e.g. `you@targetcapital.ai,partner@example.com`). Admins can also be promoted manually from `/admin/users`. |
+| `TELEGRAM_ADMIN_CHAT_ID` | Secondary Telegram chat ID for critical admin-only alerts (separate from the public signal channel in `TELEGRAM_CHAT_ID`). Optional. |
 
 ### TC Execution Engine (EC2)
 
@@ -148,25 +155,84 @@ After each successful boot, **delete these vars** in the Railway dashboard.
 
 ---
 
+## Google OAuth — production setup
+
+The app dynamically uses `request.base_url` for the redirect URI, so it works
+on any domain without code changes. You only need to register the right URI in
+Google Console once.
+
+**Steps:**
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services** → **Credentials**.
+2. Open your **OAuth 2.0 Client ID**.
+3. Under **Authorized redirect URIs** add:
+   ```
+   https://<your-railway-domain>/google_login/callback
+   ```
+   Replace `<your-railway-domain>` with your actual Railway-generated URL
+   (e.g. `target-capital-production.up.railway.app`) **and** your custom domain
+   if you have one (e.g. `targetcapital.ai`). Add both as separate entries.
+4. Make sure **Authorized JavaScript origins** includes `https://<your-domain>`.
+5. Under **OAuth consent screen**, set **User Type** to **External** (not Internal) so users outside your Google Workspace can sign in.
+6. Save. Changes take effect within a few minutes.
+
+**Verify:** Open `/oauth-check` after deploying — it shows the exact redirect URI
+the app will send to Google. Paste it into Console if it isn't there yet.
+
+**Popup mode (Replit preview):** The app automatically detects when it's loaded
+inside an iframe and opens a popup for Google sign-in. On Railway (standalone
+browser tab) it navigates directly — no popup, no extra setup needed.
+
+---
+
 ## First-time deploy checklist
 
 1. **Provision plugins**
    - Add **PostgreSQL** plugin → `DATABASE_URL` is auto-set.
    - Add **Redis** plugin → `REDIS_URL` is auto-set.
 
-2. **Set the 7 required env vars** listed above (the 5 secrets + `ENVIRONMENT=production` + `CORS_ORIGINS`).
+2. **Set the required env vars** (the 5 secrets + `ENVIRONMENT=production` + `CORS_ORIGINS`).
+   Also set `ADMIN_EMAILS=your@email.com` so your first login auto-promotes you to admin.
 
-3. **First deploy:** also set `RUN_MIGRATIONS=1` and `RUN_SEEDS=1`.
+3. **Run the pre-deploy check** (optional but recommended — catches issues before deploying):
+   ```bash
+   # On Replit shell, with RAILWAY env vars loaded:
+   DATABASE_URL=<railway-db-url> ENVIRONMENT=production SESSION_SECRET=<your-secret> \
+     BROKER_ENCRYPTION_KEY=<your-key> ENCRYPTION_MASTER_KEY=<your-key> \
+     CORS_ORIGINS=https://targetcapital.ai \
+     python scripts/pre_deploy_check.py
+   ```
+   All REQUIRED checks must pass before continuing.
 
-4. Trigger the deploy. Watch logs for:
+4. **Export data from Replit** (if migrating existing users/data):
+   ```bash
+   python scripts/db_export.py
+   # Creates database_export.sql in project root
+   ```
+
+5. **First deploy:** also set `RUN_MIGRATIONS=1` and `RUN_SEEDS=1`.
+
+6. Trigger the deploy. Watch logs for:
    - `✅ Environment configuration validated successfully`
-   - `[migration N/N] running…` (only when `RUN_MIGRATIONS=1`)
    - `Target Capital server ready to accept connections`
    - `singleton worker` next to each scheduler line
 
-5. Once the deploy is green, **remove `RUN_MIGRATIONS` and `RUN_SEEDS`** from variables.
+7. **Import data** (if migrating):
+   ```bash
+   # Option A — Railway CLI
+   railway run python scripts/db_import.py
 
-6. Configure your custom domain and TLS in Railway → Settings.
+   # Option B — direct psql
+   psql $RAILWAY_DATABASE_URL < database_export.sql
+   ```
+
+8. Once the deploy is green, **remove `RUN_MIGRATIONS` and `RUN_SEEDS`** from variables.
+
+9. **Add your Railway domain to Google Console** — see Google OAuth section above.
+
+10. Configure your custom domain and TLS in Railway → Settings.
+
+11. Open `/admin/notifications` to verify all integrations are live.
 
 ---
 
