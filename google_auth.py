@@ -89,6 +89,12 @@ def login():
         state = secrets.token_urlsafe(32)
         session['oauth_state'] = state
 
+        # Track whether this flow was opened as a popup (e.g. from Replit preview
+        # iframe). The callback uses this flag to close the popup and signal the
+        # parent frame to navigate to the dashboard instead of doing a plain redirect.
+        if request.args.get('popup'):
+            session['oauth_popup'] = True
+
         # Build redirect_uri from the actual request host so it matches whichever
         # domain the user is on (targetcapital.ai, Replit preview, etc.).
         dynamic_redirect = request.base_url.replace("http://", "https://") + "/callback"
@@ -207,9 +213,23 @@ def callback():
             logger.info(f"Auto-promoted {users_email} to admin via ADMIN_EMAILS env var")
 
         login_user(user)
-        flash('Successfully logged in with Google!', 'success')
         logger.info(f"User {users_email} logged in successfully via Google OAuth")
 
+        # If the OAuth flow was opened as a popup (from an iframe context), close
+        # the popup and tell the parent window to navigate to the dashboard.
+        is_popup = session.pop('oauth_popup', False)
+        if is_popup:
+            dashboard_url = url_for("dashboard")
+            return f'''<!doctype html><html><body><script>
+try {{
+    if (window.opener) {{
+        window.opener.location.href = "{dashboard_url}";
+    }}
+}} catch(e) {{}}
+window.close();
+</script><p>Signed in! <a href="{dashboard_url}">Click here</a> if this window does not close.</p></body></html>'''
+
+        flash('Successfully logged in with Google!', 'success')
         return redirect(url_for("dashboard"))
     
     except Exception as e:
