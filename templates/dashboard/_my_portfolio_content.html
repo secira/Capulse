@@ -200,6 +200,270 @@
     {% endif %}
 
     <!-- ═══════════════════════════════════════════════════════════════
+         WEALTH SCORE
+         ═══════════════════════════════════════════════════════════════ -->
+    {% set ns = namespace(d1=0, d2=5, d3=0, d4=10, d5=5) %}
+
+    {# D1 — Diversification: based on number of asset classes #}
+    {% if portfolio_intel %}
+      {% set _n = portfolio_intel.n_classes | int %}
+      {% if _n >= 5 %}{% set ns.d1 = 20 %}
+      {% elif _n == 4 %}{% set ns.d1 = 16 %}
+      {% elif _n == 3 %}{% set ns.d1 = 12 %}
+      {% elif _n == 2 %}{% set ns.d1 = 8 %}
+      {% elif _n == 1 %}{% set ns.d1 = 4 %}
+      {% endif %}
+    {% elif portfolio_summary and portfolio_summary.asset_classes %}
+      {% set _n = portfolio_summary.asset_classes | length %}
+      {% if _n >= 5 %}{% set ns.d1 = 20 %}
+      {% elif _n == 4 %}{% set ns.d1 = 16 %}
+      {% elif _n == 3 %}{% set ns.d1 = 12 %}
+      {% elif _n == 2 %}{% set ns.d1 = 8 %}
+      {% elif _n == 1 %}{% set ns.d1 = 4 %}
+      {% endif %}
+    {% endif %}
+
+    {# D2 — Risk Profile Alignment: preferences + risk profile completed #}
+    {% if current_user.portfolio_preferences and current_user.portfolio_preferences.completed %}
+      {% set ns.d2 = 15 %}
+    {% endif %}
+
+    {# D3 — Goal Progress: 0 if no goals, 8 if goals set #}
+    {% if goal_progress and goal_progress | length > 0 %}
+      {% set ns.d3 = 8 %}
+    {% endif %}
+
+    {# D4 — Portfolio Health: invert risk_score (lower risk = better health) #}
+    {% if portfolio_intel %}
+      {% set _rs = portfolio_intel.risk_score | int %}
+      {% if _rs <= 20 %}{% set ns.d4 = 18 %}
+      {% elif _rs <= 40 %}{% set ns.d4 = 14 %}
+      {% elif _rs <= 60 %}{% set ns.d4 = 10 %}
+      {% elif _rs <= 80 %}{% set ns.d4 = 6 %}
+      {% else %}{% set ns.d4 = 2 %}
+      {% endif %}
+    {% endif %}
+
+    {# D5 — Consistency: based on connected brokers #}
+    {% set _cb = broker_accounts | selectattr('connection_status', 'equalto', 'connected') | list | length if broker_accounts else 0 %}
+    {% if _cb >= 2 %}{% set ns.d5 = 16 %}
+    {% elif _cb == 1 %}{% set ns.d5 = 12 %}
+    {% endif %}
+
+    {% set wealth_score = ns.d1 + ns.d2 + ns.d3 + ns.d4 + ns.d5 %}
+
+    {# Score label + colours #}
+    {% if wealth_score >= 80 %}
+      {% set ws_label = 'Excellent' %}{% set ws_color = '#22c55e' %}{% set ws_bg = '#f0fdf4' %}{% set ws_border = '#bbf7d0' %}{% set ws_icon = '🟢' %}
+    {% elif wealth_score >= 60 %}
+      {% set ws_label = 'Good' %}{% set ws_color = '#3b82f6' %}{% set ws_bg = '#eff6ff' %}{% set ws_border = '#bfdbfe' %}{% set ws_icon = '🔵' %}
+    {% elif wealth_score >= 40 %}
+      {% set ws_label = 'Needs Attention' %}{% set ws_color = '#f59e0b' %}{% set ws_bg = '#fffbeb' %}{% set ws_border = '#fde68a' %}{% set ws_icon = '🟡' %}
+    {% elif wealth_score >= 20 %}
+      {% set ws_label = 'At Risk' %}{% set ws_color = '#f97316' %}{% set ws_bg = '#fff7ed' %}{% set ws_border = '#fed7aa' %}{% set ws_icon = '🟠' %}
+    {% else %}
+      {% set ws_label = 'Critical' %}{% set ws_color = '#ef4444' %}{% set ws_bg = '#fef2f2' %}{% set ws_border = '#fecaca' %}{% set ws_icon = '🔴' %}
+    {% endif %}
+
+    <div class="card border-0 shadow-sm mb-4" style="border-radius:18px;overflow:hidden;">
+      <!-- Header -->
+      <div class="d-flex align-items-center justify-content-between px-4 py-3" style="background:#00091a;border-bottom:1px solid rgba(255,255,255,.08);">
+        <div class="d-flex align-items-center gap-3">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.25);display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-star" style="color:#38bdf8;font-size:.85rem;"></i>
+          </div>
+          <div>
+            <div style="font-size:.95rem;font-weight:700;color:#f1f5f9;letter-spacing:.01em;">Wealth Score</div>
+            <div style="font-size:.72rem;color:#94a3b8;">Portfolio quality · independent of market performance</div>
+          </div>
+        </div>
+        <span style="background:{{ ws_bg }};color:{{ ws_color }};border:1px solid {{ ws_border }};border-radius:20px;padding:4px 14px;font-size:.78rem;font-weight:700;">
+          {{ ws_icon }} {{ ws_label }}
+        </span>
+      </div>
+
+      <div class="card-body px-4 py-4" style="background:#fff;">
+        <div class="row align-items-center g-4">
+
+          <!-- Circular gauge -->
+          <div class="col-md-3 d-flex flex-column align-items-center justify-content-center">
+            <div style="position:relative;width:160px;height:160px;">
+              <svg width="160" height="160" viewBox="0 0 160 160">
+                <!-- Track -->
+                <circle cx="80" cy="80" r="64" fill="none" stroke="#f1f5f9" stroke-width="12"/>
+                <!-- Score arc — animated via JS -->
+                <circle cx="80" cy="80" r="64" fill="none"
+                        stroke="{{ ws_color }}" stroke-width="12"
+                        stroke-linecap="round"
+                        stroke-dasharray="0 402"
+                        stroke-dashoffset="100.5"
+                        id="wsArc"
+                        style="transition:stroke-dasharray 1.2s ease;transform:rotate(-90deg);transform-origin:80px 80px;"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <div id="wsScoreNum" style="font-size:2.4rem;font-weight:800;color:#0f172a;line-height:1;">0</div>
+                <div style="font-size:.7rem;color:#94a3b8;font-weight:600;letter-spacing:.06em;">/ 100</div>
+              </div>
+            </div>
+            <div class="mt-3 text-center">
+              <div style="font-size:.78rem;color:#64748b;line-height:1.5;max-width:160px;">
+                Measures <strong>portfolio quality</strong>, not returns. Always improvable.
+              </div>
+            </div>
+          </div>
+
+          <!-- 5 Dimensions -->
+          <div class="col-md-9">
+            <div class="row g-3">
+
+              <!-- D1: Diversification -->
+              <div class="col-12">
+                <div class="d-flex align-items-center gap-3">
+                  <div style="width:32px;height:32px;border-radius:9px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="fas fa-th-large" style="color:#3b82f6;font-size:.78rem;"></i>
+                  </div>
+                  <div style="flex:1;min-width:0;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span style="font-size:.82rem;font-weight:600;color:#334155;">Diversification</span>
+                      <span style="font-size:.78rem;font-weight:700;color:#0f172a;">{{ ns.d1 }}<span style="color:#94a3b8;font-weight:400;">/20</span></span>
+                    </div>
+                    <div style="height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden;">
+                      <div style="height:100%;width:{{ (ns.d1 / 20 * 100)|int }}%;background:{{ '#22c55e' if ns.d1 >= 16 else '#3b82f6' if ns.d1 >= 10 else '#f59e0b' if ns.d1 >= 6 else '#ef4444' }};border-radius:4px;transition:width 1s ease;"></div>
+                    </div>
+                    <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">Spread across asset classes, sectors, geographies</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- D2: Risk Profile Alignment -->
+              <div class="col-12">
+                <div class="d-flex align-items-center gap-3">
+                  <div style="width:32px;height:32px;border-radius:9px;background:#fdf4ff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="fas fa-user-shield" style="color:#a855f7;font-size:.78rem;"></i>
+                  </div>
+                  <div style="flex:1;min-width:0;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span style="font-size:.82rem;font-weight:600;color:#334155;">Risk Profile Alignment</span>
+                      <span style="font-size:.78rem;font-weight:700;color:#0f172a;">{{ ns.d2 }}<span style="color:#94a3b8;font-weight:400;">/20</span></span>
+                    </div>
+                    <div style="height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden;">
+                      <div style="height:100%;width:{{ (ns.d2 / 20 * 100)|int }}%;background:{{ '#22c55e' if ns.d2 >= 16 else '#3b82f6' if ns.d2 >= 10 else '#f59e0b' if ns.d2 >= 6 else '#ef4444' }};border-radius:4px;"></div>
+                    </div>
+                    <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">
+                      {% if current_user.portfolio_preferences and current_user.portfolio_preferences.completed %}
+                        Portfolio matches your declared risk profile &amp; age
+                      {% else %}
+                        <a href="{{ url_for('portfolio_preferences') }}" style="color:#a855f7;">Set your risk profile</a> to improve this score
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- D3: Goal Progress -->
+              <div class="col-12">
+                <div class="d-flex align-items-center gap-3">
+                  <div style="width:32px;height:32px;border-radius:9px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="fas fa-bullseye" style="color:#22c55e;font-size:.78rem;"></i>
+                  </div>
+                  <div style="flex:1;min-width:0;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span style="font-size:.82rem;font-weight:600;color:#334155;">Goal Progress</span>
+                      <span style="font-size:.78rem;font-weight:700;color:#0f172a;">{{ ns.d3 }}<span style="color:#94a3b8;font-weight:400;">/20</span></span>
+                    </div>
+                    <div style="height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden;">
+                      <div style="height:100%;width:{{ (ns.d3 / 20 * 100)|int }}%;background:{{ '#22c55e' if ns.d3 >= 16 else '#3b82f6' if ns.d3 >= 10 else '#f59e0b' if ns.d3 >= 6 else '#ef4444' }};border-radius:4px;"></div>
+                    </div>
+                    <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">
+                      {% if ns.d3 == 0 %}No goals set — this dimension defaults to 0 until you define financial goals{% else %}On track to meet your declared financial goals{% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- D4: Portfolio Health -->
+              <div class="col-12">
+                <div class="d-flex align-items-center gap-3">
+                  <div style="width:32px;height:32px;border-radius:9px;background:#fff7ed;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="fas fa-heartbeat" style="color:#f97316;font-size:.78rem;"></i>
+                  </div>
+                  <div style="flex:1;min-width:0;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span style="font-size:.82rem;font-weight:600;color:#334155;">Portfolio Health</span>
+                      <span style="font-size:.78rem;font-weight:700;color:#0f172a;">{{ ns.d4 }}<span style="color:#94a3b8;font-weight:400;">/20</span></span>
+                    </div>
+                    <div style="height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden;">
+                      <div style="height:100%;width:{{ (ns.d4 / 20 * 100)|int }}%;background:{{ '#22c55e' if ns.d4 >= 16 else '#3b82f6' if ns.d4 >= 10 else '#f59e0b' if ns.d4 >= 6 else '#ef4444' }};border-radius:4px;"></div>
+                    </div>
+                    <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">Drawdown, loss positions, liquidity, stop-losses</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- D5: Consistency -->
+              <div class="col-12">
+                <div class="d-flex align-items-center gap-3">
+                  <div style="width:32px;height:32px;border-radius:9px;background:#fefce8;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="fas fa-calendar-check" style="color:#eab308;font-size:.78rem;"></i>
+                  </div>
+                  <div style="flex:1;min-width:0;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span style="font-size:.82rem;font-weight:600;color:#334155;">Consistency of Investing</span>
+                      <span style="font-size:.78rem;font-weight:700;color:#0f172a;">{{ ns.d5 }}<span style="color:#94a3b8;font-weight:400;">/20</span></span>
+                    </div>
+                    <div style="height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden;">
+                      <div style="height:100%;width:{{ (ns.d5 / 20 * 100)|int }}%;background:{{ '#22c55e' if ns.d5 >= 16 else '#3b82f6' if ns.d5 >= 10 else '#f59e0b' if ns.d5 >= 6 else '#ef4444' }};border-radius:4px;"></div>
+                    </div>
+                    <div style="font-size:.7rem;color:#94a3b8;margin-top:2px;">Regular SIP-style investing beats market timing over 10+ years</div>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /row -->
+          </div><!-- /col-md-9 -->
+
+        </div><!-- /row -->
+
+        <!-- Footer note -->
+        <div class="mt-4 pt-3" style="border-top:1px solid #f1f5f9;">
+          <div class="d-flex align-items-start gap-2">
+            <i class="fas fa-info-circle mt-1" style="color:#94a3b8;font-size:.78rem;flex-shrink:0;"></i>
+            <p class="mb-0" style="font-size:.75rem;color:#94a3b8;line-height:1.5;">
+              Wealth Score measures <strong style="color:#64748b;">portfolio quality</strong>, not returns. It does not go up when the market goes up —
+              it goes up when <em>you</em> make better decisions. This is what no other Indian investing app measures.
+              Connect more brokers, set your risk profile, and define financial goals to improve your score.
+            </p>
+          </div>
+        </div>
+
+      </div><!-- /card-body -->
+    </div><!-- /wealth score card -->
+
+    <script>
+    (function(){
+      var target = {{ wealth_score }};
+      var arc = document.getElementById('wsArc');
+      var num = document.getElementById('wsScoreNum');
+      if (!arc || !num) return;
+      var circumference = 2 * Math.PI * 64; // 402.12
+      var current = 0;
+      var duration = 1200;
+      var start = null;
+      function animate(ts) {
+        if (!start) start = ts;
+        var progress = Math.min((ts - start) / duration, 1);
+        var eased = 1 - Math.pow(1 - progress, 3);
+        current = Math.round(target * eased);
+        var dash = (current / 100) * circumference;
+        arc.setAttribute('stroke-dasharray', dash + ' ' + (circumference - dash));
+        num.textContent = current;
+        if (progress < 1) requestAnimationFrame(animate);
+      }
+      requestAnimationFrame(animate);
+    })();
+    </script>
+
+    <!-- ═══════════════════════════════════════════════════════════════
          SECTION 2: ACROSS-BROKERS OVERVIEW + ACTION CENTER + PERF SNAPSHOT
          ═══════════════════════════════════════════════════════════════ -->
     <div class="row g-3 mb-4">

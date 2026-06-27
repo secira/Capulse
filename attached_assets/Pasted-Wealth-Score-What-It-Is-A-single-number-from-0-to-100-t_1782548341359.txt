@@ -1,0 +1,34 @@
+Wealth Score
+What It Is
+A single number from 0 to 100 that measures how well-structured, diversified, and goal-aligned your entire portfolio is — independent of market performance.
+The critical distinction: Wealth Score measures portfolio quality, not portfolio returns. A portfolio that is up 40% this year can still have a low Wealth Score if it's concentrated in one sector, misaligned with the investor's risk profile, or has no goal structure. A portfolio that is flat can have a high Wealth Score if it's well-diversified, age-appropriate, and on track to meet goals.
+This distinction is the entire point. Returns are partly luck (market timing, macro conditions). Portfolio quality is entirely the investor's choice. Target Capital measures what you can control.
+
+What Goes Into the Wealth Score
+Five dimensions, each scored 0–20, summed to 100:
+Dimension 1 — Diversification (0–20)
+
+Are you spread across asset classes, sectors, and geographies appropriately? Concentration above 25% in a single stock, above 40% in a single sector, or above 70% in a single asset class all reduce this score. A well-diversified portfolio across equity, debt, gold, and international assets scores near 20. A 100% single-stock portfolio scores near 0.
+Inputs: Holdings data from connected brokers + manual entries across all 11 asset classes.
+Dimension 2 — Risk Profile Alignment (0–20)
+
+Does your actual portfolio match the risk profile you declared? A 55-year-old who declared "conservative" but holds 85% in F&O positions scores very low here. A 28-year-old who declared "aggressive" and holds 90% in fixed deposits also scores low — but in the opposite direction (too conservative for their stated goals and life stage).
+Inputs: Declared risk profile + age + portfolio composition + asset class risk ratings.
+Dimension 3 — Goal Progress (0–20)
+
+Are you on track to meet the financial goals you've set? If you've set a ₹50L corpus goal by 2032 and your current portfolio trajectory (at current growth rate) reaches ₹38L, your goal progress score reflects the gap. If you haven't set any goals, this dimension defaults to 0 — which is itself a signal to the user.
+Inputs: Declared goals (corpus, timeline, purpose) + current portfolio value + historical growth rate + projected returns.
+Dimension 4 — Portfolio Health (0–20)
+
+Is the portfolio currently in good operating condition? This covers: drawdown relative to historical high (how far down from peak), percentage of positions currently in loss, whether stop-losses or rebalancing triggers are set, staleness of holdings (positions held unchanged for 5+ years with no review signal), and liquidity ratio (how much can be liquidated within 1 trading day).
+Inputs: Live portfolio data + historical price data + position age + liquidity analysis.
+Dimension 5 — Consistency of Investing (0–20)
+
+Are you investing regularly and systematically? Sporadic lump-sum investing based on market mood scores lower than consistent SIP-style investing regardless of market conditions. This dimension rewards discipline over market timing — because research consistently shows systematic investors outperform market timers over 10+ year periods.
+Inputs: Investment transaction history + regularity pattern + SIP linkages + capital infusion timing.
+
+How the Score Displays
+ScoreLabelColourWhat it means80–100Excellent🟢 GreenWell-structured, aligned, on track60–79Good🔵 BlueSolid foundation, specific gaps40–59Needs Attention🟡 AmberMultiple structural issues to address20–39At Risk🟠 OrangeSignificant misalignment or concentration0–19Critical🔴 RedUrgent restructuring needed
+
+What Makes It Powerful
+The Wealth Score does not go up just because the market goes up. It goes up because the investor makes better decisions. This is what no other Indian investing app measures — and it's the score that builds a long-term relationship with the user because it's always improvable, always their own work, and completely independent of market conditions they cannot control.
