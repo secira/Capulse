@@ -131,14 +131,21 @@ class DhanBrokerClient(BaseBrokerClient):
             raise BrokerAPIError("Dhan library not available. Install with: pip install dhanhq")
     
     def connect(self) -> bool:
-        """Connect to Dhan API"""
+        """Connect to Dhan API.
+
+        Intentionally does NOT call get_fund_limits() here.
+        A live API test before every order adds 1-5 s of latency and can push
+        the total call time past the route's hard timeout. Credential validity
+        is validated by place_order() itself — Dhan returns DH-901 immediately
+        if the token is invalid, which the caller surfaces as an actionable error.
+        """
         try:
             client_id = self.credentials.get('client_id')
             access_token = self.credentials.get('access_token')
-            
+
             if not client_id or not access_token:
                 raise BrokerAPIError("Missing Dhan credentials")
-            
+
             try:
                 # dhanhq v2.x: __init__(self, client_id, access_token, ...)
                 self._client = dhanhq(client_id, access_token)
@@ -146,26 +153,9 @@ class DhanBrokerClient(BaseBrokerClient):
                 # dhanhq v1.x: __init__(self, access_token) — no client_id arg
                 self._client = dhanhq(access_token)
 
-            # Test connection by getting fund limits (a simple API call)
-            # For test credentials, just return True
-            if client_id == 'test123':
-                logger.info(f"Test connection successful for Dhan account {client_id}")
-                return True
-            
-            # For real credentials, try to access fund limits
-            try:
-                funds = self._client.get_fund_limits()
-                if funds:
-                    logger.info(f"Successfully connected to Dhan for account {client_id}")
-                    return True
-                else:
-                    raise BrokerAPIError("Invalid response from Dhan API")
-            except:
-                # Fallback - if test credentials just succeed
-                if 'test' in client_id.lower():
-                    return True
-                raise
-                
+            logger.info(f"Dhan SDK initialised for account {client_id} (credential check deferred to first API call)")
+            return True
+
         except Exception as e:
             error_msg = f"Failed to connect to Dhan: {str(e)}"
             self.broker_account.update_connection_status(ConnectionStatus.ERROR, error_msg)
@@ -249,22 +239,23 @@ class DhanBrokerClient(BaseBrokerClient):
                 outbound_ip = 'unknown'
             logger.info(f"Dhan order outbound IP at execution time: {outbound_ip}")
 
-            # Hard 12-second timeout — Dhan's firewall silently drops packets
-            # from non-whitelisted IPs (DH-905), causing the SDK to hang
-            # indefinitely.  ThreadPoolExecutor lets us enforce a wall-clock
-            # deadline without patching the SDK's requests session.
+            # Hard timeout around the SDK call.
+            # IMPORTANT: do NOT use "with ThreadPoolExecutor() as pool:" here —
+            # __exit__ calls shutdown(wait=True) which blocks forever on a hung
+            # thread even after TimeoutError fires.  Use shutdown(wait=False) manually.
             import concurrent.futures as _cf
-            with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
-                _future = _pool.submit(self._client.place_order, **dhan_order)
-                try:
-                    result = _future.result(timeout=12)
-                except _cf.TimeoutError:
-                    raise BrokerAPIError(
-                        f"Dhan order API timed out (>12 s). "
-                        f"Server IP: {outbound_ip}. "
-                        f"If this is a new token, ensure {outbound_ip} is in "
-                        f"Dhan's IP whitelist before generating the token."
-                    )
+            _pool = _cf.ThreadPoolExecutor(max_workers=1)
+            _future = _pool.submit(self._client.place_order, **dhan_order)
+            try:
+                result = _future.result(timeout=18)
+                _pool.shutdown(wait=False)
+            except _cf.TimeoutError:
+                _pool.shutdown(wait=False)  # orphan the hung thread, don't block
+                raise BrokerAPIError(
+                    f"Dhan order API timed out (>18 s). "
+                    f"Server IP: {outbound_ip}. "
+                    f"Dhan API may be slow or unreachable from this server."
+                )
             logger.info(f"Dhan place_order response: {result}")
 
             if isinstance(result, dict) and result.get('status') == 'failure':

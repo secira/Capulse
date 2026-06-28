@@ -5929,10 +5929,14 @@ def api_trade_execute_confirmed():
             return jsonify({
                 'success': False,
                 'error': (
-                    f'{broker_account.broker_name} did not respond within '
+                    f'{broker_account.broker_name} API did not respond within '
                     f'{_IN_PROC_TIMEOUT2} seconds. The order was NOT placed.\n\n'
-                    'This usually means the execution server IP is not whitelisted '
-                    f'in your {broker_account.broker_name} account.'
+                    'Possible causes:\n'
+                    '• Dhan API is slow or temporarily unavailable\n'
+                    '• Token expired — regenerate at app.dhan.co → Profile → Access Token\n'
+                    '• Server IP not whitelisted in your Dhan token\n\n'
+                    'Please check your broker app to confirm no order was placed, '
+                    'then try again in a moment.'
                 ),
                 'broker_settings_url': '/dashboard/broker-accounts',
             }), 504
@@ -6538,12 +6542,14 @@ def api_trade_execute_signal():
                 return jsonify({
                     'success': False,
                     'error': (
-                        f'{selected_broker.broker_name} did not respond within '
+                        f'{selected_broker.broker_name} API did not respond within '
                         f'{_IN_PROC_TIMEOUT} seconds. The order was NOT placed.\n\n'
-                        'This usually means the execution server IP is not whitelisted '
-                        f'in your {selected_broker.broker_name} account. Please:\n'
-                        '1. Check your broker app — no order should appear\n'
-                        '2. Contact support with this error if it repeats'
+                        'Possible causes:\n'
+                        '• Dhan API is slow or temporarily unavailable\n'
+                        '• Token expired — regenerate at app.dhan.co → Profile → Access Token\n'
+                        '• Server IP not whitelisted in your Dhan token\n\n'
+                        'Please check your broker app to confirm no order was placed, '
+                        'then try again in a moment.'
                     ),
                     'broker_settings_url': '/dashboard/broker-accounts',
                 }), 504
