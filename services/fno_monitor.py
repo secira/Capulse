@@ -17,16 +17,18 @@ IST_OFFSET = timedelta(hours=5, minutes=30)
 # Tier 2 (60-74) and Tier 3 (50-59) are surfaced in the app/UI only.
 ALERT_CONFIDENCE_THRESHOLD = 75
 SIGNAL_COOLDOWN_MINUTES    = 10
-MAX_SIGNALS_PER_DAY        = 2          # per index — cap at 2 to avoid over-signalling
-MAX_SIGNALS_TOTAL_PER_DAY  = 4          # cross-index daily cap across NIFTY+BANKNIFTY+FINNIFTY+SENSEX
+MAX_SIGNALS_PER_DAY        = 3          # target: 3 quality signals per index per day
+MAX_SIGNALS_TOTAL_PER_DAY  = 9          # 3 per index × ~3 active indices concurrently
 
 # Trade Lifecycle constants (shared across indices)
 # CONFIRMATION_CANDLES = 2: require two consecutive strong 60-second scans
 # before locking a trade. Adds ~60s entry delay but significantly reduces
 # false triggers in choppy/reversing markets (high SL-hit rate cause).
 CONFIRMATION_CANDLES    = 2
-ENTRY_COOLDOWN_MINUTES  = 15
-TRADE_MIN_CONFIDENCE    = 85           # raised from 80 — only enter on high-conviction setups
+ENTRY_COOLDOWN_MINUTES  = 90           # 90-min gap spreads 3 signals naturally across
+                                       # the session (~9:45, ~11:15, ~14:30 IST) and
+                                       # prevents clustering 3 signals in 45 minutes.
+TRADE_MIN_CONFIDENCE    = 82           # slightly relaxed from 85 — still high quality
 TRADE_MIN_ADX           = 25
 EOD_FORCE_EXIT_HOUR     = 15      # 3:00 PM IST — hard-close every open signal so
 EOD_FORCE_EXIT_MINUTE   = 0       # daily P&L is deterministic at end-of-day.
@@ -903,7 +905,7 @@ def _send_email_alert(signal_data: dict, index_id: str) -> bool:
 
 SCAN_ALERT_MIN_CONFIDENCE = 70   # only broadcast SCAN signals at/above this
 SCAN_ALERT_COOLDOWN_MIN   = 15   # min minutes between two SCAN telegrams (per index)
-SCAN_ALERT_MAX_PER_DAY    = 4    # safety cap (per index) — covers TRIGGER + SCAN combined
+SCAN_ALERT_MAX_PER_DAY    = 6    # safety cap (per index) — 3 entries + 3 exits
 
 
 def _should_send_alert(signal_data: dict, idx: str) -> bool:
