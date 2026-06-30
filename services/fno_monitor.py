@@ -101,6 +101,13 @@ _recent_confidences   = _make_per_index([])
 _last_active_alert    = _make_per_index(None)   # Timestamp of last TRADE_ACTIVE Telegram update
 _active_trade_code    = _make_per_index(None)   # Current trade code (e.g. NIFTYT01)
 
+# Pre-signal state (per index) — MACD crossover + volume surge early warning
+# Sent as an informational Telegram alert ("watch for full signal").
+# Cooldown = PRESIGNAL_COOLDOWN_MIN so the same side isn't spammed.
+PRESIGNAL_COOLDOWN_MIN = 15
+_presignal_dir        = _make_per_index(None)   # last pre-signal direction
+_presignal_sent_time  = _make_per_index(None)   # when last pre-signal was sent
+
 # ── Per-index circuit breaker ──────────────────────────────────────────────────
 # After 2 consecutive SL hits on the SAME index, suppress new entries on THAT
 # index only for the rest of the trading session.  Other indices keep trading
@@ -796,6 +803,50 @@ def _send_telegram_alert(signal_data: dict, index_id: str) -> bool:
         return False
 
 
+def _send_presignal_alert(pre_signal: dict, analysis: dict, index_id: str) -> bool:
+    """Send an early momentum pre-signal Telegram alert.
+
+    Gated by the same token/chat-id as normal alerts.
+    Format is clearly marked as a WATCH (not a trade entry).
+    """
+    try:
+        from services.messaging_service import _get_telegram_config, send_telegram_message
+        token, chat_id = _get_telegram_config()
+        if not token or not chat_id:
+            return False
+
+        direction   = pre_signal.get('direction', 'NEUTRAL')
+        confidence  = pre_signal.get('confidence', 0)
+        reason      = pre_signal.get('reason', '')
+        vol_ratio   = pre_signal.get('volume_ratio', 1.0)
+        spot        = analysis.get('spot_price', 0)
+        now_str     = _now_ist().strftime('%H:%M IST')
+        disp_name   = _INDEX_DISPLAY.get(index_id, index_id)
+
+        arrow = '🟢' if direction == 'BULLISH' else '🔴'
+        opt   = 'CE (Call)' if direction == 'BULLISH' else 'PE (Put)'
+
+        msg = (
+            f"🔶 <b>EARLY SIGNAL — {disp_name}</b>\n"
+            f"{arrow} <b>Direction:</b> {direction} — Watch for {opt}\n"
+            f"⏰ <b>Time:</b> {now_str}\n"
+            f"📊 <b>Spot:</b> ₹{spot:,.2f}\n"
+            f"⚡ <b>Trigger:</b> {reason}\n"
+            f"📈 <b>Volume:</b> {vol_ratio:.1f}× average\n"
+            f"🎯 <b>Pre-signal confidence:</b> {confidence}/100\n"
+            f"\n"
+            f"⚠️ <i>This is an EARLY WARNING, not a trade signal.</i>\n"
+            f"<i>Wait for the full engine confirmation before entering.</i>"
+        )
+        ok = send_telegram_message(msg, parse_mode='HTML')
+        if ok:
+            logger.info(f"[{index_id}] 🔶 Pre-signal alert sent: {direction} conf={confidence}")
+        return ok
+    except Exception as e:
+        logger.warning(f"[{index_id}] Pre-signal alert error: {e}")
+        return False
+
+
 def _send_email_alert(signal_data: dict, index_id: str) -> bool:
     """Send F&O signal email alert alongside Telegram.
     Gated by fno_config.email_alerts_enabled and alert_email_recipients."""
@@ -1137,6 +1188,37 @@ def _scan_index(app, idx: str, data_broker_user_id):
             f"src={analysis.get('data_source', 'N/A')} "
             f"state={_trade_state[idx]}"
         )
+
+        # ── Pre-signal check (MACD crossover + volume surge early warning) ────
+        # Only send when no full trade is already CONFIRMING or ACTIVE on this index.
+        # Cooldown: PRESIGNAL_COOLDOWN_MIN minutes per direction.
+        pre_signal = analysis.get('pre_signal', {})
+        if (pre_signal.get('active')
+                and _trade_state[idx] == 'NONE'
+                and analysis.get('data_source', 'estimated') != 'estimated'):
+            ps_dir  = pre_signal.get('direction', 'NEUTRAL')
+            ps_conf = pre_signal.get('confidence', 0)
+            now_ist = _now_ist()
+            last_ps = _presignal_sent_time[idx]
+            cooldown_ok = (
+                last_ps is None
+                or (now_ist - last_ps).total_seconds() >= PRESIGNAL_COOLDOWN_MIN * 60
+                or _presignal_dir[idx] != ps_dir
+            )
+            if cooldown_ok and ps_dir != 'NEUTRAL' and ps_conf >= 60:
+                sent = _send_presignal_alert(pre_signal, analysis, idx)
+                if sent:
+                    _presignal_dir[idx]       = ps_dir
+                    _presignal_sent_time[idx] = now_ist
+                    logger.info(
+                        f"[{idx}] 🔶 Pre-signal fired: {ps_dir} conf={ps_conf} "
+                        f"vol={pre_signal.get('volume_ratio', 0):.1f}×"
+                    )
+            else:
+                logger.debug(
+                    f"[{idx}] Pre-signal {ps_dir} conf={ps_conf} — "
+                    f"cooldown or neutral, skipped"
+                )
 
         signal_type = None
         alert_sent  = False
