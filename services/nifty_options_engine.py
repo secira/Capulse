@@ -1672,11 +1672,14 @@ class NiftyOptionsEngine:
         if df is not None and len(df) >= 10:
             vwap = self._calculate_vwap(df)
             supertrend_signal = self._calculate_supertrend(df)
-            _, dmi_plus, dmi_minus, _ = self._calculate_adx(df, period=14, di_period=14)
+            # Capture all four ADX outputs — ADX value used for confidence;
+            # DMI +DI/-DI used as a direction vote (fires faster than ADX threshold).
+            adx_dir, dmi_plus, dmi_minus, adx_dir_rising = self._calculate_adx(df, period=14, di_period=14)
             rsi, rsi_up, rsi_down = self._calculate_rsi(df, period=7)
         else:
             vwap = spot
             supertrend_signal = 'BUY'
+            adx_dir, adx_dir_rising = 22.0, False
             dmi_plus = 22.0
             dmi_minus = 22.0
             rsi, rsi_up, rsi_down = 50.0, False, False
@@ -1694,17 +1697,23 @@ class NiftyOptionsEngine:
         bull_oi = self._classify_oi(oi_window_diff, 'BULLISH')
         bear_oi = self._classify_oi(oi_window_diff, 'BEARISH')
 
-        # SOFT scoring — per MVLA + HalfTrend spec, direction fires when
-        # ≥3 of 5 sub-conditions agree. Supertrend is REMOVED from voting
-        # (it lags + duplicates ATR trend logic that HalfTrend now owns);
-        # it remains as a +5 confidence bonus when aligned (see _confidence_score).
+        # DMI alignment — +DI > -DI means buyers are dominant (bull); -DI > +DI = bear.
+        # DMI crossovers fire 3–8 candles AHEAD of ADX value building up, so using
+        # DMI as a vote reduces the lag that ADX-14 normally introduces.
+        dmi_bull = dmi_plus > dmi_minus          # +DI dominance = buyers in control
+        dmi_bear = dmi_minus > dmi_plus          # -DI dominance = sellers in control
+
+        # SOFT scoring — direction fires when ≥3 of 6 sub-conditions agree.
+        # Added DMI alignment as 6th vote (faster than ADX value gate).
+        # Supertrend REMOVED from voting (lags; covered by HalfTrend confidence bonus).
         # EMA trend acts as both a scoring point AND a hard guard against contradictions.
         bull_checks = [
             ema_trend == 'BULLISH',                           # 1. EMA trend bullish
-            ema_crossover or ema_dist_rising,                 # 2. EMA momentum
+            ema_crossover or ema_dist_rising,                 # 2. EMA momentum building
             spot > vwap,                                      # 3. VWAP alignment
-            rsi > 52,                                         # 4. RSI > 52 (relaxed)
-            vol_above_avg,                                    # 5. Volume confirms participation
+            rsi > 52,                                         # 4. RSI momentum
+            vol_above_avg,                                    # 5. Volume participation
+            dmi_bull,                                         # 6. DMI +DI > -DI (fast directional read)
         ]
         bear_checks = [
             ema_trend == 'BEARISH',
@@ -1712,11 +1721,12 @@ class NiftyOptionsEngine:
             spot < vwap,
             rsi < 48,
             vol_above_avg,
+            dmi_bear,                                         # 6. DMI -DI > +DI
         ]
         bull_score = sum(bull_checks)
         bear_score = sum(bear_checks)
 
-        # ≥3 of 5 + EMA trend cannot be the opposite (avoid contradictions)
+        # ≥3 of 6 + EMA trend cannot be the opposite (avoid contradictions)
         bullish = bull_score >= 3 and ema_trend != 'BEARISH'
         bearish = bear_score >= 3 and ema_trend != 'BULLISH'
         # Both CE and PE can be active simultaneously
@@ -1750,6 +1760,10 @@ class NiftyOptionsEngine:
             'supertrend': supertrend_signal,
             'dmi_plus': round(dmi_plus, 1),
             'dmi_minus': round(dmi_minus, 1),
+            'dmi_bull': dmi_bull,           # +DI > -DI — buyers dominant
+            'dmi_bear': dmi_bear,           # -DI > +DI — sellers dominant
+            'adx_dir': round(adx_dir, 1),   # ADX value from direction engine (for confidence tier)
+            'adx_dir_rising': adx_dir_rising,
             'rsi': rsi,
             'rsi_expanding_up': rsi_up,
             'rsi_expanding_down': rsi_down,
@@ -1758,10 +1772,10 @@ class NiftyOptionsEngine:
             'oi_role': oi_role,
             'oi_blocks_candidate': oi_block_dir,
             'indicators_aligned': bullish or bearish,
-            # 3-of-5 soft scoring exposed for UI / debugging
+            # 3-of-6 soft scoring exposed for UI / debugging
             'bull_score': bull_score,
             'bear_score': bear_score,
-            'score_max': 5,
+            'score_max': 6,
             # EMA momentum used for direction decision
             'ema_trend': ema_trend,
             'ema_crossover': ema_crossover,
@@ -1905,6 +1919,30 @@ class NiftyOptionsEngine:
             score += 5
         elif 'OPPOSE' in oi_role:
             score -= 10
+
+        # ADX strength tier — directly rewards a stronger, building trend.
+        # Uses the ADX value from strength (period-14 Wilder ADX, same candles).
+        # Tiered bonus ensures more trending sessions get proportionally more
+        # confidence WITHOUT adding any entry-lag (no gate, pure bonus).
+        _adx_strength = strength.get('adx', 22.0)
+        if _adx_strength >= 35:
+            score += 10   # strong impulsive trend
+        elif _adx_strength >= 30:
+            score += 8    # solid trending
+        elif _adx_strength >= 25:
+            score += 5    # moderate trend — ADX rising matters more here
+            if strength.get('adx_rising', False):
+                score += 3  # ADX building → trend strengthening
+        elif _adx_strength >= 20:
+            score += 3    # mild trend — above the flat-market gate
+
+        # DMI separation bonus — when +DI and -DI are clearly diverging, the
+        # directional move has conviction. Separation > 8 pts is meaningful.
+        _dmi_sep = abs(direction.get('dmi_plus', 22.0) - direction.get('dmi_minus', 22.0))
+        if _dmi_sep >= 15:
+            score += 5    # strong directional conviction
+        elif _dmi_sep >= 8:
+            score += 3    # moderate directional conviction
 
         # Trigger confirmation bonus + close-confirmation bonus (was mandatory before)
         if trigger and trigger.get('triggered'):

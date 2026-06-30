@@ -1189,36 +1189,19 @@ def _scan_index(app, idx: str, data_broker_user_id):
             f"state={_trade_state[idx]}"
         )
 
-        # ── Pre-signal check (MACD crossover + volume surge early warning) ────
-        # Only send when no full trade is already CONFIRMING or ACTIVE on this index.
-        # Cooldown: PRESIGNAL_COOLDOWN_MIN minutes per direction.
+        # ── Pre-signal: internal diagnostics only — NOT sent to Telegram ────────
+        # MACD crossover + volume surge is tracked so developers can audit
+        # how often pre-signals precede confirmed entries.
+        # Traders only receive fully confirmed, tradeable signals.
         pre_signal = analysis.get('pre_signal', {})
-        if (pre_signal.get('active')
-                and _trade_state[idx] == 'NONE'
-                and analysis.get('data_source', 'estimated') != 'estimated'):
+        if pre_signal.get('active') and _trade_state[idx] == 'NONE':
             ps_dir  = pre_signal.get('direction', 'NEUTRAL')
             ps_conf = pre_signal.get('confidence', 0)
-            now_ist = _now_ist()
-            last_ps = _presignal_sent_time[idx]
-            cooldown_ok = (
-                last_ps is None
-                or (now_ist - last_ps).total_seconds() >= PRESIGNAL_COOLDOWN_MIN * 60
-                or _presignal_dir[idx] != ps_dir
+            logger.info(
+                f"[{idx}] 🔶 Pre-signal (internal): {ps_dir} conf={ps_conf} "
+                f"vol={pre_signal.get('volume_ratio', 0):.1f}× — "
+                f"macd={pre_signal.get('macd', {}).get('histogram', 0):.3f}"
             )
-            if cooldown_ok and ps_dir != 'NEUTRAL' and ps_conf >= 60:
-                sent = _send_presignal_alert(pre_signal, analysis, idx)
-                if sent:
-                    _presignal_dir[idx]       = ps_dir
-                    _presignal_sent_time[idx] = now_ist
-                    logger.info(
-                        f"[{idx}] 🔶 Pre-signal fired: {ps_dir} conf={ps_conf} "
-                        f"vol={pre_signal.get('volume_ratio', 0):.1f}×"
-                    )
-            else:
-                logger.debug(
-                    f"[{idx}] Pre-signal {ps_dir} conf={ps_conf} — "
-                    f"cooldown or neutral, skipped"
-                )
 
         signal_type = None
         alert_sent  = False
