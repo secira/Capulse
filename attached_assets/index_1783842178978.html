@@ -55,7 +55,7 @@
   header{position:sticky; top:0; z-index:50; background:rgba(10,15,30,0.86); backdrop-filter:blur(10px); border-bottom:1px solid var(--border);}
   nav{display:flex; align-items:center; justify-content:space-between; padding:16px 32px; max-width:1180px; margin:0 auto;}
   .brand{display:flex; align-items:center; gap:10px;}
-  .brand-mark{display:flex; align-items:center;}
+  .brand-mark{width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg, var(--teal), #0B9E86); display:flex; align-items:center; justify-content:center;}
   .brand-mark svg{width:16px; height:16px;}
   .brand-name{font-family:'Space Grotesk'; font-weight:700; font-size:17px; letter-spacing:-0.01em;}
   .brand-sub{font-size:10.5px; color:var(--muted); font-family:'IBM Plex Mono'; letter-spacing:0.04em; margin-top:1px;}
@@ -351,20 +351,20 @@
 <header>
   <nav>
     <div class="brand">
-      <img src="/static/images/TC_Logo_1783842197192.png" alt="Target Capital" style="height:34px;width:auto;display:block;">
-      <div><div class="brand-name"><a href="/" style="color:inherit;">Target Capital</a></div><div class="brand-sub">POWERED BY CAPULSE</div></div>
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M3 17L9 10L13 14L21 5" stroke="#0A0F1E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div><div class="brand-name"><a href="index.html" style="color:inherit;">Target Capital</a></div><div class="brand-sub">POWERED BY CAPULSE</div></div>
     </div>
     <div class="nav-links">
-      <a href="/equities">Equities</a>
-      <a href="/mutual-funds">Mutual Funds</a>
-      <a href="/fo">F&O</a>
-      <a href="/behavioral-coach">Behavioral Coach</a>
-      <a href="/pricing">Pricing</a>
-      <a href="/about">About</a>
+      <a href="equities.html">Equities</a>
+      <a href="mutual-funds.html">Mutual Funds</a>
+      <a href="fo.html">F&O</a>
+      <a href="behavioral-coach.html">Behavioral Coach</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="about.html">About</a>
     </div>
     <div class="nav-cta">
-      <a class="btn btn-ghost" href="/login">Log in</a>
-      <a class="btn btn-primary" href="/register">Start free</a>
+      <a class="btn btn-ghost" href="https://www.targetcapital.ai/login">Log in</a>
+      <a class="btn btn-primary" href="https://www.targetcapital.ai/register">Start free</a>
     </div>
   </nav>
 </header>
@@ -377,8 +377,8 @@
       <h1>One engine reads<br>every market you<br>touch. <span class="accent">Every call, explained.</span></h1>
       <p class="lede">Target Capital runs on Capulse — the AI engine that fuses your equities, mutual funds, F&amp;O and trading behavior into one confidence-scored view. No more three tabs, three opinions, zero context.</p>
       <div class="hero-ctas">
-        <a class="btn btn-primary btn-lg" href="/register">Start free — 14 days →</a>
-        <a class="btn btn-ghost btn-lg" href="/equities">See today's I-Scores</a>
+        <a class="btn btn-primary btn-lg" href="#">Start free — 14 days →</a>
+        <a class="btn btn-ghost btn-lg" href="#">See today's I-Scores</a>
       </div>
       <div class="trial-note">
         <span><svg viewBox="0 0 20 20" fill="currentColor"><path d="M8.5 12.5L5.5 9.5L4 11L8.5 15.5L16.5 7.5L15 6L8.5 12.5Z"/></svg> No credit card</span>
@@ -587,7 +587,7 @@
           <li>Live Market Pulse</li>
           <li>Manual portfolio upload</li>
         </ul>
-        <a class="btn btn-ghost" href="/register">Start free</a>
+        <a class="btn btn-ghost" href="#">Start free</a>
       </div>
       <div class="price-card">
         <div class="price-name">Growth</div>
@@ -598,7 +598,7 @@
           <li>Behavioral Coach</li>
           <li>Daily ranked signals</li>
         </ul>
-        <a class="btn btn-ghost" href="/pricing">Upgrade</a>
+        <a class="btn btn-ghost" href="#">Upgrade</a>
       </div>
       <div class="price-card pop">
         <div class="price-pop-tag">MOST POPULAR</div>
@@ -610,7 +610,7 @@
           <li>Multi-broker Trade Now</li>
           <li>Portfolio optimization</li>
         </ul>
-        <a class="btn btn-primary" href="/pricing">Upgrade to Pro</a>
+        <a class="btn btn-primary" href="#">Upgrade to Pro</a>
       </div>
       <div class="price-card">
         <div class="price-name">Elite</div>
@@ -620,7 +620,7 @@
           <li>Dedicated account manager</li>
           <li>Priority 24/7 support</li>
         </ul>
-        <a class="btn btn-ghost" href="/pricing">Upgrade</a>
+        <a class="btn btn-ghost" href="#">Upgrade</a>
       </div>
     </div>
   </div>
@@ -632,8 +632,8 @@
       <h2>One engine. Every discipline. Every reason shown.</h2>
       <p>Join Target Capital and let Capulse rank what's worth your attention — 14 days free, full access, no card required.</p>
       <div style="display:flex; gap:14px; justify-content:center;">
-        <a class="btn btn-primary btn-lg" href="/register">Get started free →</a>
-        <a class="btn btn-ghost btn-lg" href="/pricing">View full pricing</a>
+        <a class="btn btn-primary btn-lg" href="#">Get started free →</a>
+        <a class="btn btn-ghost btn-lg" href="#">View full pricing</a>
       </div>
       <div class="trust-strip">
         <span>SEBI RA/IA registration in progress</span>
@@ -650,7 +650,7 @@
     <div class="foot-grid">
       <div class="foot-brand">
         <div class="brand">
-          <img src="/static/images/TC_Logo_1783842197192.png" alt="Target Capital" style="height:34px;width:auto;display:block;">
+          <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M3 17L9 10L13 14L21 5" stroke="#0A0F1E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="brand-name">Target Capital</div>
         </div>
         <p>India's surface for the Capulse AI engine — one confidence-scored read across equities, mutual funds, F&amp;O and your own trading behavior.</p>
@@ -662,33 +662,33 @@
         </div>
       </div>
       <div class="foot-col"><h5>Product</h5>
-        <a href="/equities">Equities · I-Score</a>
-        <a href="/mutual-funds">Mutual Funds</a>
-        <a href="/fo">F&O Signals</a>
-        <a href="/behavioral-coach">Behavioral Coach</a>
+        <a href="equities.html">Equities · I-Score</a>
+        <a href="mutual-funds.html">Mutual Funds</a>
+        <a href="fo.html">F&O Signals</a>
+        <a href="behavioral-coach.html">Behavioral Coach</a>
       </div>
       <div class="foot-col"><h5>Platform</h5>
-        <a href="/wealth-hub">Wealth Hub</a>
-        <a href="/multibroker-trade">Multibroker Connect & Trade</a>
-        <a href="/trade-center">Trade Center</a>
+        <a href="wealth-hub.html">Wealth Hub</a>
+        <a href="multibroker-trade.html">Multibroker Connect & Trade</a>
+        <a href="trade-center.html">Trade Center</a>
       </div>
       <div class="foot-col"><h5>Company</h5>
-        <a href="/about">About</a>
-        <a href="/careers">Careers</a>
-        <a href="/partners">Partner Network</a>
-        <a href="/for-brokers">For Brokers</a>
+        <a href="about.html">About</a>
+        <a href="careers.html">Careers</a>
+        <a href="partners.html">Partner Network</a>
+        <a href="for-brokers.html">For Brokers</a>
       </div>
       <div class="foot-col"><h5>Support</h5>
-        <a href="/help-center">Help Center</a>
-        <a href="/contact">Contact</a>
-        <a href="/blog">Knowledge Base</a>
+        <a href="help-center.html">Help Center</a>
+        <a href="contact.html">Contact</a>
+        <a href="blog.html">Knowledge Base</a>
       </div>
       <div class="foot-col"><h5>Legal</h5>
-        <a href="/privacy-policy">Privacy Policy</a>
-        <a href="/terms-of-service">Terms of Service</a>
-        <a href="/risk-disclosure">Risk Disclosure</a>
-        <a href="/compliance">Compliance</a>
-        <a href="/cancellation-refund-policy">Cancellation & Refund</a>
+        <a href="privacy-policy.html">Privacy Policy</a>
+        <a href="terms-of-service.html">Terms of Service</a>
+        <a href="risk-disclosure.html">Risk Disclosure</a>
+        <a href="compliance.html">Compliance</a>
+        <a href="cancellation-refund-policy.html">Cancellation & Refund</a>
         <a href="https://scores.sebi.gov.in">SEBI SCORES</a>
       </div>
     </div>
@@ -696,26 +696,26 @@
     <div class="foot-services">
       <h5>Our Services</h5>
       <div class="services-list">
-        <a href="/wealth-hub">Portfolio Management</a>
-        <a href="/fo">F&O Trading Signals</a>
-        <a href="/equities">AI Stock Research</a>
-        <a href="/behavioral-coach">Behavioural Trading Analysis</a>
-        <a href="/equities">I-Score Investment Rating</a>
-        <a href="/wealth-hub">Multi-Broker Portfolio Tracker</a>
-        <a href="/behavioral-coach">Trading Discipline Score</a>
-        <a href="/trade-center">Live Market Pulse</a>
-        <a href="/fo">Nifty 50 Signals</a>
-        <a href="/fo">Intraday Trading Signals</a>
-        <a href="/fo">Swing Trading Research</a>
-        <a href="/wealth-hub">Risk Heat Map</a>
-        <a href="/wealth-hub">Demat Account Analytics</a>
-        <a href="/fo">Options Trading India</a>
-        <a href="/about">AI Decision Engine India</a>
-        <a href="/behavioral-coach">Trading DNA Profile</a>
-        <a href="/wealth-hub">Portfolio Rebalancing</a>
-        <a href="/equities">Stock Research India</a>
-        <a href="/multibroker-trade">Multi-Broker Trade Execution</a>
-        <a href="/trade-center">Live Trading Dashboard</a>
+        <a href="wealth-hub.html">Portfolio Management</a>
+        <a href="fo.html">F&O Trading Signals</a>
+        <a href="equities.html">AI Stock Research</a>
+        <a href="behavioral-coach.html">Behavioural Trading Analysis</a>
+        <a href="equities.html">I-Score Investment Rating</a>
+        <a href="wealth-hub.html">Multi-Broker Portfolio Tracker</a>
+        <a href="behavioral-coach.html">Trading Discipline Score</a>
+        <a href="trade-center.html">Live Market Pulse</a>
+        <a href="fo.html">Nifty 50 Signals</a>
+        <a href="fo.html">Intraday Trading Signals</a>
+        <a href="fo.html">Swing Trading Research</a>
+        <a href="wealth-hub.html">Risk Heat Map</a>
+        <a href="wealth-hub.html">Demat Account Analytics</a>
+        <a href="fo.html">Options Trading India</a>
+        <a href="about.html">AI Decision Engine India</a>
+        <a href="behavioral-coach.html">Trading DNA Profile</a>
+        <a href="wealth-hub.html">Portfolio Rebalancing</a>
+        <a href="equities.html">Stock Research India</a>
+        <a href="multibroker-trade.html">Multi-Broker Trade Execution</a>
+        <a href="trade-center.html">Live Trading Dashboard</a>
       </div>
     </div>
 

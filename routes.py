@@ -444,6 +444,41 @@ def cancellation_refund_policy():
     """Cancellation and Refund Policy page route"""
     return render_template('cancellation_refund_policy.html')
 
+@app.route('/equities')
+def equities_marketing():
+    """Equities & I-Score public marketing page"""
+    return render_template('equities.html')
+
+@app.route('/fo')
+def fo_marketing():
+    """F&O Signals public marketing page"""
+    return render_template('fo.html')
+
+@app.route('/behavioral-coach')
+def behavioral_coach_marketing():
+    """Behavioral Coach public marketing page"""
+    return render_template('behavioral_coach.html')
+
+@app.route('/wealth-hub')
+def wealth_hub_marketing():
+    """Wealth Hub public marketing page"""
+    return render_template('wealth_hub.html')
+
+@app.route('/multibroker-trade')
+def multibroker_trade_marketing():
+    """Multibroker Connect & Trade public marketing page"""
+    return render_template('multibroker_trade.html')
+
+@app.route('/trade-center')
+def trade_center_marketing():
+    """Trade Center public marketing page"""
+    return render_template('trade_center.html')
+
+@app.route('/mutual-funds')
+def mutual_funds_marketing():
+    """Mutual Funds public marketing page"""
+    return render_template('mutual_funds.html')
+
 @app.route('/dashboard/broker-management')
 @login_required
 def broker_management():
