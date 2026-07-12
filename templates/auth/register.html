@@ -1,538 +1,360 @@
-{% extends "base.html" %}
-
-{% block title %}Create Account - Target Capital{% endblock %}
-
-{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<title>Create Account — Target Capital</title>
+<meta name="description" content="Start your free 14-day trial on Target Capital. Access AI-powered F&O signals, I-Score stock ratings and multi-broker portfolio analytics.">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0A0F1E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-.auth-page {
-    min-height: 100vh;
-    display: flex;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+:root{
+  --ink:#0A0F1E;
+  --surface:#121A2E;
+  --surface-2:#182241;
+  --teal:#16E0BD;
+  --teal-dim:rgba(22,224,189,0.14);
+  --gold:#F5A623;
+  --gold-dim:rgba(245,166,35,0.14);
+  --green:#22C55E;
+  --red:#EF4444;
+  --text:#F4F6FB;
+  --muted:#8B93A7;
+  --border:rgba(244,246,251,0.09);
 }
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--ink);color:var(--text);font-family:'IBM Plex Sans',sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column;}
+h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;font-weight:600;letter-spacing:-0.02em;line-height:1.12;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+a{color:inherit;text-decoration:none;}
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px;}
+img,svg{display:block;}
+::selection{background:var(--teal);color:var(--ink);}
 
-/* ── Left Brand Panel ── */
-.auth-brand-panel {
-    width: 38%;
-    background: #00091a;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 48px 52px;
-    position: relative;
-    overflow: hidden;
-}
+/* ── NAV ── */
+header{position:sticky;top:0;z-index:50;background:rgba(10,15,30,0.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);}
+nav{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;max-width:1180px;margin:0 auto;}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-mark{display:flex;align-items:center;}
+.brand-name{font-family:'Space Grotesk';font-weight:700;font-size:17px;letter-spacing:-0.01em;}
+.brand-sub{font-size:10.5px;color:var(--muted);font-family:'IBM Plex Mono';letter-spacing:0.04em;margin-top:1px;}
+.nav-links{display:flex;align-items:center;gap:30px;}
+.nav-links a{font-size:14.5px;color:var(--muted);transition:color .15s;}
+.nav-links a:hover{color:var(--text);}
+.nav-cta{display:flex;align-items:center;gap:14px;}
+.btn{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:all .15s;font-family:'IBM Plex Sans',sans-serif;}
+.btn-primary{background:var(--teal);color:var(--ink);}
+.btn-primary:hover{background:#3CEBCC;}
+.btn-ghost{color:var(--text);border-color:var(--border);}
+.btn-ghost:hover{border-color:var(--muted);}
+@media(max-width:900px){.nav-links{display:none;}}
 
-.auth-brand-panel::before {
-    content: '';
-    position: absolute;
-    top: -80px;
-    right: -80px;
-    width: 320px;
-    height: 320px;
-    background: radial-gradient(circle, rgba(37, 99, 235, 0.18) 0%, transparent 70%);
-    border-radius: 50%;
-}
+/* ── FOOTER ── */
+footer{border-top:1px solid var(--border);padding:48px 0 24px;margin-top:auto;}
+.foot-bottom{font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;padding-top:20px;border-top:1px solid var(--border);margin-top:24px;}
+.foot-legal{display:flex;gap:20px;flex-wrap:wrap;}
+.foot-legal a{color:var(--muted);font-size:11.5px;transition:color .15s;}
+.foot-legal a:hover{color:var(--teal);}
 
-.auth-brand-panel::after {
-    content: '';
-    position: absolute;
-    bottom: -60px;
-    left: -60px;
-    width: 260px;
-    height: 260px;
-    background: radial-gradient(circle, rgba(37, 99, 235, 0.12) 0%, transparent 70%);
-    border-radius: 50%;
-}
+/* ── AUTH LAYOUT ── */
+.auth-main{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:48px 32px;}
+.auth-wrap{display:grid;grid-template-columns:1fr 1.1fr;gap:0;max-width:1020px;width:100%;border-radius:20px;overflow:hidden;border:1px solid var(--border);}
 
-.auth-brand-logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    position: relative;
-    z-index: 1;
-}
+/* ── LEFT BRAND PANEL ── */
+.auth-brand{background:var(--surface-2);padding:52px 44px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;}
+.auth-brand::before{content:'';position:absolute;top:-100px;right:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(22,224,189,0.12) 0%,transparent 70%);border-radius:50%;}
+.auth-brand::after{content:'';position:absolute;bottom:-80px;left:-60px;width:240px;height:240px;background:radial-gradient(circle,rgba(245,166,35,0.08) 0%,transparent 70%);border-radius:50%;}
+.auth-brand-logo{display:flex;align-items:center;gap:10px;position:relative;z-index:1;margin-bottom:44px;}
+.auth-brand-content{position:relative;z-index:1;flex:1;}
+.auth-brand-content h2{font-size:26px;color:var(--text);margin-bottom:12px;line-height:1.2;}
+.auth-brand-content h2 span{color:var(--teal);}
+.auth-brand-content p{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:30px;}
 
-.auth-brand-logo img {
-    height: 36px;
-    width: auto;
-    filter: brightness(0) invert(1);
-}
+/* Trial badge */
+.trial-badge{display:inline-flex;align-items:center;gap:8px;background:var(--teal-dim);border:1px solid rgba(22,224,189,0.2);padding:8px 14px;border-radius:100px;font-size:12.5px;color:var(--teal);font-family:'IBM Plex Mono';margin-bottom:28px;}
+.trial-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);animation:pulse-dot 1.6s infinite;}
+@keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:.3;}}
 
-.auth-brand-content {
-    position: relative;
-    z-index: 1;
-}
+/* Plan cards */
+.plan-cards{display:flex;flex-direction:column;gap:10px;}
+.plan-card{background:rgba(244,246,251,0.04);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;transition:border-color .15s;}
+.plan-card.highlight{border-color:rgba(22,224,189,0.25);background:var(--teal-dim);}
+.plan-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.plan-icon svg{width:15px;height:15px;}
+.plan-icon.free{background:rgba(244,246,251,0.06);color:var(--muted);}
+.plan-icon.growth{background:rgba(22,224,189,0.15);color:var(--teal);}
+.plan-icon.pro{background:var(--gold-dim);color:var(--gold);}
+.plan-info strong{display:block;font-size:13px;font-weight:600;color:var(--text);}
+.plan-info span{font-size:12px;color:var(--muted);}
+.auth-brand-note{position:relative;z-index:1;font-size:11.5px;color:var(--muted);margin-top:32px;font-family:'IBM Plex Mono';opacity:.7;}
 
-.auth-brand-content h1 {
-    font-size: 30px;
-    font-weight: 700;
-    color: #ffffff;
-    line-height: 1.25;
-    letter-spacing: -0.03em;
-    margin-bottom: 14px;
-}
+/* ── RIGHT FORM PANEL ── */
+.auth-form-panel{background:var(--surface);padding:48px 44px;display:flex;flex-direction:column;justify-content:flex-start;}
+.auth-form-title{font-size:24px;margin-bottom:4px;}
+.auth-form-sub{font-size:14px;color:var(--muted);margin-bottom:26px;}
 
-.auth-brand-content h1 span { color: #3b82f6; }
+/* Flash alerts */
+.auth-alert{padding:11px 14px;border-radius:8px;font-size:13.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.auth-alert.danger{background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25);}
+.auth-alert.success{background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,0.25);}
+.auth-alert.info{background:var(--teal-dim);color:var(--teal);border:1px solid rgba(22,224,189,0.25);}
 
-.auth-brand-content p {
-    font-size: 14.5px;
-    color: rgba(255,255,255,0.6);
-    line-height: 1.6;
-    margin-bottom: 32px;
-    font-weight: 400;
-}
+/* OTP button */
+.btn-otp{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:42px;background:rgba(34,197,94,0.10);border:1px solid rgba(34,197,94,0.25);border-radius:8px;color:#4ade80;font-size:14px;font-weight:600;text-decoration:none;transition:all .15s;margin-bottom:16px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
+.btn-otp:hover{background:rgba(34,197,94,0.18);border-color:rgba(34,197,94,0.4);color:#86efac;}
 
-.auth-plan-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.auth-plan-card {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px;
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.auth-plan-card .plan-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 15px;
-    flex-shrink: 0;
-}
-
-.auth-plan-card.free .plan-icon  { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
-.auth-plan-card.plus .plan-icon  { background: rgba(37,99,235,0.25); color: #60a5fa; }
-.auth-plan-card.pro .plan-icon   { background: rgba(124,58,237,0.25); color: #a78bfa; }
-
-.auth-plan-card .plan-info strong {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    color: #ffffff;
-}
-
-.auth-plan-card .plan-info span {
-    font-size: 12px;
-    color: rgba(255,255,255,0.45);
-}
-
-.auth-brand-footer {
-    font-size: 12px;
-    color: rgba(255,255,255,0.3);
-    position: relative;
-    z-index: 1;
-}
-
-/* ── Right Form Panel ── */
-.auth-form-panel {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 32px;
-    background: #ffffff;
-    overflow-y: auto;
-}
-
-.auth-form-inner {
-    width: 100%;
-    max-width: 420px;
-}
-
-.auth-form-title {
-    font-size: 24px;
-    font-weight: 700;
-    color: #171717;
-    margin-bottom: 4px;
-    letter-spacing: -0.02em;
-}
-
-.auth-form-subtitle {
-    font-size: 14px;
-    color: #737373;
-    margin-bottom: 28px;
-}
-
-/* OTP Button */
-.btn-otp {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    height: 44px;
-    background: #f0fdf4;
-    border: 1.5px solid #bbf7d0;
-    border-radius: 8px;
-    color: #15803d;
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.15s;
-    margin-bottom: 18px;
-}
-
-.btn-otp:hover {
-    background: #dcfce7;
-    border-color: #86efac;
-    color: #166534;
-    text-decoration: none;
-}
-
-.auth-divider {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 18px;
-}
-
-.auth-divider hr {
-    flex: 1;
-    border: none;
-    border-top: 1px solid #e8e8e8;
-    margin: 0;
-}
-
-.auth-divider span {
-    font-size: 11.5px;
-    color: #9ca3af;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    white-space: nowrap;
-}
+/* Divider */
+.auth-divider{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+.auth-divider hr{flex:1;border:none;border-top:1px solid var(--border);margin:0;}
+.auth-divider span{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono';letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;}
 
 /* Form fields */
-.auth-field   { margin-bottom: 15px; }
-.auth-row     { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-.auth-label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: #374151;
-    margin-bottom: 5px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.auth-input {
-    width: 100%;
-    height: 42px;
-    border: 1.5px solid #e8e8e8;
-    border-radius: 8px;
-    padding: 0 13px;
-    font-size: 14px;
-    font-family: inherit;
-    color: #171717;
-    background: #ffffff;
-    transition: border-color 0.15s, box-shadow 0.15s;
-    outline: none;
-}
-
-.auth-input:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
-}
-
-.auth-input::placeholder { color: #d1d5db; }
-
-.auth-hint {
-    font-size: 11.5px;
-    color: #9ca3af;
-    margin-top: 4px;
-}
+.auth-field{margin-bottom:13px;}
+.auth-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.auth-label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;font-family:'IBM Plex Mono';}
+.auth-input{width:100%;height:42px;background:var(--ink);border:1px solid var(--border);border-radius:8px;padding:0 13px;font-size:14px;font-family:'IBM Plex Sans',sans-serif;color:var(--text);outline:none;transition:border-color .15s,box-shadow .15s;}
+.auth-input:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-dim);}
+.auth-input::placeholder{color:var(--muted);opacity:.6;}
+.auth-hint{font-size:11.5px;color:var(--muted);margin-top:4px;font-family:'IBM Plex Mono';}
 
 /* Terms checkbox */
-.auth-check {
-    display: flex;
-    align-items: flex-start;
-    gap: 9px;
-    margin-bottom: 20px;
-}
+.auth-check{display:flex;align-items:flex-start;gap:9px;margin-bottom:18px;}
+.auth-check input[type="checkbox"]{width:15px;height:15px;accent-color:var(--teal);cursor:pointer;flex-shrink:0;margin-top:2px;}
+.auth-check label{font-size:12.5px;color:var(--muted);cursor:pointer;line-height:1.5;}
+.auth-check label a{color:var(--teal);font-weight:600;}
+.auth-check label a:hover{text-decoration:underline;}
 
-.auth-check input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    border: 1.5px solid #d1d5db;
-    border-radius: 4px;
-    cursor: pointer;
-    accent-color: #2563eb;
-    flex-shrink: 0;
-    margin-top: 1px;
-}
-
-.auth-check label {
-    font-size: 13px;
-    color: #6b7280;
-    cursor: pointer;
-    line-height: 1.5;
-}
-
-.auth-check label a {
-    color: #2563eb;
-    font-weight: 600;
-    text-decoration: none;
-}
-
-.auth-check label a:hover { text-decoration: underline; }
-
-/* Primary button */
-.btn-auth-primary {
-    width: 100%;
-    height: 44px;
-    background: #2563eb;
-    border: none;
-    border-radius: 8px;
-    color: #ffffff;
-    font-size: 14.5px;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.15s, box-shadow 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.btn-auth-primary:hover {
-    background: #1d4ed8;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-}
+/* Submit */
+.btn-auth{width:100%;height:44px;background:var(--teal);border:none;border-radius:8px;color:var(--ink);font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;cursor:pointer;transition:background .15s,box-shadow .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-auth:hover{background:#3CEBCC;box-shadow:0 4px 20px rgba(22,224,189,0.25);}
 
 /* Security note */
-.auth-security {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    margin-top: 14px;
-    font-size: 12px;
-    color: #9ca3af;
-}
+.auth-security{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;font-size:11.5px;color:var(--muted);font-family:'IBM Plex Mono';}
+.auth-security svg{width:13px;height:13px;color:var(--green);}
 
-.auth-security i { color: #22c55e; }
+/* Footer link */
+.auth-foot{text-align:center;margin-top:18px;font-size:13.5px;color:var(--muted);}
+.auth-foot a{color:var(--teal);font-weight:600;}
+.auth-foot a:hover{text-decoration:underline;}
 
-.auth-footer-link {
-    text-align: center;
-    margin-top: 20px;
-    font-size: 13.5px;
-    color: #6b7280;
-}
+/* Referral field accent */
+.ref-input{text-transform:uppercase;letter-spacing:1.5px;font-family:'IBM Plex Mono';font-size:13px;}
+.ref-confirmed{font-size:11.5px;color:var(--green);margin-top:4px;display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono';}
+.ref-confirmed svg{width:12px;height:12px;}
 
-.auth-footer-link a {
-    color: #2563eb;
-    font-weight: 600;
-    text-decoration: none;
-}
-
-.auth-footer-link a:hover { text-decoration: underline; }
-
-/* Alerts */
-.auth-alert {
-    padding: 11px 14px;
-    border-radius: 7px;
-    font-size: 13.5px;
-    margin-bottom: 16px;
-}
-
-.auth-alert.danger  { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-.auth-alert.success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
-.auth-alert.info    { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-
-/* Mobile responsive */
-@media (max-width: 767.98px) {
-    .auth-brand-panel { display: none; }
-    .auth-form-panel  { padding: 28px 20px; }
-    .auth-form-inner  { max-width: 100%; }
-    .auth-row         { grid-template-columns: 1fr; gap: 0; }
+/* Mobile */
+@media(max-width:760px){
+  .auth-wrap{grid-template-columns:1fr;}
+  .auth-brand{display:none;}
+  .auth-main{padding:24px 16px;align-items:flex-start;}
+  .auth-form-panel{padding:32px 24px;}
+  .auth-row{grid-template-columns:1fr;gap:0;}
 }
 </style>
+</head>
+<body>
 
-<div class="auth-page">
-    <!-- Left Brand Panel -->
-    <div class="auth-brand-panel">
-        <div class="auth-brand-logo">
-            <img src="{{ url_for('static', filename='img/favicon.svg') }}" alt="" width="32" height="32" style="filter: brightness(0) invert(1); flex-shrink: 0;">
-            <span style="font-size: 17px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px; font-family: 'Poppins', sans-serif;">TARGET CAPITAL</span>
-        </div>
+<!-- NAV -->
+<header>
+  <nav>
+    <a href="/" class="brand" style="text-decoration:none;">
+      <div class="brand-mark"><img src="/static/images/TC_Logo_black_1783844259493.png" alt="Target Capital" style="height:34px;width:auto;display:block;"></div>
+      <div><div class="brand-name">Target Capital</div><div class="brand-sub">POWERED BY CAPULSE</div></div>
+    </a>
+    <div class="nav-links">
+      <a href="/equities">Equities</a>
+      <a href="/mutual-funds">Mutual Funds</a>
+      <a href="/fo">F&amp;O</a>
+      <a href="/behavioral-coach">Behavioral Coach</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/about">About</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="/login">Log in</a>
+      <a class="btn btn-primary" href="/register">Start free</a>
+    </div>
+  </nav>
+</header>
 
-        <div class="auth-brand-content">
-            <h1>Start Your <span>Smart Trading</span> Journey</h1>
-            <p>Join thousands of Indian traders who use AI-powered insights to make better decisions.</p>
+<!-- MAIN -->
+<main class="auth-main">
+  <div class="auth-wrap">
 
-            <div class="auth-plan-cards">
-                <div class="auth-plan-card free">
-                    <div class="plan-icon"><i class="fas fa-star"></i></div>
-                    <div class="plan-info">
-                        <strong>Free Plan — Start Today</strong>
-                        <span>Dashboard, basic signals, portfolio tracking</span>
-                    </div>
-                </div>
-                <div class="auth-plan-card plus">
-                    <div class="plan-icon"><i class="fas fa-bolt"></i></div>
-                    <div class="plan-info">
-                        <strong>Growth — ₹1499/mo</strong>
-                        <span>AI Research Co-Pilot, daily signals &amp; alerts</span>
-                    </div>
-                </div>
-                <div class="auth-plan-card pro">
-                    <div class="plan-icon"><i class="fas fa-crown"></i></div>
-                    <div class="plan-info">
-                        <strong>Pro — ₹2499/mo</strong>
-                        <span>All features, HNI analytics, priority support</span>
-                    </div>
-                </div>
+    <!-- LEFT: Brand panel -->
+    <div class="auth-brand">
+      <div class="auth-brand-logo">
+        <img src="/static/images/TC_Logo_black_1783844259493.png" alt="Target Capital" style="height:36px;width:auto;">
+      </div>
+      <div class="auth-brand-content">
+        <div class="trial-badge"><span class="dot"></span> 14-day full access free</div>
+        <h2>Start your <span>smart trading</span> journey today</h2>
+        <p>Join thousands of Indian traders using AI-scored signals and deep analytics to make better decisions — no credit card required.</p>
+
+        <div class="plan-cards">
+          <div class="plan-card">
+            <div class="plan-icon free">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
             </div>
+            <div class="plan-info"><strong>Starter — Free</strong><span>Dashboard, basic signals, 1 broker connection</span></div>
+          </div>
+          <div class="plan-card highlight">
+            <div class="plan-icon growth">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="plan-info"><strong>Growth — ₹1,499/mo</strong><span>AI Research Co-Pilot, daily signals &amp; alerts</span></div>
+          </div>
+          <div class="plan-card">
+            <div class="plan-icon pro">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 1l2.753 8.472h8.247l-6.774 4.921 2.753 8.472-6.979-5.064-6.979 5.064 2.753-8.472-6.774-4.921h8.247z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="plan-info"><strong>Pro — ₹2,499/mo</strong><span>All features, HNI analytics, priority support</span></div>
+          </div>
         </div>
-
-        <div class="auth-brand-footer">
-            &copy; {{ 2026 }} Target Capital. SEBI registered. All rights reserved.
-        </div>
+      </div>
+      <p class="auth-brand-note">Bank-grade encryption · SEBI-aligned practices · No spam</p>
     </div>
 
-    <!-- Right Form Panel -->
+    <!-- RIGHT: Register form -->
     <div class="auth-form-panel">
-        <div class="auth-form-inner">
-            <h2 class="auth-form-title">Create your account</h2>
-            <p class="auth-form-subtitle">Get started free — no credit card required</p>
+      <h2 class="auth-form-title">Create your account</h2>
+      <p class="auth-form-sub">Get started free — no credit card required</p>
 
-            <!-- Flash messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="auth-alert {{ 'danger' if category == 'error' else category }}">
-                            <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }} me-1"></i>
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-
-            <!-- Mobile OTP Register -->
-            <a href="{{ url_for('mobile_register') }}" class="btn-otp">
-                <i class="fas fa-mobile-alt"></i>
-                Register with Mobile Number (OTP)
-            </a>
-
-            <div class="auth-divider">
-                <hr><span>or register with email</span><hr>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="auth-alert {{ 'danger' if category == 'error' else category }}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              {{ message }}
             </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
 
-            <!-- Email Registration Form -->
-            <form method="POST" action="{{ url_for('register') }}" id="registerForm">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <!-- OTP register -->
+      <a href="{{ url_for('mobile_register') }}" class="btn-otp">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="5" y="2" width="14" height="20" rx="2" stroke="currentColor" stroke-width="2"/><path d="M12 18h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Register with Mobile OTP
+      </a>
 
-                <div class="auth-row">
-                    <div class="auth-field">
-                        <label class="auth-label" for="first_name">First Name</label>
-                        <input class="auth-input" type="text" id="first_name" name="first_name"
-                               placeholder="First name" autocomplete="given-name">
-                    </div>
-                    <div class="auth-field">
-                        <label class="auth-label" for="last_name">Last Name</label>
-                        <input class="auth-input" type="text" id="last_name" name="last_name"
-                               placeholder="Last name" autocomplete="family-name">
-                    </div>
-                </div>
+      <div class="auth-divider"><hr><span>or register with email</span><hr></div>
 
-                <div class="auth-field">
-                    <label class="auth-label" for="username">Username</label>
-                    <input class="auth-input" type="text" id="username" name="username" required
-                           placeholder="Choose a username" autocomplete="username">
-                </div>
+      <form method="POST" action="{{ url_for('register') }}" id="registerForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
-                <div class="auth-field">
-                    <label class="auth-label" for="email">Email Address</label>
-                    <input class="auth-input" type="email" id="email" name="email" required
-                           placeholder="your@email.com" autocomplete="email">
-                </div>
-
-                <div class="auth-field">
-                    <label class="auth-label" for="password">Password</label>
-                    <input class="auth-input" type="password" id="password" name="password" required
-                           placeholder="Create a strong password" autocomplete="new-password">
-                    <div class="auth-hint">At least 6 characters</div>
-                </div>
-
-                <div class="auth-field">
-                    <label class="auth-label" for="confirm_password">Confirm Password</label>
-                    <input class="auth-input" type="password" id="confirm_password" name="confirm_password" required
-                           placeholder="Confirm your password" autocomplete="new-password">
-                </div>
-
-                {% if prefill_ref %}
-                <div class="auth-field">
-                    <label class="auth-label" for="ref_code">
-                        <i class="fas fa-handshake me-1 text-primary"></i>Partner Referral Code
-                    </label>
-                    <input class="auth-input" type="text" id="ref_code" name="ref_code"
-                           value="{{ prefill_ref }}" placeholder="e.g. TOP-UDAY25"
-                           style="text-transform:uppercase;letter-spacing:1px;">
-                    <div class="auth-hint">
-                        <i class="fas fa-check-circle text-success me-1"></i>
-                        Referral code applied — you were referred by a partner.
-                    </div>
-                </div>
-                {% else %}
-                <div class="auth-field">
-                    <label class="auth-label" for="ref_code">
-                        Referral Code <span class="text-muted" style="font-weight:normal;">(optional)</span>
-                    </label>
-                    <input class="auth-input" type="text" id="ref_code" name="ref_code"
-                           placeholder="Have a partner code? Enter it here"
-                           style="text-transform:uppercase;letter-spacing:1px;">
-                </div>
-                {% endif %}
-
-                <div class="auth-check">
-                    <input type="checkbox" id="agree_terms" name="agree_terms" required>
-                    <label for="agree_terms">
-                        I agree to the <a href="{{ url_for('terms_of_service') }}">Terms of Service</a> and
-                        <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
-                    </label>
-                </div>
-
-                <button type="submit" class="btn-auth-primary">
-                    <i class="fas fa-user-plus"></i>
-                    Create Account
-                </button>
-            </form>
-
-            <div class="auth-security">
-                <i class="fas fa-lock"></i>
-                Bank-grade encryption. Your data is always secure.
-            </div>
-
-            <p class="auth-footer-link">
-                Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
-            </p>
+        <div class="auth-row">
+          <div class="auth-field">
+            <label class="auth-label" for="first_name">First Name</label>
+            <input class="auth-input" type="text" id="first_name" name="first_name"
+                   placeholder="First name" autocomplete="given-name">
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="last_name">Last Name</label>
+            <input class="auth-input" type="text" id="last_name" name="last_name"
+                   placeholder="Last name" autocomplete="family-name">
+          </div>
         </div>
+
+        <div class="auth-field">
+          <label class="auth-label" for="username">Username</label>
+          <input class="auth-input" type="text" id="username" name="username" required
+                 placeholder="Choose a username" autocomplete="username">
+        </div>
+
+        <div class="auth-field">
+          <label class="auth-label" for="email">Email Address</label>
+          <input class="auth-input" type="email" id="email" name="email" required
+                 placeholder="your@email.com" autocomplete="email">
+        </div>
+
+        <div class="auth-row">
+          <div class="auth-field">
+            <label class="auth-label" for="password">Password</label>
+            <input class="auth-input" type="password" id="password" name="password" required
+                   placeholder="Min. 6 characters" autocomplete="new-password">
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="confirm_password">Confirm Password</label>
+            <input class="auth-input" type="password" id="confirm_password" name="confirm_password" required
+                   placeholder="Re-enter password" autocomplete="new-password">
+          </div>
+        </div>
+
+        {% if prefill_ref %}
+        <div class="auth-field">
+          <label class="auth-label" for="ref_code">Partner Referral Code</label>
+          <input class="auth-input ref-input" type="text" id="ref_code" name="ref_code"
+                 value="{{ prefill_ref }}" placeholder="e.g. TOP-UDAY25">
+          <div class="ref-confirmed">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Referral code applied — you were referred by a partner.
+          </div>
+        </div>
+        {% else %}
+        <div class="auth-field">
+          <label class="auth-label" for="ref_code">Referral Code <span style="font-weight:400;opacity:.6;">(optional)</span></label>
+          <input class="auth-input ref-input" type="text" id="ref_code" name="ref_code"
+                 placeholder="Partner code if you have one">
+        </div>
+        {% endif %}
+
+        <div class="auth-check">
+          <input type="checkbox" id="agree_terms" name="agree_terms" required>
+          <label for="agree_terms">
+            I agree to the <a href="{{ url_for('terms_of_service') }}">Terms of Service</a> and
+            <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
+          </label>
+        </div>
+
+        <button type="submit" class="btn-auth">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Create Account — Free
+        </button>
+      </form>
+
+      <div class="auth-security">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Bank-grade encryption. Your data is always secure.
+      </div>
+
+      <p class="auth-foot">
+        Already have an account? <a href="{{ url_for('login') }}">Sign in →</a>
+      </p>
     </div>
-</div>
+
+  </div>
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot-bottom">
+      <span>© 2026 Scentric Networks Private Limited · CIN: U31909TN2020PTC135006 · Chennai, Tamil Nadu, India</span>
+      <div class="foot-legal">
+        <a href="/privacy-policy">Privacy Policy</a>
+        <a href="/terms-of-service">Terms of Service</a>
+        <a href="/risk-disclosure">Risk Disclosure</a>
+        <a href="/compliance">Compliance</a>
+        <a href="/contact">Contact</a>
+      </div>
+    </div>
+  </div>
+</footer>
 
 <script>
-document.getElementById('confirm_password').addEventListener('input', function() {
-    const pw = document.getElementById('password').value;
-    this.setCustomValidity(pw && pw !== this.value ? 'Passwords do not match' : '');
+document.getElementById('confirm_password').addEventListener('input', function(){
+  var pw = document.getElementById('password').value;
+  this.setCustomValidity(pw && pw !== this.value ? 'Passwords do not match' : '');
 });
-
-document.getElementById('registerForm').addEventListener('submit', function(e) {
-    if (document.getElementById('password').value !== document.getElementById('confirm_password').value) {
-        e.preventDefault();
-        document.getElementById('confirm_password').setCustomValidity('Passwords do not match');
-        document.getElementById('confirm_password').reportValidity();
-    }
+document.getElementById('registerForm').addEventListener('submit', function(e){
+  if(document.getElementById('password').value !== document.getElementById('confirm_password').value){
+    e.preventDefault();
+    document.getElementById('confirm_password').setCustomValidity('Passwords do not match');
+    document.getElementById('confirm_password').reportValidity();
+  }
 });
 </script>
-{% endblock %}
+</body>
+</html>
