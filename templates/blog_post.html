@@ -42,7 +42,7 @@
                 
                 <!-- Featured Image -->
                 {% if post.featured_image %}
-                <img src="{{ post.featured_image }}" alt="{{ post.title }}" class="img-fluid rounded shadow-sm mb-4" style="width: 100%; height: auto; max-height: 500px; object-fit: cover;">
+                <img src="{{ post.featured_image }}" alt="{{ post.title }}" class="img-fluid rounded shadow-sm mb-4" style="width: 100%; height: auto; max-height: 500px; object-fit: cover;" loading="lazy">
                 {% else %}
                 <div class="featured-image-placeholder rounded shadow-sm d-flex align-items-center justify-content-center mb-4" style="height: 400px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                     <div class="text-center text-white p-4">
