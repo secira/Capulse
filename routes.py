@@ -1828,7 +1828,8 @@ def dashboard():
             'cats': {k: v['score'] for k, v in _cats.items()},
         }
     except Exception as _exc:
-        current_app.logger.debug(f"Behaviour summary skipped on dashboard: {_exc}")
+        from flask import current_app as _ca
+        _ca.logger.debug(f"Behaviour summary skipped on dashboard: {_exc}")
 
     data_freshness = None
     data_quality = None
@@ -1838,7 +1839,8 @@ def dashboard():
         data_freshness = _dq.get_data_freshness()
         data_quality = _dq.get_quality_score()
     except Exception as _exc:
-        current_app.logger.debug(f"Data quality check skipped: {_exc}")
+        from flask import current_app as _ca
+        _ca.logger.debug(f"Data quality check skipped: {_exc}")
 
     return render_template('dashboard/dashboard_improved.html',
                          portfolio_summary=portfolio_summary,
@@ -8708,3 +8710,100 @@ def api_refresh_stock_prices():
         logging.error(f"Perplexity market insights error: {str(e)}")
         return jsonify({'success': False, 'error': 'Failed to get market insights'}), 500
 
+
+
+# ---------------------------------------------------------------------------
+# SEO utility routes
+# ---------------------------------------------------------------------------
+
+@app.route('/robots.txt')
+def robots_txt():
+    from flask import Response
+    content = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /dashboard/\n"
+        "Disallow: /admin/\n"
+        "Disallow: /api/\n"
+        "Disallow: /account/\n"
+        "Disallow: /auth/\n"
+        "\n"
+        "User-agent: GPTBot\n"
+        "Allow: /\n"
+        "Disallow: /dashboard/\n"
+        "Disallow: /admin/\n"
+        "Disallow: /api/\n"
+        "\n"
+        "Sitemap: https://www.targetcapital.ai/sitemap.xml\n"
+    )
+    return Response(content, mimetype='text/plain')
+
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    from flask import Response
+    from datetime import date
+    today = date.today().isoformat()
+    urls = [
+        ('https://www.targetcapital.ai/', '1.0', 'daily'),
+        ('https://www.targetcapital.ai/pricing', '0.9', 'weekly'),
+        ('https://www.targetcapital.ai/about', '0.7', 'monthly'),
+        ('https://www.targetcapital.ai/contact', '0.6', 'monthly'),
+        ('https://www.targetcapital.ai/blog', '0.8', 'weekly'),
+        ('https://www.targetcapital.ai/fno-analysis', '0.8', 'daily'),
+        ('https://www.targetcapital.ai/wealth-hub', '0.7', 'weekly'),
+        ('https://www.targetcapital.ai/mutual-funds', '0.7', 'weekly'),
+        ('https://www.targetcapital.ai/behavioral-coach', '0.7', 'weekly'),
+        ('https://www.targetcapital.ai/for-brokers', '0.6', 'monthly'),
+        ('https://www.targetcapital.ai/careers', '0.5', 'monthly'),
+        ('https://www.targetcapital.ai/privacy', '0.4', 'yearly'),
+        ('https://www.targetcapital.ai/terms', '0.4', 'yearly'),
+        ('https://www.targetcapital.ai/disclaimer', '0.4', 'yearly'),
+    ]
+    xml_parts = ['<?xml version="1.0" encoding="UTF-8"?>',
+                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for loc, priority, changefreq in urls:
+        xml_parts.append(
+            f'  <url>'
+            f'<loc>{loc}</loc>'
+            f'<lastmod>{today}</lastmod>'
+            f'<changefreq>{changefreq}</changefreq>'
+            f'<priority>{priority}</priority>'
+            f'</url>'
+        )
+    xml_parts.append('</urlset>')
+    return Response('\n'.join(xml_parts), mimetype='application/xml')
+
+
+@app.route('/llms.txt')
+def llms_txt():
+    from flask import Response
+    content = (
+        "# Target Capital - AI Decision Engine for Indian Traders\n\n"
+        "Target Capital (https://www.targetcapital.ai) is an AI-powered trading support "
+        "platform for the Indian market. It helps F&O traders reduce losses through "
+        "intelligent signals, portfolio analytics, and behavioural guardrails.\n\n"
+        "## Key Capabilities\n"
+        "- I-Score: AI stock scoring engine with 6-component model (quantitative, trend, "
+        "risk, qualitative, search sentiment, market context)\n"
+        "- F&O Analysis: NIFTY options signals with MVLA decision engine\n"
+        "- Multi-Broker Portfolio Hub: Unified dashboard across Dhan, Zerodha, Angel One, "
+        "Upstox, Fyers, Shoonya, Alice Blue, 5 Paisa\n"
+        "- Behavioural Coach: Trading psychology analysis, discipline scoring, "
+        "revenge-trading and overtrading detection\n"
+        "- AI Research Co-Pilot: RAG-powered insights with Perplexity and Claude AI\n"
+        "- Mutual Fund Overlap Checker: Portfolio overlap and risk analytics\n\n"
+        "## Public Pages\n"
+        "- Home: https://www.targetcapital.ai/\n"
+        "- Pricing: https://www.targetcapital.ai/pricing\n"
+        "- F&O Analysis: https://www.targetcapital.ai/fno-analysis\n"
+        "- Wealth Hub: https://www.targetcapital.ai/wealth-hub\n"
+        "- Mutual Funds: https://www.targetcapital.ai/mutual-funds\n"
+        "- Behavioural Coach: https://www.targetcapital.ai/behavioral-coach\n"
+        "- Blog: https://www.targetcapital.ai/blog\n\n"
+        "## Contact\n"
+        "Email: support@targetcapital.ai\n"
+        "Registered: Tidel Park Module No.115, 1st Floor 'D' North, No.4 Rajiv Gandhi Salai, "
+        "Tharamani, Chennai - 600113, India\n"
+    )
+    return Response(content, mimetype='text/plain')

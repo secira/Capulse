@@ -90,6 +90,13 @@ from flask_wtf.csrf import generate_csrf
 def csrf_token():
     return generate_csrf()
 
+@app.context_processor
+def inject_seo_globals():
+    return {
+        'GA4_ID': os.environ.get('GA4_MEASUREMENT_ID', ''),
+        'GSC_VERIFY': os.environ.get('GSC_VERIFICATION_CODE', ''),
+    }
+
 IST = timezone(timedelta(hours=5, minutes=30))
 
 

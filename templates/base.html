@@ -46,7 +46,9 @@
     <meta property="og:locale" content="en_IN">
     <meta property="og:title" content="{% block og_title %}Target Capital — AI Portfolio Co-Pilot for Indian Traders{% endblock %}">
     <meta property="og:description" content="{% block og_description %}I-Score signals, multi-broker portfolio hub, behavioural guardrails and AI-guided trade execution. India's Scentric AI Decision Engine.{% endblock %}">
-    <meta property="og:image" content="{{ request.host_url }}static/images/logo.png">
+    <meta property="og:image" content="{{ request.host_url }}static/images/TC_Logo_1783846358612.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:url" content="{{ request.url }}">
 
     <!-- Twitter Card -->
@@ -54,19 +56,27 @@
     <meta name="twitter:site" content="@ShankarUday2020">
     <meta name="twitter:title" content="{% block twitter_title %}Target Capital — AI Portfolio Co-Pilot{% endblock %}">
     <meta name="twitter:description" content="{% block twitter_description %}I-Score signals, multi-broker portfolio hub and behavioural guardrails for Indian F&O traders.{% endblock %}">
-    <meta name="twitter:image" content="{{ request.host_url }}static/images/logo.png">
+    <meta name="twitter:image" content="{{ request.host_url }}static/images/TC_Logo_1783846358612.png">
 
     <!-- Google AdSense -->
     <meta name="google-adsense-account" content="ca-pub-1783556602775038">
-    
+    {% if GSC_VERIFY %}<meta name="google-site-verification" content="{{ GSC_VERIFY }}">{% endif %}
+
+    <!-- Resource hints — must be BEFORE the stylesheets that use them -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
     <link rel="alternate icon" href="{{ url_for('static', filename='img/favicon.svg') }}">
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Font Awesome (deferred — icons are not render-critical) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- PWA Manifest -->
@@ -83,11 +93,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tradingview-custom.css') }}?v=3">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/landing-enhancements.css') }}?v=3">
     
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-    
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
     {
@@ -95,8 +100,8 @@
       "@type": "Organization",
       "name": "Target Capital",
       "alternateName": "Scentric AI",
-      "url": "https://targetcapital.in",
-      "logo": "{{ request.host_url }}static/images/logo.png",
+      "url": "https://www.targetcapital.ai",
+      "logo": "https://www.targetcapital.ai/static/images/TC_Logo_1783846358612.png",
       "description": "AI-powered investment platform for Indian retail traders featuring I-Score signals, multi-broker portfolio management, behavioural guardrails, and Scentric AI Decision Engine.",
       "foundingDate": "2020",
       "areaServed": "IN",
@@ -119,6 +124,17 @@
     }
     </script>
 
+    {% if GA4_ID %}
+    <!-- Google Analytics 4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ GA4_ID }}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '{{ GA4_ID }}', {page_path: window.location.pathname});
+    </script>
+    {% endif %}
+
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -127,8 +143,9 @@
     <nav class="navbar navbar-expand-lg navbar-light fixed-top border-bottom" style="padding: 20px 0; border-bottom: 1px solid #e9ecef !important; background-color: #ffffff !important;">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}" style="font-weight: 600;">
-                <img src="{{ url_for('static', filename='images/logo.png') }}?v=3" 
-                     alt="Target Capital Logo" height="70" class="me-0">
+                <img src="{{ url_for('static', filename='images/TC_Logo_1783846358612.png') }}?v=4" 
+                     alt="Target Capital Logo" height="70" class="me-0"
+                     fetchpriority="high" decoding="async" width="auto">
                 <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #00091a; background: #f0b429; border-radius: 4px; padding: 2px 6px; margin-left: 6px; align-self: flex-start; margin-top: 14px; text-transform: uppercase;">Beta</span>
             </a>
             
