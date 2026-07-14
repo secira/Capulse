@@ -160,6 +160,8 @@ if is_production:
             'https://s3.tradingview.com',
             'https://cdn.razorpay.com',
             'https://checkout.razorpay.com',
+            'https://www.googletagmanager.com',
+            'https://www.google-analytics.com',
         ],
         'style-src': [
             "'self'",
@@ -196,6 +198,10 @@ if is_production:
             'https://lumberjack.razorpay.com',
             'https://lumberjack-cx.razorpay.com',
             'https://checkout.razorpay.com',
+            'https://www.google-analytics.com',
+            'https://region1.google-analytics.com',
+            'https://analytics.google.com',
+            'https://www.googletagmanager.com',
         ],
         'frame-src': [
             "'self'",
