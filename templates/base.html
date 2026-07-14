@@ -72,13 +72,16 @@
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
     <link rel="alternate icon" href="{{ url_for('static', filename='img/favicon.svg') }}">
     
+    <!-- LCP image preload — browser fetches logo before paint -->
+    <link rel="preload" as="image" href="/static/images/TC_Logo_1783846358612.png" fetchpriority="high">
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome (deferred — icons are not render-critical) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <!-- Font Awesome (deferred — icons are not LCP-critical) -->
+    <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Google Fonts — trimmed weights, async-loaded to avoid render-blocking -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"></noscript>
     <!-- PWA Manifest -->
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <meta name="theme-color" content="#0066cc">
@@ -95,33 +98,58 @@
     
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "Target Capital",
-      "alternateName": "Scentric AI",
-      "url": "https://www.targetcapital.ai",
-      "logo": "https://www.targetcapital.ai/static/images/TC_Logo_1783846358612.png",
-      "description": "AI-powered investment platform for Indian retail traders featuring I-Score signals, multi-broker portfolio management, behavioural guardrails, and Scentric AI Decision Engine.",
-      "foundingDate": "2020",
-      "areaServed": "IN",
-      "sameAs": [
-        "https://x.com/ShankarUday2020",
-        "https://www.linkedin.com/company/tcapitalbiz/",
-        "https://www.facebook.com/tcapital2020/"
-      ],
-      "contactPoint": {
-        "@type": "ContactPoint",
-        "contactType": "customer support",
-        "availableLanguage": ["English", "Hindi"]
+    [
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Target Capital",
+        "alternateName": "Scentric AI",
+        "url": "https://www.targetcapital.ai",
+        "logo": "https://www.targetcapital.ai/static/images/TC_Logo_1783846358612.png",
+        "description": "AI-powered investment platform for Indian retail traders featuring I-Score signals, multi-broker portfolio management, behavioural guardrails, and Scentric AI Decision Engine.",
+        "foundingDate": "2020",
+        "areaServed": "IN",
+        "sameAs": [
+          "https://x.com/ShankarUday2020",
+          "https://www.linkedin.com/company/tcapitalbiz/",
+          "https://www.facebook.com/tcapital2020/"
+        ],
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "customer support",
+          "availableLanguage": ["English", "Hindi"]
+        },
+        "offers": {
+          "@type": "AggregateOffer",
+          "priceCurrency": "INR",
+          "offerCount": "4",
+          "description": "Subscription plans for AI-powered trading platform: Starter (Free), Growth, Pro, Elite"
+        }
       },
-      "offers": {
-        "@type": "AggregateOffer",
-        "priceCurrency": "INR",
-        "offerCount": "4",
-        "description": "Subscription plans for AI-powered trading platform: Starter (Free), Growth, Pro, Elite"
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Target Capital",
+        "url": "https://www.targetcapital.ai",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://www.targetcapital.ai/stock-research?q={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        }
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "FinancialService",
+        "name": "Target Capital",
+        "url": "https://www.targetcapital.ai",
+        "description": "SEBI-compliant AI-powered F&O signal, stock research, and portfolio analytics platform for Indian traders.",
+        "areaServed": {"@type": "Country", "name": "India"},
+        "serviceType": "Investment Research and Portfolio Analytics"
       }
-    }
+    ]
     </script>
 
     {% if GA4_ID %}
@@ -144,8 +172,8 @@
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}" style="font-weight: 600;">
                 <img src="{{ url_for('static', filename='images/TC_Logo_1783846358612.png') }}?v=4" 
-                     alt="Target Capital Logo" height="70" class="me-0"
-                     fetchpriority="high" decoding="async" width="auto">
+                     alt="Target Capital Logo" width="124" height="70" class="me-0"
+                     fetchpriority="high" decoding="async">
                 <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #00091a; background: #f0b429; border-radius: 4px; padding: 2px 6px; margin-left: 6px; align-self: flex-start; margin-top: 14px; text-transform: uppercase;">Beta</span>
             </a>
             

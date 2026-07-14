@@ -93,8 +93,8 @@ def csrf_token():
 @app.context_processor
 def inject_seo_globals():
     return {
-        'GA4_ID': os.environ.get('GA4_MEASUREMENT_ID', ''),
-        'GSC_VERIFY': os.environ.get('GSC_VERIFICATION_CODE', ''),
+        'GA4_ID': os.environ.get('GOOGLE_GA4_ID', ''),
+        'GSC_VERIFY': os.environ.get('GOOGLE_GSC_VERIFY', ''),
     }
 
 IST = timezone(timedelta(hours=5, minutes=30))

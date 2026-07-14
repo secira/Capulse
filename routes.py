@@ -8726,13 +8726,6 @@ def robots_txt():
         "Disallow: /admin/\n"
         "Disallow: /api/\n"
         "Disallow: /account/\n"
-        "Disallow: /auth/\n"
-        "\n"
-        "User-agent: GPTBot\n"
-        "Allow: /\n"
-        "Disallow: /dashboard/\n"
-        "Disallow: /admin/\n"
-        "Disallow: /api/\n"
         "\n"
         "Sitemap: https://www.targetcapital.ai/sitemap.xml\n"
     )
@@ -8747,18 +8740,27 @@ def sitemap_xml():
     urls = [
         ('https://www.targetcapital.ai/', '1.0', 'daily'),
         ('https://www.targetcapital.ai/pricing', '0.9', 'weekly'),
-        ('https://www.targetcapital.ai/about', '0.7', 'monthly'),
-        ('https://www.targetcapital.ai/contact', '0.6', 'monthly'),
         ('https://www.targetcapital.ai/blog', '0.8', 'weekly'),
-        ('https://www.targetcapital.ai/fno-analysis', '0.8', 'daily'),
+        ('https://www.targetcapital.ai/fo', '0.8', 'daily'),
+        ('https://www.targetcapital.ai/equities', '0.8', 'weekly'),
         ('https://www.targetcapital.ai/wealth-hub', '0.7', 'weekly'),
         ('https://www.targetcapital.ai/mutual-funds', '0.7', 'weekly'),
         ('https://www.targetcapital.ai/behavioral-coach', '0.7', 'weekly'),
+        ('https://www.targetcapital.ai/trade-center', '0.7', 'weekly'),
+        ('https://www.targetcapital.ai/about', '0.7', 'monthly'),
+        ('https://www.targetcapital.ai/contact', '0.6', 'monthly'),
         ('https://www.targetcapital.ai/for-brokers', '0.6', 'monthly'),
+        ('https://www.targetcapital.ai/partners', '0.6', 'monthly'),
         ('https://www.targetcapital.ai/careers', '0.5', 'monthly'),
-        ('https://www.targetcapital.ai/privacy', '0.4', 'yearly'),
-        ('https://www.targetcapital.ai/terms', '0.4', 'yearly'),
-        ('https://www.targetcapital.ai/disclaimer', '0.4', 'yearly'),
+        ('https://www.targetcapital.ai/help-center', '0.5', 'monthly'),
+        ('https://www.targetcapital.ai/trading-signals', '0.5', 'weekly'),
+        ('https://www.targetcapital.ai/stock-research', '0.5', 'weekly'),
+        ('https://www.targetcapital.ai/algo-trading', '0.4', 'monthly'),
+        ('https://www.targetcapital.ai/compliance', '0.4', 'yearly'),
+        ('https://www.targetcapital.ai/privacy-policy', '0.3', 'yearly'),
+        ('https://www.targetcapital.ai/terms-of-service', '0.3', 'yearly'),
+        ('https://www.targetcapital.ai/risk-disclosure', '0.3', 'yearly'),
+        ('https://www.targetcapital.ai/cancellation-refund-policy', '0.3', 'yearly'),
     ]
     xml_parts = ['<?xml version="1.0" encoding="UTF-8"?>',
                  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
@@ -8796,7 +8798,8 @@ def llms_txt():
         "## Public Pages\n"
         "- Home: https://www.targetcapital.ai/\n"
         "- Pricing: https://www.targetcapital.ai/pricing\n"
-        "- F&O Analysis: https://www.targetcapital.ai/fno-analysis\n"
+        "- F&O: https://www.targetcapital.ai/fo\n"
+        "- Equities: https://www.targetcapital.ai/equities\n"
         "- Wealth Hub: https://www.targetcapital.ai/wealth-hub\n"
         "- Mutual Funds: https://www.targetcapital.ai/mutual-funds\n"
         "- Behavioural Coach: https://www.targetcapital.ai/behavioral-coach\n"
