@@ -210,6 +210,7 @@ if is_production:
             'https://*.razorpay.com',
             'https://s3.tradingview.com',
             'https://*.tradingview.com',
+            'https://www.googletagmanager.com',
         ],
         'form-action': [
             "'self'",

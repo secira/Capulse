@@ -3,6 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-T4GVCB6M');</script>
+    <!-- End Google Tag Manager -->
     <!-- Clear stale PWA caches and reload once -->
     <script>
     (function() {
@@ -177,6 +184,10 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-T4GVCB6M"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
     {% block navbar %}
     <!-- Navigation - TargetGrid Style -->
     <nav class="navbar navbar-expand-lg navbar-light fixed-top border-bottom" style="padding: 20px 0; border-bottom: 1px solid #e9ecef !important; background-color: #ffffff !important;">
