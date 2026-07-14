@@ -19,6 +19,7 @@
 <meta name="twitter:description" content="Connect Dhan, Zerodha, Angel One, Upstox, Fyers, Shoonya, Alice Blue or 5paisa and execute ranked trades from a single dashboard. Secure, token-based broker connections.">
 <meta name="theme-color" content="#0A0F1E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -346,12 +347,14 @@
 </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FinancialService", "name": "Target Capital", "url": "https://www.targetcapital.ai", "logo": "https://www.targetcapital.ai/static/images/logo.png", "description": "AI-powered trading and investing decision engine for India, built on the Capulse AI engine.", "areaServed": "IN", "sameAs": ["https://x.com/ShankarUday2020", "https://www.linkedin.com/company/tcapitalbiz/", "https://www.facebook.com/tcapital2020/"]}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage", "name": "Multibroker Connect & Trade \u2014 Link 3 Brokers, One Screen | Target Capital", "description": "Connect Dhan, Zerodha, Angel One, Upstox, Fyers, Shoonya, Alice Blue or 5paisa and execute ranked trades from a single dashboard. Secure, token-based broker connections.", "url": "https://www.targetcapital.ai/multibroker-trade.html", "isPartOf": {"@type": "WebSite", "name": "Target Capital", "url": "https://www.targetcapital.ai"}}</script>
+{% if GSC_VERIFY %}<meta name="google-site-verification" content="{{ GSC_VERIFY }}">{% endif %}
+{% if GA4_ID %}<script async src="https://www.googletagmanager.com/gtag/js?id={{ GA4_ID }}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','{{ GA4_ID }}');</script>{% endif %}
 </head>
 <body>
 <header>
   <nav>
     <div class="brand">
-      <img src="/static/images/TC_Logo_1783846358612.png" alt="Target Capital" style="height:34px;width:auto;display:block;" loading="lazy">
+      <img src="/static/images/TC_Logo_1783846358612.png" alt="Target Capital" style="height:34px;width:auto;display:block;" fetchpriority="high">
       <div><div class="brand-name"><a href="/" style="color:inherit;">Target Capital</a></div><div class="brand-sub">POWERED BY CAPULSE</div></div>
     </div>
     <div class="nav-links">
@@ -447,7 +450,7 @@
     <div class="foot-grid">
       <div class="foot-brand">
         <div class="brand">
-          <img src="/static/images/TC_Logo_1783846358612.png" alt="Target Capital" style="height:34px;width:auto;display:block;" loading="lazy">
+          <img src="/static/images/TC_Logo_1783846358612.png" alt="Target Capital" style="height:34px;width:auto;display:block;" fetchpriority="high">
           <div class="brand-name">Target Capital</div>
         </div>
         <p>India's surface for the Capulse AI engine — one confidence-scored read across equities, mutual funds, F&amp;O and your own trading behavior.</p>

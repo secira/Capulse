@@ -79,7 +79,8 @@
     <!-- Font Awesome (deferred via media=print trick — icons are not LCP-critical) -->
     <link rel="stylesheet" media="print" onload="this.media='all'" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
-    <!-- Google Fonts — trimmed weights, non-render-blocking via media=print trick -->
+    <!-- Google Fonts — preload hint + media=print swap (non-render-blocking) -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"></noscript>
     <!-- PWA Manifest -->
@@ -103,12 +104,21 @@
         "@context": "https://schema.org",
         "@type": "Organization",
         "name": "Target Capital",
+        "legalName": "Scentric Networks Private Limited",
         "alternateName": "Scentric AI",
         "url": "https://www.targetcapital.ai",
         "logo": "https://www.targetcapital.ai/static/images/TC_Logo_1783846358612.png",
         "description": "AI-powered investment platform for Indian retail traders featuring I-Score signals, multi-broker portfolio management, behavioural guardrails, and Scentric AI Decision Engine.",
         "foundingDate": "2020",
         "areaServed": "IN",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Tidel Park Module No.115, 1st Floor D North, No.4 Rajiv Gandhi Salai, Tharamani",
+          "addressLocality": "Chennai",
+          "addressRegion": "Tamil Nadu",
+          "postalCode": "600113",
+          "addressCountry": "IN"
+        },
         "sameAs": [
           "https://x.com/ShankarUday2020",
           "https://www.linkedin.com/company/tcapitalbiz/",
@@ -117,6 +127,7 @@
         "contactPoint": {
           "@type": "ContactPoint",
           "contactType": "customer support",
+          "email": "info@targetcapital.ai",
           "availableLanguage": ["English", "Hindi"]
         },
         "offers": {
@@ -135,7 +146,7 @@
           "@type": "SearchAction",
           "target": {
             "@type": "EntryPoint",
-            "urlTemplate": "https://www.targetcapital.ai/stock-research?q={search_term_string}"
+            "urlTemplate": "https://www.targetcapital.ai/equities?q={search_term_string}"
           },
           "query-input": "required name=search_term_string"
         }

@@ -8738,7 +8738,7 @@ def sitemap_xml():
     from datetime import date
     today = date.today().isoformat()
     urls = [
-        ('https://www.targetcapital.ai/', '1.0', 'daily'),
+        ('https://www.targetcapital.ai/', '1.0', 'weekly'),
         ('https://www.targetcapital.ai/pricing', '0.9', 'weekly'),
         ('https://www.targetcapital.ai/blog', '0.8', 'weekly'),
         ('https://www.targetcapital.ai/fo', '0.8', 'daily'),
@@ -8754,13 +8754,13 @@ def sitemap_xml():
         ('https://www.targetcapital.ai/partners', '0.6', 'monthly'),
         ('https://www.targetcapital.ai/careers', '0.5', 'monthly'),
         ('https://www.targetcapital.ai/help-center', '0.5', 'monthly'),
-        ('https://www.targetcapital.ai/login', '0.4', 'yearly'),
-        ('https://www.targetcapital.ai/register', '0.4', 'yearly'),
-        ('https://www.targetcapital.ai/compliance', '0.4', 'yearly'),
-        ('https://www.targetcapital.ai/privacy-policy', '0.3', 'yearly'),
-        ('https://www.targetcapital.ai/terms-of-service', '0.3', 'yearly'),
-        ('https://www.targetcapital.ai/risk-disclosure', '0.3', 'yearly'),
-        ('https://www.targetcapital.ai/cancellation-refund-policy', '0.3', 'yearly'),
+        ('https://www.targetcapital.ai/login', '0.4', 'monthly'),
+        ('https://www.targetcapital.ai/register', '0.4', 'monthly'),
+        ('https://www.targetcapital.ai/compliance', '0.4', 'monthly'),
+        ('https://www.targetcapital.ai/privacy-policy', '0.3', 'monthly'),
+        ('https://www.targetcapital.ai/terms-of-service', '0.3', 'monthly'),
+        ('https://www.targetcapital.ai/risk-disclosure', '0.3', 'monthly'),
+        ('https://www.targetcapital.ai/cancellation-refund-policy', '0.3', 'monthly'),
     ]
     xml_parts = ['<?xml version="1.0" encoding="UTF-8"?>',
                  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
