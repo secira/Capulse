@@ -8,6 +8,7 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#0A0F1E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -154,6 +155,8 @@ footer{border-top:1px solid var(--border);padding:48px 0 24px;margin-top:auto;}
   .auth-row{grid-template-columns:1fr;gap:0;}
 }
 </style>
+{% if GSC_VERIFY %}<meta name="google-site-verification" content="{{ GSC_VERIFY }}">{% endif %}
+{% if GA4_ID %}<script async src="https://www.googletagmanager.com/gtag/js?id={{ GA4_ID }}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','{{ GA4_ID }}');</script>{% endif %}
 </head>
 <body>
 

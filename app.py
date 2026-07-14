@@ -90,11 +90,15 @@ from flask_wtf.csrf import generate_csrf
 def csrf_token():
     return generate_csrf()
 
+# Wire SEO config keys so they're accessible via app.config and template context
+app.config['GA4_ID'] = os.environ.get('GOOGLE_GA4_ID', '')
+app.config['GSC_VERIFY'] = os.environ.get('GOOGLE_GSC_VERIFY', '')
+
 @app.context_processor
 def inject_seo_globals():
     return {
-        'GA4_ID': os.environ.get('GOOGLE_GA4_ID', ''),
-        'GSC_VERIFY': os.environ.get('GOOGLE_GSC_VERIFY', ''),
+        'GA4_ID': app.config.get('GA4_ID', ''),
+        'GSC_VERIFY': app.config.get('GSC_VERIFY', ''),
     }
 
 IST = timezone(timedelta(hours=5, minutes=30))
