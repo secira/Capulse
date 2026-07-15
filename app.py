@@ -162,6 +162,7 @@ if is_production:
             'https://checkout.razorpay.com',
             'https://www.googletagmanager.com',
             'https://www.google-analytics.com',
+            'https://connect.facebook.net',
         ],
         'style-src': [
             "'self'",
@@ -202,6 +203,8 @@ if is_production:
             'https://region1.google-analytics.com',
             'https://analytics.google.com',
             'https://www.googletagmanager.com',
+            'https://connect.facebook.net',
+            'https://www.facebook.com',
         ],
         'frame-src': [
             "'self'",
