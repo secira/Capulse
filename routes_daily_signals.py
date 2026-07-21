@@ -151,7 +151,7 @@ SECTOR_COLORS = {
 
 def _call_perplexity_structured(prompt: str, timeout: int = 15) -> str:
     """
-    Routes all AI calls to Anthropic Claude (claude-sonnet-4-20250514).
+    Routes all AI calls to Anthropic Claude (claude-3-5-sonnet-20241022).
     Perplexity is no longer used — Claude handles all market commentary
     and Scentric AI queries.
     Returns raw response text, or '' on failure.
@@ -173,7 +173,7 @@ def _call_anthropic_text(prompt: str, timeout: int = 20) -> str:
         import anthropic as _ant
         client = _ant.Anthropic(api_key=api_key)
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-3-5-sonnet-20241022",
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
