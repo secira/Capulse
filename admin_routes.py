@@ -1889,7 +1889,17 @@ def edit_daily_signal(signal_id):
                     signal.script = symbol
             
             db.session.commit()
-            flash(f'Signal #{signal.signal_number} updated successfully!', 'success')
+
+            # Telegram update notification
+            tg_msg = ''
+            try:
+                from services.messaging_service import send_daily_signal_update_telegram
+                ok = send_daily_signal_update_telegram(signal)
+                tg_msg = ' • Telegram update sent ✓' if ok else ' • Telegram update FAILED'
+            except Exception as _te:
+                tg_msg = f' • Telegram error: {_te}'
+
+            flash(f'Signal #{signal.signal_number} updated successfully!{tg_msg}', 'success')
             return redirect(url_for('admin.daily_signals'))
             
         except Exception as e:
@@ -2001,7 +2011,17 @@ def update_signal_status(signal_id):
                 signal.closed_at = datetime.utcnow()
 
         db.session.commit()
-        flash(f'Signal #{signal.signal_number} updated — outcome: {trade_outcome or new_status}', 'success')
+
+        # Telegram close/result notification
+        tg_msg = ''
+        try:
+            from services.messaging_service import send_daily_signal_close_telegram
+            ok = send_daily_signal_close_telegram(signal)
+            tg_msg = ' • Telegram result sent ✓' if ok else ' • Telegram result FAILED'
+        except Exception as _te:
+            tg_msg = f' • Telegram error: {_te}'
+
+        flash(f'Signal #{signal.signal_number} updated — outcome: {trade_outcome or new_status}{tg_msg}', 'success')
 
     except Exception as e:
         db.session.rollback()

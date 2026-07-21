@@ -274,6 +274,128 @@ def send_daily_signal_telegram(signal) -> bool:
         return False
 
 
+def format_daily_signal_update_telegram(signal) -> str:
+    """Format an UPDATE alert for an edited DailyTradingSignal."""
+    import html as _html
+    from datetime import timedelta as _td
+
+    asset    = (signal.asset_type or '').upper()
+    sub      = (signal.sub_type or '').upper()
+    action   = (signal.action or 'BUY').upper()
+    duration = (signal.trade_duration or '').upper()
+    risk     = (signal.risk_level or 'MEDIUM').upper()
+
+    dir_emoji = '🟢' if (sub == 'CE' or action == 'BUY') else ('🔴' if (sub == 'PE' or action == 'SELL') else '🟡')
+    duration_lbl = {'DAY': 'Intraday', 'BTST': 'BTST', 'WEEK': 'Swing', 'MONTH': 'Long Term'}.get(duration, duration or '—')
+
+    targets = []
+    for px, label in ((signal.target_1, 'T1'), (signal.target_2, 'T2'), (signal.target_3, 'T3')):
+        if px is not None:
+            try:
+                targets.append(f"{label} ₹{int(float(px)):,}")
+            except (TypeError, ValueError):
+                pass
+
+    script_safe = _html.escape(signal.script or '')
+
+    msg  = f"✏️ <b>Signal Updated — #{signal.signal_number} {asset}</b>\n\n"
+    msg += f"{dir_emoji} <b>Action:</b> {action} <code>{script_safe}</code>\n"
+    msg += f"⏳ <b>Duration:</b> {duration_lbl}\n"
+    expiry = getattr(signal, 'expiry_date', None)
+    if expiry:
+        try:
+            msg += f"📅 <b>Expiry:</b> {expiry.strftime('%d %b %Y')}\n"
+        except Exception:
+            pass
+    msg += f"⚠️ <b>Risk:</b> {risk}\n\n"
+    msg += f"💰 <b>Entry:</b> ₹{int(float(signal.buy_above)):,}\n"
+    msg += f"🛑 <b>Stop Loss:</b> ₹{int(float(signal.stop_loss)):,}\n"
+    if targets:
+        msg += f"🎯 <b>Targets:</b> {' / '.join(targets)}\n"
+    if signal.notes:
+        raw_notes  = signal.notes if len(signal.notes) <= 200 else signal.notes[:200] + '…'
+        msg += f"\n📝 <i>{_html.escape(raw_notes)}</i>\n"
+
+    now_ist = datetime.utcnow() + _td(hours=5, minutes=30)
+    msg += f"\n⏰ <b>Updated:</b> <i>{now_ist.strftime('%d %b %Y, %I:%M %p')} IST</i>"
+    msg += "\n\n<a href='https://www.targetcapital.ai/dashboard/live-market-pulse'>View on Target Capital</a>"
+    return msg
+
+
+def format_daily_signal_close_telegram(signal) -> str:
+    """Format a CLOSE/RESULT alert for a DailyTradingSignal whose status has been updated."""
+    import html as _html
+    from datetime import timedelta as _td
+
+    asset  = (signal.asset_type or '').upper()
+    status = (signal.status or '').upper()
+    script_safe = _html.escape(signal.script or '')
+
+    # Outcome label + emoji
+    _OUTCOME_MAP = {
+        'TARGET_1_HIT': ('✅', '1st Target Hit'),
+        'TARGET_2_HIT': ('✅', '2nd Target Hit'),
+        'TARGET_3_HIT': ('✅', '3rd Target Hit'),
+        'SL_HIT':       ('❌', 'Stop Loss Hit'),
+        'CLOSED':       ('⏱', 'Early Exit / Closed'),
+        'EXPIRED':      ('⏱', 'Expired'),
+    }
+    outcome_emoji, outcome_label = _OUTCOME_MAP.get(status, ('📋', signal.trade_outcome or status or '—'))
+    if signal.trade_outcome:
+        outcome_label = _html.escape(signal.trade_outcome)
+
+    entry = float(signal.buy_above) if signal.buy_above else None
+    exit_p = float(signal.exit_price) if getattr(signal, 'exit_price', None) else None
+    fp = float(signal.final_points) if getattr(signal, 'final_points', None) is not None else None
+    pnl_pct = round(fp / entry * 100, 1) if (fp is not None and entry and entry > 0) else None
+
+    header_emoji = '✅' if 'TARGET' in status else ('❌' if status == 'SL_HIT' else '🏁')
+    msg  = f"{header_emoji} <b>Signal Closed — #{signal.signal_number} {asset}</b>\n\n"
+    msg += f"📋 <b>Outcome:</b> {outcome_emoji} {outcome_label}\n"
+    msg += f"📊 <b>Script:</b> <code>{script_safe}</code>\n"
+    if entry:
+        msg += f"💰 <b>Entry:</b> ₹{int(entry):,}"
+        if exit_p:
+            msg += f" → <b>Exit:</b> ₹{int(exit_p):,}"
+        msg += "\n"
+    if fp is not None:
+        sign = '+' if fp >= 0 else ''
+        msg += f"📈 <b>Points:</b> {sign}{int(fp):,} pts\n"
+    if pnl_pct is not None:
+        sign = '+' if pnl_pct >= 0 else ''
+        msg += f"💹 <b>P&L:</b> {sign}{pnl_pct:.1f}%\n"
+
+    closed_at = getattr(signal, 'closed_at', None)
+    if closed_at:
+        closed_ist = closed_at + _td(hours=5, minutes=30)
+        msg += f"\n⏰ <b>Closed:</b> <i>{closed_ist.strftime('%d %b %Y, %I:%M %p')} IST</i>"
+    else:
+        now_ist = datetime.utcnow() + _td(hours=5, minutes=30)
+        msg += f"\n⏰ <i>{now_ist.strftime('%d %b %Y, %I:%M %p')} IST</i>"
+    msg += "\n\n<a href='https://www.targetcapital.ai/dashboard/live-market-pulse'>View on Target Capital</a>"
+    return msg
+
+
+def send_daily_signal_update_telegram(signal) -> bool:
+    """Broadcast an 'updated' alert for an edited signal."""
+    try:
+        body = format_daily_signal_update_telegram(signal)
+        return send_telegram_message(body, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"send_daily_signal_update_telegram failed for signal id={getattr(signal, 'id', None)}: {e}")
+        return False
+
+
+def send_daily_signal_close_telegram(signal) -> bool:
+    """Broadcast a 'closed/result' alert when a signal status is updated."""
+    try:
+        body = format_daily_signal_close_telegram(signal)
+        return send_telegram_message(body, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"send_daily_signal_close_telegram failed for signal id={getattr(signal, 'id', None)}: {e}")
+        return False
+
+
 def telegram_diagnostics() -> dict:
     """Return a non-secret diagnostic snapshot of the current Telegram config.
 
