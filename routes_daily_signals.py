@@ -1267,24 +1267,24 @@ def our_signals_pnl_api():
                 fp    = float(s.final_points) if s.final_points is not None else None
                 exit_price_val = float(s.exit_price) if getattr(s, 'exit_price', None) else None
                 exit_val = exit_price_val if exit_price_val is not None else (
-                    round(entry + fp, 2) if (entry and fp is not None) else None
+                    round(entry + fp) if (entry and fp is not None) else None
                 )
                 if fp is None and exit_price_val is not None and entry:
-                    fp = round(exit_price_val - entry, 2)
+                    fp = round(exit_price_val - entry)
                 if (fp is None or (fp == 0.0 and exit_price_val is None)) and entry:
                     st = s.status or ''
                     if st == 'SL_HIT' and s.stop_loss:
-                        fp = round(float(s.stop_loss) - entry, 2)
-                        exit_val = float(s.stop_loss)
+                        fp = round(float(s.stop_loss) - entry)
+                        exit_val = round(float(s.stop_loss))
                     elif st == 'TARGET_1_HIT' and s.target_1:
-                        fp = round(float(s.target_1) - entry, 2)
-                        exit_val = float(s.target_1)
+                        fp = round(float(s.target_1) - entry)
+                        exit_val = round(float(s.target_1))
                     elif st == 'TARGET_2_HIT' and s.target_2:
-                        fp = round(float(s.target_2) - entry, 2)
-                        exit_val = float(s.target_2)
+                        fp = round(float(s.target_2) - entry)
+                        exit_val = round(float(s.target_2))
                     elif st == 'TARGET_3_HIT' and s.target_3:
-                        fp = round(float(s.target_3) - entry, 2)
-                        exit_val = float(s.target_3)
+                        fp = round(float(s.target_3) - entry)
+                        exit_val = round(float(s.target_3))
                 pnl_pct = round(fp / entry * 100, 1) if (fp is not None and entry and entry > 0) else None
 
                 oc = (s.trade_outcome or '').strip()
@@ -1332,7 +1332,7 @@ def our_signals_pnl_api():
         # Monthly stats only from closed/resolved trades
         wins      = sum(1 for p in closed_fp_list if p > 0)
         losses    = sum(1 for p in closed_fp_list if p < 0)
-        total_pts = round(sum(closed_fp_list), 2) if closed_fp_list else 0
+        total_pts = round(sum(closed_fp_list)) if closed_fp_list else 0
         win_rate  = round(wins / len(closed_fp_list) * 100, 1) if closed_fp_list else None
         active_count = sum(1 for t in trades if t['is_active'])
 

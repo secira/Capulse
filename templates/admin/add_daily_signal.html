@@ -59,7 +59,7 @@
                     <div class="row" id="optionFields" style="display: none;">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Strike Price <span class="text-danger">*</span></label>
-                            <input type="number" step="0.05" name="strike_price" id="strikePrice" class="form-control" placeholder="e.g., 24500">
+                            <input type="number" step="1" name="strike_price" id="strikePrice" class="form-control" placeholder="e.g., 24500">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Strike Type</label>
@@ -128,7 +128,7 @@
                             <label class="form-label">Current Market Price</label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
-                                <input type="number" step="0.05" name="current_price" id="currentPrice" class="form-control" placeholder="Auto-fetched from market">
+                                <input type="number" step="1" name="current_price" id="currentPrice" class="form-control" placeholder="Auto-fetched from market">
                                 <button type="button" class="btn btn-outline-primary" id="fetchLiveBtn" onclick="fetchLivePrice()" title="Fetch live price from broker / NSE">
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
@@ -140,7 +140,7 @@
                             <label class="form-label">Entry Price (Buy Above) <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
-                                <input type="number" step="0.05" name="buy_above" class="form-control" required placeholder="Entry price">
+                                <input type="number" step="1" name="buy_above" class="form-control" required placeholder="Entry price">
                             </div>
                         </div>
                         
@@ -148,7 +148,7 @@
                             <label class="form-label">Stop Loss <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
-                                <input type="number" step="0.05" name="stop_loss" class="form-control" required placeholder="Stop loss">
+                                <input type="number" step="1" name="stop_loss" class="form-control" required placeholder="Stop loss">
                             </div>
                         </div>
                     </div>
@@ -158,7 +158,7 @@
                             <label class="form-label">Target 1</label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
-                                <input type="number" step="0.05" name="target_1" class="form-control" placeholder="First target">
+                                <input type="number" step="1" name="target_1" class="form-control" placeholder="First target">
                             </div>
                         </div>
                         
@@ -166,7 +166,7 @@
                             <label class="form-label">Target 2</label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
-                                <input type="number" step="0.05" name="target_2" class="form-control" placeholder="Second target">
+                                <input type="number" step="1" name="target_2" class="form-control" placeholder="Second target">
                             </div>
                         </div>
                         
@@ -174,7 +174,7 @@
                             <label class="form-label">Target 3</label>
                             <div class="input-group">
                                 <span class="input-group-text">₹</span>
-                                <input type="number" step="0.05" name="target_3" class="form-control" placeholder="Third target (optional)">
+                                <input type="number" step="1" name="target_3" class="form-control" placeholder="Third target (optional)">
                             </div>
                         </div>
                     </div>
