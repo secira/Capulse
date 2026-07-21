@@ -221,15 +221,19 @@ def _restore_active_trade_state(app) -> None:
             if _trade_state[idx] == 'ACTIVE':
                 continue  # already restored (earlier row for same index)
 
-            # Parse ATM trade from trades_json
-            atm_trade = {}
+            # Parse ITM trade from trades_json (ITM preferred — lower SL risk)
+            itm_trade = {}
             try:
                 trades_list = ast.literal_eval(r.trades_json or '[]')
                 if isinstance(trades_list, list):
-                    atm_trade = next(
+                    itm_trade = next(
                         (t for t in trades_list
-                         if isinstance(t, dict) and str(t.get('moneyness', '')).upper() == 'ATM'),
-                        trades_list[0] if trades_list else {}
+                         if isinstance(t, dict) and str(t.get('moneyness', '')).upper() == 'ITM'),
+                        next(
+                            (t for t in trades_list
+                             if isinstance(t, dict) and str(t.get('moneyness', '')).upper() == 'ATM'),
+                            trades_list[0] if trades_list else {}
+                        )
                     )
             except Exception:
                 pass
@@ -242,13 +246,13 @@ def _restore_active_trade_state(app) -> None:
                 'confidence':  r.confidence or 0,
                 'spot':        r.spot_price or 0,
                 'atm_strike':  r.atm_strike or 0,
-                'atm_key':     atm_trade.get('symbol', ''),
-                'entry_price': atm_trade.get('entry_price', atm_trade.get('ltp', 0)),
-                'sl':          atm_trade.get('sl', 0),
-                'target':      atm_trade.get('target', 0),
-                'target_2':    atm_trade.get('target_2', 0),
-                'target_3':    atm_trade.get('target_3', 0),
-                'type':        atm_trade.get('type', ''),
+                'atm_key':     itm_trade.get('symbol', ''),
+                'entry_price': itm_trade.get('entry_price', itm_trade.get('ltp', 0)),
+                'sl':          itm_trade.get('sl', 0),
+                'target':      itm_trade.get('target', 0),
+                'target_2':    itm_trade.get('target_2', 0),
+                'target_3':    itm_trade.get('target_3', 0),
+                'type':        itm_trade.get('type', ''),
                 'data_source': r.data_source or '',
                 'index_id':    idx,
                 'trade_code':  r.trade_code or '',
@@ -257,7 +261,7 @@ def _restore_active_trade_state(app) -> None:
             _trade_state[idx]       = 'ACTIVE'
             logger.info(
                 f"[{idx}] ♻️  Restored active trade from DB: "
-                f"{r.direction} {r.trade_code} @ entry={atm_trade.get('entry_price', 0):.0f}"
+                f"{r.direction} {r.trade_code} @ entry={itm_trade.get('entry_price', 0):.0f}"
             )
     except Exception as e:
         logger.warning(f"_restore_active_trade_state failed: {e}")
@@ -621,7 +625,9 @@ def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
 
     if signal_type == 'TRADE_TRIGGER':
         trades    = signal_data.get('trades', [])
-        atm_trade = next((t for t in trades if t.get('moneyness') == 'ATM'), trades[0] if trades else None)
+        # ITM preferred — higher delta, tighter SL, lower chance of expiring worthless
+        itm_trade = next((t for t in trades if t.get('moneyness') == 'ITM'), None)
+        atm_trade = itm_trade or next((t for t in trades if t.get('moneyness') == 'ATM'), trades[0] if trades else None)
 
         if atm_trade:
             t_emoji  = '📗' if atm_trade.get('type') == 'CE' else '📕'
@@ -1119,7 +1125,9 @@ def _try_trigger_trade(analysis: dict, idx: str):
 
     if _confirmation_count[idx] >= CONFIRMATION_CANDLES:
         trades    = analysis.get('trades', [])
-        atm_trade = next((t for t in trades if t.get('moneyness') == 'ATM'), trades[0] if trades else None)
+        # ITM preferred — higher delta, tighter SL, lower chance of expiring worthless
+        itm_trade = next((t for t in trades if t.get('moneyness') == 'ITM'), None)
+        atm_trade = itm_trade or next((t for t in trades if t.get('moneyness') == 'ATM'), trades[0] if trades else None)
         _active_trade[idx] = {
             'direction':   direction,
             'entry_time':  now,
