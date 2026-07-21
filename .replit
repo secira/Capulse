@@ -1,4 +1,4 @@
-modules = ["web", "python-3.11", "nodejs-20"]
+modules = ["web", "python-3.11", "nodejs-20", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
@@ -32,6 +32,7 @@ waitForPort = 5000
 [[ports]]
 localPort = 5000
 externalPort = 80
+exposeLocalhost = true
 
 [[ports]]
 localPort = 5904
@@ -59,6 +60,7 @@ TELEGRAM_CHAT_ID = "-1002780721096ajjj"
 ADMIN_EMAILS = "udayid@gmail.com,admin@targetcapital.ai,tech@targetcapital.ai"
 BROKER_ENCRYPTION_KEY = "Qw5q7nYOK8d2GqKEWKZEE1QHwtedlczlbU6qXpbEwPQ="
 USE_REMOTE_EXEC = "true"
+ENVIRONMENT = "development"
 
 [postMerge]
 path = "scripts/post-merge.sh"
