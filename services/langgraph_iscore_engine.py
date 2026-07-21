@@ -160,7 +160,7 @@ class LangGraphIScoreEngine:
         workflow.add_node("trend_analysis", self.trend_analysis)
         workflow.add_node("qualitative_analysis_mf", self.qualitative_analysis_mf)
         workflow.add_node("quantitative_analysis_mf", self.quantitative_analysis_mf)
-        workflow.add_node("search_sentiment_mf", self.search_sentiment)
+        workflow.add_node("search_sentiment_mf", self.search_sentiment_mf)
         workflow.add_node("trend_analysis_mf", self.trend_analysis_mf)
         workflow.add_node("qualitative_analysis_bond", self.qualitative_analysis_bond)
         workflow.add_node("quantitative_analysis_bond", self.quantitative_analysis_bond)
@@ -586,19 +586,15 @@ class LangGraphIScoreEngine:
         try:
             from services.perplexity_service import PerplexityService
             perplexity = PerplexityService()
-            
-            search_query = f"""What is the current market sentiment and search interest for {symbol} stock in India?
-            
-            Analyze:
-            1. Recent search trends
-            2. Social media buzz
-            3. Retail investor interest
-            4. News mentions frequency
-            
-            Provide a sentiment score from 0-100 and key insights.
-            Return JSON with: search_score, trend_direction (up/down/stable), buzz_level (high/medium/low)"""
-            
-            response = perplexity.research_indian_stock(symbol, 'news_sentiment')
+
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
+                _fut = _ex.submit(perplexity.research_indian_stock, symbol, 'news_sentiment')
+                try:
+                    response = _fut.result(timeout=8)
+                except _cf.TimeoutError:
+                    logger.warning(f"search_sentiment: Perplexity timed out for {symbol} — using fallback")
+                    response = None
             
             if response and response.get('research_content'):
                 try:
@@ -1085,6 +1081,62 @@ class LangGraphIScoreEngine:
             'step': 'mf_quantitative_fallback'
         }
     
+    def search_sentiment_mf(self, state: IScoreState) -> Dict:
+        """Mutual Fund Search Sentiment (10% weight) — derived from fund returns, no external API."""
+        logger.info(f"I-Score MF Node 4: Search sentiment (fast) for {state['symbol']}")
+        try:
+            fund_data = state.get('mf_fund_data') or {}
+            returns = fund_data.get('returns', {}) if fund_data.get('success') else {}
+            scheme_name = fund_data.get('scheme_name', state['symbol']) if fund_data.get('success') else state['symbol']
+
+            return_1m = returns.get('1m', 0) or 0
+            return_1y = returns.get('1y', 0) or 0
+
+            score = 50
+            if return_1y > 20:
+                score += 20
+            elif return_1y > 10:
+                score += 10
+            elif return_1y < 0:
+                score -= 15
+
+            if return_1m > 3:
+                score += 10
+            elif return_1m > 0:
+                score += 5
+            elif return_1m < -3:
+                score -= 10
+
+            score = min(100, max(0, score))
+
+            trend = 'up' if return_1m > 0 else ('down' if return_1m < 0 else 'stable')
+            buzz = 'high' if abs(return_1y) > 20 else ('medium' if abs(return_1y) > 10 else 'low')
+
+            return {
+                'search_score': score,
+                'search_details': {
+                    'trend_direction': trend,
+                    'buzz_level': buzz,
+                    'analysis': f"{scheme_name}: 1M {return_1m:+.1f}%, 1Y {return_1y:+.1f}%",
+                },
+                'search_sources': [
+                    {'name': 'Fund Returns', 'type': 'performance', 'coverage': f'1M: {return_1m:+.1f}%, 1Y: {return_1y:+.1f}%'},
+                ],
+                'search_reasoning': f"Sentiment derived from recent fund performance. 1-month return {return_1m:+.1f}%, 1-year return {return_1y:+.1f}%.",
+                'search_confidence': 0.65,
+                'step': 'mf_search_complete',
+            }
+        except Exception as e:
+            logger.error(f"MF search sentiment error: {e}")
+        return {
+            'search_score': 50,
+            'search_details': {'trend_direction': 'stable', 'buzz_level': 'medium'},
+            'search_sources': [],
+            'search_reasoning': 'Search sentiment unavailable',
+            'search_confidence': 0.3,
+            'step': 'mf_search_fallback',
+        }
+
     def trend_analysis_mf(self, state: IScoreState) -> Dict:
         """Mutual Fund Trend Analysis (25% weight) - Category Performance, Recent Trends"""
         logger.info(f"I-Score MF Node 5: Trend analysis for {state['symbol']}")
