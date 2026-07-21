@@ -1452,6 +1452,12 @@ def check_risk_disclosure():
     if request.path.startswith('/dashboard'):
         return
 
+    # API endpoints must never be redirected to an HTML page — fetch() would
+    # silently follow the 302 and return the disclosure HTML with status 200,
+    # which the JS content-type guard misreads as "Server error (200)".
+    if request.path.startswith('/api/'):
+        return
+
     # Preserve the originally-intended destination as `next`
     return redirect(url_for('risk_disclosure_ack', next=request.path))
 
@@ -1484,7 +1490,11 @@ def check_trial_expiry():
     if current_user.is_trial_active():
         return
 
-    # Trial expired → send to pricing
+    # Trial expired → API calls get JSON, browser calls get redirect to pricing
+    if request.path.startswith('/api/'):
+        from flask import jsonify as _jsonify
+        return _jsonify({'success': False, 'error': 'Trial expired. Please upgrade to continue.'}), 402
+
     if current_user.can_extend_trial():
         flash(
             'Your free trial has ended. You have a one-time 7-day extension available — '
