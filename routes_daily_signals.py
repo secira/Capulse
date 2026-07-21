@@ -1336,10 +1336,9 @@ def our_signals_pnl_api():
         win_rate  = round(wins / len(closed_fp_list) * 100, 1) if closed_fp_list else None
         active_count = sum(1 for t in trades if t['is_active'])
 
-        closed_entries = [float(s.buy_above) for s in msigs
-                          if (s.status or 'ACTIVE') != 'ACTIVE' and s.buy_above and float(s.buy_above) > 0]
-        avg_entry   = sum(closed_entries) / len(closed_entries) if closed_entries else None
-        cum_pnl_pct = round(total_pts / avg_entry * 100, 1) if (avg_entry and closed_fp_list) else None
+        # Cumulative P&L = sum of individual P&L% for each closed trade in this period
+        pnl_pct_list = [t['pnl_pct'] for t in trades if t['pnl_pct'] is not None and not t['is_active']]
+        cum_pnl_pct  = round(sum(pnl_pct_list), 1) if pnl_pct_list else None
 
         months_out.append({
             'month_label': month_label,
