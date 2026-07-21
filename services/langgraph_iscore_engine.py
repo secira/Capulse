@@ -83,6 +83,7 @@ class IScoreState(TypedDict):
     market_context_confidence: float
     
     raw_indicators: Dict
+    mf_fund_data: Optional[Dict]
     
     overall_score: float
     overall_confidence: float
@@ -918,6 +919,7 @@ class LangGraphIScoreEngine:
         
         try:
             from services.mfapi_service import mfapi_service
+            # Fetch once and cache in state — downstream MF nodes reuse this
             fund_data = mfapi_service.analyze_for_iscore(symbol)
             
             if fund_data.get('success'):
@@ -962,6 +964,7 @@ class LangGraphIScoreEngine:
                     'qualitative_reasoning': reasoning,
                     'qualitative_confidence': 0.8,
                     'asset_name': fund_data.get('scheme_name', symbol),
+                    'mf_fund_data': fund_data,
                     'step': 'mf_qualitative_complete'
                 }
         except Exception as e:
@@ -973,6 +976,7 @@ class LangGraphIScoreEngine:
             'qualitative_sources': [{'name': 'MFapi', 'type': 'error', 'coverage': 'Data temporarily unavailable'}],
             'qualitative_reasoning': 'Qualitative analysis unavailable for this fund',
             'qualitative_confidence': 0.3,
+            'mf_fund_data': None,
             'step': 'mf_qualitative_fallback'
         }
     
@@ -983,8 +987,11 @@ class LangGraphIScoreEngine:
         symbol = state['symbol']
         
         try:
-            from services.mfapi_service import mfapi_service
-            fund_data = mfapi_service.analyze_for_iscore(symbol)
+            # Reuse fund data cached by qualitative_analysis_mf — avoids a second network call
+            fund_data = state.get('mf_fund_data') or {}
+            if not fund_data.get('success'):
+                from services.mfapi_service import mfapi_service
+                fund_data = mfapi_service.analyze_for_iscore(symbol)
             
             if fund_data.get('success'):
                 current_nav = fund_data.get('current_nav', 0)
@@ -1085,8 +1092,11 @@ class LangGraphIScoreEngine:
         symbol = state['symbol']
         
         try:
-            from services.mfapi_service import mfapi_service
-            fund_data = mfapi_service.analyze_for_iscore(symbol)
+            # Reuse fund data cached by qualitative_analysis_mf — avoids a third network call
+            fund_data = state.get('mf_fund_data') or {}
+            if not fund_data.get('success'):
+                from services.mfapi_service import mfapi_service
+                fund_data = mfapi_service.analyze_for_iscore(symbol)
             
             if fund_data.get('success'):
                 returns = fund_data.get('returns', {})
@@ -3060,6 +3070,7 @@ class LangGraphIScoreEngine:
             'risk_score': 50, 'risk_details': {}, 'risk_confidence': 0.5,
             'market_context_score': 50, 'market_context_details': {}, 'market_context_confidence': 0.5,
             'raw_indicators': {},
+            'mf_fund_data': None,
             'overall_score': 0, 'overall_confidence': 0,
             'recommendation': '', 'recommendation_summary': '',
             'penalty_applied': 1.0, 'penalty_reasons': [],

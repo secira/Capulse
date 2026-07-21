@@ -25,7 +25,7 @@ class MFApiService:
     def search_fund(self, query: str) -> List[Dict[str, Any]]:
         """Search for mutual funds by name"""
         try:
-            response = self.session.get(f"{self.BASE_URL}/search?q={query}", timeout=10)
+            response = self.session.get(f"{self.BASE_URL}/search?q={query}", timeout=6)
             response.raise_for_status()
             results = response.json()
             logger.info(f"Found {len(results)} funds matching '{query}'")
@@ -37,7 +37,7 @@ class MFApiService:
     def get_fund_details(self, scheme_code: int) -> Dict[str, Any]:
         """Get detailed fund information and NAV history"""
         try:
-            response = self.session.get(f"{self.BASE_URL}/{scheme_code}", timeout=10)
+            response = self.session.get(f"{self.BASE_URL}/{scheme_code}", timeout=8)
             response.raise_for_status()
             data = response.json()
             

@@ -715,7 +715,14 @@ function analyzeSymbol() {
             asset_type: ASSET_KEY
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            // Server returned HTML (e.g. 502/504 timeout page) — show friendly message
+            throw new Error(`Server error (${response.status}). Please try again in a moment.`);
+        }
+        return response.json();
+    })
     .then(data => {
         document.getElementById('iscoreLoading').style.display = 'none';
         document.getElementById('analyzeBtn').disabled = false;
@@ -737,7 +744,7 @@ function analyzeSymbol() {
         document.getElementById('iscoreLoading').style.display = 'none';
         document.getElementById('analyzeBtn').disabled = false;
         document.getElementById('iscoreError').style.display = 'block';
-        document.getElementById('errorMessage').textContent = 'Network error. Please try again.';
+        document.getElementById('errorMessage').textContent = error.message || 'Request timed out. Please try again.';
         console.error('I-Score analysis error:', error);
     });
 }
