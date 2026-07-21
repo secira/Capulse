@@ -29,22 +29,7 @@ class PerplexityService:
             live_price_ctx = self._get_live_price_context(symbol)
             research_prompt = self._build_research_prompt(symbol, research_type) + live_price_ctx
 
-            # Try Perplexity first if key is available
-            if self.api_key:
-                response = self._call_perplexity_api(research_prompt, model="sonar-pro")
-                if response and 'choices' in response:
-                    return {
-                        'symbol': symbol,
-                        'research_type': research_type,
-                        'research_content': response['choices'][0]['message']['content'],
-                        'citations': response.get('citations', []),
-                        'timestamp': datetime.now(timezone.utc).isoformat(),
-                        'source': 'perplexity_ai',
-                        'model_used': 'sonar-pro',
-                        'success': True
-                    }
-
-            # Claude path (primary when Perplexity unavailable)
+            # Claude is the primary AI provider
             content = self._call_claude_api(research_prompt)
             if content:
                 return {
@@ -71,23 +56,7 @@ class PerplexityService:
         try:
             picks_prompt = self._build_picks_prompt(criteria)
 
-            # Try Perplexity first if key is available
-            if self.api_key:
-                response = self._call_perplexity_api(picks_prompt, model="sonar-pro")
-                if response and 'choices' in response:
-                    picks_content = response['choices'][0]['message']['content']
-                    return {
-                        'picks': self._parse_ai_picks_response(picks_content),
-                        'analysis_summary': picks_content,
-                        'citations': response.get('citations', []),
-                        'criteria_used': criteria or self._get_default_criteria(),
-                        'timestamp': datetime.now(timezone.utc).isoformat(),
-                        'source': 'perplexity_ai',
-                        'model_used': 'sonar-pro',
-                        'success': True
-                    }
-
-            # Claude path
+            # Claude is the primary AI provider
             content = self._call_claude_api(picks_prompt)
             if content:
                 return {
@@ -114,20 +83,7 @@ class PerplexityService:
         try:
             insights_prompt = self._build_insights_prompt(focus_area)
 
-            # Try Perplexity first if key is available
-            if self.api_key:
-                response = self._call_perplexity_api(insights_prompt, model="sonar")
-                if response and 'choices' in response:
-                    return {
-                        'insights': response['choices'][0]['message']['content'],
-                        'focus_area': focus_area,
-                        'citations': response.get('citations', []),
-                        'timestamp': datetime.now(timezone.utc).isoformat(),
-                        'source': 'perplexity_ai',
-                        'success': True
-                    }
-
-            # Claude path
+            # Claude is the primary AI provider
             content = self._call_claude_api(insights_prompt)
             if content:
                 return {
@@ -192,42 +148,9 @@ class PerplexityService:
 
     def _call_perplexity_api(self, prompt: str, model: str = "sonar") -> Optional[Dict[str, Any]]:
         """
-        Make API call to Perplexity, automatically falling back to Claude on any failure.
-        Returns a Perplexity-compatible dict (with a 'choices' key) so all existing callers
-        work without modification, whether the response came from Perplexity or Claude.
+        Returns a Perplexity-compatible dict (with a 'choices' key) powered by Claude.
+        The Perplexity API is not used — Claude is the sole AI provider.
         """
-        # ── Attempt Perplexity if key is present ──────────────────────────────
-        if self.api_key:
-            try:
-                headers = {
-                    'Authorization': f'Bearer {self.api_key}',
-                    'Content-Type': 'application/json'
-                }
-                payload = {
-                    "model": model,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "You are an expert financial analyst specializing in Indian stock markets. Provide comprehensive, data-driven analysis with current market information."
-                        },
-                        {"role": "user", "content": prompt}
-                    ],
-                    "max_tokens": 1500,
-                    "temperature": 0.2,
-                    "top_p": 0.9,
-                    "search_recency_filter": "month",
-                    "return_images": False,
-                    "return_related_questions": False,
-                    "stream": False
-                }
-                response = requests.post(self.base_url, headers=headers, json=payload, timeout=60)
-                if response.status_code == 200:
-                    return response.json()
-                self.logger.warning(f"Perplexity API returned {response.status_code} — falling back to Claude")
-            except Exception as e:
-                self.logger.warning(f"Perplexity API error: {e} — falling back to Claude")
-
-        # ── Claude fallback — wrap in Perplexity-compatible dict ──────────────
         content = self._call_claude_api(prompt)
         if content:
             return {
@@ -490,13 +413,13 @@ Generate 5 stocks now with ALL required details and REAL current prices."""
             
             **Recommendation**: BUY with target price of ₹3,200 (12-month horizon)
             
-            *Note: This is sample research data. For real-time analysis, please provide Perplexity API key.*
+            *Note: This is sample research data. For real-time analysis, please ensure ANTHROPIC_API_KEY is set.*
             """,
             'citations': ['Sample financial data', 'Market research reports'],
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'source': 'fallback_data',
             'success': False,
-            'note': 'Perplexity API key required for real-time research'
+            'note': 'ANTHROPIC_API_KEY required for real-time research'
         }
     
     def _get_fallback_picks(self) -> Dict[str, Any]:
@@ -510,14 +433,14 @@ Generate 5 stocks now with ALL required details and REAL current prices."""
             these stocks show strong potential for the next 6-12 months. Each pick represents different 
             sectors and market caps to provide diversification.
             
-            *Note: These are sample picks. For real-time AI-generated recommendations, please provide Perplexity API key.*
+            *Note: These are sample picks. For real-time AI-generated recommendations, please ensure ANTHROPIC_API_KEY is set.*
             """,
             'citations': ['Market analysis', 'Financial reports', 'Technical analysis'],
             'criteria_used': self._get_default_criteria(),
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'source': 'fallback_data',
             'success': False,
-            'note': 'Perplexity API key required for real-time picks'
+            'note': 'ANTHROPIC_API_KEY required for real-time picks'
         }
     
     def _get_structured_fallback_picks(self) -> List[Dict[str, Any]]:
@@ -593,7 +516,7 @@ Generate 5 stocks now with ALL required details and REAL current prices."""
             - Healthcare and wellness sector growth
             - Sustainable and ESG investing
             
-            *Note: This is sample market analysis. For real-time insights, please provide Perplexity API key.*
+            *Note: This is sample market analysis. For real-time insights, please ensure ANTHROPIC_API_KEY is set.*
             """,
             'focus_area': 'general',
             'citations': ['Market data', 'Research reports'],

@@ -414,8 +414,13 @@ def api_research_analyze():
         if asset_type not in ASSET_TYPES:
             return jsonify({'success': False, 'error': f'Invalid asset type: {asset_type}'}), 400
 
-        # ── Pre-flight: required env vars (catches missing keys on deploy) ─
-        missing_keys = [k for k in ('OPENAI_API_KEY',) if not os.environ.get(k)]
+        # ── Pre-flight: required env vars ─────────────────────────────────────
+        # Stocks use the full LangGraph pipeline (OpenAI + Claude).
+        # Non-stock assets (MF, bonds, commodities…) use Claude only.
+        if asset_type == 'stocks':
+            missing_keys = [k for k in ('OPENAI_API_KEY',) if not os.environ.get(k)]
+        else:
+            missing_keys = [k for k in ('ANTHROPIC_API_KEY',) if not os.environ.get(k)]
         if missing_keys:
             msg = (
                 f"Research Co-Pilot is mis-configured on this server: "

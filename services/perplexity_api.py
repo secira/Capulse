@@ -50,38 +50,7 @@ class PerplexityAPI:
                     last_role = msg_role
         messages.append({"role": "user", "content": user_message})
 
-        # ── Try Perplexity if key is available ────────────────────────────────
-        if self.api_key:
-            try:
-                payload = {
-                    "model": self.model,
-                    "messages": [{"role": "system", "content": system_content}] + messages,
-                    "max_tokens": 1000,
-                    "temperature": 0.2,
-                    "top_p": 0.9,
-                    "return_images": False,
-                    "return_related_questions": False,
-                    "search_recency_filter": "month",
-                    "stream": False
-                }
-                response = requests.post(self.base_url, headers=self.headers, json=payload, timeout=30)
-                if response.status_code == 200:
-                    data = response.json()
-                    content = data['choices'][0]['message']['content']
-                    usage_info = {
-                        'prompt_tokens': data.get('usage', {}).get('prompt_tokens', 0),
-                        'completion_tokens': data.get('usage', {}).get('completion_tokens', 0),
-                        'total_tokens': data.get('usage', {}).get('total_tokens', 0),
-                        'processing_time': response.elapsed.total_seconds(),
-                        'model': 'sonar-pro'
-                    }
-                    logger.info(f"Perplexity API call successful. Tokens: {usage_info['total_tokens']}")
-                    return content, usage_info
-                logger.warning(f"Perplexity returned {response.status_code} — falling back to Claude")
-            except Exception as e:
-                logger.warning(f"Perplexity error: {e} — falling back to Claude")
-
-        # ── Claude fallback (primary when Perplexity unavailable) ─────────────
+        # ── Claude is the primary AI provider ────────────────────────────────
         if self.anthropic_api_key:
             try:
                 import anthropic as _ant
