@@ -137,10 +137,17 @@ if redis_url:
         _limiter_storage_uri = redis_url
         logging.info("✅ Redis reachable — using Redis for rate limiting")
     except Exception as _redis_err:
-        logging.warning(
-            f"⚠️ REDIS_URL set but Redis unreachable ({_redis_err}). "
-            "Falling back to in-memory rate limiting."
-        )
+        if is_production:
+            logging.warning(
+                f"⚠️ REDIS_URL set but Redis unreachable ({_redis_err}). "
+                "Falling back to in-memory rate limiting (rate limits won't survive restarts in production)."
+            )
+        else:
+            logging.info(
+                f"ℹ️ Redis not reachable (REDIS_URL points to an inaccessible host). "
+                "Using in-memory rate limiting — fine for development. "
+                "For production, set REDIS_URL to a public Redis URL (e.g. Upstash rediss://...)."
+            )
 elif is_production:
     logging.warning("⚠️ REDIS_URL not set - using in-memory rate limiting (not recommended for production with multiple workers)")
 
