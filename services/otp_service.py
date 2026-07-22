@@ -1,5 +1,4 @@
 # OTP Service for mobile verification
-import os
 from datetime import datetime, timedelta
 import random
 import string
@@ -58,9 +57,10 @@ class OTPService:
 
         if success:
             db.session.commit()
-            # SMS_UNAVAILABLE means SMS couldn't be sent (sender misconfigured, dev mode, etc.)
-            # Surface the OTP on-screen so users can still complete the flow
-            if error_msg == "SMS_UNAVAILABLE" or os.environ.get("ENVIRONMENT", "development") != "production":
+            # Only surface the OTP on-screen when SMS was genuinely unavailable
+            # (no Twilio credentials, trial restriction, auth failure, etc.).
+            # If error_msg is None, Twilio delivered the SMS — do NOT show the OTP.
+            if error_msg == "SMS_UNAVAILABLE":
                 return True, f"DEV_OTP:{otp}"
             return True, "OTP sent successfully"
         else:

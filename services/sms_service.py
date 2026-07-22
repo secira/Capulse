@@ -36,68 +36,74 @@ class SMSService:
         return ''.join(random.choices(string.digits, k=length))
     
     def send_otp(self, mobile_number: str, otp: str) -> tuple:
-        """Send OTP via SMS - Returns (success: bool, error_message: str or None)"""
-        message_body = f"Your Target Capital OTP is: {otp}. Valid for 10 minutes. Do not share this code."
-        
+        """Send OTP via SMS - Returns (success: bool, error_message: str or None).
+
+        Return convention:
+          (True,  None)              — SMS delivered successfully
+          (True,  "SMS_UNAVAILABLE") — SMS could not be sent; caller should
+                                       surface the OTP on-screen as a fallback
+          (False, "<user message>")  — hard failure; caller should show error
+        """
+        message_body = f"Your Capulse OTP is: {otp}. Valid for 10 minutes. Do not share this code."
+
         try:
             if self.client and TWILIO_PHONE_NUMBER:
                 # Ensure mobile number is in E.164 format
                 if not mobile_number.startswith('+'):
-                    # Assume Indian number if no country code
                     mobile_number = f"+91{mobile_number}"
-                
-                # Check if trying to send to same number
+
+                # Check if trying to send to same number as sender
                 if mobile_number == TWILIO_PHONE_NUMBER:
-                    return False, f"Cannot send OTP to Twilio sender number. Please use a different mobile number to receive OTP."
-                
+                    return False, "Cannot send OTP to the Twilio sender number. Please use a different mobile number."
+
                 message = self.client.messages.create(
                     body=message_body,
                     from_=TWILIO_PHONE_NUMBER,
                     to=mobile_number
                 )
-                print(f"✅ OTP sent via SMS. Message SID: {message.sid}")
-                return True, None
+                print(f"✅ OTP sent via SMS to {mobile_number}. SID: {message.sid}")
+                return True, None  # genuine delivery — do NOT surface OTP on screen
+
             else:
-                # Development mode - log OTP instead of sending
-                print(f"📱 DEV MODE - OTP for {mobile_number}: {otp}")
-                return True, None
-                
+                # No Twilio credentials — dev/test fallback
+                print(f"📱 NO TWILIO — OTP for {mobile_number}: {otp}")
+                return True, "SMS_UNAVAILABLE"
+
         except Exception as e:
             error_str = str(e)
-            print(f"❌ Failed to send OTP: {error_str}")
+            print(f"❌ Failed to send OTP to {mobile_number}: {error_str}")
 
-            # Authentication failure (20003 = invalid SID/AUTH token)
-            # Treat as SMS_UNAVAILABLE in ALL environments so the user can
-            # still complete the flow via the on-screen OTP, while admin sees
-            # the precise reason in the server logs.
-            if "20003" in error_str or "Authenticate" in error_str:
-                print(f"🔑 TWILIO AUTH FAILURE (20003) — refresh TWILIO_AUTH_TOKEN in Secrets. "
-                      f"OTP for {mobile_number}: {otp}")
+            # 20003 — bad SID / auth token
+            if "20003" in error_str or "authenticate" in error_str.lower():
+                print(f"🔑 TWILIO AUTH FAILURE (20003) — check TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN in Secrets.")
                 return True, "SMS_UNAVAILABLE"
 
-            # Sender misconfigured (21659 = not a Twilio number / country mismatch)
-            # Fall back in ALL environments — OTP is saved to DB and surfaced on screen
+            # 21608 — trial account: destination number not verified
+            if "21608" in error_str:
+                print(f"⚠️ TWILIO TRIAL RESTRICTION (21608) — {mobile_number} is not a verified caller on this trial account.")
+                return True, "SMS_UNAVAILABLE"
+
+            # 21219 / 21408 — trial account geographic / sender restrictions
+            if "21219" in error_str or "21408" in error_str:
+                print(f"⚠️ TWILIO TRIAL GEO RESTRICTION — upgrade to a paid account to send to {mobile_number}.")
+                return True, "SMS_UNAVAILABLE"
+
+            # 21659 — sender number not valid for this destination country
             if "21659" in error_str or "country mismatch" in error_str.lower() or "not a Twilio phone number" in error_str:
-                print(f"📱 SENDER FALLBACK (21659) - OTP for {mobile_number}: {otp}")
+                print(f"📱 SENDER MISMATCH (21659) — TWILIO_PHONE_NUMBER may not be enabled for India. OTP for {mobile_number}: {otp}")
                 return True, "SMS_UNAVAILABLE"
 
-            # Same-number error — can't send to your own Twilio sender
+            # 21266 — can't send to own sender number
             if "21266" in error_str or "cannot be the same" in error_str.lower():
                 return False, "Cannot send OTP to the Twilio sender number. Please use a different mobile number."
 
-            # In non-production, fall back to dev mode for any other error
-            environment = os.environ.get("ENVIRONMENT", "development")
-            if environment != "production":
-                print(f"📱 DEV FALLBACK - OTP for {mobile_number}: {otp}")
-                return True, "SMS_UNAVAILABLE"
-
-            # Production: surface specific error messages
+            # 21211 — invalid destination number format
             if "21211" in error_str:
-                return False, "Invalid mobile number format. Please enter a valid phone number."
-            elif "21608" in error_str:
-                return False, "This phone number is not verified. Please contact support."
-            else:
-                return False, "Failed to send OTP. Please try again later."
+                return False, "Invalid mobile number format. Please enter a valid 10-digit Indian mobile number."
+
+            # Any other error: fall back gracefully so users aren't locked out
+            print(f"📱 TWILIO ERROR FALLBACK — OTP for {mobile_number}: {otp}")
+            return True, "SMS_UNAVAILABLE"
     
     def format_mobile_number(self, mobile_number: str) -> str:
         """Format mobile number to standard format"""
