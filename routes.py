@@ -1638,35 +1638,35 @@ def profile():
         if new_password:
             if new_password != confirm_password:
                 flash('Passwords do not match.', 'error')
-                return render_template('auth/profile.html')
-            
+                return redirect(url_for('profile'))
+
             if len(new_password) < 6:
                 flash('Password must be at least 6 characters long.', 'error')
-                return render_template('auth/profile.html')
-            
+                return redirect(url_for('profile'))
+
             current_user.set_password(new_password)
-        
+
         # Validate required fields
         if not current_user.username or not current_user.email:
             flash('Username and email are required.', 'error')
-            return render_template('auth/profile.html')
-        
+            return redirect(url_for('profile'))
+
         # Check for duplicate username/email (excluding current user)
         existing_username = User.query.filter(
-            User.username == current_user.username, 
+            User.username == current_user.username,
             User.id != current_user.id
         ).first()
         if existing_username:
             flash('Username already exists.', 'error')
-            return render_template('auth/profile.html')
-        
+            return redirect(url_for('profile'))
+
         existing_email = User.query.filter(
-            User.email == current_user.email, 
+            User.email == current_user.email,
             User.id != current_user.id
         ).first()
         if existing_email:
             flash('Email already registered.', 'error')
-            return render_template('auth/profile.html')
+            return redirect(url_for('profile'))
         
         db.session.commit()
         flash('Profile updated successfully!', 'success')
