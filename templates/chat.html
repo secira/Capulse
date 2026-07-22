@@ -63,6 +63,49 @@
 .beh-cat-val{font-family:var(--mono);font-size:10.5px;color:var(--paper-dim);text-align:right}
 .beh-alerts{display:flex;flex-direction:column;gap:6px}
 .beh-alert{background:var(--ink-3);border:1px solid var(--line);border-radius:5px;padding:9px 12px;font-size:12.5px;color:var(--paper-dim);line-height:1.5}
+/* F&O signal cards */
+.signal-card{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:8px;max-width:480px}
+.signal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.signal-name{font-family:var(--mono);font-size:13px;color:var(--paper);font-weight:600}
+.signal-name .sig-label-tag{font-size:10px;font-weight:400;color:var(--paper-faint);background:var(--ink-3);padding:1px 6px;border-radius:3px;margin-left:6px}
+.signal-dir{font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;text-transform:uppercase}
+.signal-dir.buy{background:rgba(var(--good-rgb,34,197,94),.12);color:var(--good)}
+.signal-dir.sell{background:rgba(var(--risk-rgb,239,68,68),.12);color:var(--risk)}
+.signal-metrics{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.signal-metric{display:flex;flex-direction:column;gap:2px;min-width:60px}
+.signal-metric-label{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint)}
+.signal-metric-val{font-family:var(--mono);font-size:12.5px;color:var(--paper)}
+.conf-bar-track{height:3px;background:var(--ink-3);border-radius:2px;overflow:hidden}
+.conf-bar-fill{height:100%;background:var(--amber);opacity:.7;border-radius:2px}
+/* F&O summary header */
+.fno-summary{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;max-width:480px}
+.fno-summary-row{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-bottom:6px}
+.fno-label{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint)}
+.fno-val{font-family:var(--mono);font-size:13px;color:var(--paper);font-weight:500}
+.fno-val.pos{color:var(--good)}
+.fno-val.neg{color:var(--risk)}
+.fno-decision{font-family:var(--mono);font-size:11.5px;padding:4px 10px;border-radius:5px;display:inline-flex;align-items:center;gap:6px}
+.fno-decision.blocked{background:var(--ink-3);color:var(--paper-faint)}
+.fno-decision.active{background:rgba(var(--good-rgb,34,197,94),.1);color:var(--good)}
+.fno-grade{font-size:10px;opacity:.75}
+/* i-Score card */
+.iscore-card{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:6px;max-width:480px}
+.iscore-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+.score-ring{display:flex;flex-direction:column;align-items:center;gap:3px}
+.score-num{font-family:var(--serif);font-size:36px;color:var(--amber);line-height:1}
+.score-label{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--paper-faint)}
+.iscore-rec{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.rec-badge{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 10px;border-radius:5px;background:var(--ink-3);color:var(--paper)}
+.rec-badge.buy,.rec-badge.strong-buy{background:rgba(var(--good-rgb,34,197,94),.15);color:var(--good)}
+.rec-badge.sell,.rec-badge.strong-sell{background:rgba(var(--risk-rgb,239,68,68),.15);color:var(--risk)}
+.iscore-components{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.iscore-comp-row{display:grid;grid-template-columns:90px 1fr 32px;gap:10px;align-items:center}
+.iscore-comp-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--paper-faint)}
+.iscore-comp-bar-track{height:5px;background:var(--ink-3);border-radius:3px;overflow:hidden}
+.iscore-comp-bar-fill{height:100%;background:var(--amber);opacity:.8;border-radius:3px}
+.iscore-comp-val{font-family:var(--mono);font-size:11px;color:var(--paper-dim);text-align:right}
+.iscore-summary{font-size:12.5px;color:var(--paper-dim);line-height:1.55;border-top:1px solid var(--line-soft);padding-top:10px}
+.disclaimer-inline{font-family:var(--mono);font-size:10px;color:var(--paper-faint);margin-top:8px;line-height:1.5}
 /* prose markdown */
 .bubble-bot ul{margin:6px 0 10px 18px;display:flex;flex-direction:column;gap:4px}
 .bubble-bot li{font-size:14px;color:var(--paper-dim);line-height:1.55}
@@ -125,22 +168,45 @@
               </div>
               <p class="disclaimer-inline">Research output, not a recommendation. Subject to SEBI RA oversight.</p>
             {% elif ctx.get('card_type') == 'fno_signals' and ctx.get('card_data') %}
+              {% set fno = ctx.card_data %}
               <p>{{ ctx.get('content','') }}</p>
-              {% for sig in ctx.card_data.get('signals', []) %}
+              <div class="fno-summary">
+                <div class="fno-summary-row">
+                  <span class="fno-label">Spot</span>
+                  <span class="fno-val">{% if fno.get('spot') %}&#8377;{{ "{:,.2f}".format(fno.spot) }}{% else %}—{% endif %}</span>
+                  <span class="fno-label">ATM</span>
+                  <span class="fno-val">{{ fno.get('atm','—') }}</span>
+                  {% if fno.get('trade_direction') %}
+                    <span class="fno-label">Bias</span>
+                    <span class="fno-val {% if fno.trade_direction == 'BULLISH' %}pos{% elif fno.trade_direction == 'BEARISH' %}neg{% endif %}" style="font-weight:600">{{ fno.trade_direction }}</span>
+                  {% endif %}
+                </div>
+                {% if fno.get('final_decision') %}
+                  <div class="fno-decision {{ 'blocked' if fno.get('is_blocked') else 'active' }}">
+                    {{ fno.final_decision }}
+                    {% if fno.get('confidence_grade') %}
+                      <span class="fno-grade">{{ fno.confidence_grade }}{% if fno.get('confidence') %} &middot; {{ fno.confidence }}%{% endif %}</span>
+                    {% endif %}
+                  </div>
+                {% endif %}
+              </div>
+              {% for sig in fno.get('signals', []) %}
                 <div class="signal-card">
                   <div class="signal-head">
-                    <span class="signal-name">{{ sig.get('strike','') }} {{ sig.get('option_type','') }}</span>
-                    <span class="signal-dir {{ sig.get('direction','buy').lower() }}">{{ sig.get('direction','BUY').upper() }}</span>
+                    <span class="signal-name">{{ sig.get('strike','') }} {{ sig.get('option_type','') }}{% if sig.get('label') %} <span class="sig-label-tag">{{ sig.label }}</span>{% endif %}</span>
+                    <span class="signal-dir {{ sig.get('direction','BUY').lower() }}">{{ sig.get('direction','BUY').upper() }}</span>
                   </div>
                   <div class="signal-metrics">
-                    <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">{{ sig.get('entry','—') }}</span></div>
-                    <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">{{ sig.get('stop_loss','—') }}</span></div>
-                    <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">{{ sig.get('target','—') }}</span></div>
+                    {% if sig.get('ltp') is not none %}<div class="signal-metric"><span class="signal-metric-label">LTP</span><span class="signal-metric-val">&#8377;{{ "%.2f"|format(sig.ltp) }}</span></div>{% endif %}
+                    <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">{% if sig.get('entry') is not none %}&#8377;{{ "%.2f"|format(sig.entry) }}{% else %}—{% endif %}</span></div>
+                    <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">{% if sig.get('stop_loss') is not none %}&#8377;{{ "%.2f"|format(sig.stop_loss) }}{% else %}—{% endif %}</span></div>
+                    <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">{% if sig.get('target') is not none %}&#8377;{{ "%.2f"|format(sig.target) }}{% else %}—{% endif %}</span></div>
+                    {% if sig.get('risk_reward') %}<div class="signal-metric"><span class="signal-metric-label">R:R</span><span class="signal-metric-val">{{ sig.risk_reward }}</span></div>{% endif %}
                   </div>
-                  <div class="conf-bar-track"><div class="conf-bar-fill" style="width:{{ sig.get('confidence',0) }}%"></div></div>
+                  <div class="conf-bar-track"><div class="conf-bar-fill" style="width:{{ [sig.get('confidence',0), 100]|min }}%"></div></div>
                 </div>
               {% endfor %}
-              <p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters.</p>
+              <p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters before trading.</p>
             {% elif ctx.get('card_type') == 'mutual_fund' and ctx.get('card_data') %}
               {% set d = ctx.card_data %}
               <p>{{ ctx.get('content','') }}</p>
@@ -344,18 +410,46 @@ function renderIScoreCard(d) {
 }
 
 function renderFnoCard(d) {
-  return (d.signals || []).map(sig => `<div class="signal-card">
-    <div class="signal-head">
-      <span class="signal-name">${sig.strike || ''} ${sig.option_type || ''}</span>
-      <span class="signal-dir ${(sig.direction || 'buy').toLowerCase()}">${(sig.direction || 'BUY').toUpperCase()}</span>
+  const spot   = d.spot   ? `₹${Number(d.spot).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
+  const atm    = d.atm    ? d.atm : '—';
+  const dir    = d.trade_direction || '';
+  const dec    = d.final_decision  || '';
+  const grade  = d.confidence_grade || '';
+  const conf   = d.confidence != null ? d.confidence : '';
+  const dirCls = dir === 'BULLISH' ? 'pos' : dir === 'BEARISH' ? 'neg' : '';
+
+  // Market summary header
+  let html = `<div class="fno-summary">
+    <div class="fno-summary-row">
+      <span class="fno-label">Spot</span><span class="fno-val">${spot}</span>
+      <span class="fno-label">ATM</span><span class="fno-val">${atm}</span>
+      ${dir ? `<span class="fno-label">Bias</span><span class="fno-val ${dirCls}" style="font-weight:600">${dir}</span>` : ''}
     </div>
-    <div class="signal-metrics">
-      <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">${sig.entry || '—'}</span></div>
-      <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">${sig.stop_loss || '—'}</span></div>
-      <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">${sig.target || '—'}</span></div>
-    </div>
-    <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${sig.confidence || 0}%"></div></div>
-  </div>`).join('') + `<p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters.</p>`;
+    ${dec ? `<div class="fno-decision ${d.is_blocked ? 'blocked' : 'active'}">
+      ${dec}${grade ? ` <span class="fno-grade">${grade}${conf ? ' · ' + conf + '%' : ''}</span>` : ''}
+    </div>` : ''}
+  </div>`;
+
+  const sigs = d.signals || [];
+  if (sigs.length > 0) {
+    html += sigs.map(sig => `<div class="signal-card">
+      <div class="signal-head">
+        <span class="signal-name">${sig.strike || ''} ${sig.option_type || ''}${sig.label ? ` <span class="sig-label-tag">${sig.label}</span>` : ''}</span>
+        <span class="signal-dir ${(sig.direction || 'buy').toLowerCase()}">${(sig.direction || 'BUY').toUpperCase()}</span>
+      </div>
+      <div class="signal-metrics">
+        <div class="signal-metric"><span class="signal-metric-label">LTP</span><span class="signal-metric-val">₹${sig.ltp != null ? Number(sig.ltp).toFixed(2) : '—'}</span></div>
+        <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">₹${sig.entry != null ? Number(sig.entry).toFixed(2) : '—'}</span></div>
+        <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">₹${sig.stop_loss != null ? Number(sig.stop_loss).toFixed(2) : '—'}</span></div>
+        <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">₹${sig.target != null ? Number(sig.target).toFixed(2) : '—'}</span></div>
+        ${sig.risk_reward ? `<div class="signal-metric"><span class="signal-metric-label">R:R</span><span class="signal-metric-val">${sig.risk_reward}</span></div>` : ''}
+      </div>
+      <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${Math.min(sig.confidence || 0, 100)}%"></div></div>
+    </div>`).join('');
+  }
+
+  html += `<p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters before trading.</p>`;
+  return html;
 }
 
 function renderMfCard(d) {

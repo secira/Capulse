@@ -68,6 +68,12 @@ def classify_intent(message: str, conversation_history: list = None) -> Dict[str
             }]
         )
         text = response.content[0].text.strip()
+        # Strip markdown code fences if Claude wraps the JSON
+        if text.startswith('```'):
+            text = text.split('```', 2)[1]          # drop opening fence line
+            if text.startswith('json'):
+                text = text[4:]                      # strip the 'json' language tag
+            text = text.rsplit('```', 1)[0].strip()  # drop closing fence
         result = json.loads(text)
         if result.get('confidence', 1.0) < 0.6:
             result['intent'] = 'GENERAL'
@@ -79,68 +85,136 @@ def classify_intent(message: str, conversation_history: list = None) -> Dict[str
 
 
 def handle_iscore(symbol: str, user_id: int) -> Dict[str, Any]:
-    """Get i-Score for a stock symbol."""
+    """Get i-Score for a stock symbol using IScoreWorkflow."""
     try:
         if not symbol:
-            return {'card_type': 'prose', 'content': "Which stock would you like an i-Score for? Try asking: **i-Score for Reliance** or **rate HDFC Bank**."}
+            return {
+                'card_type': 'prose',
+                'content': "Which stock would you like an i-Score for? Try: **i-Score for Reliance**, **rate TCS**, or **score HDFC Bank**."
+            }
 
-        from services.iscore import IScoreService
-        service = IScoreService()
-        result = service.get_iscore(symbol.upper())
+        from services.workflow_iscore import IScoreWorkflow
+        wf = IScoreWorkflow()
+        result = wf.calculate_iscore(symbol.upper(), 'stocks', user_id)
 
-        if result and result.get('score') is not None:
+        res = result.get('results', {})
+        overall_score = res.get('overall_score') or 0
+        recommendation = res.get('recommendation', 'HOLD')
+        summary = res.get('recommendation_summary', '')
+
+        # Build component breakdown (quant 50%, qual 15%, sentiment 10%, trend 25%)
+        components = {}
+        for label, key in [('Quantitative', 'quantitative'), ('Trend', 'trend'),
+                           ('Qualitative', 'qualitative'), ('Sentiment', 'search')]:
+            s = (res.get(key) or {}).get('score')
+            if s is not None:
+                components[label] = round(float(s))
+
+        if overall_score > 0:
             return {
                 'card_type': 'iscore',
                 'content': f"Here's the current i-Score for **{symbol.upper()}**:",
                 'card_data': {
                     'symbol': symbol.upper(),
-                    'score': result.get('score', 0),
-                    'components': result.get('components', {}),
-                    'recommendation': result.get('recommendation', ''),
-                    'summary': result.get('summary', ''),
+                    'score': round(overall_score, 1),
+                    'components': components,
+                    'recommendation': recommendation,
+                    'summary': summary,
                 }
             }
-        else:
-            return {'card_type': 'prose', 'content': f"I couldn't fetch an i-Score for **{symbol.upper()}** right now. The data service may be temporarily unavailable. Please try again in a moment, or check that the ticker symbol is correct (e.g. RELIANCE, TCS, HDFCBANK)."}
 
-    except ImportError:
-        return _iscore_fallback(symbol)
+        return {
+            'card_type': 'prose',
+            'content': (
+                f"I couldn't compute an i-Score for **{symbol.upper()}** right now — "
+                f"price data may be temporarily unavailable. "
+                f"Check the ticker is correct (e.g. RELIANCE, TCS, HDFCBANK) and try again."
+            )
+        }
+
     except Exception as e:
-        logger.error(f"i-Score error for {symbol}: {e}")
-        return _iscore_fallback(symbol)
-
-
-def _iscore_fallback(symbol: str) -> Dict[str, Any]:
-    return {
-        'card_type': 'prose',
-        'content': f"The i-Score engine for **{symbol.upper()}** requires the ANTHROPIC_API_KEY to be configured. Once set up, I'll analyse fundamentals, momentum, valuation, sentiment, and risk — and return a composite 0–100 score with a full breakdown.\n\nTo enable this, please configure the AI service keys in your settings."
-    }
+        logger.error(f"i-Score error for {symbol}: {e}", exc_info=True)
+        return {
+            'card_type': 'prose',
+            'content': (
+                f"The i-Score engine hit an error for **{symbol.upper()}**. "
+                f"Please try again in a moment."
+            )
+        }
 
 
 def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[str, Any]:
-    """Get F&O signals for NIFTY/BANKNIFTY."""
+    """Get F&O analysis for NIFTY/BANKNIFTY using NiftyOptionsEngine.generate_analysis()."""
     try:
         idx = (index or 'NIFTY').upper()
         from services.nifty_options_engine import NiftyOptionsEngine
-        engine = NiftyOptionsEngine()
-        signals = engine.generate_signals(idx)
+        engine = NiftyOptionsEngine(index=idx, user_id=user_id)
+        analysis = engine.generate_analysis()
 
-        if signals and isinstance(signals, list) and len(signals) > 0:
-            return {
-                'card_type': 'fno_signals',
-                'content': f"Here are today's F&O signals for **{idx}**:",
-                'card_data': {
-                    'index': idx,
-                    'signals': signals[:3],
-                }
-            }
+        spot            = analysis.get('spot_price') or 0
+        atm             = analysis.get('atm_strike') or 0
+        trade_direction = analysis.get('trade_direction', 'NEUTRAL')
+        final_decision  = analysis.get('final_decision', 'WAIT')
+        confidence      = analysis.get('confidence') or 0
+        confidence_grade = analysis.get('confidence_grade', '')
+        is_blocked      = analysis.get('is_blocked', False)
+        block_reasons   = analysis.get('block_reasons', [])
+        trades          = analysis.get('trades', [])
+        data_source     = analysis.get('data_source', 'estimated')
+
+        # Format trades into signal-card dicts
+        signals = []
+        for t in trades[:3]:
+            signals.append({
+                'strike':      t.get('strike'),
+                'option_type': t.get('type', ''),          # CE / PE
+                'direction':   t.get('action', 'BUY'),     # BUY / SELL
+                'entry':       t.get('entry_price'),
+                'stop_loss':   t.get('sl'),
+                'target':      t.get('target'),
+                'confidence':  t.get('confidence', 0),
+                'label':       t.get('label', ''),
+                'risk_reward': t.get('risk_reward', ''),
+                'ltp':         t.get('ltp'),
+            })
+
+        spot_str = f"₹{spot:,.2f}" if spot else "—"
+
+        # Build a plain-English summary line
+        if is_blocked or final_decision in ('NO TRADE', 'WAIT', 'AVOID'):
+            reasons_md = '\n'.join(f"- {r}" for r in block_reasons[:4]) if block_reasons else ""
+            parts = [f"**{idx}** · Spot: {spot_str} · ATM: {atm}"]
+            if trade_direction and trade_direction not in ('NEUTRAL', ''):
+                parts.append(f"Bias: **{trade_direction}**")
+            parts.append(f"Signal: **{final_decision}**")
+            if reasons_md:
+                parts.append(f"\nWhy no trade right now:\n{reasons_md}")
+            content = "  \n".join(parts)
         else:
-            return {'card_type': 'prose', 'content': f"No signals are available for {idx} right now. The F&O engine runs during market hours (9:15 AM – 3:30 PM IST). Outside market hours, signals from the last session may not be available. Try again when the market is open."}
+            content = (
+                f"**{idx}** F&O signals · Spot: {spot_str} · ATM: {atm} · "
+                f"Bias: **{trade_direction}** · Confidence: **{confidence_grade}** ({confidence}%)"
+            )
 
-    except ImportError:
-        return _fno_fallback(index)
+        return {
+            'card_type': 'fno_signals',
+            'content': content,
+            'card_data': {
+                'index':            idx,
+                'spot':             spot,
+                'atm':              atm,
+                'trade_direction':  trade_direction,
+                'final_decision':   final_decision,
+                'confidence':       confidence,
+                'confidence_grade': confidence_grade,
+                'is_blocked':       is_blocked,
+                'signals':          signals,
+                'data_source':      data_source,
+            }
+        }
+
     except Exception as e:
-        logger.error(f"F&O signal error: {e}")
+        logger.error(f"F&O signal error for {index}: {e}", exc_info=True)
         return _fno_fallback(index)
 
 
@@ -148,7 +222,12 @@ def _fno_fallback(index: str) -> Dict[str, Any]:
     idx = (index or 'NIFTY').upper()
     return {
         'card_type': 'prose',
-        'content': f"The F&O signal engine for **{idx}** analyses options chain data, implied volatility, VWAP, and momentum indicators to generate ranked trade signals.\n\nThe engine is configured and ready — signals are generated during market hours (9:15 AM – 3:30 PM IST). Check back when the market is open."
+        'content': (
+            f"The F&O engine for **{idx}** analyses option chain OI, IV, VWAP, RSI, "
+            f"Supertrend, and EMA momentum to generate ranked trade signals.\n\n"
+            f"Signals are generated during market hours (9:15 AM – 3:30 PM IST). "
+            f"Try again when the market is open."
+        )
     }
 
 
