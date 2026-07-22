@@ -1,0 +1,32 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "jvu7MEKl1TBMr6ZTHFCiS"
+uri = "file://attached_assets/generated_videos/capulse_01_intro.mp4"
+type = "video"
+title = "Scene 1 — Brand Reveal"
+
+[[outputs]]
+id = "hODB5SGqZQ_wXiBylHFVE"
+uri = "file://attached_assets/generated_videos/capulse_02_problem.mp4"
+type = "video"
+title = "Scene 2 — The Problem"
+
+[[outputs]]
+id = "KGahymNK4n4oQZKgHltKf"
+uri = "file://attached_assets/generated_videos/capulse_03_chat.mp4"
+type = "video"
+title = "Scene 3 — Chat-First AI"
+
+[[outputs]]
+id = "yWmkassEgcsVsLleTPOpN"
+uri = "file://attached_assets/generated_videos/capulse_04_intelligence.mp4"
+type = "video"
+title = "Scene 4 — Market Intelligence"
+
+[[outputs]]
+id = "JKgqjnMwtNR_YYc2HL6uQ"
+uri = "file://attached_assets/generated_videos/capulse_05_cta.mp4"
+type = "video"
+title = "Scene 5 — Call to Action"
