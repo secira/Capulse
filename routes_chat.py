@@ -99,7 +99,9 @@ def _auto_title(message: str) -> str:
 def chat_home():
     """Main Capulse chat interface — public landing, no login required."""
     session_id = request.args.get('session_id')
-    prefill_q  = request.args.get('q', '').strip()   # sidebar quick-action pre-fill
+    import json as _json
+    prefill_q     = request.args.get('q', '').strip()   # sidebar quick-action pre-fill
+    prefill_q_js  = _json.dumps(prefill_q)               # safe JS literal, e.g. "" or "NIFTY signals"
     sessions = []
     today_usage = 0
     messages_history = []
@@ -137,6 +139,7 @@ def chat_home():
         messages_history=messages_history,
         current_session_id=current_session_id,
         prefill_q=prefill_q,
+        prefill_q_js=prefill_q_js,
         has_holdings=has_holdings,
     )
 

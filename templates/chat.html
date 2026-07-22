@@ -201,7 +201,7 @@ let currentSessionId = "{{ current_session_id or '' }}";
 const LOGIN_URL    = "{{ url_for('login') }}";
 const REGISTER_URL = "{{ url_for('register') }}";
 const MOBILE_LOGIN_URL = "{{ url_for('mobile_login') }}";
-const PREFILL_Q  = {{ prefill_q | tojson }};
+const PREFILL_Q  = {{ prefill_q_js | default('""') | safe }};
 
 const messagesEl = document.getElementById('messages');
 const msgWrap    = document.getElementById('msgWrap');
