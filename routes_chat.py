@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 chat_bp = Blueprint('chat', __name__)
 
-DAILY_LIMIT_FREE = 20
+DAILY_LIMIT_FREE = 5
 DAILY_LIMIT_PAID = 200
 
 
