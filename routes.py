@@ -1672,13 +1672,12 @@ def profile():
         flash('Profile updated successfully!', 'success')
         return redirect(url_for('profile'))
     
-    # Get user statistics
-    try:
-        from models import TradingSignal
-        trading_signals_count = TradingSignal.query.filter(TradingSignal.status == 'ACTIVE').count()
-    except (ImportError, AttributeError):
-        trading_signals_count = 0
+    # Sidebar variables required by capulse_base.html
+    from routes_chat import _get_user_sessions, _get_today_usage
+    sessions = _get_user_sessions(current_user.id) if current_user.is_authenticated else []
+    today_usage = _get_today_usage(current_user.id) if current_user.is_authenticated else 0
 
+    # Page statistics
     try:
         analyses_count = StockAnalysis.query.count()
     except Exception:
@@ -1691,7 +1690,9 @@ def profile():
         watchlist_count = 0
 
     return render_template('auth/profile.html',
-                           trading_signals_count=trading_signals_count,
+                           active_page='profile',
+                           sessions=sessions,
+                           today_usage=today_usage,
                            analyses_count=analyses_count,
                            watchlist_count=watchlist_count)
 

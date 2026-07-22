@@ -1,304 +1,271 @@
-{% extends "base.html" %}
+{% extends "capulse_base.html" %}
 
-{% block title %}User Profile — Capulse{% endblock %}
+{% block title %}Profile — Capulse{% endblock %}
 
-{% block extra_head %}
-<style>
-  .profile-wrapper {
-    padding-top: 110px;
-    padding-bottom: 60px;
-    min-height: 100vh;
-    background: #f8f9fa;
-  }
-
-  /* ── Main profile card ── */
-  .profile-card {
-    border: 0;
-    border-radius: 12px;
-    box-shadow: 0 2px 20px rgba(0,0,0,.08);
-    overflow: hidden;
-  }
-  .profile-card .card-header {
-    background: #0d6efd;
-    color: #fff;
-    padding: 18px 28px;
-    border-bottom: 0;
-  }
-  .profile-card .card-header h4 {
-    font-family: 'Poppins', 'Inter', sans-serif;
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .profile-card .card-body {
-    padding: 28px 28px 24px;
-    background: #fff;
-  }
-
-  /* ── Form controls ── */
-  .profile-card .form-label {
-    font-size: 13.5px;
-    font-weight: 500;
-    color: #374151;
-    margin-bottom: 5px;
-  }
-  .profile-card .form-control {
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 14px;
-    color: #111827;
-    padding: 8px 12px;
-    background: #fff;
-    transition: border-color .15s, box-shadow .15s;
-  }
-  .profile-card .form-control:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 3px rgba(13,110,253,.12);
-    outline: none;
-  }
-  .profile-card .form-control::placeholder {
-    color: #9ca3af;
-  }
-
-  /* ── Section divider ── */
-  .section-divider {
-    margin: 24px 0 20px;
-    border-color: #e5e7eb;
-  }
-  .section-title {
-    font-family: 'Poppins', 'Inter', sans-serif;
-    font-size: .95rem;
-    font-weight: 600;
-    color: #111827;
-    margin-bottom: 16px;
-  }
-
-  /* ── Action buttons ── */
-  .btn-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    border: 1px solid #d1d5db;
-    background: #fff;
-    color: #374151;
-    border-radius: 7px;
-    padding: 9px 18px;
-    font-size: 13.5px;
-    font-weight: 500;
-    text-decoration: none;
-    transition: background .15s, border-color .15s;
-  }
-  .btn-back:hover {
-    background: #f3f4f6;
-    border-color: #9ca3af;
-    color: #111827;
-  }
-  .btn-update {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    background: #0d6efd;
-    color: #fff;
-    border: 0;
-    border-radius: 7px;
-    padding: 9px 22px;
-    font-size: 13.5px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background .15s;
-  }
-  .btn-update:hover {
-    background: #0b5ed7;
-  }
-
-  /* ── Account statistics card ── */
-  .stats-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 24px 28px;
-    box-shadow: 0 1px 8px rgba(0,0,0,.05);
-  }
-  .stats-card h6 {
-    font-family: 'Poppins', 'Inter', sans-serif;
-    font-size: .88rem;
-    font-weight: 700;
-    color: #111827;
-    margin-bottom: 20px;
-  }
-  .stat-col {
-    text-align: center;
-  }
-  .stat-col .stat-icon {
-    font-size: 1.6rem;
-    margin-bottom: 8px;
-    display: block;
-  }
-  .stat-col .stat-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: #374151;
-    margin-bottom: 2px;
-  }
-  .stat-col .stat-val {
-    font-size: 12.5px;
-    color: #6b7280;
-    margin: 0;
-  }
-
-  /* ── Flash alerts ── */
-  .profile-alert {
-    border-radius: 8px;
-    font-size: 13.5px;
-    padding: 10px 16px;
-    margin-bottom: 18px;
-  }
-</style>
+{% block header_left %}
+  <span style="font-family:var(--mono);font-size:11.5px;color:var(--paper-dim)">Account &rsaquo; Profile</span>
 {% endblock %}
 
-{% block content %}
-<div class="profile-wrapper">
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-lg-7 col-md-9">
+{% block extra_css %}
+/* ── profile layout ── */
+.profile-scroll { flex:1; overflow-y:auto; }
+.profile-scroll::-webkit-scrollbar { width:8px }
+.profile-scroll::-webkit-scrollbar-thumb { background:var(--ink-3);border-radius:4px }
+.profile-inner { max-width:680px; margin:0 auto; padding:36px 24px 80px; }
 
-        <!-- Flash messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% for category, message in messages %}
-            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show profile-alert" role="alert">
-              {{ message }}
-              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-          {% endfor %}
-        {% endwith %}
+/* ── section heading ── */
+.prof-eyebrow {
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--amber);
+  display:flex; align-items:center; gap:9px; margin-bottom:20px;
+}
+.prof-eyebrow::before { content:""; width:14px; height:1px; background:var(--amber); }
 
-        <!-- Profile card -->
-        <div class="card profile-card mb-4">
-          <div class="card-header">
-            <h4>
-              <i class="fas fa-user-circle"></i>
-              User Profile
-            </h4>
-          </div>
-          <div class="card-body">
-            <form method="POST" action="{{ url_for('profile') }}">
+/* ── card ── */
+.prof-card {
+  background:var(--ink-2); border:1px solid var(--line);
+  border-radius:var(--radius-lg); overflow:hidden; margin-bottom:20px;
+}
+.prof-card-head {
+  display:flex; align-items:center; gap:10px;
+  padding:14px 20px; border-bottom:1px solid var(--line);
+}
+.prof-card-head svg { width:15px; height:15px; color:var(--amber); flex-shrink:0; }
+.prof-card-head span {
+  font-family:var(--mono); font-size:11px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--paper-dim);
+}
+.prof-card-body { padding:22px 20px; }
 
-              <!-- Name row -->
-              <div class="row mb-3">
-                <div class="col-md-6 mb-3 mb-md-0">
-                  <label for="first_name" class="form-label">First Name</label>
-                  <input type="text" class="form-control" id="first_name" name="first_name"
-                         value="{{ current_user.first_name or '' }}"
-                         placeholder="First name">
-                </div>
-                <div class="col-md-6">
-                  <label for="last_name" class="form-label">Last Name</label>
-                  <input type="text" class="form-control" id="last_name" name="last_name"
-                         value="{{ current_user.last_name or '' }}"
-                         placeholder="Last name">
-                </div>
-              </div>
+/* ── form controls ── */
+.prof-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+.prof-row.single { grid-template-columns:1fr; }
+.prof-field { display:flex; flex-direction:column; gap:5px; }
+.prof-label {
+  font-family:var(--mono); font-size:10px; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--paper-faint);
+}
+.prof-input {
+  background:var(--ink); border:1px solid var(--line); border-radius:var(--radius);
+  padding:9px 12px; font-family:var(--sans); font-size:13.5px;
+  color:var(--paper); transition:border-color .15s, box-shadow .15s;
+  outline:none;
+}
+.prof-input:focus { border-color:var(--amber-dim); box-shadow:0 0 0 3px var(--amber-soft); }
+.prof-input::placeholder { color:var(--paper-faint); }
+.prof-input[readonly] { color:var(--paper-dim); cursor:default; }
 
-              <!-- Username -->
-              <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
-                <input type="text" class="form-control" id="username" name="username"
-                       value="{{ current_user.username }}" required>
-              </div>
+/* ── divider inside card ── */
+.prof-sep { border:none; border-top:1px solid var(--line); margin:20px 0; }
+.prof-subsection {
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--paper-faint); margin-bottom:14px;
+}
 
-              <!-- Email -->
-              <div class="mb-1">
-                <label for="email" class="form-label">Email Address</label>
-                <input type="email" class="form-control" id="email" name="email"
-                       value="{{ current_user.email }}" required>
-              </div>
+/* ── actions ── */
+.prof-actions { display:flex; justify-content:space-between; align-items:center; margin-top:22px; }
+.btn-back-dark {
+  display:inline-flex; align-items:center; gap:7px;
+  border:1px solid var(--line); background:none; border-radius:6px;
+  padding:9px 16px; font-family:var(--sans); font-size:13px;
+  font-weight:500; color:var(--paper-dim); text-decoration:none;
+  transition:border-color .15s, color .15s;
+}
+.btn-back-dark:hover { border-color:var(--paper-faint); color:var(--paper); }
+.btn-back-dark svg { width:13px; height:13px; }
+.btn-save {
+  display:inline-flex; align-items:center; gap:7px;
+  background:var(--amber); color:#171008; border:none; border-radius:6px;
+  padding:9px 20px; font-family:var(--sans); font-size:13px;
+  font-weight:600; cursor:pointer; transition:background .15s;
+}
+.btn-save:hover { background:#f0ac48; }
+.btn-save svg { width:13px; height:13px; }
 
-              <hr class="section-divider">
+/* ── stats card ── */
+.stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); }
+.stat-cell { background:var(--ink-2); padding:18px 14px; text-align:center; }
+.stat-icon-wrap { margin-bottom:8px; }
+.stat-icon-wrap svg { width:18px; height:18px; }
+.stat-val { font-family:var(--serif); font-size:18px; color:var(--paper); margin-bottom:2px; }
+.stat-lbl { font-family:var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--paper-faint); }
 
-              <!-- Change password -->
-              <p class="section-title">Change Password</p>
-              <div class="row mb-4">
-                <div class="col-md-6 mb-3 mb-md-0">
-                  <label for="new_password" class="form-label">New Password</label>
-                  <input type="password" class="form-control" id="new_password" name="new_password"
-                         placeholder="Leave blank to keep current password">
-                </div>
-                <div class="col-md-6">
-                  <label for="confirm_password" class="form-label">Confirm New Password</label>
-                  <input type="password" class="form-control" id="confirm_password" name="confirm_password"
-                         placeholder="Confirm new password">
-                </div>
-              </div>
+/* ── flash ── */
+.prof-flash { border-radius:6px; padding:10px 14px; margin-bottom:16px;
+  font-family:var(--mono); font-size:12px; }
+.prof-flash.success { background:rgba(127,174,132,.12); color:var(--good);
+  border:1px solid rgba(127,174,132,.2); }
+.prof-flash.error,
+.prof-flash.danger { background:rgba(201,122,107,.12); color:var(--risk);
+  border:1px solid rgba(201,122,107,.2); }
+.prof-flash.info { background:var(--amber-soft); color:var(--amber);
+  border:1px solid rgba(233,162,59,.2); }
 
-              <!-- Actions -->
-              <div class="d-flex justify-content-between align-items-center">
-                <a href="{{ url_for('chat.chat_home') }}" class="btn-back">
-                  <i class="fas fa-arrow-left"></i>Back to Dashboard
-                </a>
-                <button type="submit" class="btn-update">
-                  <i class="fas fa-save"></i>Update Profile
-                </button>
-              </div>
+@media(max-width:600px){
+  .prof-row { grid-template-columns:1fr; }
+  .stat-grid { grid-template-columns:1fr 1fr; }
+}
+{% endblock %}
 
-            </form>
-          </div>
+{% block main_content %}
+<div class="profile-scroll">
+  <div class="profile-inner">
+
+    <div class="prof-eyebrow">User Profile</div>
+
+    {# ── flash messages ── #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="prof-flash {{ 'error' if category == 'error' else category }}">
+          {{ message }}
         </div>
+      {% endfor %}
+    {% endwith %}
 
-        <!-- Account statistics -->
-        <div class="stats-card">
-          <h6>Account Statistics</h6>
-          <div class="row text-center g-3">
-            <div class="col-6 col-md-3 stat-col">
-              <span class="stat-icon"><i class="fas fa-calendar-alt text-primary"></i></span>
-              <p class="stat-label">Member Since</p>
-              <p class="stat-val">
-                {% if current_user.created_at %}
-                  {{ current_user.created_at.strftime('%B %Y') }}
-                {% else %}
-                  —
-                {% endif %}
-              </p>
+    {# ── main form card ── #}
+    <div class="prof-card">
+      <div class="prof-card-head">
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <span>Personal Information</span>
+      </div>
+      <div class="prof-card-body">
+        <form method="POST" action="{{ url_for('profile') }}">
+
+          <div class="prof-row">
+            <div class="prof-field">
+              <label class="prof-label" for="first_name">First Name</label>
+              <input class="prof-input" type="text" id="first_name" name="first_name"
+                     value="{{ current_user.first_name or '' }}" placeholder="First name">
             </div>
-            <div class="col-6 col-md-3 stat-col">
-              <span class="stat-icon"><i class="fas fa-eye text-success"></i></span>
-              <p class="stat-label">Watchlist Items</p>
-              <p class="stat-val">{{ watchlist_count }} stocks</p>
-            </div>
-            <div class="col-6 col-md-3 stat-col">
-              <span class="stat-icon"><i class="fas fa-chart-line text-warning"></i></span>
-              <p class="stat-label">Analyses Viewed</p>
-              <p class="stat-val">{{ analyses_count }} reports</p>
-            </div>
-            <div class="col-6 col-md-3 stat-col">
-              <span class="stat-icon"><i class="fas fa-sign-in-alt text-info"></i></span>
-              <p class="stat-label">Last Login</p>
-              <p class="stat-val">
-                {% if current_user.last_login %}
-                  {{ current_user.last_login.strftime('%d/%m/%Y') }}
-                {% else %}
-                  First time
-                {% endif %}
-              </p>
+            <div class="prof-field">
+              <label class="prof-label" for="last_name">Last Name</label>
+              <input class="prof-input" type="text" id="last_name" name="last_name"
+                     value="{{ current_user.last_name or '' }}" placeholder="Last name">
             </div>
           </div>
-        </div>
 
+          <div class="prof-row single">
+            <div class="prof-field">
+              <label class="prof-label" for="username">Username</label>
+              <input class="prof-input" type="text" id="username" name="username"
+                     value="{{ current_user.username }}" required>
+            </div>
+          </div>
+
+          <div class="prof-row single">
+            <div class="prof-field">
+              <label class="prof-label" for="email">Email Address</label>
+              <input class="prof-input" type="email" id="email" name="email"
+                     value="{{ current_user.email }}" required>
+            </div>
+          </div>
+
+          <hr class="prof-sep">
+          <p class="prof-subsection">Change Password</p>
+
+          <div class="prof-row">
+            <div class="prof-field">
+              <label class="prof-label" for="new_password">New Password</label>
+              <input class="prof-input" type="password" id="new_password" name="new_password"
+                     placeholder="Leave blank to keep current">
+            </div>
+            <div class="prof-field">
+              <label class="prof-label" for="confirm_password">Confirm Password</label>
+              <input class="prof-input" type="password" id="confirm_password" name="confirm_password"
+                     placeholder="Confirm new password">
+            </div>
+          </div>
+
+          <div class="prof-actions">
+            <a href="{{ url_for('chat.chat_home') }}" class="btn-back-dark">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Back to Chat
+            </a>
+            <button type="submit" class="btn-save">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><polyline points="17 21 17 13 7 13 7 21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><polyline points="7 3 7 8 15 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Update Profile
+            </button>
+          </div>
+
+        </form>
       </div>
     </div>
+
+    {# ── account statistics card ── #}
+    <div class="prof-card">
+      <div class="prof-card-head">
+        <svg viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M3 9H21M9 21V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <span>Account Statistics</span>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-cell">
+          <div class="stat-icon-wrap" style="color:var(--signal-blue)">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M16 2V6M8 2V6M3 10H21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </div>
+          <div class="stat-val">{{ current_user.created_at.strftime('%b %Y') if current_user.created_at else '—' }}</div>
+          <div class="stat-lbl">Member Since</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-icon-wrap" style="color:var(--good)">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/></svg>
+          </div>
+          <div class="stat-val">{{ watchlist_count }}</div>
+          <div class="stat-lbl">Watchlist</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-icon-wrap" style="color:var(--amber)">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M3 17L9 11L13 15L21 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="stat-val">{{ analyses_count }}</div>
+          <div class="stat-lbl">Analyses</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-icon-wrap" style="color:var(--paper-faint)">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M15 3H19a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><rect x="9" y="1" width="6" height="4" rx="1" stroke="currentColor" stroke-width="1.6"/></svg>
+          </div>
+          <div class="stat-val">
+            {% if current_user.last_login %}{{ current_user.last_login.strftime('%d %b') }}{% else %}—{% endif %}
+          </div>
+          <div class="stat-lbl">Last Login</div>
+        </div>
+      </div>
+    </div>
+
+    {# ── plan info ── #}
+    <div class="prof-card">
+      <div class="prof-card-head">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2V22M17 6H9.5C8.12 6 7 7.12 7 8.5S8.12 11 9.5 11H14.5C15.88 11 17 12.12 17 13.5S15.88 16 14.5 16H7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Subscription</span>
+      </div>
+      <div class="prof-card-body" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
+        <div>
+          <div style="font-family:var(--serif);font-size:20px;color:var(--paper);margin-bottom:4px">
+            {{ current_user.get_plan_display_name() }}
+          </div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--paper-faint)">
+            {% set expiry = current_user.plan_expires_at() %}
+            Expires {{ expiry.strftime('%d %b %Y') if expiry else 'N/A' }}
+          </div>
+        </div>
+        <a href="{{ url_for('account_billing') }}" class="btn btn-ghost" style="font-size:13px;">
+          Manage →
+        </a>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <script>
 document.getElementById('confirm_password').addEventListener('input', function () {
-  const newPass = document.getElementById('new_password').value;
-  if (newPass && this.value && newPass !== this.value) {
-    this.setCustomValidity('Passwords do not match');
-  } else {
-    this.setCustomValidity('');
-  }
+  const np = document.getElementById('new_password').value;
+  this.setCustomValidity(np && this.value && np !== this.value ? 'Passwords do not match' : '');
 });
 </script>
 {% endblock %}
