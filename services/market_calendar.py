@@ -37,18 +37,26 @@ def get_holiday(d: Optional[date] = None) -> Optional[dict]:
     trading holiday, else None."""
     target = d or _today_ist()
     try:
-        from app import db
-        row = db.session.execute(db.text(
-            "SELECT holiday_date, holiday_name, day_of_week "
-            "FROM market_holiday WHERE holiday_date = :d LIMIT 1"
-        ), {'d': target}).fetchone()
-        if not row:
-            return None
-        return {
-            'date': row[0],
-            'name': row[1],
-            'day_of_week': row[2],
-        }
+        from flask import has_app_context
+        from app import app, db
+
+        def _query():
+            row = db.session.execute(db.text(
+                "SELECT holiday_date, holiday_name, day_of_week "
+                "FROM market_holiday WHERE holiday_date = :d LIMIT 1"
+            ), {'d': target}).fetchone()
+            if not row:
+                return None
+            return {
+                'date': row[0],
+                'name': row[1],
+                'day_of_week': row[2],
+            }
+
+        if has_app_context():
+            return _query()
+        with app.app_context():
+            return _query()
     except Exception as e:
         logger.warning(f"market_calendar.get_holiday failed: {e}")
         return None
