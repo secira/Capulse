@@ -71,6 +71,15 @@
 {% endblock %}
 
 {% block main_content %}
+{% if current_user.is_authenticated and not has_holdings %}
+<div id="holdingsBanner" style="background:var(--amber-soft);border-bottom:1px solid var(--amber-dim);padding:9px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+  <span style="font-family:var(--mono);font-size:11.5px;color:var(--amber)">Add your holdings to unlock Portfolio &amp; Behavioural analysis</span>
+  <div style="display:flex;align-items:center;gap:12px">
+    <a href="/dashboard/my-portfolio" style="font-family:var(--mono);font-size:11.5px;color:var(--amber);text-decoration:underline">Add holdings →</a>
+    <button onclick="document.getElementById('holdingsBanner').style.display='none'" style="background:none;border:none;color:var(--amber);font-size:16px;line-height:1;opacity:.6;cursor:pointer">&times;</button>
+  </div>
+</div>
+{% endif %}
 <div class="messages" id="messages">
   <div class="empty" id="emptyState"{% if messages_history %} style="display:none"{% endif %}>
     <h2>What are you looking into today?</h2>
@@ -192,6 +201,7 @@ let currentSessionId = "{{ current_session_id or '' }}";
 const LOGIN_URL    = "{{ url_for('login') }}";
 const REGISTER_URL = "{{ url_for('register') }}";
 const MOBILE_LOGIN_URL = "{{ url_for('mobile_login') }}";
+const PREFILL_Q  = {{ ('"' + prefill_q|replace('"', '\\"') + '"') if prefill_q else '""' }};
 
 const messagesEl = document.getElementById('messages');
 const msgWrap    = document.getElementById('msgWrap');
@@ -499,4 +509,18 @@ async function trySend() {
 }
 
 if (msgWrap && msgWrap.children.length > 0) scrollBottom();
+
+// Sidebar quick-action pre-fill — auto-populate input; auto-submit only if query is complete
+if (PREFILL_Q) {
+  input.value = PREFILL_Q;
+  autosize();
+  // Only auto-submit if the query doesn't end with a space (i.e. it's a full prompt, not a stub)
+  if (!PREFILL_Q.endsWith(' ') && !PREFILL_Q.endsWith(':') && !PREFILL_Q.endsWith('_')) {
+    setTimeout(() => trySend(), 300);
+  } else {
+    // Stub (e.g. "I-Score for ") — focus so user can type the stock name
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+}
 {% endblock %}

@@ -3285,7 +3285,7 @@ class AccountManager(db.Model):
             manager = cls(
                 name='Rajesh Kumar',
                 title='Senior Account Manager',
-                email='rajesh.kumar@targetcapital.com',
+                email='support@capulse.tech',
                 phone='+91 98765 43210',
                 whatsapp='+919876543210',
                 experience_years=8,

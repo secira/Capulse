@@ -99,10 +99,12 @@ def _auto_title(message: str) -> str:
 def chat_home():
     """Main Capulse chat interface — public landing, no login required."""
     session_id = request.args.get('session_id')
+    prefill_q  = request.args.get('q', '').strip()   # sidebar quick-action pre-fill
     sessions = []
     today_usage = 0
     messages_history = []
     current_session_id = None
+    has_holdings = False
 
     if current_user.is_authenticated:
         sessions = _get_user_sessions(current_user.id)
@@ -118,6 +120,15 @@ def chat_home():
                     conversation_id=conv.id
                 ).order_by(ChatMessage.created_at.asc()).all()
 
+        # Check if user has any manual equity holdings (for the "add holdings" prompt)
+        try:
+            from models import ManualEquityHolding
+            has_holdings = ManualEquityHolding.query.filter_by(
+                user_id=current_user.id
+            ).count() > 0
+        except Exception:
+            has_holdings = True  # don't show the prompt if model is unavailable
+
     return render_template(
         'chat.html',
         active_page='chat',
@@ -125,6 +136,8 @@ def chat_home():
         today_usage=today_usage,
         messages_history=messages_history,
         current_session_id=current_session_id,
+        prefill_q=prefill_q,
+        has_holdings=has_holdings,
     )
 
 

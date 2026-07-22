@@ -257,27 +257,46 @@ h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:-0.01em}
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       New chat
     </a>
-    <div class="sidebar-label">Menu</div>
+    <div class="sidebar-label">Research</div>
     <div class="nav-menu">
       <a href="{{ url_for('chat.chat_home') }}" class="nav-item {% if active_page == 'chat' %}active{% endif %}">
         <svg viewBox="0 0 24 24" fill="none"><path d="M21 12C21 16.4183 16.9706 20 12 20C10.4607 20 9.01172 19.6565 7.74467 19.0511L3 20L4.39499 16.28C3.51156 15.0423 3 13.5743 3 12C3 7.58172 7.02944 4 12 4C16.9706 4 21 7.58172 21 12Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Chat
       </a>
-      <a href="{{ url_for('chat.how_it_works') }}" class="nav-item {% if active_page == 'how-it-works' %}active{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3L20 7V12C20 16.4 16.6 20.2 12 21C7.4 20.2 4 16.4 4 12V7L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        How it works
+      <a href="{{ url_for('chat.chat_home', q="What are today's NIFTY F&O signals?") }}" class="nav-item {% if active_page == 'fno' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M3 17L9 11L13 15L21 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 7H21V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        F&amp;O Signals
       </a>
+      <a href="{{ url_for('chat.chat_home', q='I-Score for ') }}" class="nav-item {% if active_page == 'iscore' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 8V12L14.5 14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        I-Score Lookup
+      </a>
+      <a href="{{ url_for('chat.chat_home', q='Analyse this mutual fund: ') }}" class="nav-item {% if active_page == 'mf' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><path d="M17.5 14V21M14 17.5H21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        Mutual Funds
+      </a>
+      <a href="{{ url_for('chat.chat_home', q='Analyse my portfolio for sector concentration and risk') }}" class="nav-item {% if active_page == 'portfolio' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Portfolio Review
+      </a>
+      <a href="{{ url_for('chat.chat_home', q='How is my trading behaviour and discipline score?') }}" class="nav-item {% if active_page == 'behaviour' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Behavioural Coach
+      </a>
+    </div>
+    <div class="sidebar-label" style="margin-top:6px">Pages</div>
+    <div class="nav-menu">
       <a href="{{ url_for('pricing') }}" class="nav-item {% if active_page == 'pricing' %}active{% endif %}">
         <svg viewBox="0 0 24 24" fill="none"><path d="M12 2V22M17 6H9.5C8.11929 6 7 7.11929 7 8.5C7 9.88071 8.11929 11 9.5 11H14.5C15.8807 11 17 12.1193 17 13.5C17 14.8807 15.8807 16 14.5 16H7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Pricing
       </a>
+      <a href="{{ url_for('chat.how_it_works') }}" class="nav-item {% if active_page == 'how-it-works' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3L20 7V12C20 16.4 16.6 20.2 12 21C7.4 20.2 4 16.4 4 12V7L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        How it works
+      </a>
       <a href="{{ url_for('compliance') }}" class="nav-item {% if active_page == 'compliance' %}active{% endif %}">
         <svg viewBox="0 0 24 24" fill="none"><path d="M12 3L20 7V12C20 16.4 16.6 20.2 12 21C7.4 20.2 4 16.4 4 12V7L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Compliance
-      </a>
-      <a href="{{ url_for('about') }}" class="nav-item {% if active_page == 'about' %}active{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 11V16M12 8V8.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        About
       </a>
     </div>
 
@@ -301,9 +320,9 @@ h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:-0.01em}
         <div class="usage-widget">
           <div class="usage-top">
             <span>Today&rsquo;s usage</span>
-            <span>{{ today_usage }} / 20</span>
+            <span>{{ today_usage }} / 5</span>
           </div>
-          <div class="usage-track"><div class="usage-fill" style="width:{{ [today_usage * 5, 100] | min }}%"></div></div>
+          <div class="usage-track"><div class="usage-fill" style="width:{{ [today_usage * 20, 100] | min }}%"></div></div>
         </div>
         <div class="upgrade-card">
           <p><b>Capulse Plus &mdash; &#8377;999/mo</b><br>Portfolio analysis, persistent memory, and ~150&ndash;200 questions a day.</p>

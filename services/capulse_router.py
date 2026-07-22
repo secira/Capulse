@@ -206,16 +206,16 @@ def handle_mutual_fund(fund_query: str, message: str) -> Dict[str, Any]:
 def handle_portfolio(user_id: int) -> Dict[str, Any]:
     """Analyse user's portfolio holdings."""
     try:
-        from models import ManualHolding
-        holdings = ManualHolding.query.filter_by(user_id=user_id).all()
+        from models import ManualEquityHolding
+        holdings = ManualEquityHolding.query.filter_by(user_id=user_id).all()
 
         if not holdings:
             return {
-                'card_type': 'prose',
+                'card_type': 'no_holdings',
                 'content': (
-                    "You haven't added any holdings yet.\n\n"
-                    "To get a portfolio analysis, add your stocks via **Profile → Manual Holdings** "
-                    "and I'll analyse sector concentration, risk, diversification gaps, and suggest rebalancing."
+                    "You haven't added any equity holdings yet.\n\n"
+                    "Add your stocks via **Portfolio → My Holdings** and I'll analyse "
+                    "sector concentration, risk, diversification gaps, and suggest rebalancing."
                 )
             }
 

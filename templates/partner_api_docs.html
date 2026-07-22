@@ -95,19 +95,19 @@
     </ul>
     <p>All endpoints are mounted under <code>/api/partner/v1</code> and respond with JSON.</p>
 
-    <div class="endpoint"><span class="method method-get">GET</span><span>https://app.targetcapital.in/api/partner/v1/docs</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span>https://api.capulse.tech/api/partner/v1/docs</span></div>
 
     <h2 id="auth">Authentication</h2>
     <p>Every protected endpoint requires a Bearer token in the
        <code>Authorization</code> header:</p>
-    <pre><button class="copy-btn">Copy</button><code>curl https://app.targetcapital.in/api/partner/v1/me \
+    <pre><button class="copy-btn">Copy</button><code>curl https://api.capulse.tech/api/partner/v1/me \
   -H "Authorization: Bearer tc_live_YOUR_API_KEY"</code></pre>
     <p>Keys begin with <code>tc_live_</code>. We never store the raw key — only a salted
        hash — so a key shown to you at creation cannot be retrieved later. Lose it,
        rotate it.</p>
 
     <h2 id="signup">Getting an API key</h2>
-    <p>Email <a href="mailto:partners@targetcapital.in">partners@targetcapital.in</a>
+    <p>Email <a href="mailto:partners@capulse.tech">partners@capulse.tech</a>
        with your organisation, intended use and a webhook URL. Our team
        provisions an account and returns the key once. The first response also
        contains <code>has_webhook_secret</code> — store the secret to verify push payloads.</p>
@@ -147,7 +147,7 @@
       <tr><td>index</td><td>yes</td><td>One of <code>NIFTY</code>, <code>BANKNIFTY</code>, <code>FINNIFTY</code>, <code>SENSEX</code></td></tr>
     </table>
     <h3>Example</h3>
-    <pre><button class="copy-btn">Copy</button><code>curl "https://app.targetcapital.in/api/partner/v1/fno/signals/live?index=NIFTY" \
+    <pre><button class="copy-btn">Copy</button><code>curl "https://api.capulse.tech/api/partner/v1/fno/signals/live?index=NIFTY" \
   -H "Authorization: Bearer tc_live_YOUR_API_KEY"</code></pre>
     <pre><button class="copy-btn">Copy</button><code>{
   "success": true,
@@ -187,7 +187,7 @@
     <p>Computes the full 6-component I-Score with confidence, recommendation tier
        (<code>STRONG_BUY</code> / <code>BUY</code> / <code>HOLD</code> / <code>SELL</code>) and "Why this
        score?" factors. Result is cached till midnight IST.</p>
-    <pre><button class="copy-btn">Copy</button><code>curl "https://app.targetcapital.in/api/partner/v1/iscore/RELIANCE" \
+    <pre><button class="copy-btn">Copy</button><code>curl "https://api.capulse.tech/api/partner/v1/iscore/RELIANCE" \
   -H "Authorization: Bearer tc_live_YOUR_API_KEY"</code></pre>
     <pre><button class="copy-btn">Copy</button><code>{
   "success": true,
@@ -216,7 +216,7 @@
     <h2 id="iscore-batch">I-Score — batch</h2>
     <div class="endpoint"><span class="method method-post">POST</span><span>/api/partner/v1/iscore/batch</span></div>
     <p>Up to 25 symbols per call.</p>
-    <pre><button class="copy-btn">Copy</button><code>curl -X POST https://app.targetcapital.in/api/partner/v1/iscore/batch \
+    <pre><button class="copy-btn">Copy</button><code>curl -X POST https://api.capulse.tech/api/partner/v1/iscore/batch \
   -H "Authorization: Bearer tc_live_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "symbols": ["RELIANCE","TCS","HDFCBANK","INFY"] }'</code></pre>
@@ -240,7 +240,7 @@
       <tr><td>channels</td><td>array</td><td>Currently <code>["webhook"]</code>. Email coming soon</td></tr>
       <tr><td>is_active</td><td>bool</td><td>Pause without deleting</td></tr>
     </table>
-    <pre><button class="copy-btn">Copy</button><code>curl -X POST https://app.targetcapital.in/api/partner/v1/subscriptions \
+    <pre><button class="copy-btn">Copy</button><code>curl -X POST https://api.capulse.tech/api/partner/v1/subscriptions \
   -H "Authorization: Bearer tc_live_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -260,7 +260,7 @@
        Pass any portfolio (your customer's or a model book) and get back a risk score,
        concentration metrics, sector/asset allocation, a heat map and prescriptive
        recommendations. Nothing is stored on our side.</p>
-    <pre><button class="copy-btn">Copy</button><code>curl -X POST https://app.targetcapital.in/api/partner/v1/portfolio/analyze \
+    <pre><button class="copy-btn">Copy</button><code>curl -X POST https://api.capulse.tech/api/partner/v1/portfolio/analyze \
   -H "Authorization: Bearer tc_live_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -324,7 +324,7 @@
        Detects 8 patterns (overtrading, revenge trading, tilt, loss aversion, profit-booking
        bias, poor timing, position-sizing inconsistency, symbol concentration), produces a
        <strong>0–100 Discipline Score</strong>, headline stats and prescriptive coaching.</p>
-    <pre><button class="copy-btn">Copy</button><code>curl -X POST https://app.targetcapital.in/api/partner/v1/behaviour/analyze \
+    <pre><button class="copy-btn">Copy</button><code>curl -X POST https://api.capulse.tech/api/partner/v1/behaviour/analyze \
   -H "Authorization: Bearer tc_live_YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -473,7 +473,7 @@ def verify(req_body: bytes, header_sig: str, secret: str) -> bool:
 
     <h2 id="support">Support</h2>
     <p>Questions, integration help or to request a sandbox key:
-       <a href="mailto:partners@targetcapital.in">partners@targetcapital.in</a>.
+       <a href="mailto:partners@capulse.tech">partners@capulse.tech</a>.
        For platform issues see the
        <a href="{{ url_for('help_center') }}">Help Center</a> or
        <a href="{{ url_for('contact') }}">contact our team</a>.</p>

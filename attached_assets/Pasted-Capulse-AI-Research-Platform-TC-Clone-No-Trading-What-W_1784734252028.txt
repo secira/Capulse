@@ -1,0 +1,155 @@
+Capulse — AI Research Platform (TC Clone, No Trading)
+What & Why
+Capulse is a clone of Target Capital with AI research intelligence: F&O signals, I-Score, Mutual Fund analysis, Portfolio analysis (manual holdings), and Behavioural coaching. The user experience is redesigned as a ChatGPT-style conversational interface — users type natural-language questions ("What's the I-Score for Reliance?", "Give me today's NIFTY signals", "Analyse my portfolio") and Capulse's AI engine interprets the query, calls the relevant analysis engine, and returns a structured, readable response inline in the chat.
+Auth, subscriptions (Razorpay), and the admin panel are kept intact. This is a greenfield Replit project seeded from the TC codebase — not a modification to Target Capital itself. Don’t delete any code. Broker and other code we may use for future. First step is to convert this into a Chatgpt style model rendering the user queries. 
+________________________________________
+Architecture
+User
+  ↓ types question in chat
+Capulse Chat UI (new template: chat.html)
+  ↓ POST /chat/message  { "message": "...", "context": {...} }
+CapulseRouter (services/capulse_router.py) — LLM intent classifier
+  ├── intent=FNO_SIGNAL    → NiftyOptionsEngine.generate_signals()
+  ├── intent=ISCORE        → IScoreWorkflow.run(symbol)
+  ├── intent=MUTUAL_FUND   → MFApiService.analyse()
+  ├── intent=PORTFOLIO     → PortfolioAnalyzerService.analyse()
+  ├── intent=BEHAVIOUR     → BehaviourEngine.analyse()
+  └── intent=GENERAL       → Claude / Perplexity research answer
+  ↓ returns structured JSON
+Chat renderer → formats as chat bubble (signal card / score widget / prose)
+Chat persistence: ChatSession and ChatMessage models store conversation history per user. Each message stores role (user/assistant), content, intent, and engine_result (JSON blob of the raw engine output).
+________________________________________
+What is KEPT from Target Capital
+Category	Files / Modules
+Auth	login, register, Google OAuth, mobile OTP, forgot password, profile
+Payments	Razorpay routes, models (Payment, Subscription), pricing page
+Subscriptions	4-tier model (Starter/Growth/Pro/Elite), trial logic
+F&O engine	nifty_options_engine.py, fno_monitor.py, fno_config.py
+I-Score engine	services/iscore/, langgraph_iscore_engine.py, workflow_iscore.py
+Mutual Funds	mfapi_service.py, manual MF holdings model
+Portfolio	portfolio_analyzer_service.py, workflow_portfolio.py, langgraph_portfolio_optimizer.py
+Behavioural	behaviour_engine.py, trader_intelligence.py
+Market data	market_data_gateway.py
+Research list	research_list table, 2167 NSE stocks
+Admin panel	Admin routes (minus broker management sections)
+Knowledge base	Blog/articles templates
+Messaging	Telegram for signal alerts
+Dark-theme marketing pages	index, pricing, about, legal pages
+________________________________________
+KEEP these for future use
+Category	Files / Routes
+Broker adapters	brokers/ entire directory (Dhan, Zerodha, Angel, Upstox, Fyers, Shoonya, Alice Blue, 5Paisa)
+Broker models	models_broker.py (BrokerAccount, BrokerOrder, BrokerHolding, BrokerPosition)
+Broker service	services/broker_service.py, services/broker_factory.py, services/broker_data_quality.py
+Trade execution	All /trade/* routes, trade signal execution, order placement logic
+Broker OAuth flows	Zerodha KITE login, Dhan token, Angel OAuth, Upstox OAuth, etc.
+Trade Now page	templates/trade_now/, related routes
+Broker dashboard pages	Broker connect, Data API Broker settings, sync-all
+Admin broker sections	Admin broker pool, B2B connector, Data API Plan
+Partner broker API	routes_partner.py, routes_partner_api.py (B2B broker routes)
+Data API broker	DataApiBroker model and settings page
+WebSocket trading	routes_websocket.py (live order streaming)
+________________________________________
+New: ChatGPT-Style Interface
+Sample screens attached
+Main chat route: GET /chat → templates/chat.html
+Full-screen dark interface:
+•	Sidebar (left): conversation history list, quick-action buttons (New Chat, F&O Signals, I-Score Lookup, Portfolio Review, Behavioural Check), subscription badge
+•	Main panel (center): message thread — user bubbles right, Capulse bubbles left. Capulse responses render rich cards inline:
+o	F&O signal → SignalCard (index, direction, entry/SL/target, confidence bar)
+o	I-Score → IScoreCard (radar chart, score, recommendation pill)
+o	MF analysis → MFCard (NAV trend, I-Score, overlap)
+o	Portfolio → PortfolioCard (risk score, diversification, rebalance suggestions)
+o	Behavioural → BehaviourCard (discipline score, detected patterns)
+o	General prose → standard markdown-rendered text bubble
+•	Input (bottom): text area + send button + suggested quick-queries
+Backend chat endpoint: POST /chat/message
+1.	Save user message to ChatMessage
+2.	Run CapulseRouter.classify_intent(message, conversation_history) — uses Claude to extract intent + entities (symbol, index, fund code, etc.)
+3.	Call the relevant engine based on intent
+4.	Format the engine result into a structured response dict
+5.	Save assistant message to ChatMessage with engine_result JSON
+6.	Return {"role":"assistant","content":"...","card_type":"...","card_data":{...}}
+services/capulse_router.py — intent classification
+Uses Claude (claude-3-5-haiku) with a system prompt listing the 6 intents. Returns {intent, entities, confidence}. Falls back to GENERAL if confidence < 0.7.
+GET /chat/sessions — list past sessions (sidebar)
+GET /chat/session/<id> — load a past conversation
+________________________________________
+Done looks like
+•	New Replit project "Capulse" runs cleanly: gunicorn --bind 0.0.0.0:5000 main:app
+•	/ redirects unauthenticated users to /login, authenticated users to /chat
+•	A logged-in user can type "NIFTY signals" and receive a formatted signal card with today's F&O recommendations
+•	A user can type "I-Score for TCS" and receive the 6-component breakdown card
+•	A user can type "Analyse my portfolio" (after manually adding holdings) and get risk + rebalance suggestions
+•	A user can type "Am I revenge trading?" and get their Behavioural Coach summary
+•	Razorpay payment flow works: user upgrades plan, gets access to premium engines
+•	No broker connect page, no Trade Now page, no order placement anywhere in the codebase
+•	Admin panel works (minus broker management sections)
+•	All 5 dark-theme marketing pages load correctly with Capulse branding
+________________________________________
+
+Steps
+Phase 1 — Clone and strip
+1.	Start from TC codebase. Don’t Delete the brokers/ directory, models_broker.py, services/broker_service.py, services/broker_factory.py, services/broker_data_quality.py, routes_websocket.py, routes_partner.py, routes_partner_api.py. keep it for future use. 
+2.	Verify the app boots with no import errors. Fix any remaining from models_broker import ... references.
+Phase 2 — Rebrand to Capulse
+3.	Update replit.md with Capulse project description. Replace "Target Capital" with "Capulse" in app titles, page titles, email templates, and flash messages.
+4.	Update dark-theme marketing pages (index, pricing, about, legal) to use "Capulse" branding, logo, and copy..
+5.	Update auth pages (login.html, register.html) with Capulse branding.
+6.	Update base.html navbar to Simplify sidebar to: Chat, F&O Signals, I-Score, Mutual Funds, Portfolio, Behavioural Coach, Pricing.
+Phase 3 — Chat models and backend
+11.	Add ChatSession and ChatMessage models to models.py. ChatSession has user_id, title, created_at. ChatMessage has session_id, role (user/assistant), content, intent, engine_result (JSON), created_at.
+12.	Build services/capulse_router.py — Claude-based intent classifier. System prompt enumerates 6 intents (FNO_SIGNAL, ISCORE, MUTUAL_FUND, PORTFOLIO, BEHAVIOUR, GENERAL) with entity extraction (symbol, index, timeframe). Returns structured {intent, entities} dict.
+13.	Build POST /chat/message route — orchestrates: save user msg → classify intent → call engine → format result → save assistant msg → return JSON. Handles engine errors gracefully (returns a prose fallback).
+14.	Build GET /chat, GET /chat/sessions, GET /chat/session/<id> routes for the conversation UI and history sidebar.
+Phase 4 — Chat UI
+15.	Build templates/chat.html — standalone dark-theme page (same CSS variables as marketing pages). Three-column layout: sidebar (sessions + quick actions), main thread, input bar. Purely server-rendered initial load; uses fetch only for the chat message POST and session list (this is a justified exception per guidelines since it's a streaming/interactive AI chat).
+16.	Build response card components as Jinja2 macros in templates/chat_cards.html: signal_card, iscore_card, mf_card, portfolio_card, behaviour_card. Each card is a styled dark-surface widget rendered inside the assistant bubble.
+17.	Wire quick-action buttons in the sidebar — clicking "F&O Signals" pre-fills "What are today's NIFTY signals?" and submits. Same for other engines.
+18.	Add suggested prompts on empty chat state: 4 example queries shown as clickable chips.
+Phase 5 — Engine wiring inside router
+19.	FNO_SIGNAL intent → call NiftyOptionsEngine with extracted index (NIFTY/BANKNIFTY). Format top 3 signals as signal_card data.
+20.	ISCORE intent → call IScoreWorkflow.run(symbol). Format 6-component breakdown as iscore_card data.
+21.	MUTUAL_FUND intent → call MFApiService.analyse(scheme_code_or_name). Format as mf_card data.
+22.	PORTFOLIO intent → load user's ManualHolding records, call PortfolioAnalyzerService. Format as portfolio_card.
+23.	BEHAVIOUR intent → load user's trade history, call BehaviourEngine. Format as behaviour_card.
+24.	GENERAL intent → pass query + conversation context to Claude for a prose research answer (Perplexity fallback for web-sourced data).
+Phase 6 — Manual portfolio entry
+25.	Keep and simplify the manual holdings page (/portfolio/manual) so users can add stocks/MFs without any broker.. This is the only data source for Portfolio and Behaviour engines.
+26.	Update GET /chat to show a "Add your holdings to unlock Portfolio & Behavioural analysis" prompt if the user has zero manual holdings.
+Phase 7 — Final QA
+27.	Check all routes load without 500 errors. Confirm no broker import remains.
+28.	Test all 6 intents via the chat interface.
+29.	Test payment flow — Razorpay checkout, plan upgrade, trial logic.
+30.	Test admin panel — user management, subscription override, F&O config.
+________________________________________
+Relevant files (from TC codebase to start from)
+•	app.py
+•	main.py
+•	models.py
+•	routes.py
+•	routes_fno.py
+•	routes_research.py
+•	routes_behaviour.py
+•	admin_routes.py
+•	google_auth.py
+•	services/nifty_options_engine.py
+•	services/fno_monitor.py
+•	services/fno_config.py
+•	services/iscore/
+•	services/langgraph_iscore_engine.py
+•	services/workflow_iscore.py
+•	services/mfapi_service.py
+•	services/portfolio_analyzer_service.py
+•	services/workflow_portfolio.py
+•	services/langgraph_portfolio_optimizer.py
+•	services/behaviour_engine.py
+•	services/trader_intelligence.py
+•	services/market_data_gateway.py
+•	services/messaging_service.py
+•	templates/auth/
+•	templates/base.html
+•	templates/index.html
+•	templates/pricing.html
+•	static/
+
