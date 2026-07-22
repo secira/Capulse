@@ -1672,17 +1672,28 @@ def profile():
         flash('Profile updated successfully!', 'success')
         return redirect(url_for('profile'))
     
-    # Get user statistics with safe imports
+    # Get user statistics
     try:
         from models import TradingSignal
         trading_signals_count = TradingSignal.query.filter(TradingSignal.status == 'ACTIVE').count()
     except (ImportError, AttributeError):
         trading_signals_count = 0
-    analyses_count = StockAnalysis.query.count()  # Could be user-specific in future
-    
-    return render_template('auth/profile.html', 
-                         trading_signals_count=trading_signals_count,
-                         analyses_count=analyses_count)
+
+    try:
+        analyses_count = StockAnalysis.query.count()
+    except Exception:
+        analyses_count = 0
+
+    try:
+        from models import WatchlistItem
+        watchlist_count = WatchlistItem.query.filter_by(user_id=current_user.id).count()
+    except Exception:
+        watchlist_count = 0
+
+    return render_template('auth/profile.html',
+                           trading_signals_count=trading_signals_count,
+                           analyses_count=analyses_count,
+                           watchlist_count=watchlist_count)
 
 # OAuth success redirect routes (handled by google_auth blueprint for Google)
 @app.route('/auth/facebook/callback')
