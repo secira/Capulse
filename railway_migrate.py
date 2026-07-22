@@ -1110,6 +1110,72 @@ def seed_defaults():
         logger.warning("seed_defaults() skipped: %s", exc)
 
 
+def seed_initial_admin():
+    """
+    Idempotently create the first admin account.
+
+    Credentials are read from environment variables so nothing sensitive is
+    hard-coded in source:
+
+        ADMIN_USERNAME   (default: admin)
+        ADMIN_EMAIL      (required — skipped if not set)
+        ADMIN_PASSWORD   (required — skipped if not set, must be ≥ 8 chars)
+        ADMIN_SUPER      (default: true)
+
+    The function is a pure no-op when:
+      - ADMIN_EMAIL or ADMIN_PASSWORD are absent
+      - an admin with that username or email already exists
+    """
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "").strip()
+
+    if not admin_email or not admin_password:
+        logger.info(
+            "seed_initial_admin: ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping."
+        )
+        return
+
+    if len(admin_password) < 8:
+        logger.warning(
+            "seed_initial_admin: ADMIN_PASSWORD is too short (< 8 chars) — skipping."
+        )
+        return
+
+    admin_username = os.environ.get("ADMIN_USERNAME", "admin").strip() or "admin"
+    is_super = os.environ.get("ADMIN_SUPER", "true").lower() not in ("0", "false", "no")
+
+    try:
+        from app import db, app
+        with app.app_context():
+            from models import Admin
+            existing = Admin.query.filter(
+                (Admin.username == admin_username) | (Admin.email == admin_email)
+            ).first()
+            if existing:
+                logger.info(
+                    "seed_initial_admin: admin '%s' already exists — skipping.",
+                    existing.username,
+                )
+                return
+
+            admin = Admin(
+                username=admin_username,
+                email=admin_email,
+                is_super_admin=is_super,
+            )
+            admin.set_password(admin_password)
+            db.session.add(admin)
+            db.session.commit()
+            logger.info(
+                "seed_initial_admin: created admin '%s' (%s) super=%s",
+                admin_username,
+                admin_email,
+                is_super,
+            )
+    except Exception as exc:
+        logger.warning("seed_initial_admin() failed: %s", exc)
+
+
 def seed_research_list():
     """Merge all RESEARCH_LIST_STOCKS into research_list — safe to re-run (ON CONFLICT DO NOTHING)."""
     try:
@@ -1183,6 +1249,7 @@ def run_migrations():
         logger.warning("Post-Alembic column patch skipped: %s", exc)
 
     seed_defaults()
+    seed_initial_admin()
     seed_research_list()
 
     # Seed I-Score pre-computed data (reuses already-loaded app module)
@@ -1218,7 +1285,12 @@ def verify_database_connection():
 
         connect_args = {}
         if 'postgresql' in database_url:
-            connect_args = {"sslmode": "require", "connect_timeout": 30}
+            # Use require in production (Railway), prefer in dev (Replit local PG
+            # doesn't expose SSL).  Both give encrypted transit on Railway; on
+            # Replit the connection is already loopback-only so prefer is safe.
+            _env = os.environ.get("ENVIRONMENT", "development")
+            _ssl = "require" if _env == "production" else "prefer"
+            connect_args = {"sslmode": _ssl, "connect_timeout": 30}
 
         engine = create_engine(database_url, pool_pre_ping=True, connect_args=connect_args)
         with engine.connect() as conn:
