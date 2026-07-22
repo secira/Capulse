@@ -29,6 +29,20 @@ if RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET:
         pass
 
 PLANS = {
+    'capulse_plus': {
+        'name': 'Capulse Plus',
+        'price': 999,
+        'duration_days': 30,
+        'pricing_plan': PricingPlan.TARGET_PLUS,
+        'features': [
+            '~150–200 AI questions per day',
+            'Portfolio upload & analysis',
+            'Behavioural pattern analysis',
+            'Persistent memory across sessions',
+            'Score & signal history',
+            'Priority response speed',
+        ],
+    },
     'target_plus': {
         'name': 'Growth Plan',
         'price': 1499,
@@ -119,22 +133,28 @@ def verify_payment():
         razorpay_signature = request.form.get('razorpay_signature')
         plan_type = request.form.get('plan_type')
 
-        if not all([razorpay_order_id, razorpay_payment_id, plan_type]):
+        # Signature is mandatory — reject immediately if absent
+        if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature, plan_type]):
+            logger.warning("verify_payment: missing required parameter(s); rejecting")
             return jsonify({'success': False, 'error': 'Missing payment parameters'})
 
         if plan_type not in PLANS:
             return jsonify({'success': False, 'error': 'Invalid plan type'})
 
-        if razorpay_client and razorpay_signature:
-            try:
-                razorpay_client.utility.verify_payment_signature({
-                    'razorpay_order_id': razorpay_order_id,
-                    'razorpay_payment_id': razorpay_payment_id,
-                    'razorpay_signature': razorpay_signature,
-                })
-            except Exception as sig_err:
-                logger.error(f"Razorpay signature verification failed: {sig_err}")
-                return jsonify({'success': False, 'error': 'Payment verification failed'})
+        # Always verify signature — no subscription activation without it
+        if not razorpay_client:
+            logger.error("verify_payment: Razorpay client not initialised")
+            return jsonify({'success': False, 'error': 'Payment service not configured'})
+
+        try:
+            razorpay_client.utility.verify_payment_signature({
+                'razorpay_order_id': razorpay_order_id,
+                'razorpay_payment_id': razorpay_payment_id,
+                'razorpay_signature': razorpay_signature,
+            })
+        except Exception as sig_err:
+            logger.error(f"Razorpay signature verification failed: {sig_err}")
+            return jsonify({'success': False, 'error': 'Payment verification failed'})
 
         plan_info = PLANS[plan_type]
 
@@ -188,7 +208,7 @@ def verify_payment():
                 user_id=current_user.id,
                 razorpay_payment_id=razorpay_payment_id,
                 plan_type=plan_type,
-                gross_amount=float(amount) / 100,  # Razorpay amount is in paise
+                gross_amount=float(plan_info['price']),  # price is already in rupees
             )
         except Exception as _comm_err:
             logger.warning(f"Partner commission calculation failed (non-fatal): {_comm_err}")

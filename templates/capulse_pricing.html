@@ -8,14 +8,14 @@
 <div class="page-view"><div class="page-inner">
   <span class="eyebrow">Pricing</span>
   <h1>Ask freely. Go deeper when you need to.</h1>
-  <p class="lead">20 questions a day costs nothing. Upgrade for portfolio analysis and persistent memory.</p>
+  <p class="lead">5 questions a day costs nothing. Upgrade for portfolio analysis and persistent memory.</p>
   <div class="price-grid">
     <div class="price-card">
       <span class="price-tier">Free</span>
       <div class="price-amt">&#8377;0<span>/month</span></div>
       <p class="price-sub">For casual research and learning</p>
       <ul class="price-list">
-        <li><svg viewBox="0 0 24 24" fill="none"><path d="M4 12L9 17L20 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>20 questions per day</li>
+        <li><svg viewBox="0 0 24 24" fill="none"><path d="M4 12L9 17L20 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>5 questions per day</li>
         <li><svg viewBox="0 0 24 24" fill="none"><path d="M4 12L9 17L20 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>i-Score on any listed stock</li>
         <li><svg viewBox="0 0 24 24" fill="none"><path d="M4 12L9 17L20 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>F&amp;O signal lookups</li>
         <li><svg viewBox="0 0 24 24" fill="none"><path d="M4 12L9 17L20 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Market &amp; concept explanations</li>
@@ -39,7 +39,7 @@
         <li><svg viewBox="0 0 24 24" fill="none"><path d="M4 12L9 17L20 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Score &amp; signal history</li>
         <li><svg viewBox="0 0 24 24" fill="none"><path d="M4 12L9 17L20 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Priority response speed</li>
       </ul>
-      <a href="mailto:hello@capulse.tech?subject=Capulse%20Plus%20enquiry" class="btn btn-primary" style="width:100%">Get early access</a>
+      <a href="{{ url_for('subscribe', plan_type='capulse_plus') }}" class="btn btn-primary" style="width:100%">Upgrade to Plus</a>
     </div>
   </div>
   <div class="pulse-divider" aria-hidden="true"><svg viewBox="0 0 760 60" preserveAspectRatio="none">
@@ -48,7 +48,7 @@
   </svg></div>
   <table class="compare-table">
     <tr><th>Feature</th><th>Free</th><th>Plus</th></tr>
-    <tr><td>Daily questions</td><td>20</td><td>~150&ndash;200</td></tr>
+    <tr><td>Daily questions</td><td>5</td><td>~150&ndash;200</td></tr>
     <tr><td>i-Score lookups</td><td class="tick">&#10003;</td><td class="tick">&#10003;</td></tr>
     <tr><td>F&amp;O signals</td><td class="tick">&#10003;</td><td class="tick">&#10003;</td></tr>
     <tr><td>Portfolio analysis</td><td class="dash">&mdash;</td><td class="tick">&#10003;</td></tr>
@@ -59,7 +59,7 @@
   <div class="faq-item"><h4>What counts as one question?</h4><p>Any message you send, regardless of complexity. Follow-ups count too.</p></div>
   <div class="faq-item"><h4>Does Capulse place trades for me?</h4><p>No. No broker connection, no order execution &mdash; ever.</p></div>
   <div class="faq-item"><h4>Is the i-Score investment advice?</h4><p>No. It&rsquo;s a research output under SEBI Research Analyst oversight, meant to inform your own decision. See our <a href="{{ url_for('compliance') }}" style="text-decoration:underline">compliance page</a>.</p></div>
-  <div class="faq-item"><h4>When can I actually sign up?</h4><p>Capulse is currently in early access. <a href="{{ url_for('register') }}" style="text-decoration:underline">Register now</a> to get started with the free plan.</p></div>
+  <div class="faq-item"><h4>When can I actually sign up?</h4><p>Capulse is live. <a href="{{ url_for('register') }}" style="text-decoration:underline">Register now</a> to get started with the free plan, or <a href="{{ url_for('subscribe', plan_type='capulse_plus') }}" style="text-decoration:underline">upgrade to Plus</a> immediately after.</p></div>
   <div class="cta-row">
     <a href="{{ url_for('chat.chat_home') }}" class="btn btn-ghost">Back to chat</a>
   </div>

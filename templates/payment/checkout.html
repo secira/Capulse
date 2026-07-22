@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Checkout - {{ plan.name }} - Target Capital</title>
+    <title>Checkout — {{ plan.name }} — Capulse</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -192,7 +192,7 @@
                 "key": "{{ order.key_id }}",
                 "amount": {{ order.amount * 100 }}, // Amount in paise
                 "currency": "{{ order.currency }}",
-                "name": "Target Capital",
+                "name": "Capulse",
                 "description": "{{ plan.name }} Subscription",
                 "image": "/static/images/logo.png",
                 "order_id": "{{ order.order_id }}",
@@ -203,7 +203,7 @@
                 "prefill": {
                     "name": "{{ user.username }}",
                     "email": "{{ user.email }}",
-                    "contact": "{{ user.phone_number or '' }}"
+                    "contact": "{{ user.mobile_number or '' }}"
                 },
                 "notes": {
                     "plan_type": "{{ plan.name }}",
@@ -240,6 +240,7 @@
             formData.append('razorpay_payment_id', response.razorpay_payment_id);
             formData.append('razorpay_signature', response.razorpay_signature);
             formData.append('plan_type', '{{ plan_type }}');
+            formData.append('csrf_token', '{{ csrf_token() }}');
             
             // Send verification request
             fetch('/payment/verify', {
