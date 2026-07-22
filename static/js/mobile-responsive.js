@@ -1,4 +1,4 @@
-// Mobile Responsive Enhancements for Target Capital
+// Mobile Responsive Enhancements for Capulse
 document.addEventListener('DOMContentLoaded', function() {
     
     // Mobile navigation enhancements
@@ -169,7 +169,7 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
                 const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
                 if (loadTime > 3000) {
-                    console.log('targetcapital.ai says: Page load time:', loadTime + 'ms - Consider optimizing for mobile');
+                    console.log('capulse.tech says: Page load time:', loadTime + 'ms - Consider optimizing for mobile');
                 }
             }, 0);
         });
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // CSS Custom Properties for dynamic viewport will be set via JavaScript
 
 // Utility functions for responsive behavior
-window.TargetCapitalMobile = {
+window.CapulseMobile = {
     isMobile: () => window.innerWidth <= 768,
     isTablet: () => window.innerWidth > 768 && window.innerWidth <= 1024,
     isTouch: () => 'ontouchstart' in window || navigator.maxTouchPoints > 0,

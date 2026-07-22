@@ -11,10 +11,10 @@ from datetime import datetime, timedelta
 def create_testpro_user():
     with app.app_context():
         # Check if user already exists
-        existing_user = User.query.filter_by(email='testpro@targetcapital.ai').first()
+        existing_user = User.query.filter_by(email='testpro@capulse.tech').first()
         
         if existing_user:
-            print(f"⚠️  User with email testpro@targetcapital.ai already exists (ID: {existing_user.id})")
+            print(f"⚠️  User with email testpro@capulse.tech already exists (ID: {existing_user.id})")
             response = input("Update existing user to Target Pro? (yes/no): ")
             if response.lower() == 'yes':
                 existing_user.pricing_plan = PricingPlan.TARGET_PRO
@@ -36,7 +36,7 @@ def create_testpro_user():
         # Create new Target Pro test user
         test_user = User(
             username='testpro',
-            email='testpro@targetcapital.ai',
+            email='testpro@capulse.tech',
             password_hash=generate_password_hash('Neo2025@@##'),
             pricing_plan=PricingPlan.TARGET_PRO,
             subscription_status=SubscriptionStatus.ACTIVE,

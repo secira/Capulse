@@ -1,5 +1,5 @@
 """
-Bond Service for Target Capital
+Bond Service for Capulse
 Provides bond data from NSDL BondInfo, SEBI, NSE Bond Market, and GoldenPi
 
 Data Sources:
@@ -32,7 +32,7 @@ class BondService:
         self.session = requests.Session()
         self.session.headers.update({
             'Accept': 'application/json',
-            'User-Agent': 'TargeTarget Capital/1.0'
+            'User-Agent': 'TargeCapulse/1.0'
         })
         
         # Initialize Perplexity service for real-time yield data

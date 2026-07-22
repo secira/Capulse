@@ -8,7 +8,7 @@ import os
 from config_whatsapp_telegram import get_platform_status, whatsapp_service, telegram_service
 
 def main():
-    print("🔧 Target Capital Messaging Configuration Test")
+    print("🔧 Capulse Messaging Configuration Test")
     print("=" * 50)
     
     # Check environment variables
@@ -50,7 +50,7 @@ def main():
         print("1. Create WhatsApp Business API account at https://developers.facebook.com/")
         print("2. Get your Access Token and Phone Number ID")
         print("3. Create a WhatsApp group for trading signals")
-        print("4. targetcapital.ai says: Add these to your environment secrets:")
+        print("4. capulse.tech says: Add these to your environment secrets:")
         print("   - WHATSAPP_API_TOKEN")
         print("   - WHATSAPP_PHONE_NUMBER_ID") 
         print("   - WHATSAPP_GROUP_CHAT_ID")
@@ -60,7 +60,7 @@ def main():
         print("1. Create a bot by messaging @BotFather on Telegram")
         print("2. Create a channel for trading signals")
         print("3. Add your bot as admin to the channel")
-        print("4. targetcapital.ai says: Add these to your environment secrets:")
+        print("4. capulse.tech says: Add these to your environment secrets:")
         print("   - TELEGRAM_BOT_TOKEN")
         print("   - TELEGRAM_CHANNEL_ID")
     

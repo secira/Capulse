@@ -1,5 +1,5 @@
 """
-LangGraph Multi-Agent Portfolio Optimizer for Target Capital
+LangGraph Multi-Agent Portfolio Optimizer for Capulse
 Coordinates 4 specialized agents for comprehensive portfolio analysis
 """
 
@@ -222,7 +222,7 @@ class LangGraphPortfolioOptimizer:
         portfolio = state.get("portfolio_data", {})
         user_preferences = state.get("user_preferences", {})
 
-        system_prompt = """You are a Risk Analysis Specialist at Target Capital covering Indian equity markets.
+        system_prompt = """You are a Risk Analysis Specialist at Capulse covering Indian equity markets.
 Analyze the portfolio and return ONLY a raw JSON object (no markdown, no code fences) with this exact schema:
 {
   "overall_risk_score": <number 1-10>,
@@ -261,7 +261,7 @@ Be precise and quantitative. Use INR (₹) for amounts. Output ONLY the JSON obj
         portfolio = state.get("portfolio_data", {})
         user_preferences = state.get("user_preferences", {})
 
-        system_prompt = """You are a Sector Analysis Specialist at Target Capital covering Indian equity markets (NSE/BSE).
+        system_prompt = """You are a Sector Analysis Specialist at Capulse covering Indian equity markets (NSE/BSE).
 Analyze the portfolio's sector allocation and return ONLY a raw JSON object (no markdown, no code fences) with this exact schema:
 {
   "current_sector_breakdown": {"<SectorName>": <percentage as number>},
@@ -304,7 +304,7 @@ Output ONLY the JSON object."""
         sector_analysis = state.get("sector_analysis", {})
         user_preferences = state.get("user_preferences", {})
         
-        system_prompt = """You are an Asset Allocation Specialist at Target Capital.
+        system_prompt = """You are an Asset Allocation Specialist at Capulse.
 Based on the portfolio and previous analysis, recommend:
 1. Optimal asset class allocation (Equity, Debt, Gold, etc.)
 2. Rebalancing strategy aligned with user preferences
@@ -350,7 +350,7 @@ User Preferences: {preferences_summary}"""
         allocation_recs = state.get("allocation_recommendations", {})
         user_preferences = state.get("user_preferences", {})
         
-        system_prompt = """You are an Investment Opportunities Specialist at Target Capital.
+        system_prompt = """You are an Investment Opportunities Specialist at Capulse.
 Identify 5-10 specific investment opportunities that match user preferences:
 1. Underrepresented quality stocks (aligned with preferred asset classes)
 2. Emerging sector plays (matching geographic preference)
@@ -401,7 +401,7 @@ User Preferences: {preferences_summary}"""
         
         user_preferences = state.get("user_preferences", {})
         
-        system_prompt = """You are the Chief Portfolio Strategist at Target Capital.
+        system_prompt = """You are the Chief Portfolio Strategist at Capulse.
 Synthesize the analysis from all specialized agents into a comprehensive portfolio optimization report.
 
 Create a well-structured markdown report with:

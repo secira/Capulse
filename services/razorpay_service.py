@@ -1,5 +1,5 @@
 """
-Razorpay Payment Service for Target Capital
+Razorpay Payment Service for Capulse
 Handles subscription payments, upgrades, and payment verification
 """
 

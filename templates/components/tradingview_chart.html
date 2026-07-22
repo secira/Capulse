@@ -63,9 +63,9 @@ function initializeTradingViewChart() {
     const height = {{ height if height else 400 }};
     
     // Check if TradingView widgets are available
-    if (typeof Target CapitalChartWidget !== 'undefined') {
+    if (typeof CapulseChartWidget !== 'undefined') {
         // Initialize chart with our custom widget
-        const chartWidget = new Target CapitalChartWidget({
+        const chartWidget = new CapulseChartWidget({
             containerId: containerId,
             symbol: symbol,
             height: height,

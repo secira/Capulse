@@ -1,5 +1,5 @@
 /**
- * React-style Hooks for Target Capital Trading Platform
+ * React-style Hooks for Capulse Trading Platform
  * Simplified for production - all data fetching is user-initiated
  */
 (function() {
@@ -73,7 +73,7 @@ function useNotifications() {
     return { notifications: getNotifications, addNotification, removeNotification };
 }
 
-window.TargetCapitalHooks = { useState: useState, useEffect: useEffect, useNotifications: useNotifications };
-window.CapitalHooks = window.TargetCapitalHooks;
+window.CapulseHooks = { useState: useState, useEffect: useEffect, useNotifications: useNotifications };
+window.CapitalHooks = window.CapulseHooks;
 
 })();

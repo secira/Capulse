@@ -806,7 +806,7 @@ def market_pulse_commentary():
                     'is_holiday': True,
                     'commentary': (
                         f"🌸 Happy {h['name']}! Markets are closed today. "
-                        "Wishing you and your family a wonderful day from Target Capital. "
+                        "Wishing you and your family a wonderful day from Capulse. "
                         "We'll be back with live market commentary on the next trading day."
                     ),
                     'lang': 'en',
@@ -1030,7 +1030,7 @@ def market_pulse_query():
         )
 
         market_ctx = (
-            "You are Scentric AI, an expert Indian market analyst built by Target Capital. "
+            "You are Scentric AI, an expert Indian market analyst built by Capulse. "
             "Help retail traders understand markets, stocks, sectors, and strategies. "
             "Be concise, clear, and actionable. Keep responses under 200 words unless the question needs detail. "
             "Never give guaranteed predictions.\n\n"

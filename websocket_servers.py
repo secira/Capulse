@@ -401,7 +401,7 @@ async def shutdown_servers():
 def run_websocket_servers():
     """Main function to run WebSocket servers"""
     try:
-        logger.info("🚀 Starting Target Capital WebSocket Infrastructure...")
+        logger.info("🚀 Starting Capulse WebSocket Infrastructure...")
         asyncio.run(start_all_websocket_servers())
     except KeyboardInterrupt:
         logger.info("🛑 WebSocket servers stopped by user")

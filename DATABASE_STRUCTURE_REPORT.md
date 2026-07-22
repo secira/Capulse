@@ -228,5 +228,5 @@ def downgrade():
 ---
 
 **Generated**: October 2025  
-**Project**: Target Capital - Portfolio Management System  
+**Project**: Capulse - Portfolio Management System  
 **Database**: PostgreSQL with SQLAlchemy ORM

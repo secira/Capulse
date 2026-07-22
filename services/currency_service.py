@@ -1,5 +1,5 @@
 """
-Currency Service for Target Capital
+Currency Service for Capulse
 Provides forex/currency data for trading analysis
 
 Data Sources:
@@ -28,7 +28,7 @@ class CurrencyService:
         self.session = requests.Session()
         self.session.headers.update({
             'Accept': 'application/json',
-            'User-Agent': 'TargeTarget Capital/1.0'
+            'User-Agent': 'TargeCapulse/1.0'
         })
         
         self.tradermade_key = os.environ.get('TRADERMADE_API_KEY')

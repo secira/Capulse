@@ -1,5 +1,5 @@
 /**
- * Progressive Web App (PWA) Handler for Target Capital
+ * Progressive Web App (PWA) Handler for Capulse
  * Provides app-like experience on mobile devices
  */
 (function() {
@@ -26,7 +26,7 @@ class PWAHandler {
         
         if (this.isStandalone) {
             document.body.classList.add('pwa-standalone');
-            console.log('🚀 Target Capital running in PWA mode');
+            console.log('🚀 Capulse running in PWA mode');
         }
     }
 
@@ -239,7 +239,7 @@ class PWAHandler {
         notification.innerHTML = `
             <div class="update-content">
                 <strong>Update Available</strong>
-                <p>A new version of Target Capital is available</p>
+                <p>A new version of Capulse is available</p>
                 <button class="btn btn-primary btn-sm" onclick="window.location.reload()">Update Now</button>
             </div>
         `;

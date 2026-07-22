@@ -1,5 +1,5 @@
 /**
- * Mobile Performance Optimizations for Target Capital
+ * Mobile Performance Optimizations for Capulse
  * Handles performance monitoring and mobile-specific optimizations
  */
 
@@ -115,7 +115,7 @@
     trackPerformanceMetrics();
 
     // Expose utilities
-    window.TargetCapitalPerformance = {
+    window.CapulsePerformance = {
         debounce: debounce,
         optimizeScrollPerformance: optimizeScrollPerformance,
         setupLazyLoading: setupLazyLoading

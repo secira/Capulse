@@ -209,7 +209,7 @@ class BrokerAccount(db.Model):
                 if environment == "production":
                     raise ValueError("BROKER_ENCRYPTION_KEY is required in production")
                 # Use a fixed development key for testing (NEVER use in production)
-                key = "Target Capital_Dev_Key_32_Chars_Long_123="
+                key = "Capulse_Dev_Key_32_Chars_Long_123="
                 # Convert to proper Fernet key format
                 import base64
                 key = base64.urlsafe_b64encode(key.encode()[:32].ljust(32, b'0'))
@@ -573,7 +573,7 @@ class DataApiBroker(db.Model):
                 environment = os.environ.get("ENVIRONMENT", "development")
                 if environment == "production":
                     raise ValueError("BROKER_ENCRYPTION_KEY is required in production")
-                key = "Target Capital_Dev_Key_32_Chars_Long_123="
+                key = "Capulse_Dev_Key_32_Chars_Long_123="
                 import base64
                 key = base64.urlsafe_b64encode(key.encode()[:32].ljust(32, b'0'))
             return key.encode() if isinstance(key, str) else key
@@ -701,7 +701,7 @@ class AdminDataBroker(db.Model):
                 environment = os.environ.get("ENVIRONMENT", "development")
                 if environment == "production":
                     raise ValueError("BROKER_ENCRYPTION_KEY is required in production")
-                key = "Target Capital_Dev_Key_32_Chars_Long_123="
+                key = "Capulse_Dev_Key_32_Chars_Long_123="
                 import base64
                 key = base64.urlsafe_b64encode(key.encode()[:32].ljust(32, b'0'))
             return key.encode() if isinstance(key, str) else key

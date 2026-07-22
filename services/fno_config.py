@@ -67,7 +67,7 @@ TELEGRAM_FIELDS: List[Tuple[str, str, bool, str]] = [
     ("active_trade",  "Active-trade live block (elapsed, LTP, PnL)", True,  "⏱ Running: 12 min | 18 min left  📈 LTP ₹135"),
     ("exit_reason",   "Exit reason (TRADE_EXIT only)",             True,  "🚪 Exit Reason: Target hit"),
     ("timestamp",     "IST timestamp",                             True,  "⏰ 24/05/2026 02:15 PM IST"),
-    ("dashboard_link","“View on Target Capital” link",             True,  "https://www.targetcapital.ai/dashboard/fno/nifty"),
+    ("dashboard_link","“View on Capulse” link",             True,  "https://www.capulse.tech/dashboard/fno/nifty"),
 ]
 
 DEFAULT_TELEGRAM_FIELDS: List[str] = [k for k, _, on, _ in TELEGRAM_FIELDS if on]

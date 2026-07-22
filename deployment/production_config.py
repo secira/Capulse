@@ -163,7 +163,7 @@ class SystemdService:
         """Get systemd service for Flask app"""
         
         return """[Unit]
-Description=Target Capital Flask Application
+Description=Capulse Flask Application
 After=network.target postgresql.service redis.service
 Requires=postgresql.service redis.service
 
@@ -192,7 +192,7 @@ WantedBy=multi-user.target
         """Get systemd service for FastAPI app"""
         
         return """[Unit]
-Description=Target Capital FastAPI Application
+Description=Capulse FastAPI Application
 After=network.target postgresql.service redis.service
 Requires=postgresql.service redis.service
 
@@ -235,7 +235,7 @@ def generate_gunicorn_config():
     """Generate Gunicorn configuration file"""
     config = ProductionConfig.get_gunicorn_config()
     
-    return f"""# Gunicorn Configuration for Target Capital Production
+    return f"""# Gunicorn Configuration for Capulse Production
 
 bind = "{config['bind']}"
 workers = {config['workers']}
@@ -259,10 +259,10 @@ limit_request_fields = 100
 limit_request_field_size = 8190
 
 def when_ready(server):
-    server.log.info("Target Capital Flask application ready to serve requests")
+    server.log.info("Capulse Flask application ready to serve requests")
 
 def on_exit(server):
-    server.log.info("Target Capital Flask application shutting down")
+    server.log.info("Capulse Flask application shutting down")
 """
 
 if __name__ == "__main__":

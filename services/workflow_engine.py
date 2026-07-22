@@ -1,5 +1,5 @@
 """
-Workflow Engine Framework for Target Capital
+Workflow Engine Framework for Capulse
 Base classes for defining and executing multi-step AI pipelines
 with node execution, state management, and audit trails.
 """

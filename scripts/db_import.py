@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Database Import Script for Target Capital
+Database Import Script for Capulse
 Imports data from SQL export file into Railway PostgreSQL.
 
 Usage:
@@ -28,7 +28,7 @@ def main():
     args = parser.parse_args()
     
     print("=" * 60)
-    print("Target Capital - Database Import Tool")
+    print("Capulse - Database Import Tool")
     print("=" * 60)
     print(f"Import started at: {datetime.utcnow().isoformat()}")
     print()

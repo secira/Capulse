@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Target Capital Production Startup with React + WebSocket Integration
+Capulse Production Startup with React + WebSocket Integration
 Comprehensive multi-service orchestration for scalable trading platform
 """
 
@@ -168,7 +168,7 @@ class ProductionOrchestrator:
     
     def start_all_services(self):
         """Start all production services"""
-        logger.info("🏗️  Starting Target Capital Production Infrastructure with React + WebSocket...")
+        logger.info("🏗️  Starting Capulse Production Infrastructure with React + WebSocket...")
         self.running = True
         
         # Start services in order of dependency
@@ -209,7 +209,7 @@ class ProductionOrchestrator:
         status = self.get_service_status()
         
         print("\n" + "="*80)
-        print("🚀 Target Capital Production Infrastructure - React + WebSocket Ready")
+        print("🚀 Capulse Production Infrastructure - React + WebSocket Ready")
         print("="*80)
         
         # Service status

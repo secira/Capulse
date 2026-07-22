@@ -1,5 +1,5 @@
 """
-Production Deployment Configuration for Target Capital Trading Platform
+Production Deployment Configuration for Capulse Trading Platform
 Orchestrates the entire production-grade trading system
 """
 
@@ -57,7 +57,7 @@ class ProductionDeployment:
         
     async def deploy_production_system(self):
         """Deploy the complete production trading system"""
-        logger.info("🚀 Starting Target Capital Production Trading System Deployment")
+        logger.info("🚀 Starting Capulse Production Trading System Deployment")
         
         try:
             # Step 1: Validate environment
@@ -374,7 +374,7 @@ class ProductionDeployment:
     async def display_system_status(self):
         """Display complete system status"""
         logger.info("\n" + "="*60)
-        logger.info("🎯 Target Capital Production Trading System Status")
+        logger.info("🎯 Capulse Production Trading System Status")
         logger.info("="*60)
         
         # Service status

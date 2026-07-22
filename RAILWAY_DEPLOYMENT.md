@@ -1,6 +1,6 @@
-# Railway Deployment Guide for Target Capital
+# Railway Deployment Guide for Capulse
 
-This guide explains how to deploy Target Capital to Railway.
+This guide explains how to deploy Capulse to Railway.
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ will refuse to boot.
 | `SESSION_SECRET` | ≥32 random chars (used to sign Flask sessions) |
 | `BROKER_ENCRYPTION_KEY` | Fernet key (44-char base64) used to encrypt stored broker tokens. **Generate once and never rotate** — rotating bricks every stored broker connection. |
 | `ENCRYPTION_MASTER_KEY` | Master key for per-tenant field encryption (≥32 chars) |
-| `CORS_ORIGINS` | Comma-separated allowed origins, e.g. `https://targetcapital.ai,https://www.targetcapital.ai`. **In production an empty value blocks all cross-origin requests.** |
+| `CORS_ORIGINS` | Comma-separated allowed origins, e.g. `https://capulse.tech,https://www.capulse.tech`. **In production an empty value blocks all cross-origin requests.** |
 
 ### Generate the encryption keys
 
@@ -65,17 +65,17 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 | Variable | Description |
 |----------|-------------|
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google sign-in |
-| `APP_DOMAIN` | Your Railway/custom domain (e.g. `targetcapital.ai`). Shown in `/oauth-check` so you know exactly which URI to register in Google Console. Not required for OAuth to work — the app uses `request.base_url` dynamically — but recommended for clarity. |
+| `APP_DOMAIN` | Your Railway/custom domain (e.g. `capulse.tech`). Shown in `/oauth-check` so you know exactly which URI to register in Google Console. Not required for OAuth to work — the app uses `request.base_url` dynamically — but recommended for clarity. |
 
 ### Admin
 | Variable | Description |
 |----------|-------------|
-| `ADMIN_EMAILS` | Comma-separated list of email addresses that are auto-promoted to admin on first Google/email login (e.g. `you@targetcapital.ai,partner@example.com`). Admins can also be promoted manually from `/admin/users`. |
+| `ADMIN_EMAILS` | Comma-separated list of email addresses that are auto-promoted to admin on first Google/email login (e.g. `you@capulse.tech,partner@example.com`). Admins can also be promoted manually from `/admin/users`. |
 | `TELEGRAM_ADMIN_CHAT_ID` | Secondary Telegram chat ID for critical admin-only alerts (separate from the public signal channel in `TELEGRAM_CHAT_ID`). Optional. |
 
 ### TC Execution Engine (EC2)
 
-Target Capital routes live trade execution to a dedicated stateless TC-Engine
+Capulse routes live trade execution to a dedicated stateless TC-Engine
 running on EC2.  Three variables control the integration:
 
 | Variable | Value | Description |
@@ -171,7 +171,7 @@ Google Console once.
    ```
    Replace `<your-railway-domain>` with your actual Railway-generated URL
    (e.g. `target-capital-production.up.railway.app`) **and** your custom domain
-   if you have one (e.g. `targetcapital.ai`). Add both as separate entries.
+   if you have one (e.g. `capulse.tech`). Add both as separate entries.
 4. Make sure **Authorized JavaScript origins** includes `https://<your-domain>`.
 5. Under **OAuth consent screen**, set **User Type** to **External** (not Internal) so users outside your Google Workspace can sign in.
 6. Save. Changes take effect within a few minutes.
@@ -199,7 +199,7 @@ browser tab) it navigates directly — no popup, no extra setup needed.
    # On Replit shell, with RAILWAY env vars loaded:
    DATABASE_URL=<railway-db-url> ENVIRONMENT=production SESSION_SECRET=<your-secret> \
      BROKER_ENCRYPTION_KEY=<your-key> ENCRYPTION_MASTER_KEY=<your-key> \
-     CORS_ORIGINS=https://targetcapital.ai \
+     CORS_ORIGINS=https://capulse.tech \
      python scripts/pre_deploy_check.py
    ```
    All REQUIRED checks must pass before continuing.
@@ -214,7 +214,7 @@ browser tab) it navigates directly — no popup, no extra setup needed.
 
 6. Trigger the deploy. Watch logs for:
    - `✅ Environment configuration validated successfully`
-   - `Target Capital server ready to accept connections`
+   - `Capulse server ready to accept connections`
    - `singleton worker` next to each scheduler line
 
 7. **Import data** (if migrating):

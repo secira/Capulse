@@ -1,5 +1,5 @@
 """
-Broker Data Quality & Freshness Service — Target Capital
+Broker Data Quality & Freshness Service — Capulse
 Provides data freshness scoring, quality validation, and pre-trade safety checks.
 """
 from datetime import datetime, timedelta, date

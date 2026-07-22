@@ -1,5 +1,5 @@
 """
-Shared route decorators for Target Capital.
+Shared route decorators for Capulse.
 """
 from functools import wraps
 from flask import redirect, url_for, flash

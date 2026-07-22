@@ -1,5 +1,5 @@
 """
-Production Load Balancer and API Gateway for Target Capital
+Production Load Balancer and API Gateway for Capulse
 Handles traffic distribution, rate limiting, and service orchestration
 """
 
@@ -80,7 +80,7 @@ class LoadBalancer:
     
     async def start_load_balancer(self):
         """Start the production load balancer"""
-        logger.info("🚀 Starting Target Capital Production Load Balancer")
+        logger.info("🚀 Starting Capulse Production Load Balancer")
         
         # Start health checking
         asyncio.create_task(self.health_check_loop())

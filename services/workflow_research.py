@@ -98,7 +98,7 @@ class ResearchWorkflowPipeline:
         user_context = state.get("user_context", {})
 
         system_prompt = (
-            "You are a senior financial research analyst at Target Capital specialising in Indian equity markets (NSE/BSE). "
+            "You are a senior financial research analyst at Capulse specialising in Indian equity markets (NSE/BSE). "
             "Analyse the user's research query and extract structured information.\n\n"
             "Return a JSON object with:\n"
             "- intent: one of 'stock_research', 'sector_analysis', 'portfolio_review', 'market_outlook', 'trade_signal', 'general'\n"
@@ -254,7 +254,7 @@ class ResearchWorkflowPipeline:
             logger.warning(f"Perplexity search unavailable: {e}")
 
         system_prompt = (
-            "You are a senior equity research analyst at Target Capital covering Indian markets (NSE/BSE). "
+            "You are a senior equity research analyst at Capulse covering Indian markets (NSE/BSE). "
             "Provide thorough, data-driven market analysis. Include specific numbers, ratios, "
             "price levels, and technical/fundamental observations. "
             "Reference SEBI regulations and Indian tax implications where relevant. "
@@ -312,7 +312,7 @@ class ResearchWorkflowPipeline:
         user_context = state.get("user_context", {})
 
         system_prompt = (
-            "You are the Chief Research Analyst at Target Capital. "
+            "You are the Chief Research Analyst at Capulse. "
             "Create a comprehensive, publication-quality research report that directly answers the user's question. "
             "Use markdown formatting with clear sections. Include specific data points. "
             "End with a disclaimer: 'This information is for educational purposes only. "
@@ -358,7 +358,7 @@ class ResearchWorkflowPipeline:
         if market_analysis.get("key_metrics"):
             citations.append({"source": "Claude Market Analysis", "type": "ai_analysis"})
         if "Research Documents" in retrieved_context:
-            citations.append({"source": "Target Capital Knowledge Base", "type": "vector_search"})
+            citations.append({"source": "Capulse Knowledge Base", "type": "vector_search"})
         if user_context.get("portfolio"):
             citations.append({"source": "User Portfolio Data", "type": "portfolio"})
 
@@ -387,7 +387,7 @@ class ResearchWorkflowPipeline:
         user_context = state.get("user_context", {})
 
         system_prompt = (
-            "You are a SEBI-registered investment advisor at Target Capital. "
+            "You are a SEBI-registered investment advisor at Capulse. "
             "Based on the research analysis, suggest specific, actionable trades for the Indian market (NSE). "
             "For each trade provide: symbol, action (BUY/SELL/HOLD), entry price range, "
             "target price, stop loss, timeframe, risk-reward ratio, and reasoning.\n\n"

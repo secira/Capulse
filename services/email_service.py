@@ -1,5 +1,5 @@
 """
-Email service for Target Capital — uses Flask-Mail (Gmail SMTP).
+Email service for Capulse — uses Flask-Mail (Gmail SMTP).
 All methods fail gracefully when credentials are not configured.
 """
 import logging
@@ -78,7 +78,7 @@ def _wrap(title: str, body_html: str) -> str:
       <tr>
         <td style="background:#00091a;padding:28px 36px;">
           <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;">
-            🎯 Target Capital
+            🎯 Capulse
           </h1>
           <p style="margin:4px 0 0;color:#a0aec0;font-size:13px;">Scentric AI Decision Engine</p>
         </td>
@@ -93,7 +93,7 @@ def _wrap(title: str, body_html: str) -> str:
       <tr>
         <td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 36px;text-align:center;">
           <p style="margin:0;color:#718096;font-size:12px;">
-            © {year} Target Capital · Scentric Networks Pvt. Ltd.<br>
+            © {year} Capulse · Scentric Networks Pvt. Ltd.<br>
             This is an automated message — please do not reply.
           </p>
         </td>
@@ -124,9 +124,9 @@ def send_otp_email(to_email: str, otp: str, purpose: str = 'login') -> bool:
     </p>
     """
     return _send(
-        subject=f"Your Target Capital OTP: {otp}",
+        subject=f"Your Capulse OTP: {otp}",
         recipients=[to_email],
-        html_body=_wrap("OTP Verification — Target Capital", body),
+        html_body=_wrap("OTP Verification — Capulse", body),
     )
 
 
@@ -134,7 +134,7 @@ def send_otp_email(to_email: str, otp: str, purpose: str = 'login') -> bool:
 def send_welcome_email(user) -> bool:
     name = (getattr(user, 'first_name', '') or '').strip() or (getattr(user, 'username', '') or 'Trader')
     body = f"""
-    <h2 style="color:#00091a;margin:0 0 8px;">Welcome to Target Capital, {name}!</h2>
+    <h2 style="color:#00091a;margin:0 0 8px;">Welcome to Capulse, {name}!</h2>
     <p style="color:#4a5568;margin:0 0 20px;">
       Your account is active and your <strong>14-day free trial</strong> has started.
       You have full access to every feature — no credit card needed.
@@ -153,7 +153,7 @@ def send_welcome_email(user) -> bool:
       </tr>
     </table>
     <div style="text-align:center;margin:28px 0;">
-      <a href="https://targetcapital.ai/dashboard"
+      <a href="https://capulse.tech/dashboard"
          style="display:inline-block;background:#00091a;color:#ffffff;
                 text-decoration:none;padding:14px 32px;border-radius:6px;
                 font-weight:600;font-size:15px;">
@@ -161,13 +161,13 @@ def send_welcome_email(user) -> bool:
       </a>
     </div>
     <p style="color:#718096;font-size:13px;margin:0;">
-      Questions? Reach us at <a href="mailto:support@targetcapital.ai" style="color:#3182ce;">support@targetcapital.ai</a>
+      Questions? Reach us at <a href="mailto:support@capulse.tech" style="color:#3182ce;">support@capulse.tech</a>
     </p>
     """
     return _send(
-        subject="Welcome to Target Capital — Your AI Trading Co-Pilot is Ready",
+        subject="Welcome to Capulse — Your AI Trading Co-Pilot is Ready",
         recipients=[user.email],
-        html_body=_wrap("Welcome — Target Capital", body),
+        html_body=_wrap("Welcome — Capulse", body),
     )
 
 
@@ -177,7 +177,7 @@ def send_password_reset_email(to_email: str, reset_url: str, name: str = '') -> 
     body = f"""
     <h2 style="color:#00091a;margin:0 0 8px;">Reset Your Password</h2>
     <p style="color:#4a5568;margin:0 0 20px;">
-      {greeting} We received a request to reset the password for your Target Capital account.
+      {greeting} We received a request to reset the password for your Capulse account.
       Click the button below to set a new password. This link is valid for <strong>1 hour</strong>.
     </p>
     <div style="text-align:center;margin:28px 0;">
@@ -199,9 +199,9 @@ def send_password_reset_email(to_email: str, reset_url: str, name: str = '') -> 
     </p>
     """
     return _send(
-        subject="Password Reset Request — Target Capital",
+        subject="Password Reset Request — Capulse",
         recipients=[to_email],
-        html_body=_wrap("Password Reset — Target Capital", body),
+        html_body=_wrap("Password Reset — Capulse", body),
     )
 
 
@@ -265,7 +265,7 @@ def send_iscore_report_email(to_email: str, symbol: str, result: dict) -> bool:
     </table>
 
     <div style="margin-top:28px;text-align:center;">
-      <a href="https://targetcapital.ai/dashboard/research/stocks"
+      <a href="https://capulse.tech/dashboard/research/stocks"
          style="display:inline-block;background:#00091a;color:#ffffff;
                 text-decoration:none;padding:12px 28px;border-radius:6px;
                 font-weight:600;font-size:14px;">
@@ -276,7 +276,7 @@ def send_iscore_report_email(to_email: str, symbol: str, result: dict) -> bool:
     return _send(
         subject=f"I-Score Report: {symbol} — {rec} ({score:.0f}/100)",
         recipients=[to_email],
-        html_body=_wrap(f"I-Score: {symbol} — Target Capital", body),
+        html_body=_wrap(f"I-Score: {symbol} — Capulse", body),
     )
 
 
@@ -334,7 +334,7 @@ def send_trade_alert_email(to_emails, signal_data: dict, index_id: str = 'NIFTY'
     return _send(
         subject=f"🎯 {index_id} Signal: {direction} | Confidence {confidence:.0f}%",
         recipients=to_emails if isinstance(to_emails, list) else [to_emails],
-        html_body=_wrap(f"{index_id} F&O Alert — Target Capital", body),
+        html_body=_wrap(f"{index_id} F&O Alert — Capulse", body),
     )
 
 
@@ -355,9 +355,9 @@ def send_subscription_update_email(user, old_plan: str, new_plan: str) -> bool:
 
     is_upgrade = new_plan.upper() != 'FREE'
     subject = (
-        f"Subscription Upgraded to {new_label} — Target Capital"
+        f"Subscription Upgraded to {new_label} — Capulse"
         if is_upgrade else
-        f"Your Target Capital Trial Has Ended"
+        f"Your Capulse Trial Has Ended"
     )
     action_text = "upgraded to" if is_upgrade else "changed to"
 
@@ -382,7 +382,7 @@ def send_subscription_update_email(user, old_plan: str, new_plan: str) -> bool:
       </tr>
     </table>
     <div style="text-align:center;margin:24px 0;">
-      <a href="{'https://targetcapital.ai/dashboard' if is_upgrade else 'https://targetcapital.ai/pricing'}"
+      <a href="{'https://capulse.tech/dashboard' if is_upgrade else 'https://capulse.tech/pricing'}"
          style="display:inline-block;background:#00091a;color:#ffffff;
                 text-decoration:none;padding:14px 32px;border-radius:6px;
                 font-weight:600;font-size:15px;">
@@ -390,11 +390,11 @@ def send_subscription_update_email(user, old_plan: str, new_plan: str) -> bool:
       </a>
     </div>
     <p style="color:#718096;font-size:13px;margin:0;">
-      Questions? <a href="mailto:support@targetcapital.ai" style="color:#3182ce;">Contact support</a>
+      Questions? <a href="mailto:support@capulse.tech" style="color:#3182ce;">Contact support</a>
     </p>
     """
     return _send(
         subject=subject,
         recipients=[user.email],
-        html_body=_wrap("Subscription Update — Target Capital", body),
+        html_body=_wrap("Subscription Update — Capulse", body),
     )

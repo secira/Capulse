@@ -1,5 +1,5 @@
 """
-Behavioural AI Engine — Target Capital
+Behavioural AI Engine — Capulse
 Comprehensive trading psychology analysis with 20 modules across 5 categories.
 Produces a Master Behavioral Score (0-100) and actionable insights.
 

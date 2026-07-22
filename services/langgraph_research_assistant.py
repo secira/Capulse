@@ -1,5 +1,5 @@
 """
-LangGraph-powered Research Assistant for Target Capital
+LangGraph-powered Research Assistant for Capulse
 Implements a conversational, multi-step research agent with state management
 """
 
@@ -233,7 +233,7 @@ Provide specific, actionable insights with citations."""
         """Step 4: Generate comprehensive response with citations"""
         logger.info("Step 4: Generating response")
         
-        system_prompt = """You are an expert financial analyst at Target Capital. 
+        system_prompt = """You are an expert financial analyst at Capulse. 
 Create a comprehensive research report that:
 1. Directly answers the user's question
 2. Incorporates historical context and current market data

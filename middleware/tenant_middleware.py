@@ -1,11 +1,11 @@
 """
-Multi-Tenant Middleware for Target Capital
+Multi-Tenant Middleware for Capulse
 
 This module provides tenant resolution and context management for the 
 multi-tenant architecture. It resolves the current tenant from various
 sources (subdomain, header, user) and stores it in Flask's request context.
 
-Base tenant: 'live' - Target Capital's primary deployment
+Base tenant: 'live' - Capulse's primary deployment
 """
 
 from functools import wraps
@@ -14,7 +14,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Default tenant ID for Target Capital
+# Default tenant ID for Capulse
 DEFAULT_TENANT_ID = 'live'
 
 
@@ -23,9 +23,9 @@ def get_tenant_from_subdomain(host):
     Extract tenant ID from subdomain.
     
     Examples:
-        - client1.targetcapital.ai -> 'client1'
-        - app.targetcapital.ai -> 'live' (default)
-        - targetcapital.ai -> 'live' (default)
+        - client1.capulse.tech -> 'client1'
+        - app.capulse.tech -> 'live' (default)
+        - capulse.tech -> 'live' (default)
         - localhost:5000 -> 'live' (default)
         - *.worf.replit.dev -> 'live' (Replit dev domain)
         - *.replit.dev -> 'live' (Replit domain)
@@ -47,12 +47,12 @@ def get_tenant_from_subdomain(host):
         return None
     
     # Known production domains that don't indicate a tenant
-    main_domains = ['targetcapital.ai', 'in.targetcapital.ai', 'app.targetcapital.ai']
+    main_domains = ['capulse.tech', 'in.capulse.tech', 'app.capulse.tech']
     
     # Check if this is a subdomain of the main domain
     parts = host.split('.')
     
-    # If we have a subdomain (e.g., client1.targetcapital.ai)
+    # If we have a subdomain (e.g., client1.capulse.tech)
     if len(parts) >= 3:
         subdomain = parts[0]
         
@@ -117,7 +117,7 @@ def resolve_tenant_id():
         logger.debug(f"Tenant resolved from subdomain: {tenant_id}")
         return tenant_id
     
-    # Default: 'live' tenant (Target Capital)
+    # Default: 'live' tenant (Capulse)
     return DEFAULT_TENANT_ID
 
 

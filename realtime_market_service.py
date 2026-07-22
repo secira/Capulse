@@ -1,5 +1,5 @@
 """
-Real-time Market Data Service for Target Capital
+Real-time Market Data Service for Capulse
 High-performance market data streaming with WebSocket support and caching
 """
 

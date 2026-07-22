@@ -15,9 +15,9 @@ from models_broker import BrokerAccount, BrokerHolding, BrokerPosition, BrokerOr
 class Tenant(db.Model):
     """
     Multi-tenant support model. Each tenant represents a separate organization
-    or white-label deployment of Target Capital.
+    or white-label deployment of Capulse.
     
-    Base tenant: 'live' - Target Capital's primary deployment
+    Base tenant: 'live' - Capulse's primary deployment
     Additional tenants: Added during client onboarding
     """
     __tablename__ = 'tenants'
@@ -58,7 +58,7 @@ class Tenant(db.Model):
     
     @classmethod
     def get_default_tenant(cls):
-        """Get the default 'live' tenant (Target Capital)"""
+        """Get the default 'live' tenant (Capulse)"""
         return cls.query.get('live')
     
     @classmethod
@@ -68,7 +68,7 @@ class Tenant(db.Model):
         if not tenant:
             tenant = cls(
                 id='live',
-                name='Target Capital',
+                name='Capulse',
                 slug='live',
                 domain=None,
                 is_active=True,

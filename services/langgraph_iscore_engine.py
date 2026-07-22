@@ -1,5 +1,5 @@
 """
-LangGraph I-Score Engine for Target Capital
+LangGraph I-Score Engine for Capulse
 Implements the Intelli Score (I-Score) research workflow with multi-step analysis
 
 I-Score Components (Stocks — 6-component model, weights sum to 100%):

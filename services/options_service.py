@@ -1,5 +1,5 @@
 """
-Options Service for Target Capital
+Options Service for Capulse
 Provides options chain data, Greeks, and analysis for F&O trading
 
 Data Sources:
@@ -29,7 +29,7 @@ class OptionsService:
         self.session = requests.Session()
         self.session.headers.update({
             'Accept': 'application/json',
-            'User-Agent': 'TargeTarget Capital/1.0'
+            'User-Agent': 'TargeCapulse/1.0'
         })
         
         self.truedata_key = os.environ.get('TRUEDATA_API_KEY')

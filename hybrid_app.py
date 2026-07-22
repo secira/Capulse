@@ -98,7 +98,7 @@ class HybridApplication:
 
     def run_development(self, host="0.0.0.0", port=5000):
         """Run in development mode"""
-        logger.info("🚀 Starting Target Capital Hybrid Application (Development)")
+        logger.info("🚀 Starting Capulse Hybrid Application (Development)")
         uvicorn.run(
             self.fastapi_app,
             host=host,

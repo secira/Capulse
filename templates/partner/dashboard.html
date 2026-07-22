@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Partner Dashboard — {{ partner.name }} | Target Capital{% endblock %}
+{% block title %}Partner Dashboard — {{ partner.name }} | Capulse{% endblock %}
 
 {% block content %}
 <div style="background:#f8f9fb;min-height:100vh;padding-top:90px;">
@@ -52,7 +52,7 @@
             <div>
               <span class="text-muted small d-block">Referral Link</span>
               <span class="small text-break text-dark" id="refLink">
-                https://targetcapital.ai/register?ref={{ partner.partner_code }}
+                https://capulse.tech/register?ref={{ partner.partner_code }}
               </span>
             </div>
           </div>
@@ -207,7 +207,7 @@
 
 <script>
 function copyRefLink() {
-    const link = 'https://targetcapital.ai/register?ref={{ partner.partner_code }}';
+    const link = 'https://capulse.tech/register?ref={{ partner.partner_code }}';
     navigator.clipboard.writeText(link).then(() => {
         const btn = event.target.closest('button');
         const orig = btn.innerHTML;
@@ -217,10 +217,10 @@ function copyRefLink() {
     });
 }
 function shareRefLink() {
-    const link = 'https://targetcapital.ai/register?ref={{ partner.partner_code }}';
-    const text = 'Join Target Capital — India\'s AI-powered trading platform. Use my referral: {{ partner.partner_code }}\n' + link;
+    const link = 'https://capulse.tech/register?ref={{ partner.partner_code }}';
+    const text = 'Join Capulse — India\'s AI-powered trading platform. Use my referral: {{ partner.partner_code }}\n' + link;
     if (navigator.share) {
-        navigator.share({ title: 'Target Capital', text: text, url: link });
+        navigator.share({ title: 'Capulse', text: text, url: link });
     } else {
         copyRefLink();
     }

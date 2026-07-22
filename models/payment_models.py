@@ -1,5 +1,5 @@
 """
-Payment and Subscription Models for Target Capital
+Payment and Subscription Models for Capulse
 Tracks payments, subscriptions, and billing history
 """
 

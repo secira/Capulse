@@ -1,5 +1,5 @@
 """
-LangGraph Trade Execution Pipeline for Target Capital
+LangGraph Trade Execution Pipeline for Capulse
 Validates subscription, broker, funds, signal, and risk before trade execution
 """
 

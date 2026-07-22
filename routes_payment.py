@@ -1,5 +1,5 @@
 """
-Payment Routes for Target Capital
+Payment Routes for Capulse
 Handles Razorpay integration, subscription payments, and billing
 """
 

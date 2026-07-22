@@ -52,7 +52,7 @@ class InvestmentChatbot:
             
     def _get_system_prompt(self) -> str:
         """Get the system prompt for the AI investment chatbot"""
-        return """You are an AI Investment Advisor for Target Capital, India's leading AI-powered trading platform.
+        return """You are an AI Investment Advisor for Capulse, India's leading AI-powered trading platform.
 
 Your expertise includes:
 1. Indian stock market analysis and investment insights (NSE/BSE)

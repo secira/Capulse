@@ -1309,7 +1309,7 @@ def verify_database_connection():
 
 if __name__ == "__main__":
     logger.info("=" * 60)
-    logger.info("Railway Migration Script — Target Capital")
+    logger.info("Railway Migration Script — Capulse")
     logger.info("=" * 60)
 
     if not verify_database_connection():

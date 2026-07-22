@@ -1,5 +1,5 @@
 """
-Partner Network models — Target Capital
+Partner Network models — Capulse
 Keeps the partner system completely isolated from the existing user flow.
 """
 
@@ -79,7 +79,7 @@ class Partner(db.Model):
         self.partner_display_id = f"PTN{num}"
 
     def referral_link(self):
-        return f"https://targetcapital.ai/register?ref={self.partner_code}"
+        return f"https://capulse.tech/register?ref={self.partner_code}"
 
     @property
     def total_referred(self):

@@ -13,10 +13,10 @@ if __name__ == '__main__':
     from admin_app import admin_app
     
     print("="*50)
-    print("🔐 Target Capital Admin Server Starting...")
+    print("🔐 Capulse Admin Server Starting...")
     print("="*50)
     print(f"📍 Admin URL: http://localhost:5001/admin")
-    print(f"🌐 targetcapital.ai says: Admin panel ready at https://{os.environ.get('REPLIT_DEV_DOMAIN', 'targetcapital.ai')}:5001/admin")
+    print(f"🌐 capulse.tech says: Admin panel ready at https://{os.environ.get('REPLIT_DEV_DOMAIN', 'capulse.tech')}:5001/admin")
     print("="*50)
     
     # Initialize database tables

@@ -1,5 +1,5 @@
 """
-Production Trading Engine for Target Capital
+Production Trading Engine for Capulse
 High-performance async trading system with real-time market data and algorithmic execution
 """
 
@@ -36,7 +36,7 @@ celery_app = Celery(
 )
 
 # FastAPI App for Real-time Trading API
-trading_api = FastAPI(title="Target Capital Trading Engine", version="1.0.0")
+trading_api = FastAPI(title="Capulse Trading Engine", version="1.0.0")
 
 # CORS middleware for frontend connections
 trading_api.add_middleware(

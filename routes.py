@@ -1896,7 +1896,7 @@ def seed_demo_data():
         if not demo_user:
             demo_user = User(
                 username='demo',
-                email='demo@targetcapital.ai',
+                email='demo@capulse.tech',
                 first_name='Demo',
                 last_name='User'
             )
@@ -6595,7 +6595,7 @@ def api_trade_execute_signal():
                         f'3. Save the whitelist\n'
                         f'4. Click "Generate" to create a NEW Access Token\n'
                         f'   (token must be generated AFTER saving the whitelist)\n'
-                        f'5. Copy the new token → Target Capital → Broker Settings → Edit Dhan\n\n'
+                        f'5. Copy the new token → Capulse → Broker Settings → Edit Dhan\n\n'
                         f'Important: The token must be generated AFTER all IPs are whitelisted.'
                     ),
                     'broker_settings_url': '/dashboard/broker-accounts'
@@ -8124,7 +8124,7 @@ def api_ai_market_intelligence():
                     },
                     'message': (
                         f"🌸 Markets are closed today for {h['name']}. "
-                        "Wishing you a wonderful day from Target Capital!"
+                        "Wishing you a wonderful day from Capulse!"
                     ),
                     'data': None,
                     'timestamp': datetime.now(timezone.utc).isoformat(),
@@ -8694,7 +8694,7 @@ def robots_txt():
         "Disallow: /api/\n"
         "Disallow: /account/\n"
         "\n"
-        "Sitemap: https://www.targetcapital.ai/sitemap.xml\n"
+        "Sitemap: https://www.capulse.tech/sitemap.xml\n"
     )
     return Response(content, mimetype='text/plain')
 
@@ -8705,29 +8705,29 @@ def sitemap_xml():
     from datetime import date
     today = date.today().isoformat()
     urls = [
-        ('https://www.targetcapital.ai/', '1.0', 'weekly'),
-        ('https://www.targetcapital.ai/pricing', '0.9', 'weekly'),
-        ('https://www.targetcapital.ai/blog', '0.8', 'weekly'),
-        ('https://www.targetcapital.ai/fo', '0.8', 'daily'),
-        ('https://www.targetcapital.ai/equities', '0.8', 'weekly'),
-        ('https://www.targetcapital.ai/wealth-hub', '0.7', 'weekly'),
-        ('https://www.targetcapital.ai/mutual-funds', '0.7', 'weekly'),
-        ('https://www.targetcapital.ai/behavioral-coach', '0.7', 'weekly'),
-        ('https://www.targetcapital.ai/trade-center', '0.7', 'weekly'),
-        ('https://www.targetcapital.ai/multibroker-trade', '0.7', 'monthly'),
-        ('https://www.targetcapital.ai/about', '0.7', 'monthly'),
-        ('https://www.targetcapital.ai/contact', '0.6', 'monthly'),
-        ('https://www.targetcapital.ai/for-brokers', '0.6', 'monthly'),
-        ('https://www.targetcapital.ai/partners', '0.6', 'monthly'),
-        ('https://www.targetcapital.ai/careers', '0.5', 'monthly'),
-        ('https://www.targetcapital.ai/help-center', '0.5', 'monthly'),
-        ('https://www.targetcapital.ai/login', '0.4', 'monthly'),
-        ('https://www.targetcapital.ai/register', '0.4', 'monthly'),
-        ('https://www.targetcapital.ai/compliance', '0.4', 'monthly'),
-        ('https://www.targetcapital.ai/privacy-policy', '0.3', 'monthly'),
-        ('https://www.targetcapital.ai/terms-of-service', '0.3', 'monthly'),
-        ('https://www.targetcapital.ai/risk-disclosure', '0.3', 'monthly'),
-        ('https://www.targetcapital.ai/cancellation-refund-policy', '0.3', 'monthly'),
+        ('https://www.capulse.tech/', '1.0', 'weekly'),
+        ('https://www.capulse.tech/pricing', '0.9', 'weekly'),
+        ('https://www.capulse.tech/blog', '0.8', 'weekly'),
+        ('https://www.capulse.tech/fo', '0.8', 'daily'),
+        ('https://www.capulse.tech/equities', '0.8', 'weekly'),
+        ('https://www.capulse.tech/wealth-hub', '0.7', 'weekly'),
+        ('https://www.capulse.tech/mutual-funds', '0.7', 'weekly'),
+        ('https://www.capulse.tech/behavioral-coach', '0.7', 'weekly'),
+        ('https://www.capulse.tech/trade-center', '0.7', 'weekly'),
+        ('https://www.capulse.tech/multibroker-trade', '0.7', 'monthly'),
+        ('https://www.capulse.tech/about', '0.7', 'monthly'),
+        ('https://www.capulse.tech/contact', '0.6', 'monthly'),
+        ('https://www.capulse.tech/for-brokers', '0.6', 'monthly'),
+        ('https://www.capulse.tech/partners', '0.6', 'monthly'),
+        ('https://www.capulse.tech/careers', '0.5', 'monthly'),
+        ('https://www.capulse.tech/help-center', '0.5', 'monthly'),
+        ('https://www.capulse.tech/login', '0.4', 'monthly'),
+        ('https://www.capulse.tech/register', '0.4', 'monthly'),
+        ('https://www.capulse.tech/compliance', '0.4', 'monthly'),
+        ('https://www.capulse.tech/privacy-policy', '0.3', 'monthly'),
+        ('https://www.capulse.tech/terms-of-service', '0.3', 'monthly'),
+        ('https://www.capulse.tech/risk-disclosure', '0.3', 'monthly'),
+        ('https://www.capulse.tech/cancellation-refund-policy', '0.3', 'monthly'),
     ]
     xml_parts = ['<?xml version="1.0" encoding="UTF-8"?>',
                  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
@@ -8748,8 +8748,8 @@ def sitemap_xml():
 def llms_txt():
     from flask import Response
     content = (
-        "# Target Capital - AI Decision Engine for Indian Traders\n\n"
-        "Target Capital (https://www.targetcapital.ai) is an AI-powered trading support "
+        "# Capulse - AI Decision Engine for Indian Traders\n\n"
+        "Capulse (https://www.capulse.tech) is an AI-powered trading support "
         "platform for the Indian market. It helps F&O traders reduce losses through "
         "intelligent signals, portfolio analytics, and behavioural guardrails.\n\n"
         "## Key Capabilities\n"
@@ -8763,16 +8763,16 @@ def llms_txt():
         "- AI Research Co-Pilot: RAG-powered insights with Perplexity and Claude AI\n"
         "- Mutual Fund Overlap Checker: Portfolio overlap and risk analytics\n\n"
         "## Public Pages\n"
-        "- Home: https://www.targetcapital.ai/\n"
-        "- Pricing: https://www.targetcapital.ai/pricing\n"
-        "- F&O: https://www.targetcapital.ai/fo\n"
-        "- Equities: https://www.targetcapital.ai/equities\n"
-        "- Wealth Hub: https://www.targetcapital.ai/wealth-hub\n"
-        "- Mutual Funds: https://www.targetcapital.ai/mutual-funds\n"
-        "- Behavioural Coach: https://www.targetcapital.ai/behavioral-coach\n"
-        "- Blog: https://www.targetcapital.ai/blog\n\n"
+        "- Home: https://www.capulse.tech/\n"
+        "- Pricing: https://www.capulse.tech/pricing\n"
+        "- F&O: https://www.capulse.tech/fo\n"
+        "- Equities: https://www.capulse.tech/equities\n"
+        "- Wealth Hub: https://www.capulse.tech/wealth-hub\n"
+        "- Mutual Funds: https://www.capulse.tech/mutual-funds\n"
+        "- Behavioural Coach: https://www.capulse.tech/behavioral-coach\n"
+        "- Blog: https://www.capulse.tech/blog\n\n"
         "## Contact\n"
-        "Email: support@targetcapital.ai\n"
+        "Email: support@capulse.tech\n"
         "Registered: Tidel Park Module No.115, 1st Floor 'D' North, No.4 Rajiv Gandhi Salai, "
         "Tharamani, Chennai - 600113, India\n"
     )

@@ -1,5 +1,5 @@
 """
-Data Connector Layer for Target Capital AI Workflow Engine
+Data Connector Layer for Capulse AI Workflow Engine
 
 Abstract connector interface with pluggable backends:
 - B2C Connector: User's connected broker accounts (Dhan, Zerodha, Angel, etc.)

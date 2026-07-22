@@ -46,7 +46,7 @@ class ResearchAssistantService:
     
     def _get_system_prompt(self) -> str:
         """Get system prompt for Research Assistant"""
-        return """You are a Research Assistant for Target Capital, an educational platform focused on the Indian stock market.
+        return """You are a Research Assistant for Capulse, an educational platform focused on the Indian stock market.
 
 Your core capabilities:
 1. **Stock Research**: Analyze Indian stocks (NSE/BSE) with real-time data and historical context

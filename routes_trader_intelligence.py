@@ -1,5 +1,5 @@
 """
-Trader Intelligence Routes — Target Capital
+Trader Intelligence Routes — Capulse
 Serves the 20-question Trader DNA assessment, result page, and JSON APIs
 that power the wizard and the dashboard/profile level badge.
 """

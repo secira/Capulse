@@ -59,7 +59,7 @@ def post_fork(server, worker):
 
 def when_ready(server):
     """Called just after server is started"""
-    server.log.info("Target Capital server ready to accept connections")
+    server.log.info("Capulse server ready to accept connections")
 
 def worker_abort(worker):
     """Called when a worker received the SIGABRT signal"""
@@ -67,4 +67,4 @@ def worker_abort(worker):
 
 def on_exit(server):
     """Called just before exiting"""
-    server.log.info("Target Capital server shutting down")
+    server.log.info("Capulse server shutting down")

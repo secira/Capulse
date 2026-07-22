@@ -250,7 +250,7 @@ def format_daily_signal_telegram(signal) -> str:
         msg += f"\n⏰ <b>Call Time:</b> <i>{call_ist.strftime('%d %b %Y, %I:%M %p')} IST</i>"
     else:
         msg += f"\n⏰ <i>{datetime.now(timezone.utc).strftime('%d/%m/%Y %I:%M %p')} UTC</i>"
-    msg += "\n\n<a href='https://www.targetcapital.ai/dashboard/live-market-pulse'>View on Target Capital</a>"
+    msg += "\n\n<a href='https://www.capulse.tech/dashboard/live-market-pulse'>View on Capulse</a>"
     return msg
 
 
@@ -318,7 +318,7 @@ def format_daily_signal_update_telegram(signal) -> str:
 
     now_ist = datetime.utcnow() + _td(hours=5, minutes=30)
     msg += f"\n⏰ <b>Updated:</b> <i>{now_ist.strftime('%d %b %Y, %I:%M %p')} IST</i>"
-    msg += "\n\n<a href='https://www.targetcapital.ai/dashboard/live-market-pulse'>View on Target Capital</a>"
+    msg += "\n\n<a href='https://www.capulse.tech/dashboard/live-market-pulse'>View on Capulse</a>"
     return msg
 
 
@@ -372,7 +372,7 @@ def format_daily_signal_close_telegram(signal) -> str:
     else:
         now_ist = datetime.utcnow() + _td(hours=5, minutes=30)
         msg += f"\n⏰ <i>{now_ist.strftime('%d %b %Y, %I:%M %p')} IST</i>"
-    msg += "\n\n<a href='https://www.targetcapital.ai/dashboard/live-market-pulse'>View on Target Capital</a>"
+    msg += "\n\n<a href='https://www.capulse.tech/dashboard/live-market-pulse'>View on Capulse</a>"
     return msg
 
 
@@ -479,7 +479,7 @@ Risk Level: {signal.risk_level or 'Medium'}
 
 ⚠️ Trade at your own risk. This is for educational purposes only.
 
-- Target Capital Team
+- Capulse Team
 Generated: {datetime.now(timezone.utc).strftime('%d/%m/%Y %I:%M %p')}"""
 
         # Send to both platforms
@@ -516,9 +516,9 @@ def send_signup_notification(user):
             
         mail = Mail(app)
         msg = Message(
-            subject="New User Signup: Target Capital",
-            recipients=["uday@targetcapital.ai"],
-            body=f"Hello Uday,\n\nA new user has just signed up on Target Capital!\n\nUser Details:\nName: {user.first_name} {user.last_name}\nUsername: {user.username}\nEmail: {user.email}\nSignup Time: {datetime.now(timezone.utc).strftime('%d/%m/%Y %I:%M %p')}\n\nBest regards,\nTarget Capital System"
+            subject="New User Signup: Capulse",
+            recipients=["uday@capulse.tech"],
+            body=f"Hello Uday,\n\nA new user has just signed up on Capulse!\n\nUser Details:\nName: {user.first_name} {user.last_name}\nUsername: {user.username}\nEmail: {user.email}\nSignup Time: {datetime.now(timezone.utc).strftime('%d/%m/%Y %I:%M %p')}\n\nBest regards,\nCapulse System"
         )
         mail.send(msg)
         logger.info(f"Signup notification sent for user {user.email}")
@@ -529,7 +529,7 @@ def send_signup_notification(user):
 
 def test_messaging_setup():
     """Test messaging configuration"""
-    test_message = "🧪 Test message from Target Capital Admin\n\nThis is a test to verify messaging setup is working correctly."
+    test_message = "🧪 Test message from Capulse Admin\n\nThis is a test to verify messaging setup is working correctly."
     
     print("Testing messaging setup...")
     

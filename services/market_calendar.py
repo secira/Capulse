@@ -129,7 +129,7 @@ def send_holiday_wish_once() -> bool:
             f"_{today.strftime('%A, %d %b %Y')}_\n\n"
             "Wishing you and your family a wonderful day. "
             "We'll be back with market intelligence on the next trading day.\n\n"
-            "— Team Target Capital 💙"
+            "— Team Capulse 💙"
         )
         ok = send_telegram_message(msg, parse_mode='Markdown')
         if ok:

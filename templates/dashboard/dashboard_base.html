@@ -261,13 +261,14 @@ function _istStr(ts, timeOnly) {
 
     // Upgrade alert modal
     window.showUpgradeAlert = function(requiredPlan) {
-        requiredPlan = requiredPlan || 'Target Plus';
+        requiredPlan = requiredPlan || 'Capulse Plus';
         var messages = {
-            'Target Plus': 'Upgrade to Target Plus plan (₹1,499/month) to access this feature.',
-            'Target Pro': 'Upgrade to Target Pro plan (₹2,499/month) to access this feature.'
+            'Capulse Plus': 'Upgrade to Capulse Plus (₹999/month) to access this feature.',
+            'Target Plus': 'Upgrade to Capulse Plus (₹999/month) to access this feature.',
+            'Target Pro': 'Upgrade to Capulse Plus (₹999/month) to access this feature.'
         };
         var msg = document.getElementById('upgradeMessage');
-        if (msg) msg.textContent = messages[requiredPlan] || messages['Target Plus'];
+        if (msg) msg.textContent = messages[requiredPlan] || messages['Capulse Plus'];
         var el = document.getElementById('upgradeModal');
         if (el) new bootstrap.Modal(el).show();
     };

@@ -1,5 +1,5 @@
 /**
- * WebSocket Client for Target Capital (Disabled for Production)
+ * WebSocket Client for Capulse (Disabled for Production)
  * All data fetching is user-initiated only
  */
 (function() {
@@ -51,6 +51,6 @@ function useState(initialValue) {
 }
 
 window.WebSocketClient = WebSocketClient;
-window.TargetCapitalWebSocket = { WebSocketClient: WebSocketClient, useState: useState };
+window.CapulseWebSocket = { WebSocketClient: WebSocketClient, useState: useState };
 
 })();

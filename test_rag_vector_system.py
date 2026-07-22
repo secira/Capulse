@@ -90,7 +90,7 @@ SAMPLE_RESEARCH_REPORT = """
 EQUITY RESEARCH REPORT
 Stock: RELIANCE INDUSTRIES LTD
 Date: 20-Dec-2024
-Analyst: Target Capital Research
+Analyst: Capulse Research
 
 RECOMMENDATION: BUY
 Target Price: ₹3,000
@@ -246,7 +246,7 @@ def load_test_data():
             document_type='research_report',
             chunks=research_chunks,
             asset_class='equities',
-            source='Target Capital Research',
+            source='Capulse Research',
             metadata={'stock': 'RELIANCE', 'date': '2024-12-20', 'analyst': 'Research Team'}
         )
         print(f"   ✅ Created {len(research_chunk_ids)} research report chunks")
@@ -263,7 +263,7 @@ def load_test_data():
             document_type='trading_signal',
             chunks=signal_chunks,
             asset_class='equities',
-            source='Target Capital AI',
+            source='Capulse AI',
             metadata={'stock': 'TCS', 'signal': 'BUY', 'timestamp': '2024-12-22T10:30:00'}
         )
         print(f"   ✅ Created {len(signal_chunk_ids)} trading signal chunks")
@@ -295,7 +295,7 @@ def load_test_data():
             user_id=user_id,
             knowledge_type='recommendation',
             title='RELIANCE - BUY Recommendation',
-            content='Target Capital recommends BUY on RELIANCE with target price ₹3,000 (13.21% upside). Strong Q3 results, Jio growth, retail performance.',
+            content='Capulse recommends BUY on RELIANCE with target price ₹3,000 (13.21% upside). Strong Q3 results, Jio growth, retail performance.',
             asset_class='equities',
             asset_symbol='RELIANCE',
             structured_data={

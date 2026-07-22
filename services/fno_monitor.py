@@ -561,9 +561,9 @@ def _build_teaser_message(signal_data: dict, index_id: str) -> str:
             f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
             f"⭐ <b>Conviction:</b> {conviction}\n"
             f"⏰ <i>{_now_ist().strftime('%d %b %Y, %I:%M %p')} IST</i>\n\n"
-            f"🔐 <i>Full entry, Stop-Loss &amp; Targets are exclusive to Target Capital members.</i>\n\n"
-            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View Signal on Target Capital →</a>\n"
-            f"🚀 <a href='https://www.targetcapital.ai/pricing'>Start Free Trial — targetcapital.ai</a>"
+            f"🔐 <i>Full entry, Stop-Loss &amp; Targets are exclusive to Capulse members.</i>\n\n"
+            f"👉 <a href='https://www.capulse.tech/dashboard/fno/{page_path}'>View Signal on Capulse →</a>\n"
+            f"🚀 <a href='https://www.capulse.tech/pricing'>Start Free Trial — capulse.tech</a>"
         )
     elif signal_type == 'TRADE_EXIT':
         outcome     = signal_data.get('outcome', signal_data.get('exit_reason', 'Closed'))
@@ -584,14 +584,14 @@ def _build_teaser_message(signal_data: dict, index_id: str) -> str:
             f"{out_emoji} <b>Result:</b> {out_label}\n"
             f"⏰ <i>{_now_ist().strftime('%d %b %Y, %I:%M %p')} IST</i>\n\n"
             f"📊 <i>Full trade history &amp; P&amp;L analytics are on our platform.</i>\n\n"
-            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>Track Your Trades →</a>"
+            f"👉 <a href='https://www.capulse.tech/dashboard/fno/{page_path}'>Track Your Trades →</a>"
         )
     else:
         header = f"📡 <b>{display} — Signal Update</b>"
         body   = (
             f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
             f"⏰ <i>{_now_ist().strftime('%d %b %Y, %I:%M %p')} IST</i>\n\n"
-            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital →</a>"
+            f"👉 <a href='https://www.capulse.tech/dashboard/fno/{page_path}'>View on Capulse →</a>"
         )
 
     return f"{header}\n\n{body}"
@@ -600,7 +600,7 @@ def _build_teaser_message(signal_data: dict, index_id: str) -> str:
 def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
     """
     Full call message — entry + T1/T2/T3 + SL + trailing stop advice.
-    Format matches the Target Capital Telegram channel standard.
+    Format matches the Capulse Telegram channel standard.
     """
     display     = _INDEX_DISPLAY.get(index_id, index_id)
     page_path   = _INDEX_PAGE_PATH.get(index_id, 'nifty')
@@ -660,8 +660,8 @@ def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
             f"{trade_block}"
             f"{trailing}\n"
             f"⭐ <b>Conviction:</b> {conviction}\n\n"
-            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View Signal on Target Capital →</a>\n"
-            f"🚀 <a href='https://www.targetcapital.ai/pricing'>Start Free Trial — targetcapital.ai</a>"
+            f"👉 <a href='https://www.capulse.tech/dashboard/fno/{page_path}'>View Signal on Capulse →</a>\n"
+            f"🚀 <a href='https://www.capulse.tech/pricing'>Start Free Trial — capulse.tech</a>"
         )
 
     elif signal_type == 'TRADE_EXIT':
@@ -682,9 +682,9 @@ def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
             f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
             f"{out_emoji} <b>Result:</b> {out_label}\n"
             f"⏰ <i>{ts} IST</i>\n\n"
-            f"📊 <i>Full trade history &amp; P&amp;L analytics on Target Capital.</i>\n\n"
-            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>Track Your Trades →</a>\n"
-            f"🚀 <a href='https://www.targetcapital.ai/pricing'>Start Free Trial — targetcapital.ai</a>"
+            f"📊 <i>Full trade history &amp; P&amp;L analytics on Capulse.</i>\n\n"
+            f"👉 <a href='https://www.capulse.tech/dashboard/fno/{page_path}'>Track Your Trades →</a>\n"
+            f"🚀 <a href='https://www.capulse.tech/pricing'>Start Free Trial — capulse.tech</a>"
         )
 
     else:
@@ -692,7 +692,7 @@ def _build_full_message(signal_data: dict, index_id: str, enabled: set) -> str:
             f"📍 <b>{display} — Active Signal{code_tag}</b>\n\n"
             f"{dir_emoji} <b>Direction:</b> {dir_label}\n"
             f"⏰ <i>{ts} IST</i>\n\n"
-            f"👉 <a href='https://www.targetcapital.ai/dashboard/fno/{page_path}'>View on Target Capital →</a>"
+            f"👉 <a href='https://www.capulse.tech/dashboard/fno/{page_path}'>View on Capulse →</a>"
         )
 
     return msg

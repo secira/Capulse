@@ -108,7 +108,7 @@ class PortfolioAnalysisWorkflow:
         user_preferences = state.get("user_preferences", {})
 
         system = (
-            "You are a Risk Analysis Specialist at Target Capital, specializing in Indian equity markets.\n"
+            "You are a Risk Analysis Specialist at Capulse, specializing in Indian equity markets.\n"
             "Analyze the portfolio and provide a precise, quantitative risk assessment.\n"
             "Consider the user's stated risk tolerance and preferences.\n"
             "Return ONLY valid JSON."
@@ -145,7 +145,7 @@ class PortfolioAnalysisWorkflow:
         portfolio_data = state.get("portfolio_data", {})
 
         system = (
-            "You are a Sector Analysis Specialist at Target Capital.\n"
+            "You are a Sector Analysis Specialist at Capulse.\n"
             "Evaluate the portfolio's sector allocation with specific percentages.\n"
             "Return ONLY valid JSON."
         )
@@ -182,7 +182,7 @@ class PortfolioAnalysisWorkflow:
         user_preferences = state.get("user_preferences", {})
 
         system = (
-            "You are an Asset Allocation Specialist at Target Capital.\n"
+            "You are an Asset Allocation Specialist at Capulse.\n"
             "Recommend optimal asset allocation aligned with the user's risk tolerance, "
             "investment horizon, and preferred asset classes.\n"
             "Return ONLY valid JSON."
@@ -221,7 +221,7 @@ class PortfolioAnalysisWorkflow:
         user_preferences = state.get("user_preferences", {})
 
         system = (
-            "You are an Investment Opportunities Specialist at Target Capital.\n"
+            "You are an Investment Opportunities Specialist at Capulse.\n"
             "Identify 5-10 specific investment opportunities for Indian markets "
             "matching the user's profile and allocation gaps.\n"
             "Return ONLY valid JSON."
@@ -268,7 +268,7 @@ class PortfolioAnalysisWorkflow:
         opportunities = state.get("opportunities", [])
 
         system = (
-            "You are the Chief Portfolio Strategist at Target Capital.\n"
+            "You are the Chief Portfolio Strategist at Capulse.\n"
             "Synthesize all analysis results into a comprehensive, personalized portfolio report.\n"
             "Use markdown formatting with clear sections.\n"
             "Emphasize how recommendations align with the user's goals and preferences."

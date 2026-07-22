@@ -543,7 +543,7 @@ class InvestmentAnalysisService:
                 'revenue_growth': float(data.get('QuarterlyRevenueGrowthYOY', 0)) if data.get('QuarterlyRevenueGrowthYOY') != 'None' else None,
                 'profit_margin': float(data.get('ProfitMargin', 0)) if data.get('ProfitMargin') != 'None' else None,
                 'debt_to_equity': float(data.get('DebtToEquity', 0)) if data.get('DebtToEquity') != 'None' else None,
-                'market_cap': int(data.get('MarkeTarget Capitalization', 0)) if data.get('MarkeTarget Capitalization') != 'None' else None,
+                'market_cap': int(data.get('MarkeCapulseization', 0)) if data.get('MarkeCapulseization') != 'None' else None,
                 'dividend_yield': float(data.get('DividendYield', 0)) if data.get('DividendYield') != 'None' else None
             }
         except:

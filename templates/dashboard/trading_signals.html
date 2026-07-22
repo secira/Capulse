@@ -1,6 +1,6 @@
 {% extends "dashboard/dashboard_base.html" %}
 
-{% block title %}Research and Signals - Target Capital Dashboard{% endblock %}
+{% block title %}Research and Signals - Capulse Dashboard{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -1218,12 +1218,12 @@ function filterSignals(type) {
 }
 
 function showUpgradeAlert() {
-    alert('targetcapital.ai says: Upgrade to view Smart Signals. FREE users have access to Research Assistant only.');
+    alert('capulse.tech says: Upgrade to view Smart Signals. FREE users have access to Research Assistant only.');
     window.location.href = '/pricing';
 }
 
 function showUpgradeToProAlert() {
-    alert('targetcapital.ai says: Upgrade to TARGET PRO (₹2,499) or HNI (₹4,999) to execute trades with your primary broker. TARGET PLUS users can view signals but cannot trade.');
+    alert('capulse.tech says: Upgrade to TARGET PRO (₹2,499) or HNI (₹4,999) to execute trades with your primary broker. TARGET PLUS users can view signals but cannot trade.');
     window.location.href = '/pricing';
 }
 
@@ -1394,7 +1394,7 @@ function startLiveUpdates() {
         // Auto-refresh signals every 2 minutes during market hours
         autoRefreshInterval = setInterval(function() {
             if (document.hasFocus() && isMarketHours()) {
-                console.log('targetcapital.ai says: Auto-refreshing trading signals...');
+                console.log('capulse.tech says: Auto-refreshing trading signals...');
                 refreshSignals();
             }
         }, 120000); // 2 minutes

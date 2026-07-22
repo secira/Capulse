@@ -1,5 +1,5 @@
 """
-Trader Intelligence Profiling — Target Capital's behavioural classification
+Trader Intelligence Profiling — Capulse's behavioural classification
 engine. Drives the 20-question Trader DNA assessment, computes a weighted
 score across 6 dimensions and assigns one of 6 levels (L1..L6).
 

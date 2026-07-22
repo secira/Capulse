@@ -1,5 +1,5 @@
 """
-Scalability Enhancements for Target Capital Production System
+Scalability Enhancements for Capulse Production System
 Advanced optimizations for concurrent users, performance, and mobile support
 """
 
@@ -56,7 +56,7 @@ class ConnectionPoolManager:
                 command_timeout=60,  # Command timeout
                 server_settings={
                     'jit': 'off',  # Disable JIT for faster startup
-                    'application_name': 'Target Capital_Production'
+                    'application_name': 'Capulse_Production'
                 }
             )
             
@@ -281,7 +281,7 @@ class MobileOptimizer:
     async def generate_service_worker(self) -> str:
         """Generate service worker for PWA functionality"""
         service_worker = """
-// Target Capital Mobile Service Worker
+// Capulse Mobile Service Worker
 const CACHE_NAME = 'tcapital-v1.0.0';
 const urlsToCache = [
     '/',
@@ -336,8 +336,8 @@ self.addEventListener('fetch', function(event) {
     async def generate_app_manifest(self) -> Dict:
         """Generate PWA manifest for mobile app-like experience"""
         manifest = {
-            "name": "Target Capital - Trading Platform",
-            "short_name": "Target Capital",
+            "name": "Capulse - Trading Platform",
+            "short_name": "Capulse",
             "description": "Professional AI-powered stock trading platform",
             "start_url": "/dashboard",
             "display": "standalone",

@@ -1,5 +1,5 @@
 """
-Agentic AI Service for Target Capital Platform
+Agentic AI Service for Capulse Platform
 Implements autonomous AI system with n8n workflow integration for stock trading, portfolio management, and market analysis.
 Features OpenAI and Perplexity API integration for advanced reasoning and real-time research capabilities.
 """

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-WebSocket Server Startup Script for Target Capital
+WebSocket Server Startup Script for Capulse
 Starts all WebSocket servers alongside the Flask application
 """
 
@@ -48,7 +48,7 @@ class WebSocketLauncher:
                 start_portfolio_updates_server
             )
             
-            logger.info("🌐 Starting Target Capital WebSocket Infrastructure...")
+            logger.info("🌐 Starting Capulse WebSocket Infrastructure...")
             
             # Start all servers concurrently
             await asyncio.gather(
@@ -111,7 +111,7 @@ def start_websockets_in_background():
 def main():
     """Main function to run WebSocket servers"""
     try:
-        logger.info("🚀 Starting Target Capital WebSocket Server Launcher...")
+        logger.info("🚀 Starting Capulse WebSocket Server Launcher...")
         
         launcher = WebSocketLauncher()
         asyncio.run(launcher.start_all_servers())

@@ -315,7 +315,7 @@ try:
         "connect_args": {
             "sslmode": "prefer",
             "connect_timeout": 10,
-            "application_name": "Target-Capital-Flask"
+            "application_name": "Capulse-Flask"
         } if database_url.startswith('postgresql+psycopg2://') else {}
     }
     
@@ -358,7 +358,7 @@ app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'notifications@targetcapital.ai')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'notifications@capulse.tech')
 
 # Initialize Flask-Mail
 from flask_mail import Mail
@@ -1068,7 +1068,7 @@ with app.app_context():
         logging.info(f"✅ Incremental column migrations: {_ok} ok, {_failed} skipped")
     # ─────────────────────────────────────────────────────────────────────────
 
-    # Initialize default 'live' tenant (Target Capital) - only if tables exist
+    # Initialize default 'live' tenant (Capulse) - only if tables exist
     logging.info("→ initializing default tenant…")
     try:
         models.Tenant.get_or_create_default()
@@ -1236,7 +1236,7 @@ except ImportError as e:
 
 # WebSocket servers DISABLED - system is strictly user-driven with no automatic background processes
 # Per user requirement: no automatic background polling, demo data generation, or WebSocket connections
-logging.info("🚀 Starting Target Capital application (user-driven mode - no WebSocket servers)")
+logging.info("🚀 Starting Capulse application (user-driven mode - no WebSocket servers)")
 
 # Warm up Dhan instrument master in a background daemon thread so that the
 # first I-Score / OHLCV request after a server restart is not delayed.
@@ -1529,7 +1529,7 @@ def check_trial_expiry():
     else:
         flash(
             'Your free trial has ended. '
-            'Please upgrade to continue using all features of Target Capital.',
+            'Please upgrade to continue using all features of Capulse.',
             'warning'
         )
     return redirect(url_for('pricing'))

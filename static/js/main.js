@@ -1,5 +1,5 @@
 /**
- * Target Capital - Main JavaScript File
+ * Capulse - Main JavaScript File
  * Handles client-side interactions and enhancements
  */
 
@@ -605,7 +605,7 @@
     };
 
     window.addEventListener('error', function(e) {
-        console.error('targetcapital.ai says: JavaScript error:', e.filename, 'line:', e.lineno, 'col:', e.colno, e.message);
+        console.error('capulse.tech says: JavaScript error:', e.filename, 'line:', e.lineno, 'col:', e.colno, e.message);
     });
 
     // Add CSS for animations

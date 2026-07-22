@@ -1,5 +1,5 @@
 """
-LangGraph Smart Trading Signal Pipeline for Target Capital
+LangGraph Smart Trading Signal Pipeline for Capulse
 Implements intelligent market scanning and signal generation with state management
 """
 

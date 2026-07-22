@@ -1,5 +1,5 @@
 """
-Middleware package for Target Capital
+Middleware package for Capulse
 
 Contains middleware for:
 - Multi-tenant support and tenant resolution

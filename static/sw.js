@@ -1,4 +1,4 @@
-// Target Capital — Service Worker SELF-DESTRUCT (2026-05-20)
+// Capulse — Service Worker SELF-DESTRUCT (2026-05-20)
 //
 // Previous SW versions intercepted /api/* requests with a networkFirst
 // strategy that, after the first slow Dhan-backed request hung, started

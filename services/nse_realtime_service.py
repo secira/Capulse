@@ -1,5 +1,5 @@
 """
-Real-time NSE data service for Target Capital
+Real-time NSE data service for Capulse
 Fetches live market data from NSE API and other sources
 """
 

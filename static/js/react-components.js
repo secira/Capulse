@@ -1,5 +1,5 @@
 /**
- * React-style Components for Target Capital using Vanilla JavaScript
+ * React-style Components for Capulse using Vanilla JavaScript
  * Provides React-like component architecture with WebSocket integration
  * Optimized for production scalability and real-time updates
  */
@@ -594,7 +594,7 @@ window.CapitalComponents = {
     PortfolioRealtime,
     AITradingSignals
 };
-window.TargetCapitalComponents = window.CapitalComponents;
+window.CapulseComponents = window.CapitalComponents;
 
 // Component Manager for React-style mounting/unmounting
 class ComponentManager {
@@ -675,7 +675,7 @@ window.addEventListener('beforeunload', () => {
 });
 
 // Export for global access
-window.TargetCapitalComponents = {
+window.CapulseComponents = {
     RealTimeMarketData: RealTimeMarketData,
     TradingInterface: TradingInterface,
     Portfolio: PortfolioRealtime,

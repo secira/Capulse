@@ -210,7 +210,7 @@ class IScoreWorkflow:
         news_context = state.get("perplexity_news_context", "")
 
         system_prompt = (
-            "You are a senior financial analyst at Target Capital specializing in Indian equity markets. "
+            "You are a senior financial analyst at Capulse specializing in Indian equity markets. "
             "Analyze qualitative sentiment for the given stock using the real-time news and analyst data provided. "
             "Where specific data is given, use it directly — do not rely on training data alone. "
             "Return a JSON object."
@@ -269,7 +269,7 @@ class IScoreWorkflow:
         tech_context = self._gather_technical_indicators(symbol)
 
         system_prompt = (
-            "You are a quantitative analyst at Target Capital. "
+            "You are a quantitative analyst at Capulse. "
             "Analyze the technical indicators provided and score the stock. "
             "Return a JSON object."
         )
@@ -313,7 +313,7 @@ class IScoreWorkflow:
         news_context = state.get("perplexity_news_context", "")
 
         system_prompt = (
-            "You are a market intelligence analyst at Target Capital. "
+            "You are a market intelligence analyst at Capulse. "
             "Evaluate search-based and social sentiment for the stock using the real-time web data provided. "
             "Focus specifically on retail investor interest, search popularity, and online community buzz — "
             "distinct from news quality or analyst opinion. "
@@ -371,7 +371,7 @@ class IScoreWorkflow:
         trend_data = self._gather_trend_data(symbol)
 
         system_prompt = (
-            "You are a derivatives and market-structure analyst at Target Capital. "
+            "You are a derivatives and market-structure analyst at Capulse. "
             "Analyze the trend data (Open Interest, Put-Call Ratio, India VIX) "
             "to determine market direction bias. Return a JSON object."
         )

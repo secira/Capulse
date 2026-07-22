@@ -1,6 +1,6 @@
 {
-  "name": "Target Capital - AI Trading Platform",
-  "short_name": "Target Capital",
+  "name": "Capulse - AI Trading Platform",
+  "short_name": "Capulse",
   "description": "Professional AI-powered stock trading and portfolio analysis platform with advanced algorithms and real-time market insights",
   "start_url": "/dashboard?utm_source=pwa",
   "display": "standalone",

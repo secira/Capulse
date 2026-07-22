@@ -311,7 +311,7 @@ class RiskEngine:
                     'title': 'High Concentration Risk',
                     'message': (
                         f'This trade is {concentration:.1f}% of your total portfolio value. '
-                        f'Target Capital recommends a maximum of 20% per position.'
+                        f'Capulse recommends a maximum of 20% per position.'
                     ),
                 })
             elif concentration > 20:

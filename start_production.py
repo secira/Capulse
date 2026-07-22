@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Production Startup Script for Target Capital Trading Platform
+Production Startup Script for Capulse Trading Platform
 One-command deployment of the complete scalable trading system
 """
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class ProductionStarter:
     """
-    Production startup orchestrator for Target Capital trading system
+    Production startup orchestrator for Capulse trading system
     """
     
     def __init__(self):
@@ -244,7 +244,7 @@ class ProductionStarter:
     def display_system_info(self):
         """Display system information and URLs"""
         logger.info("\n" + "="*70)
-        logger.info("🎯 Target Capital Production Trading System")
+        logger.info("🎯 Capulse Production Trading System")
         logger.info("="*70)
         
         logger.info("\n🌐 System URLs:")
@@ -288,7 +288,7 @@ class ProductionStarter:
     def run_production_system(self):
         """Run the complete production system"""
         try:
-            logger.info("🚀 Target Capital Production Trading System Startup")
+            logger.info("🚀 Capulse Production Trading System Startup")
             logger.info("=" * 50)
             
             # Validate environment

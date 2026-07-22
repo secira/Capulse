@@ -90,7 +90,7 @@ class DatabaseConfig:
             "connect_args": {
                 "server_settings": {
                     "jit": "off",
-                    "application_name": "Target Capital-FastAPI"
+                    "application_name": "Capulse-FastAPI"
                 }
             }
         }
@@ -230,7 +230,7 @@ async def get_current_user(token: str = Depends(security)):
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     # Startup
-    logger.info("🚀 Starting Target Capital FastAPI Application")
+    logger.info("🚀 Starting Capulse FastAPI Application")
     
     # Initialize Redis cache
     redis_client = await cache_config.get_redis()
@@ -264,7 +264,7 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI application
 app = FastAPI(
-    title="Target Capital Trading API",
+    title="Capulse Trading API",
     description="High-performance async trading platform API",
     version="2.0.0",
     lifespan=lifespan

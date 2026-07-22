@@ -426,7 +426,7 @@ a{color:#60a5fa}</style></head><body>
   <div class="warn">⚠</div>
   <h3 style="margin:0 0 .5rem">Session not found in this tab</h3>
   <p style="color:#94a3b8;font-size:.95rem;margin:.5rem 0 1.5rem">
-    Please go back to your Target Capital tab, make sure you are logged in,
+    Please go back to your Capulse tab, make sure you are logged in,
     then click <strong>Re-login with Zerodha</strong> again.
   </p>
   <button onclick="window.close()"

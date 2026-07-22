@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Target Capital — Pre-Deployment Validation Script
+Capulse — Pre-Deployment Validation Script
 ===================================================
 Run this BEFORE deploying to Railway to verify every required piece is in place.
 
@@ -67,7 +67,7 @@ REQUIRED_VARS = [
     ("BROKER_ENCRYPTION_KEY",  "44-char Fernet key — encrypts broker tokens at rest"),
     ("ENCRYPTION_MASTER_KEY",  "≥32 chars — per-tenant field encryption root"),
     ("ENVIRONMENT",            "Must equal 'production'"),
-    ("CORS_ORIGINS",           "Comma-separated allowed origins, e.g. https://targetcapital.ai"),
+    ("CORS_ORIGINS",           "Comma-separated allowed origins, e.g. https://capulse.tech"),
 ]
 
 for var, desc in REQUIRED_VARS:
@@ -117,7 +117,7 @@ OPTIONAL_VARS = [
     ("TELEGRAM_BOT_TOKEN",       "F&O alerts + deployment pings"),
     ("TELEGRAM_CHAT_ID",         "F&O alerts channel"),
     ("ADMIN_EMAILS",             "Comma-separated emails auto-promoted to admin on login"),
-    ("APP_DOMAIN",               "Railway production domain (e.g. targetcapital.ai) — used in OAuth debug page"),
+    ("APP_DOMAIN",               "Railway production domain (e.g. capulse.tech) — used in OAuth debug page"),
     ("EXECUTION_ENGINE_URL",     "TC Engine on EC2 — live trade routing"),
 ]
 

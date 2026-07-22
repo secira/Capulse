@@ -248,7 +248,7 @@ def require_tenant(allowed_tenants):
         @app.route('/admin')
         @require_tenant(['live'])
         def admin_panel():
-            return 'Admin only for Target Capital'
+            return 'Admin only for Capulse'
     """
     if isinstance(allowed_tenants, str):
         allowed_tenants = [allowed_tenants]

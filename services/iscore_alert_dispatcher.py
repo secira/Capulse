@@ -79,7 +79,7 @@ def _fire_premarket_report():
 def _fire_fno_signals_test():
     """Sample F&O signal test — intentionally NOT sent to Telegram.
 
-    The live Telegram group (Target Capital - Nifty) is for real signals only.
+    The live Telegram group (Capulse - Nifty) is for real signals only.
     Sample/test sends are blocked to keep the group professional.
     Real alerts are dispatched by fno_monitor._send_telegram_alert() when the
     engine detects a genuine high-confidence signal during market hours.

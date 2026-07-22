@@ -1,11 +1,11 @@
 /**
- * TradingView Datafeed Implementation for Target Capital
+ * TradingView Datafeed Implementation for Capulse
  * Connects NSE data to TradingView charts
  */
 (function() {
 'use strict';
 
-class TargetCapitalDatafeed {
+class CapulseDatafeed {
     constructor() {
         this.baseUrl = '/api/tradingview';
         this.debug = true;
@@ -188,14 +188,14 @@ class TargetCapitalDatafeed {
     log(message, data = null) {
         if (this.debug) {
             if (data) {
-                console.log(`[targetcapital.ai says] ${message}`, data);
+                console.log(`[capulse.tech says] ${message}`, data);
             } else {
-                console.log(`[targetcapital.ai says] ${message}`);
+                console.log(`[capulse.tech says] ${message}`);
             }
         }
     }
 }
 
-window.TargetCapitalDatafeed = TargetCapitalDatafeed;
+window.CapulseDatafeed = CapulseDatafeed;
 
 })();

@@ -1,5 +1,5 @@
 """
-Script to create an admin user for Target Capital Trading Platform.
+Script to create an admin user for Capulse Trading Platform.
 
 Two modes of operation:
   1. Non-interactive (CI / first-deploy): set environment variables
@@ -54,7 +54,7 @@ def _create_from_env():
 def _create_interactively():
     """Interactive mode: prompt for credentials."""
     with app.app_context():
-        print("🔐 Target Capital Admin User Creation")
+        print("🔐 Capulse Admin User Creation")
         print("=" * 40)
 
         # Ensure admin table exists

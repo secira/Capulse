@@ -40,20 +40,20 @@
         }
     })();
     </script>
-    <title>{% block title %}Target Capital - The Intelligent Investing Platform for All{% endblock %}</title>
-    <meta name="description" content="{% block description %}Target Capital — Scentric AI Decision Engine for Indian traders. I-Score signals, multi-broker portfolio hub, and AI-guided trade execution with behavioural guardrails.{% endblock %}">
-    <meta name="keywords" content="{% block keywords %}AI trading platform India, portfolio management software, F&O trading signals, stock research India, multi-broker portfolio tracker, behavioural trading psychology, I-Score rating, Nifty 50 analysis, NSE stocks, intraday trading signals, swing trading, SEBI registered, demat account, Target Capital, Scentric AI Decision Engine, Trading DNA, trading discipline score, Dhan Zerodha Angel Groww Upstox portfolio{% endblock %}">
+    <title>{% block title %}Capulse - The Intelligent Investing Platform for All{% endblock %}</title>
+    <meta name="description" content="{% block description %}Capulse — Scentric AI Decision Engine for Indian traders. I-Score signals, multi-broker portfolio hub, and AI-guided trade execution with behavioural guardrails.{% endblock %}">
+    <meta name="keywords" content="{% block keywords %}AI trading platform India, portfolio management software, F&O trading signals, stock research India, multi-broker portfolio tracker, behavioural trading psychology, I-Score rating, Nifty 50 analysis, NSE stocks, intraday trading signals, swing trading, SEBI registered, demat account, Capulse, Scentric AI Decision Engine, Trading DNA, trading discipline score, Dhan Zerodha Angel Groww Upstox portfolio{% endblock %}">
     <meta name="robots" content="index, follow">
-    <meta name="author" content="Target Capital - Scentric Network Private Limited">
+    <meta name="author" content="Capulse - Scentric Network Private Limited">
     <link rel="canonical" href="{{ request.url.split('?')[0] }}">
 
     <!-- Open Graph / Social Sharing -->
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Target Capital">
+    <meta property="og:site_name" content="Capulse">
     <meta property="og:locale" content="en_IN">
-    <meta property="og:title" content="{% block og_title %}Target Capital — AI Portfolio Co-Pilot for Indian Traders{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}Capulse — AI Portfolio Co-Pilot for Indian Traders{% endblock %}">
     <meta property="og:description" content="{% block og_description %}I-Score signals, multi-broker portfolio hub, behavioural guardrails and AI-guided trade execution. India's Scentric AI Decision Engine.{% endblock %}">
-    <meta property="og:image" content="{{ request.host_url }}static/images/TC_Logo_1783846358612.png">
+    <meta property="og:image" content="{{ request.host_url }}static/images/capulse-og.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:url" content="{{ request.url }}">
@@ -61,9 +61,9 @@
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:site" content="@ShankarUday2020">
-    <meta name="twitter:title" content="{% block twitter_title %}Target Capital — AI Portfolio Co-Pilot{% endblock %}">
+    <meta name="twitter:title" content="{% block twitter_title %}Capulse — AI Portfolio Co-Pilot{% endblock %}">
     <meta name="twitter:description" content="{% block twitter_description %}I-Score signals, multi-broker portfolio hub and behavioural guardrails for Indian F&O traders.{% endblock %}">
-    <meta name="twitter:image" content="{{ request.host_url }}static/images/TC_Logo_1783846358612.png">
+    <meta name="twitter:image" content="{{ request.host_url }}static/images/capulse-og.png">
 
     <!-- Google AdSense -->
     <meta name="google-adsense-account" content="ca-pub-1783556602775038">
@@ -80,7 +80,7 @@
     <link rel="alternate icon" href="{{ url_for('static', filename='img/favicon.svg') }}">
     
     <!-- LCP image preload — browser fetches logo before paint -->
-    <link rel="preload" as="image" href="/static/images/TC_Logo_1783846358612.png" fetchpriority="high">
+    <link rel="preload" as="image" href="/static/images/capulse-og.png" fetchpriority="high">
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome (deferred via media=print trick — icons are not LCP-critical) -->
@@ -95,7 +95,7 @@
     <meta name="theme-color" content="#0066cc">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Target Capital">
+    <meta name="apple-mobile-web-app-title" content="Capulse">
     
     <!-- Custom CSS v3 (cache-busted) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=3">
@@ -110,11 +110,11 @@
       {
         "@context": "https://schema.org",
         "@type": "Organization",
-        "name": "Target Capital",
+        "name": "Capulse",
         "legalName": "Scentric Networks Private Limited",
         "alternateName": "Scentric AI",
-        "url": "https://www.targetcapital.ai",
-        "logo": "https://www.targetcapital.ai/static/images/TC_Logo_1783846358612.png",
+        "url": "https://www.capulse.tech",
+        "logo": "https://www.capulse.tech/static/images/capulse-og.png",
         "description": "AI-powered investment platform for Indian retail traders featuring I-Score signals, multi-broker portfolio management, behavioural guardrails, and Scentric AI Decision Engine.",
         "foundingDate": "2020",
         "areaServed": "IN",
@@ -134,7 +134,7 @@
         "contactPoint": {
           "@type": "ContactPoint",
           "contactType": "customer support",
-          "email": "info@targetcapital.ai",
+          "email": "info@capulse.tech",
           "availableLanguage": ["English", "Hindi"]
         },
         "offers": {
@@ -147,13 +147,13 @@
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
-        "name": "Target Capital",
-        "url": "https://www.targetcapital.ai",
+        "name": "Capulse",
+        "url": "https://www.capulse.tech",
         "potentialAction": {
           "@type": "SearchAction",
           "target": {
             "@type": "EntryPoint",
-            "urlTemplate": "https://www.targetcapital.ai/equities?q={search_term_string}"
+            "urlTemplate": "https://www.capulse.tech/equities?q={search_term_string}"
           },
           "query-input": "required name=search_term_string"
         }
@@ -161,8 +161,8 @@
       {
         "@context": "https://schema.org",
         "@type": "FinancialService",
-        "name": "Target Capital",
-        "url": "https://www.targetcapital.ai",
+        "name": "Capulse",
+        "url": "https://www.capulse.tech",
         "description": "SEBI-compliant AI-powered F&O signal, stock research, and portfolio analytics platform for Indian traders.",
         "areaServed": {"@type": "Country", "name": "India"},
         "serviceType": "Investment Research and Portfolio Analytics"
@@ -199,6 +199,8 @@ fbq('track', 'PageView');
 src="https://www.facebook.com/tr?id=1953729328495488&ev=PageView&noscript=1"
 /></noscript>
 <!-- End Meta Pixel Code -->
+    <!-- Bootstrap JS (loaded in head so inline scripts in page blocks can use bootstrap.Modal) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
     <!-- Google Tag Manager (noscript) -->
@@ -210,9 +212,7 @@ src="https://www.facebook.com/tr?id=1953729328495488&ev=PageView&noscript=1"
     <nav class="navbar navbar-expand-lg navbar-light fixed-top border-bottom" style="padding: 20px 0; border-bottom: 1px solid #e9ecef !important; background-color: #ffffff !important;">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}" style="font-weight: 600;">
-                <img src="{{ url_for('static', filename='images/TC_Logo_1783846358612.png') }}?v=4" 
-                     alt="Target Capital Logo" width="124" height="70" class="me-0"
-                     fetchpriority="high" decoding="async">
+                <svg height="34" viewBox="0 0 130 34" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;"><path d="M4 17H11L14.5 8L21 26L24.5 17H32" stroke="#F5A623" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><text x="40" y="24" font-family="Space Grotesk,system-ui,sans-serif" font-weight="700" font-size="19" fill="#F4F6FB" letter-spacing="-0.3">Capulse</text></svg>
                 <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #00091a; background: #f0b429; border-radius: 4px; padding: 2px 6px; margin-left: 6px; align-self: flex-start; margin-top: 14px; text-transform: uppercase;">Beta</span>
             </a>
             
@@ -425,7 +425,7 @@ src="https://www.facebook.com/tr?id=1953729328495488&ev=PageView&noscript=1"
             <div class="row">
                 <div class="col-lg-4 mb-4">
                     <h5>
-                        <i class="fas fa-chart-line me-2"></i>Target Capital
+                        <i class="fas fa-chart-line me-2"></i>Capulse
                     </h5>
                     <p>AI-powered portfolio co-pilot with the Scentric AI Decision Engine, Risk Engine, and behavioural guardrails for smarter trading.</p>
                     <div class="social-links">
@@ -538,13 +538,13 @@ src="https://www.facebook.com/tr?id=1953729328495488&ev=PageView&noscript=1"
                                 </div>
                                 <div class="text-light" style="font-size:0.85rem;opacity:0.9;">
                                     Found a bug? Report it to
-                                    <a href="mailto:info@targetcapital.ai?subject=Bug%20Report%20%E2%80%94%20Target%20Capital"
-                                       class="fw-semibold" style="color:#f0b429;text-decoration:underline;">info@targetcapital.ai</a>
+                                    <a href="mailto:info@capulse.tech?subject=Bug%20Report%20%E2%80%94%20Target%20Capital"
+                                       class="fw-semibold" style="color:#f0b429;text-decoration:underline;">info@capulse.tech</a>
                                     and earn ₹50 for every valid bug we confirm.
                                 </div>
                             </div>
                         </div>
-                        <a href="mailto:info@targetcapital.ai?subject=Bug%20Report%20%E2%80%94%20Target%20Capital"
+                        <a href="mailto:info@capulse.tech?subject=Bug%20Report%20%E2%80%94%20Target%20Capital"
                            class="btn btn-sm fw-semibold px-3"
                            style="background:#f0b429;color:#00091a;border:none;white-space:nowrap;">
                             <i class="fas fa-paper-plane me-1"></i>Report a Bug
@@ -586,8 +586,6 @@ src="https://www.facebook.com/tr?id=1953729328495488&ev=PageView&noscript=1"
         </div>
     </footer>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- TradingView (used on trade/research pages) -->
     <script src="{{ url_for('static', filename='js/tradingview-datafeed.js') }}?v=3"></script>
     <script src="{{ url_for('static', filename='js/tradingview-widget.js') }}?v=8"></script>

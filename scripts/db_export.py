@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Database Export Script for Target Capital
+Database Export Script for Capulse
 Exports critical data from Replit PostgreSQL to SQL file for Railway migration.
 
 Usage:
@@ -139,7 +139,7 @@ def export_table(table_name, output_file):
 
 def main():
     print("=" * 60)
-    print("Target Capital - Database Export Tool")
+    print("Capulse - Database Export Tool")
     print("=" * 60)
     print(f"Export started at: {datetime.utcnow().isoformat()}")
     print()
@@ -164,7 +164,7 @@ def main():
         total_rows = 0
         
         with open(output_path, 'w') as f:
-            f.write("-- Target Capital Database Export\n")
+            f.write("-- Capulse Database Export\n")
             f.write(f"-- Generated: {datetime.utcnow().isoformat()}\n")
             f.write("-- Source: Replit Development Database\n")
             f.write("-- Target: Railway Production Database\n")

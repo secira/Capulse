@@ -1,5 +1,5 @@
 """
-Script to create Knowledge Base articles for Target Capital
+Script to create Knowledge Base articles for Capulse
 """
 from app import app, db
 from models import BlogPost
@@ -87,7 +87,7 @@ def create_articles():
 
 <p class="alert alert-warning"><strong>Risk Warning:</strong> Day trading is highly risky and not suitable for everyone. 90% of day traders lose money. Only trade with money you can afford to lose.</p>
                 ''',
-                'author_name': 'Target Capital Research Team',
+                'author_name': 'Capulse Research Team',
                 'is_featured': True
             },
             {
@@ -205,7 +205,7 @@ def create_articles():
 
 <p class="alert alert-info"><strong>Pro Tip:</strong> Swing trading works best in trending markets. In sideways/choppy markets, reduce position sizes or stick to range trading strategies.</p>
                 ''',
-                'author_name': 'Target Capital Research Team',
+                'author_name': 'Capulse Research Team',
                 'is_featured': True
             },
             {
@@ -400,7 +400,7 @@ def create_articles():
 
 <p class="alert alert-success"><strong>Remember:</strong> No indicator is 100% accurate. Use them as tools to improve probability, not certainty. Always combine technical analysis with risk management.</p>
                 ''',
-                'author_name': 'Target Capital Research Team',
+                'author_name': 'Capulse Research Team',
                 'is_featured': True
             },
             {
@@ -626,7 +626,7 @@ def create_articles():
 
 <p class="alert alert-danger"><strong>Critical Warning:</strong> F&O trading is extremely risky. 95% of retail F&O traders lose money. Never trade with borrowed money or funds needed for essential expenses. Start small and scale gradually.</p>
                 ''',
-                'author_name': 'Target Capital Research Team',
+                'author_name': 'Capulse Research Team',
                 'is_featured': False
             },
             {
@@ -907,7 +907,7 @@ def create_articles():
 
 <p><strong>Key Takeaway:</strong> The trader who can control their emotions, stick to their plan through wins and losses, and continuously work on their psychology will outlast 95% of participants in this game. Success in trading is a marathon of discipline, not a sprint of profits.</p>
                 ''',
-                'author_name': 'Target Capital Research Team',
+                'author_name': 'Capulse Research Team',
                 'is_featured': False
             }
         ]

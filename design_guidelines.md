@@ -1,4 +1,4 @@
-# Target Capital Portfolio Preferences Form - Design Guidelines
+# Capulse Portfolio Preferences Form - Design Guidelines
 
 ## Design Approach
 **Reference-Based with Financial Services Standards**: Drawing from getquin.com's clean card-based layouts and arvat.ai's professional form patterns, combined with established financial dashboard principles (Stripe, Plaid, Robinhood). Focus on trust-building through clarity, generous spacing, and guided progression.
@@ -33,7 +33,7 @@
 - Background: #00091a
 - Height: 64px
 - Inner container: max-w-7xl with px-6
-- Left: Target Capital logo (white) with "Portfolio Preferences" breadcrumb
+- Left: Capulse logo (white) with "Portfolio Preferences" breadcrumb
 - Right: User avatar (40px circular), "Save Draft" text button, "Help" icon button
 - Use white text and icons against navy background
 

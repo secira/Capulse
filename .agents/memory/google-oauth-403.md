@@ -30,7 +30,7 @@ dynamic_redirect = request.base_url.replace("http://", "https://")
 
 Never use a module-level constant (e.g. built from `REPLIT_DEV_DOMAIN`) for the actual
 OAuth calls. A static constant always sends one fixed domain (e.g. `.worf.replit.dev`)
-even when the user is on `www.targetcapital.ai` — Google sees a redirect_uri_mismatch
+even when the user is on `www.capulse.tech` — Google sees a redirect_uri_mismatch
 and returns its generic 403 page. The dynamic approach auto-matches whichever registered
 domain the user is actually using.
 

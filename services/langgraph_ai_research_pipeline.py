@@ -1,5 +1,5 @@
 """
-LangGraph AI Research Pipeline for Target Capital
+LangGraph AI Research Pipeline for Capulse
 Implements comprehensive sentiment analysis with weighted scoring:
 - Qualitative Sentiments (15%): News, social media, annual reports
 - Quantitative Sentiments (50%): Technical indicators (RSI, SuperTrend, EMA)

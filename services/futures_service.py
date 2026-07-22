@@ -1,5 +1,5 @@
 """
-Futures Service for Target Capital
+Futures Service for Capulse
 Provides futures contract data for F&O trading analysis
 
 Data Sources:
@@ -28,7 +28,7 @@ class FuturesService:
         self.session = requests.Session()
         self.session.headers.update({
             'Accept': 'application/json',
-            'User-Agent': 'TargeTarget Capital/1.0'
+            'User-Agent': 'TargeCapulse/1.0'
         })
         
         self.truedata_key = os.environ.get('TRUEDATA_API_KEY')

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains how Target Capital uses RAG (Retrieval Augmented Generation) and LLM (Large Language Models) to intelligently integrate with external systems like brokers, banks, and document sources.
+This document explains how Capulse uses RAG (Retrieval Augmented Generation) and LLM (Large Language Models) to intelligently integrate with external systems like brokers, banks, and document sources.
 
 ## Architecture Components
 
@@ -434,7 +434,7 @@ validated = validate_against_schema(response, schema=EquitySchema)
 
 ## Conclusion
 
-RAG + LLM enables Target Capital to:
+RAG + LLM enables Capulse to:
 1. **Accept any document format** (PDF, Excel, images)
 2. **Work with any broker/bank** (no API needed)
 3. **Intelligent data extraction** (handles variations)

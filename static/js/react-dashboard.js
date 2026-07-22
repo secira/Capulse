@@ -1,5 +1,5 @@
 /**
- * React-style Dashboard Components for Target Capital
+ * React-style Dashboard Components for Capulse
  * High-performance real-time dashboard with WebSocket integration
  */
 (function() {
@@ -332,7 +332,7 @@ window.addEventListener('beforeunload', () => {
 });
 
 // Export for global access
-window.TargetCapitalDashboard = {
+window.CapulseDashboard = {
     DashboardApp: DashboardApp,
     RealTimeStatus: RealTimeStatus,
     PerformanceMetrics: PerformanceMetrics

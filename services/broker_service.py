@@ -1775,7 +1775,7 @@ class UpstoxBrokerClient(BaseBrokerClient):
             "product": order_data.get("product_type", "I"),
             "validity": "DAY",
             "price": float(order_data.get("price", 0)),
-            "tag": "TargetCapital",
+            "tag": "Capulse",
             "instrument_token": order_data.get("instrument_token", ""),
             "order_type": order_data.get("order_type", "MARKET").upper(),
             "transaction_type": order_data.get("transaction_type", "BUY").upper(),

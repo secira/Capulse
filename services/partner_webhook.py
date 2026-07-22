@@ -46,7 +46,7 @@ def _post_one(app, partner_id: int, subscription_id: int | None,
     body = json.dumps(payload, default=str).encode('utf-8')
     headers = {
         'Content-Type': 'application/json',
-        'User-Agent':   'TargetCapital-Webhook/1.0',
+        'User-Agent':   'Capulse-Webhook/1.0',
         'X-TC-Event':   f"{engine}.signal" if engine == 'fno' else 'iscore.update',
     }
     sig = _sign(body, webhook_secret)

@@ -3,14 +3,14 @@
 ### Overview
 Capulse is a chat-first AI research platform for Indian retail traders and investors. Users interact via a ChatGPT-style interface to get i-Scores for any listed stock, F&O signals for NIFTY/BANKNIFTY, portfolio analysis, and behavioural coaching — all under SEBI Research Analyst oversight. No broker connection, no order execution, no trading UI on the user-facing side.
 
-The codebase is a fork of **Target Capital** (TargetCapital.in) — the TC broker/trade execution code is preserved in place but hidden from the Capulse UI. The admin panel at `/admin/*` remains unchanged (TC branding + full feature set).
+The codebase is a fork of **Capulse** (Capulse.in) — the TC broker/trade execution code is preserved in place but hidden from the Capulse UI. The admin panel at `/admin/*` remains unchanged (TC branding + full feature set).
 
 ### User Preferences
 - Do not make changes to the file `replit.nix`
 - Do not make changes to the file `pt-app/pt_app.py`
 - Do not make changes to the file `pt-app/templates/index.html`
 - Do not make changes to the folder `pt-app/static/`
-- Admin panel stays as-is (Target Capital branding, full feature set)
+- Admin panel stays as-is (Capulse branding, full feature set)
 - Preferred communication style: Simple, everyday language
 
 ### Capulse Design System

@@ -1,4 +1,4 @@
-# Email Setup Guide for Target Capital Contact Form
+# Email Setup Guide for Capulse Contact Form
 
 ## SendGrid Setup Instructions
 
@@ -12,7 +12,7 @@
 1. In SendGrid dashboard, go to **Settings** > **API Keys**
 2. Click **Create API Key**
 3. Choose **Restricted Access**
-4. Give it a name like "Target Capital Contact Form"
+4. Give it a name like "Capulse Contact Form"
 5. Under **Mail Send**, select **Full Access**
 6. Click **Create & View**
 7. **Copy the API key immediately** (you won't see it again)
@@ -21,16 +21,16 @@
 1. Go to **Settings** > **Sender Authentication**
 2. Click **Verify a Single Sender**
 3. Fill in your business details:
-   - From Name: "Target Capital Support"
-   - From Email: "noreply@targetcapital.ai" (use your domain)
-   - Reply To: "support@targetcapital.ai"
-   - Company: "Target Capital"
+   - From Name: "Capulse Support"
+   - From Email: "noreply@capulse.tech" (use your domain)
+   - Reply To: "support@capulse.tech"
+   - Company: "Capulse"
    - Address: Your business address
 4. Click **Create**
 5. Check your email and verify the sender
 
 ### 4. Update Environment Variables
-targetcapital.ai says: Add to your environment secrets:
+capulse.tech says: Add to your environment secrets:
 ```
 SENDGRID_API_KEY=your_sendgrid_api_key_here
 ```

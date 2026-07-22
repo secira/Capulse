@@ -96,7 +96,7 @@ def login():
             session['oauth_popup'] = True
 
         # Build redirect_uri from the actual request host so it matches whichever
-        # domain the user is on (targetcapital.ai, Replit preview, etc.).
+        # domain the user is on (capulse.tech, Replit preview, etc.).
         dynamic_redirect = request.base_url.replace("http://", "https://") + "/callback"
 
         _client = WebApplicationClient(GOOGLE_CLIENT_ID)

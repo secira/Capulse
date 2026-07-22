@@ -210,7 +210,7 @@ class AnthropicService:
 
     def analyze_stock(self, symbol: str, context: str = "") -> Dict[str, Any]:
         system = (
-            "You are a senior financial analyst at Target Capital specializing in Indian equity markets. "
+            "You are a senior financial analyst at Capulse specializing in Indian equity markets. "
             "Provide precise, data-driven analysis with specific scores and actionable recommendations."
         )
         messages = [
@@ -236,7 +236,7 @@ class AnthropicService:
 
     def analyze_portfolio(self, portfolio_data: Dict, user_preferences: Optional[Dict] = None) -> Dict[str, Any]:
         system = (
-            "You are a Chief Portfolio Strategist at Target Capital. "
+            "You are a Chief Portfolio Strategist at Capulse. "
             "Analyze the portfolio and provide comprehensive optimization advice "
             "aligned with the user's preferences and goals."
         )
@@ -268,7 +268,7 @@ class AnthropicService:
 
     def research_query(self, query: str, context: str = "", market_data: str = "") -> Dict[str, Any]:
         system = (
-            "You are an expert financial research analyst at Target Capital. "
+            "You are an expert financial research analyst at Capulse. "
             "Provide comprehensive, well-cited research answers about Indian markets."
         )
         content = f"Research question: {query}"

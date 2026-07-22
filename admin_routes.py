@@ -1,5 +1,5 @@
 """
-Admin Routes for Target Capital Trading Platform
+Admin Routes for Capulse Trading Platform
 Separate admin module with authentication and management features
 """
 
@@ -58,7 +58,7 @@ def login():
             admin.last_login = datetime.utcnow()
             db.session.commit()
             
-            flash('Welcome to Target Capital Admin Dashboard!', 'success')
+            flash('Welcome to Capulse Admin Dashboard!', 'success')
             return redirect(url_for('admin.dashboard'))
             
         # Fallback to hardcoded credentials if not in database
@@ -1058,7 +1058,7 @@ def telegram_messenger():
         action = request.form.get('action', '')
         if action == 'test':
             ok, err = _telegram_send_with_error(
-                "🧪 <b>Target Capital — Telegram Test</b>\n"
+                "🧪 <b>Capulse — Telegram Test</b>\n"
                 "If you see this in the group, the bot is wired up correctly.",
                 parse_mode='HTML',
             )
@@ -3516,7 +3516,7 @@ def ping_telegram():
     import datetime
     now = datetime.datetime.now().strftime('%d %b %Y %I:%M %p')
     ok = send_telegram_message(
-        f"🔔 <b>Target Capital — Telegram Test</b>\n\n"
+        f"🔔 <b>Capulse — Telegram Test</b>\n\n"
         f"✅ Connection working correctly.\n"
         f"📅 Sent at: <code>{now} IST</code>\n\n"
         f"All alert channels are reachable from this deployment.",

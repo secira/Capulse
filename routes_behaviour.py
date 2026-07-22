@@ -1,5 +1,5 @@
 """
-Behavioural AI Routes — Target Capital
+Behavioural AI Routes — Capulse
 Serves the Behavioural Insights dashboard, sub-pages, and pre-trade check API.
 """
 from flask import render_template, request, jsonify, redirect, url_for, flash, Response
@@ -779,7 +779,7 @@ def behaviour_upload_trades():
             except Exception as e:
                 errors.append(str(e))
 
-    # ── Generic / Target Capital template ───────────────────────────────────
+    # ── Generic / Capulse template ───────────────────────────────────
     else:
         REQUIRED = {'symbol', 'entry_date', 'exit_date', 'quantity', 'entry_price', 'exit_price'}
         reader = csv.DictReader(io.StringIO(content))

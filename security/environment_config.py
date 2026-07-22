@@ -274,7 +274,7 @@ class EnvironmentVariableTemplate:
     def generate_template() -> str:
         """Generate environment variable template"""
         template = """
-# Target Capital Environment Configuration Template
+# Capulse Environment Configuration Template
 # Copy this to .env and fill in the values
 
 # Environment
