@@ -1,20 +1,34 @@
 {% extends "capulse_base.html" %}
 
-{% block title %}Capulse — AI stock research chat{% endblock %}
+{% block title %}Capulse — AI stock research chat for Indian markets{% endblock %}
+{% block description %}Ask Capulse about any NSE/BSE stock's i-Score, F&O probability, or your portfolio. Free chat-based research, no broker connection, no tips.{% endblock %}
 
 {% block header_left %}
   <div class="market-pill"><span class="dot"></span> NSE / BSE &middot; Live</div>
 {% endblock %}
 
+{% block extra_css %}
+/* sign-in gate */
+.signin-gate{background:var(--ink-2);border:1px solid var(--line);border-radius:10px;padding:18px 20px;max-width:400px;margin-top:4px}
+.signin-gate p{font-size:13.5px;color:var(--paper-dim);margin-bottom:14px;line-height:1.55}
+.signin-gate p b{color:var(--paper)}
+.gate-btns{display:flex;gap:9px;flex-wrap:wrap}
+.gate-btns a{display:inline-flex;align-items:center;justify-content:center;padding:9px 16px;border-radius:6px;font-size:13px;font-weight:500;transition:all .15s;text-decoration:none}
+.gate-btn-primary{background:var(--amber);color:#171008}
+.gate-btn-primary:hover{background:#f0ac48}
+.gate-btn-ghost{border:1px solid var(--line);color:var(--paper-dim)}
+.gate-btn-ghost:hover{border-color:var(--paper-faint);color:var(--paper)}
+{% endblock %}
+
 {% block main_content %}
 <div class="messages" id="messages">
-  <div class="empty" id="emptyState" {% if messages_history %}style="display:none"{% endif %}>
+  <div class="empty" id="emptyState"{% if messages_history %} style="display:none"{% endif %}>
     <h2>What are you looking into today?</h2>
     <p>Ask about a stock&rsquo;s i-Score, an F&amp;O signal, your portfolio, or how something works.</p>
     <div class="chips">
       <button class="chip" data-prompt="What's the i-Score for Reliance Industries?">i-Score on Reliance</button>
-      <button class="chip" data-prompt="What are today's NIFTY F&O signals?">NIFTY F&amp;O signals</button>
-      <button class="chip" data-prompt="Analyse my portfolio for sector concentration">Review my portfolio</button>
+      <button class="chip" data-prompt="Probability of Nifty closing above 25,000 this expiry?">Nifty F&amp;O probability</button>
+      <button class="chip" data-prompt="Review my portfolio for sector concentration">Review my portfolio</button>
       <button class="chip" data-prompt="Explain what implied volatility means">Explain implied volatility</button>
     </div>
   </div>
@@ -67,7 +81,9 @@
               {% endfor %}
               <p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters.</p>
             {% else %}
-              <p>{{ msg.content | replace('\n', '</p><p>') | safe }}</p>
+              {% for para in msg.content.split('\n') %}
+                {% if para.strip() %}<p>{{ para }}</p>{% endif %}
+              {% endfor %}
             {% endif %}
           </div>
         </div>
@@ -86,8 +102,12 @@
     </div>
     <div class="composer-foot">
       <p>Capulse gives research, not recommendations. Not investment advice.</p>
-      {% if current_user.pricing_plan.name == 'FREE' %}
-        <p class="count"><span id="footCount">{{ 20 - today_usage }}</span> questions left today</p>
+      {% if current_user.is_authenticated %}
+        {% if current_user.pricing_plan.name == 'FREE' %}
+          <p class="count"><span id="footCount">{{ [20 - today_usage, 0] | max }}</span> questions left today</p>
+        {% endif %}
+      {% else %}
+        <p class="count"><span id="footCount">Free</span> &middot; <a href="{{ url_for('register') }}" style="color:var(--amber);text-decoration:none">Sign up to save history</a></p>
       {% endif %}
     </div>
   </div>
@@ -95,21 +115,25 @@
 {% endblock %}
 
 {% block extra_js %}
-const DAILY_LIMIT = {{ 200 if current_user.pricing_plan.name != 'FREE' else 20 }};
-let used = {{ today_usage }};
+const IS_AUTH   = {{ 'true' if current_user.is_authenticated else 'false' }};
+const DAILY_LIMIT = {{ (200 if current_user.pricing_plan.name != 'FREE' else 20) if current_user.is_authenticated else 9999 }};
+let used = {{ today_usage if current_user.is_authenticated else 0 }};
 const SESSION_ID = "{{ current_session_id or '' }}";
-const CSRF_TOKEN = "{{ csrf_token() if csrf_token is defined else '' }}";
+const LOGIN_URL    = "{{ url_for('login') }}";
+const REGISTER_URL = "{{ url_for('register') }}";
 
 const messagesEl = document.getElementById('messages');
-const msgWrap = document.getElementById('msgWrap');
+const msgWrap    = document.getElementById('msgWrap');
 const emptyState = document.getElementById('emptyState');
-const input = document.getElementById('input');
-const sendBtn = document.getElementById('sendBtn');
-const footCount = document.getElementById('footCount');
+const input      = document.getElementById('input');
+const sendBtn    = document.getElementById('sendBtn');
+const footCount  = document.getElementById('footCount');
 
-function updateUsage(){
-  if(footCount) footCount.textContent = Math.max(0, DAILY_LIMIT - used);
-  if(used >= DAILY_LIMIT){
+function updateUsage() {
+  if (!IS_AUTH) return;
+  const remaining = Math.max(0, DAILY_LIMIT - used);
+  if (footCount) footCount.textContent = remaining;
+  if (used >= DAILY_LIMIT) {
     input.placeholder = "You've used today's questions. Upgrade for more.";
     input.disabled = true;
     sendBtn.disabled = true;
@@ -117,66 +141,81 @@ function updateUsage(){
 }
 updateUsage();
 
-function autosize(){
-  input.style.height='auto';
-  input.style.height=Math.min(input.scrollHeight,160)+'px';
-  sendBtn.disabled = input.value.trim().length===0 || used>=DAILY_LIMIT;
+function autosize() {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+  sendBtn.disabled = input.value.trim().length === 0 || used >= DAILY_LIMIT;
 }
 input.addEventListener('input', autosize);
-input.addEventListener('keydown', e=>{
-  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); trySend(); }
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); trySend(); }
 });
 sendBtn.addEventListener('click', trySend);
-
-document.querySelectorAll('.chip').forEach(chip=>{
-  chip.addEventListener('click', ()=>{ input.value=chip.dataset.prompt; autosize(); trySend(); });
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => { input.value = chip.dataset.prompt; autosize(); trySend(); });
 });
 
-function scrollBottom(){ messagesEl.scrollTop = messagesEl.scrollHeight; }
+function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
 
-function addUserBubble(text){
-  const row=document.createElement('div');
-  row.className='row user';
-  row.innerHTML='<div class="bubble bubble-user"></div>';
-  row.querySelector('.bubble').textContent=text;
+function addUserBubble(text) {
+  const row = document.createElement('div');
+  row.className = 'row user';
+  row.innerHTML = '<div class="bubble bubble-user"></div>';
+  row.querySelector('.bubble').textContent = text;
   msgWrap.appendChild(row);
   scrollBottom();
 }
 
-function addTyping(){
-  const row=document.createElement('div');
-  row.id='typingRow';
-  row.className='row bot';
-  row.innerHTML=`<div class="bot-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M2 12H7L9.5 5L14 19L16.5 12H22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="bubble bubble-bot"><div class="typing"><span></span><span></span><span></span></div></div>`;
+function addTyping() {
+  const row = document.createElement('div');
+  row.id = 'typingRow';
+  row.className = 'row bot';
+  row.innerHTML = `<div class="bot-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M2 12H7L9.5 5L14 19L16.5 12H22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="bubble bubble-bot"><div class="typing"><span></span><span></span><span></span></div></div>`;
   msgWrap.appendChild(row);
   scrollBottom();
 }
 
-function removeTyping(){
-  const el=document.getElementById('typingRow');
-  if(el) el.remove();
+function removeTyping() {
+  const el = document.getElementById('typingRow');
+  if (el) el.remove();
 }
 
-function addBotHTML(html){
-  const row=document.createElement('div');
-  row.className='row bot';
-  row.innerHTML=`<div class="bot-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M2 12H7L9.5 5L14 19L16.5 12H22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="bubble bubble-bot">${html}</div>`;
+function addBotHTML(html) {
+  const row = document.createElement('div');
+  row.className = 'row bot';
+  row.innerHTML = `<div class="bot-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M2 12H7L9.5 5L14 19L16.5 12H22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="bubble bubble-bot">${html}</div>`;
   msgWrap.appendChild(row);
   scrollBottom();
 }
 
-function renderCard(data){
+// Show a sign-in gate card instead of calling the API (for guests)
+function addSignInGate(question) {
+  const escaped = question.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  addBotHTML(`
+    <div class="signin-gate">
+      <p>Create a free account to get a real answer from Capulse — i-Scores, F&amp;O signals, and portfolio analysis for any stock.<br><b>Your question is saved.</b></p>
+      <div class="gate-btns">
+        <a href="${REGISTER_URL}?q=${encodeURIComponent(question)}" class="gate-btn-primary">Create free account</a>
+        <a href="${LOGIN_URL}?q=${encodeURIComponent(question)}" class="gate-btn-ghost">Log in</a>
+      </div>
+    </div>
+  `);
+}
+
+function renderCard(data) {
   const cardType = data.card_type || 'prose';
   let html = '';
 
-  if(data.content){
-    const escaped = data.content.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');
-    html += `<p>${escaped}</p>`;
+  if (data.content) {
+    const escaped = data.content
+      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+      .split('\n').filter(l => l.trim()).map(l => `<p>${l}</p>`).join('');
+    html += escaped;
   }
 
-  if(cardType === 'iscore' && data.card_data){
+  if (cardType === 'iscore' && data.card_data) {
     const d = data.card_data;
-    const bars = Object.entries(d.components || {}).map(([k,v])=>
+    const bars = Object.entries(d.components || {}).map(([k, v]) =>
       `<div class="score-bar-row">
         <span class="score-bar-label">${k}</span>
         <div class="score-bar-track"><div class="score-bar-fill" style="width:${v}%"></div></div>
@@ -194,70 +233,69 @@ function renderCard(data){
     <p class="disclaimer-inline">Research output, not a recommendation. Subject to SEBI RA oversight.</p>`;
   }
 
-  if(cardType === 'fno_signals' && data.card_data){
-    const signals = data.card_data.signals || [];
-    signals.forEach(sig => {
+  if (cardType === 'fno_signals' && data.card_data) {
+    (data.card_data.signals || []).forEach(sig => {
       html += `<div class="signal-card">
         <div class="signal-head">
-          <span class="signal-name">${sig.strike||''} ${sig.option_type||''}</span>
-          <span class="signal-dir ${(sig.direction||'buy').toLowerCase()}">${(sig.direction||'BUY').toUpperCase()}</span>
+          <span class="signal-name">${sig.strike || ''} ${sig.option_type || ''}</span>
+          <span class="signal-dir ${(sig.direction || 'buy').toLowerCase()}">${(sig.direction || 'BUY').toUpperCase()}</span>
         </div>
         <div class="signal-metrics">
-          <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">${sig.entry||'—'}</span></div>
-          <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">${sig.stop_loss||'—'}</span></div>
-          <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">${sig.target||'—'}</span></div>
+          <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">${sig.entry || '—'}</span></div>
+          <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">${sig.stop_loss || '—'}</span></div>
+          <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">${sig.target || '—'}</span></div>
         </div>
-        <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${sig.confidence||0}%"></div></div>
+        <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${sig.confidence || 0}%"></div></div>
       </div>`;
     });
     html += `<p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters.</p>`;
   }
 
-  if(!html) html = `<p>I'm here to help with i-Scores, F&O signals, portfolio analysis, and market education.</p>`;
+  if (!html) html = `<p>I'm here to help with i-Scores, F&O signals, portfolio analysis, and market education.</p>`;
   return html;
 }
 
-async function trySend(){
+async function trySend() {
   const text = input.value.trim();
-  if(!text || used >= DAILY_LIMIT || sendBtn.disabled) return;
+  if (!text || sendBtn.disabled) return;
 
-  if(emptyState) emptyState.style.display='none';
+  if (emptyState) emptyState.style.display = 'none';
   addUserBubble(text);
-  input.value='';
+  input.value = '';
   autosize();
+
+  // Guest: show sign-in gate instead of API call
+  if (!IS_AUTH) {
+    addSignInGate(text);
+    return;
+  }
+
   used++;
   updateUsage();
   addTyping();
 
   try {
-    const body = { message: text, session_id: SESSION_ID };
-    const headers = { 'Content-Type': 'application/json' };
-    if(CSRF_TOKEN) headers['X-CSRFToken'] = CSRF_TOKEN;
-
     const resp = await fetch('/chat/message', {
       method: 'POST',
-      headers,
-      body: JSON.stringify(body)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, session_id: SESSION_ID })
     });
-
     const data = await resp.json();
     removeTyping();
 
-    if(data.error){
+    if (data.error) {
       addBotHTML(`<p style="color:var(--risk)">${data.error}</p>`);
     } else {
       addBotHTML(renderCard(data));
-      // Update session ID in URL without reload
-      if(data.session_id && data.session_id !== SESSION_ID){
+      if (data.session_id && data.session_id !== SESSION_ID) {
         window.history.replaceState({}, '', '/chat?session_id=' + data.session_id);
       }
     }
-  } catch(err) {
+  } catch (err) {
     removeTyping();
     addBotHTML(`<p style="color:var(--risk)">Something went wrong. Please try again.</p>`);
   }
 }
 
-// Scroll to bottom on load if there are messages
-if(msgWrap && msgWrap.children.length > 0){ scrollBottom(); }
+if (msgWrap && msgWrap.children.length > 0) scrollBottom();
 {% endblock %}

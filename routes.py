@@ -183,10 +183,8 @@ def plan_required(*allowed_plans):
 
 @app.route('/')
 def index():
-    """Home page — redirect authenticated users to Capulse chat, others to login."""
-    if current_user.is_authenticated:
-        return redirect(url_for('chat.chat_home'))
-    return redirect(url_for('login'))
+    """Home — send everyone to the Capulse chat landing page."""
+    return redirect(url_for('chat.chat_home'))
 
 @app.route('/about')
 def about():

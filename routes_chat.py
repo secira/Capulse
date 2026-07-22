@@ -96,25 +96,27 @@ def _auto_title(message: str) -> str:
 # ── Routes ──────────────────────────────────────────────────────────────────
 
 @chat_bp.route('/chat')
-@login_required
 def chat_home():
-    """Main Capulse chat interface."""
+    """Main Capulse chat interface — public landing, no login required."""
     session_id = request.args.get('session_id')
-    sessions = _get_user_sessions(current_user.id)
-    today_usage = _get_today_usage(current_user.id)
-
+    sessions = []
+    today_usage = 0
     messages_history = []
     current_session_id = None
 
-    if session_id:
-        conv = ChatConversation.query.filter_by(
-            session_id=session_id, user_id=current_user.id
-        ).first()
-        if conv:
-            current_session_id = conv.session_id
-            messages_history = ChatMessage.query.filter_by(
-                conversation_id=conv.id
-            ).order_by(ChatMessage.created_at.asc()).all()
+    if current_user.is_authenticated:
+        sessions = _get_user_sessions(current_user.id)
+        today_usage = _get_today_usage(current_user.id)
+
+        if session_id:
+            conv = ChatConversation.query.filter_by(
+                session_id=session_id, user_id=current_user.id
+            ).first()
+            if conv:
+                current_session_id = conv.session_id
+                messages_history = ChatMessage.query.filter_by(
+                    conversation_id=conv.id
+                ).order_by(ChatMessage.created_at.asc()).all()
 
     return render_template(
         'chat.html',
