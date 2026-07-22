@@ -1,7 +1,7 @@
 {% extends "capulse_base.html" %}
 
 {% block title %}Capulse — AI stock research chat for Indian markets{% endblock %}
-{% block description %}Ask Capulse about any NSE/BSE stock's i-Score, F&O probability, or your portfolio. Free chat-based research, no broker connection, no tips.{% endblock %}
+{% block description %}Ask Capulse about any NSE/BSE stock's i-Score, F&O probability, mutual funds, or your portfolio. Chat-based research, no broker connection, no tips.{% endblock %}
 
 {% block header_left %}
   <div class="market-pill"><span class="dot"></span> NSE / BSE &middot; Live</div>
@@ -18,17 +18,69 @@
 .gate-btn-primary:hover{background:#f0ac48}
 .gate-btn-ghost{border:1px solid var(--line);color:var(--paper-dim)}
 .gate-btn-ghost:hover{border-color:var(--paper-faint);color:var(--paper)}
+/* mutual fund card */
+.mf-card{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:6px;max-width:480px}
+.mf-head{margin-bottom:12px}
+.mf-name{font-size:13.5px;color:var(--paper);font-weight:600;line-height:1.4;margin-bottom:4px}
+.mf-meta{font-family:var(--mono);font-size:10.5px;color:var(--paper-faint)}
+.mf-nav-row{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+.mf-nav-val{font-family:var(--serif);font-size:26px;color:var(--amber)}
+.mf-nav-date{font-family:var(--mono);font-size:10.5px;color:var(--paper-faint)}
+.mf-returns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.mf-return-item{display:flex;flex-direction:column;gap:3px}
+.mf-return-label{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint)}
+.mf-return-val{font-family:var(--mono);font-size:13px;color:var(--paper)}
+.mf-return-val.pos{color:var(--good)}
+.mf-return-val.neg{color:var(--risk)}
+/* portfolio card */
+.port-card{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:6px;max-width:520px}
+.port-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+.port-total-label{font-family:var(--mono);font-size:10.5px;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.04em}
+.port-total-val{font-family:var(--serif);font-size:26px;color:var(--amber)}
+.port-pnl{font-family:var(--mono);font-size:12px}
+.port-pnl.pos{color:var(--good)}
+.port-pnl.neg{color:var(--risk)}
+.port-section-title{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--paper-faint);margin-bottom:8px}
+.port-holdings{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.port-holding-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;font-size:13px}
+.port-holding-sym{font-family:var(--mono);font-size:12px;color:var(--paper)}
+.port-holding-val{font-family:var(--mono);font-size:12px;color:var(--paper-dim);text-align:right}
+.port-holding-pct{font-family:var(--mono);font-size:11px;text-align:right}
+.port-holding-pct.pos{color:var(--good)}
+.port-holding-pct.neg{color:var(--risk)}
+/* behaviour card */
+.beh-card{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:6px;max-width:480px}
+.beh-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+.beh-score-wrap{display:flex;flex-direction:column;gap:3px}
+.beh-score{font-family:var(--serif);font-size:32px;color:var(--amber)}
+.beh-category{font-family:var(--mono);font-size:10.5px;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.06em}
+.beh-personality{font-size:13px;color:var(--paper-dim);font-style:italic}
+.beh-cats{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.beh-cat-row{display:grid;grid-template-columns:72px 1fr 28px;gap:10px;align-items:center}
+.beh-cat-label{font-family:var(--mono);font-size:10px;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.04em}
+.beh-bar-track{height:5px;background:var(--ink-3);border-radius:3px;overflow:hidden}
+.beh-bar-fill{height:100%;background:var(--amber);opacity:.8}
+.beh-cat-val{font-family:var(--mono);font-size:10.5px;color:var(--paper-dim);text-align:right}
+.beh-alerts{display:flex;flex-direction:column;gap:6px}
+.beh-alert{background:var(--ink-3);border:1px solid var(--line);border-radius:5px;padding:9px 12px;font-size:12.5px;color:var(--paper-dim);line-height:1.5}
+/* prose markdown */
+.bubble-bot ul{margin:6px 0 10px 18px;display:flex;flex-direction:column;gap:4px}
+.bubble-bot li{font-size:14px;color:var(--paper-dim);line-height:1.55}
+.bubble-bot ol{margin:6px 0 10px 18px;display:flex;flex-direction:column;gap:4px;list-style:decimal}
+.bubble-bot code{font-family:var(--mono);font-size:12.5px;background:var(--ink-3);padding:2px 5px;border-radius:3px}
 {% endblock %}
 
 {% block main_content %}
 <div class="messages" id="messages">
   <div class="empty" id="emptyState"{% if messages_history %} style="display:none"{% endif %}>
     <h2>What are you looking into today?</h2>
-    <p>Ask about a stock&rsquo;s i-Score, an F&amp;O signal, your portfolio, or how something works.</p>
+    <p>Ask about a stock&rsquo;s i-Score, F&amp;O signals, a mutual fund, your portfolio, or how something works.</p>
     <div class="chips">
       <button class="chip" data-prompt="What's the i-Score for Reliance Industries?">i-Score on Reliance</button>
-      <button class="chip" data-prompt="Probability of Nifty closing above 25,000 this expiry?">Nifty F&amp;O probability</button>
+      <button class="chip" data-prompt="Probability of Nifty closing above 25,000 this expiry?">Nifty F&amp;O signal</button>
+      <button class="chip" data-prompt="Analyse Parag Parikh Flexi Cap fund">Parag Parikh MF NAV</button>
       <button class="chip" data-prompt="Review my portfolio for sector concentration">Review my portfolio</button>
+      <button class="chip" data-prompt="How is my trading behaviour and discipline score?">My behaviour score</button>
       <button class="chip" data-prompt="Explain what implied volatility means">Explain implied volatility</button>
     </div>
   </div>
@@ -80,10 +132,27 @@
                 </div>
               {% endfor %}
               <p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters.</p>
+            {% elif ctx.get('card_type') == 'mutual_fund' and ctx.get('card_data') %}
+              {% set d = ctx.card_data %}
+              <p>{{ ctx.get('content','') }}</p>
+              <div class="mf-card">
+                <div class="mf-head">
+                  <div class="mf-name">{{ d.scheme_name }}</div>
+                  <div class="mf-meta">{{ d.fund_house }} &middot; {{ d.scheme_category }}</div>
+                </div>
+                <div class="mf-nav-row">
+                  <span class="mf-nav-val">&#8377;{{ "%.4f"|format(d.current_nav) }}</span>
+                  <span class="mf-nav-date">NAV as of {{ d.nav_date }}</span>
+                </div>
+                <div class="mf-returns">
+                  <div class="mf-return-item"><span class="mf-return-label">1Y Return</span><span class="mf-return-val {% if d.returns_1y and d.returns_1y > 0 %}pos{% elif d.returns_1y %}neg{% endif %}">{% if d.returns_1y %}{{ "%.1f"|format(d.returns_1y) }}%{% else %}—{% endif %}</span></div>
+                  <div class="mf-return-item"><span class="mf-return-label">3Y Return</span><span class="mf-return-val {% if d.returns_3y and d.returns_3y > 0 %}pos{% elif d.returns_3y %}neg{% endif %}">{% if d.returns_3y %}{{ "%.1f"|format(d.returns_3y) }}%{% else %}—{% endif %}</span></div>
+                  <div class="mf-return-item"><span class="mf-return-label">5Y Return</span><span class="mf-return-val {% if d.returns_5y and d.returns_5y > 0 %}pos{% elif d.returns_5y %}neg{% endif %}">{% if d.returns_5y %}{{ "%.1f"|format(d.returns_5y) }}%{% else %}—{% endif %}</span></div>
+                </div>
+              </div>
+              <p class="disclaimer-inline">NAV data from MFApi.in. Past returns are not indicative of future performance.</p>
             {% else %}
-              {% for para in msg.content.split('\n') %}
-                {% if para.strip() %}<p>{{ para }}</p>{% endif %}
-              {% endfor %}
+              <div class="prose-content">{{ msg.content }}</div>
             {% endif %}
           </div>
         </div>
@@ -95,7 +164,7 @@
 <div class="composer-area">
   <div class="composer-wrap">
     <div class="composer">
-      <textarea id="input" rows="1" placeholder="Ask Capulse about a stock, F&amp;O level, or your portfolio..."></textarea>
+      <textarea id="input" rows="1" placeholder="Ask about a stock, F&amp;O level, mutual fund, or your portfolio..."></textarea>
       <button class="send-btn" id="sendBtn" disabled aria-label="Send">
         <svg viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -103,11 +172,12 @@
     <div class="composer-foot">
       <p>Capulse gives research, not recommendations. Not investment advice.</p>
       {% if current_user.is_authenticated %}
+        {% set daily_limit = 200 if current_user.pricing_plan.name != 'FREE' else 5 %}
         {% if current_user.pricing_plan.name == 'FREE' %}
-          <p class="count"><span id="footCount">{{ [20 - today_usage, 0] | max }}</span> questions left today</p>
+          <p class="count"><span id="footCount">{{ [daily_limit - today_usage, 0] | max }}</span> of {{ daily_limit }} questions left today</p>
         {% endif %}
       {% else %}
-        <p class="count"><span id="footCount">Free</span> &middot; <a href="{{ url_for('register') }}" style="color:var(--amber);text-decoration:none">Sign up to save history</a></p>
+        <p class="count"><a href="{{ url_for('mobile_login') }}" style="color:var(--amber);text-decoration:none">Sign in</a> to save history &amp; get full access</p>
       {% endif %}
     </div>
   </div>
@@ -115,12 +185,13 @@
 {% endblock %}
 
 {% block extra_js %}
-const IS_AUTH   = {{ 'true' if current_user.is_authenticated else 'false' }};
-const DAILY_LIMIT = {{ (200 if current_user.pricing_plan.name != 'FREE' else 20) if current_user.is_authenticated else 9999 }};
+const IS_AUTH    = {{ 'true' if current_user.is_authenticated else 'false' }};
+const DAILY_LIMIT = {{ (200 if current_user.pricing_plan.name != 'FREE' else 5) if current_user.is_authenticated else 9999 }};
 let used = {{ today_usage if current_user.is_authenticated else 0 }};
-const SESSION_ID = "{{ current_session_id or '' }}";
+let currentSessionId = "{{ current_session_id or '' }}";
 const LOGIN_URL    = "{{ url_for('login') }}";
 const REGISTER_URL = "{{ url_for('register') }}";
+const MOBILE_LOGIN_URL = "{{ url_for('mobile_login') }}";
 
 const messagesEl = document.getElementById('messages');
 const msgWrap    = document.getElementById('msgWrap');
@@ -134,7 +205,7 @@ function updateUsage() {
   const remaining = Math.max(0, DAILY_LIMIT - used);
   if (footCount) footCount.textContent = remaining;
   if (used >= DAILY_LIMIT) {
-    input.placeholder = "You've used today's questions. Upgrade for more.";
+    input.placeholder = "You've used today's questions. Upgrade to Capulse Plus for more.";
     input.disabled = true;
     sendBtn.disabled = true;
   }
@@ -190,16 +261,173 @@ function addBotHTML(html) {
 
 // Show a sign-in gate card instead of calling the API (for guests)
 function addSignInGate(question) {
-  const escaped = question.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   addBotHTML(`
     <div class="signin-gate">
-      <p>Create a free account to get a real answer from Capulse — i-Scores, F&amp;O signals, and portfolio analysis for any stock.<br><b>Your question is saved.</b></p>
+      <p>Create a free account to get real answers from Capulse — i-Scores, F&amp;O signals, mutual fund NAVs, and portfolio analysis for any stock.<br><b>5 free questions per day.</b></p>
       <div class="gate-btns">
-        <a href="${REGISTER_URL}?q=${encodeURIComponent(question)}" class="gate-btn-primary">Create free account</a>
-        <a href="${LOGIN_URL}?q=${encodeURIComponent(question)}" class="gate-btn-ghost">Log in</a>
+        <a href="${MOBILE_LOGIN_URL}?q=${encodeURIComponent(question)}" class="gate-btn-primary">Sign in with OTP</a>
+        <a href="${REGISTER_URL}?q=${encodeURIComponent(question)}" class="gate-btn-ghost">Create account</a>
       </div>
     </div>
   `);
+}
+
+// ── Markdown renderer ──────────────────────────────────────────────────────
+function renderMarkdown(text) {
+  if (!text) return '';
+  const lines = text.split('\n');
+  let html = '';
+  let inUl = false, inOl = false;
+
+  function closeList() {
+    if (inUl) { html += '</ul>'; inUl = false; }
+    if (inOl) { html += '</ol>'; inOl = false; }
+  }
+
+  function formatInline(s) {
+    return s
+      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code>$1</code>');
+  }
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    const ulMatch = line.match(/^[-*]\s+(.*)/);
+    const olMatch = line.match(/^\d+\.\s+(.*)/);
+
+    if (ulMatch) {
+      if (!inUl) { closeList(); html += '<ul>'; inUl = true; }
+      html += `<li>${formatInline(ulMatch[1])}</li>`;
+    } else if (olMatch) {
+      if (!inOl) { closeList(); html += '<ol>'; inOl = true; }
+      html += `<li>${formatInline(olMatch[1])}</li>`;
+    } else {
+      closeList();
+      if (line.trim()) {
+        html += `<p>${formatInline(line)}</p>`;
+      }
+    }
+  }
+  closeList();
+  return html;
+}
+
+// ── Card renderers ─────────────────────────────────────────────────────────
+function renderIScoreCard(d) {
+  const bars = Object.entries(d.components || {}).map(([k, v]) =>
+    `<div class="score-bar-row">
+      <span class="score-bar-label">${k}</span>
+      <div class="score-bar-track"><div class="score-bar-fill" style="width:${v}%"></div></div>
+      <span class="score-bar-val">${v}</span>
+    </div>`
+  ).join('');
+  return `<div class="score-card">
+    <div class="score-head">
+      <span class="score-name">${d.symbol} &middot; I-SCORE</span>
+      <span class="score-num">${d.score}</span>
+    </div>
+    <div class="score-bars">${bars}</div>
+    ${d.summary ? `<div class="score-foot"><b>Summary:</b> ${d.summary}</div>` : ''}
+  </div>
+  <p class="disclaimer-inline">Research output, not a recommendation. Subject to SEBI RA oversight.</p>`;
+}
+
+function renderFnoCard(d) {
+  return (d.signals || []).map(sig => `<div class="signal-card">
+    <div class="signal-head">
+      <span class="signal-name">${sig.strike || ''} ${sig.option_type || ''}</span>
+      <span class="signal-dir ${(sig.direction || 'buy').toLowerCase()}">${(sig.direction || 'BUY').toUpperCase()}</span>
+    </div>
+    <div class="signal-metrics">
+      <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">${sig.entry || '—'}</span></div>
+      <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">${sig.stop_loss || '—'}</span></div>
+      <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">${sig.target || '—'}</span></div>
+    </div>
+    <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${sig.confidence || 0}%"></div></div>
+  </div>`).join('') + `<p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters.</p>`;
+}
+
+function renderMfCard(d) {
+  function retClass(v) { return v > 0 ? 'pos' : v < 0 ? 'neg' : ''; }
+  function retFmt(v)   { return v != null ? v.toFixed(1) + '%' : '—'; }
+  return `<div class="mf-card">
+    <div class="mf-head">
+      <div class="mf-name">${d.scheme_name || ''}</div>
+      <div class="mf-meta">${d.fund_house || ''} &middot; ${d.scheme_category || ''}</div>
+    </div>
+    <div class="mf-nav-row">
+      <span class="mf-nav-val">&#8377;${d.current_nav ? Number(d.current_nav).toFixed(4) : '—'}</span>
+      <span class="mf-nav-date">NAV as of ${d.nav_date || ''}</span>
+    </div>
+    <div class="mf-returns">
+      <div class="mf-return-item"><span class="mf-return-label">1Y Return</span><span class="mf-return-val ${retClass(d.returns_1y)}">${retFmt(d.returns_1y)}</span></div>
+      <div class="mf-return-item"><span class="mf-return-label">3Y Return</span><span class="mf-return-val ${retClass(d.returns_3y)}">${retFmt(d.returns_3y)}</span></div>
+      <div class="mf-return-item"><span class="mf-return-label">5Y Return</span><span class="mf-return-val ${retClass(d.returns_5y)}">${retFmt(d.returns_5y)}</span></div>
+    </div>
+  </div>
+  <p class="disclaimer-inline">NAV data from MFApi.in. Past returns are not indicative of future performance.</p>`;
+}
+
+function renderPortfolioCard(d) {
+  if (!d) return '<p>No portfolio data available.</p>';
+  const totalVal  = d.total_current_value || d.total_value || 0;
+  const totalPnl  = d.total_pnl || d.unrealized_pnl || 0;
+  const holdings  = d.holdings || d.top_holdings || [];
+  const pnlClass  = totalPnl >= 0 ? 'pos' : 'neg';
+  const pnlSign   = totalPnl >= 0 ? '+' : '';
+
+  const holdRows = holdings.slice(0, 5).map(h => {
+    const sym  = h.ticker_symbol || h.symbol || '';
+    const val  = h.current_value != null ? '₹' + Number(h.current_value).toLocaleString('en-IN', {maximumFractionDigits:0}) : '—';
+    const pct  = h.pnl_percentage || h.change_pct;
+    const pctCls = pct != null ? (pct >= 0 ? 'pos' : 'neg') : '';
+    const pctStr = pct != null ? (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%' : '';
+    return `<div class="port-holding-row">
+      <span class="port-holding-sym">${sym}</span>
+      <span class="port-holding-val">${val}</span>
+      <span class="port-holding-pct ${pctCls}">${pctStr}</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="port-card">
+    <div class="port-header">
+      <div>
+        <div class="port-total-label">Portfolio value</div>
+        <div class="port-total-val">₹${Number(totalVal).toLocaleString('en-IN', {maximumFractionDigits:0})}</div>
+      </div>
+      ${totalPnl !== 0 ? `<span class="port-pnl ${pnlClass}">${pnlSign}₹${Math.abs(totalPnl).toLocaleString('en-IN', {maximumFractionDigits:0})}</span>` : ''}
+    </div>
+    ${holdRows ? `<div class="port-section-title">Top holdings</div><div class="port-holdings">${holdRows}</div>` : ''}
+  </div>
+  <p class="disclaimer-inline">Based on manually entered holdings. Update regularly for accurate analysis.</p>`;
+}
+
+function renderBehaviourCard(d) {
+  if (!d) return '<p>No behavioural data available.</p>';
+  const catLabels = { trading: 'Trading', risk: 'Risk', portfolio: 'Portfolio', performance: 'Perform.', psychology: 'Psych.' };
+  const cats = Object.entries(d.cats || {}).map(([k, v]) =>
+    `<div class="beh-cat-row">
+      <span class="beh-cat-label">${catLabels[k] || k}</span>
+      <div class="beh-bar-track"><div class="beh-bar-fill" style="width:${v}%"></div></div>
+      <span class="beh-cat-val">${Math.round(v)}</span>
+    </div>`
+  ).join('');
+  const alerts = (d.alerts || []).map(a =>
+    `<div class="beh-alert">${a.message || a}</div>`
+  ).join('');
+
+  return `<div class="beh-card">
+    <div class="beh-head">
+      <div class="beh-score-wrap">
+        <span class="beh-score">${Math.round(d.score || 0)}</span>
+        <span class="beh-category">${d.category || 'Score'}</span>
+      </div>
+      <span class="beh-personality">${d.personality || ''}</span>
+    </div>
+    ${cats ? `<div class="beh-cats">${cats}</div>` : ''}
+    ${alerts ? `<div class="beh-alerts">${alerts}</div>` : ''}
+  </div>`;
 }
 
 function renderCard(data) {
@@ -207,51 +435,22 @@ function renderCard(data) {
   let html = '';
 
   if (data.content) {
-    const escaped = data.content
-      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-      .split('\n').filter(l => l.trim()).map(l => `<p>${l}</p>`).join('');
-    html += escaped;
+    html += renderMarkdown(data.content);
   }
 
   if (cardType === 'iscore' && data.card_data) {
-    const d = data.card_data;
-    const bars = Object.entries(d.components || {}).map(([k, v]) =>
-      `<div class="score-bar-row">
-        <span class="score-bar-label">${k}</span>
-        <div class="score-bar-track"><div class="score-bar-fill" style="width:${v}%"></div></div>
-        <span class="score-bar-val">${v}</span>
-      </div>`
-    ).join('');
-    html += `<div class="score-card">
-      <div class="score-head">
-        <span class="score-name">${d.symbol} &middot; I-SCORE</span>
-        <span class="score-num">${d.score}</span>
-      </div>
-      <div class="score-bars">${bars}</div>
-      ${d.summary ? `<div class="score-foot"><b>Summary:</b> ${d.summary}</div>` : ''}
-    </div>
-    <p class="disclaimer-inline">Research output, not a recommendation. Subject to SEBI RA oversight.</p>`;
+    html += renderIScoreCard(data.card_data);
+  } else if (cardType === 'fno_signals' && data.card_data) {
+    html += renderFnoCard(data.card_data);
+  } else if (cardType === 'mutual_fund' && data.card_data) {
+    html += renderMfCard(data.card_data);
+  } else if (cardType === 'portfolio' && data.card_data) {
+    html += renderPortfolioCard(data.card_data);
+  } else if (cardType === 'behaviour' && data.card_data) {
+    html += renderBehaviourCard(data.card_data);
   }
 
-  if (cardType === 'fno_signals' && data.card_data) {
-    (data.card_data.signals || []).forEach(sig => {
-      html += `<div class="signal-card">
-        <div class="signal-head">
-          <span class="signal-name">${sig.strike || ''} ${sig.option_type || ''}</span>
-          <span class="signal-dir ${(sig.direction || 'buy').toLowerCase()}">${(sig.direction || 'BUY').toUpperCase()}</span>
-        </div>
-        <div class="signal-metrics">
-          <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">${sig.entry || '—'}</span></div>
-          <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">${sig.stop_loss || '—'}</span></div>
-          <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">${sig.target || '—'}</span></div>
-        </div>
-        <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${sig.confidence || 0}%"></div></div>
-      </div>`;
-    });
-    html += `<p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters.</p>`;
-  }
-
-  if (!html) html = `<p>I'm here to help with i-Scores, F&O signals, portfolio analysis, and market education.</p>`;
+  if (!html) html = `<p>I'm here to help with i-Scores, F&O signals, mutual funds, portfolio analysis, and market education.</p>`;
   return html;
 }
 
@@ -278,7 +477,7 @@ async function trySend() {
     const resp = await fetch('/chat/message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, session_id: SESSION_ID })
+      body: JSON.stringify({ message: text, session_id: currentSessionId })
     });
     const data = await resp.json();
     removeTyping();
@@ -287,8 +486,10 @@ async function trySend() {
       addBotHTML(`<p style="color:var(--risk)">${data.error}</p>`);
     } else {
       addBotHTML(renderCard(data));
-      if (data.session_id && data.session_id !== SESSION_ID) {
-        window.history.replaceState({}, '', '/chat?session_id=' + data.session_id);
+      // Track session_id — update once and keep for entire conversation
+      if (data.session_id && data.session_id !== currentSessionId) {
+        currentSessionId = data.session_id;
+        window.history.replaceState({}, '', '/chat?session_id=' + currentSessionId);
       }
     }
   } catch (err) {

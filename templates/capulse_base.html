@@ -313,13 +313,14 @@ h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:-0.01em}
         <div class="spacer"></div>
       {% endif %}
 
-      <div class="sidebar-foot">
+      <a href="{{ url_for('profile') }}" class="sidebar-foot" style="text-decoration:none;transition:background .15s;border-radius:6px" title="View profile">
         <div class="avatar">{{ current_user.username[:2] if current_user.username else 'U' }}</div>
-        <div>
-          <div class="name">{{ current_user.full_name or current_user.username }}</div>
+        <div style="flex:1;min-width:0">
+          <div class="name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ current_user.full_name or current_user.username }}</div>
           <div class="plan">{{ current_user.pricing_plan.name.replace('_', ' ').title() }} plan</div>
         </div>
-      </div>
+        <svg viewBox="0 0 24 24" fill="none" style="width:13px;height:13px;color:var(--paper-faint);flex-shrink:0"><path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
     {% else %}
       <div class="spacer"></div>
       <div class="sidebar-auth">

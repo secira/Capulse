@@ -24,18 +24,19 @@ INTENT_CLASSIFIER_PROMPT = """You are an intent classifier for Capulse, an AI st
 Classify the user's message into exactly ONE of these intents:
 - ISCORE: User wants an i-Score for a specific stock/company (e.g. "i-Score for Reliance", "score of TCS", "rate HDFC Bank")
 - FNO_SIGNAL: User wants F&O signals, NIFTY/BANKNIFTY analysis, options probability (e.g. "NIFTY signals", "probability of 24000", "F&O outlook")
-- MUTUAL_FUND: User wants mutual fund info, NAV, fund analysis (e.g. "analyse Parag Parikh fund", "MF suggestions")
+- MUTUAL_FUND: User wants mutual fund info, NAV, fund analysis (e.g. "analyse Parag Parikh fund", "MF suggestions", "NAV of HDFC mid cap")
 - PORTFOLIO: User wants portfolio analysis, holding review, diversification check
 - BEHAVIOUR: User wants behavioural analysis, trading psychology, discipline review
 - GENERAL: Everything else — explanations, education, market concepts, news
 
 Also extract entities:
 - symbol: NSE ticker if a specific stock was mentioned (e.g. "RELIANCE", "TCS", "HDFCBANK")
+- fund_query: Fund name or keyword if a mutual fund was mentioned (e.g. "Parag Parikh Flexi Cap", "HDFC Mid Cap")
 - index: "NIFTY" or "BANKNIFTY" if mentioned (default "NIFTY" for FNO_SIGNAL)
 - level: Numeric level mentioned for F&O (e.g. 24000)
 
 Respond with ONLY valid JSON in this exact format:
-{"intent": "INTENT_NAME", "symbol": "SYMBOL_OR_NULL", "index": "INDEX_OR_NULL", "level": null_or_number, "confidence": 0.0_to_1.0}"""
+{"intent": "INTENT_NAME", "symbol": "SYMBOL_OR_NULL", "fund_query": "FUND_NAME_OR_NULL", "index": "INDEX_OR_NULL", "level": null_or_number, "confidence": 0.0_to_1.0}"""
 
 
 def classify_intent(message: str, conversation_history: list = None) -> Dict[str, Any]:
@@ -46,7 +47,7 @@ def classify_intent(message: str, conversation_history: list = None) -> Dict[str
     try:
         api_key = os.environ.get('ANTHROPIC_API_KEY', '')
         if not api_key:
-            return {'intent': 'GENERAL', 'symbol': None, 'index': None, 'level': None, 'confidence': 0.5}
+            return {'intent': 'GENERAL', 'symbol': None, 'fund_query': None, 'index': None, 'level': None, 'confidence': 0.5}
 
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
@@ -74,7 +75,7 @@ def classify_intent(message: str, conversation_history: list = None) -> Dict[str
 
     except Exception as e:
         logger.warning(f"Intent classification failed: {e}")
-        return {'intent': 'GENERAL', 'symbol': None, 'index': None, 'level': None, 'confidence': 0.5}
+        return {'intent': 'GENERAL', 'symbol': None, 'fund_query': None, 'index': None, 'level': None, 'confidence': 0.5}
 
 
 def handle_iscore(symbol: str, user_id: int) -> Dict[str, Any]:
@@ -151,8 +152,59 @@ def _fno_fallback(index: str) -> Dict[str, Any]:
     }
 
 
+def handle_mutual_fund(fund_query: str, message: str) -> Dict[str, Any]:
+    """Fetch mutual fund data using MFApi."""
+    try:
+        query = fund_query or message
+        if not query:
+            return {'card_type': 'prose', 'content': "Which mutual fund would you like to analyse? Try: **Parag Parikh Flexi Cap**, **HDFC Mid Cap Opportunities**, or **SBI Small Cap Fund**."}
+
+        from services.mfapi_service import MFApiService
+        svc = MFApiService()
+        results = svc.search_fund(query)
+
+        if not results:
+            return {
+                'card_type': 'prose',
+                'content': f"I couldn't find a mutual fund matching **\"{query}\"**. Try a more specific name, e.g. \"HDFC Mid Cap Opportunities\" or \"Axis Bluechip Fund\"."
+            }
+
+        # Take the best match
+        top = results[0]
+        scheme_code = top.get('schemeCode')
+        if not scheme_code:
+            return {'card_type': 'prose', 'content': f"Found fund **{top.get('schemeName', query)}** but could not retrieve its details. Please try again."}
+
+        details = svc.get_fund_details(scheme_code)
+        if not details.get('success'):
+            return {'card_type': 'prose', 'content': f"Couldn't load data for **{top.get('schemeName', query)}** right now. MFApi may be temporarily unavailable."}
+
+        return {
+            'card_type': 'mutual_fund',
+            'content': f"Here's the fund snapshot for **{details.get('scheme_name', query)}**:",
+            'card_data': {
+                'scheme_name': details.get('scheme_name', ''),
+                'fund_house': details.get('fund_house', ''),
+                'scheme_category': details.get('scheme_category', ''),
+                'scheme_type': details.get('scheme_type', ''),
+                'current_nav': details.get('current_nav', 0),
+                'nav_date': details.get('nav_date', ''),
+                'returns_1y': details.get('returns_1y'),
+                'returns_3y': details.get('returns_3y'),
+                'returns_5y': details.get('returns_5y'),
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Mutual fund error: {e}")
+        return {
+            'card_type': 'prose',
+            'content': "I can look up NAV, returns, and category details for any Indian mutual fund. Try asking: **\"Parag Parikh Flexi Cap NAV\"** or **\"compare HDFC and ICICI mid cap funds\"**."
+        }
+
+
 def handle_portfolio(user_id: int) -> Dict[str, Any]:
-    """Analyse user's manual portfolio holdings."""
+    """Analyse user's portfolio holdings."""
     try:
         from models import ManualHolding
         holdings = ManualHolding.query.filter_by(user_id=user_id).all()
@@ -160,12 +212,19 @@ def handle_portfolio(user_id: int) -> Dict[str, Any]:
         if not holdings:
             return {
                 'card_type': 'prose',
-                'content': "You haven't added any holdings yet. To get a portfolio analysis, go to **Portfolio → Manual Holdings** and add your stocks.\n\nOnce you've added your holdings, I can analyse sector concentration, risk, diversification gaps, and suggest rebalancing."
+                'content': (
+                    "You haven't added any holdings yet.\n\n"
+                    "To get a portfolio analysis, add your stocks via **Profile → Manual Holdings** "
+                    "and I'll analyse sector concentration, risk, diversification gaps, and suggest rebalancing."
+                )
             }
 
         from services.portfolio_analyzer_service import PortfolioAnalyzerService
-        service = PortfolioAnalyzerService()
-        result = service.analyse(user_id=user_id)
+        service = PortfolioAnalyzerService(user_id)
+        result = service.analyze_portfolio()
+
+        if not result:
+            raise ValueError("Empty result from analyzer")
 
         return {
             'card_type': 'portfolio',
@@ -174,30 +233,69 @@ def handle_portfolio(user_id: int) -> Dict[str, Any]:
         }
 
     except ImportError:
-        return {'card_type': 'prose', 'content': "Portfolio analysis is available once you add your holdings under **Portfolio → Manual Holdings**. The engine analyses sector concentration, volatility, and rebalancing opportunities."}
+        return {'card_type': 'prose', 'content': "Portfolio analysis is available once you add your holdings. The engine analyses sector concentration, volatility, and rebalancing opportunities."}
     except Exception as e:
         logger.error(f"Portfolio error: {e}")
-        return {'card_type': 'prose', 'content': "There was an issue loading your portfolio. Please make sure you've added holdings under Portfolio → Manual Holdings."}
+        return {
+            'card_type': 'prose',
+            'content': "There was an issue loading your portfolio. Make sure you've added holdings first, then ask me again."
+        }
 
 
 def handle_behaviour(user_id: int) -> Dict[str, Any]:
     """Get behavioural coaching analysis."""
     try:
         from services.behaviour_engine import BehaviourEngine
-        engine = BehaviourEngine()
-        result = engine.analyse(user_id=user_id)
+        engine = BehaviourEngine(user_id, 'live')
 
-        if result:
+        cats = {
+            'trading':     engine.get_trading_behavior(),
+            'risk':        engine.get_risk_behavior(),
+            'portfolio':   engine.get_portfolio_behavior(),
+            'performance': engine.get_performance_patterns(),
+            'psychology':  engine.get_psychology_patterns(),
+        }
+        master = engine.get_master_score(cats)
+        patterns = {}
+        for cd in cats.values():
+            patterns.update(cd.get('modules', {}))
+        personality = engine.get_trading_personality(patterns, master.get('score', 0))
+        alerts = engine.get_today_alerts()[:3]
+
+        score = master.get('score', 0)
+        if score == 0 and not alerts:
             return {
-                'card_type': 'behaviour',
-                'content': "Here's your behavioural trading analysis:",
-                'card_data': result
+                'card_type': 'prose',
+                'content': (
+                    "I need some trading history to give you a behavioural analysis.\n\n"
+                    "Once you have trades recorded, I can detect revenge trading, overtrading, "
+                    "loss aversion, and give you a discipline score with coaching tips."
+                )
             }
-        return {'card_type': 'prose', 'content': "I need some trading history to give you a behavioural analysis. Add trades via the Trade Now section, then come back for a full pattern breakdown — including revenge trading detection, overtrading flags, and your discipline score."}
+
+        return {
+            'card_type': 'behaviour',
+            'content': "Here's your behavioural trading analysis:",
+            'card_data': {
+                'score': score,
+                'category': master.get('category', ''),
+                'color': master.get('color', ''),
+                'personality': personality,
+                'alerts': alerts,
+                'cats': {k: v.get('score', 0) for k, v in cats.items()},
+            }
+        }
 
     except Exception as e:
         logger.error(f"Behaviour error: {e}")
-        return {'card_type': 'prose', 'content': "The behavioural coach analyses your trading patterns to detect emotional biases — revenge trading, overtrading, and poor risk discipline. Add some trade history first, then ask me again."}
+        return {
+            'card_type': 'prose',
+            'content': (
+                "The behavioural coach analyses your trading patterns to detect emotional biases — "
+                "revenge trading, overtrading, and poor risk discipline.\n\n"
+                "Add some trade history first, then ask me again."
+            )
+        }
 
 
 def handle_general(message: str, conversation_history: list = None) -> Dict[str, Any]:
@@ -207,27 +305,32 @@ def handle_general(message: str, conversation_history: list = None) -> Dict[str,
         if not api_key:
             return {
                 'card_type': 'prose',
-                'content': "I'm a research assistant for Indian markets — I can help with i-Scores, F&O signals, portfolio analysis, and trading concepts.\n\nTo enable AI-powered answers, the ANTHROPIC_API_KEY needs to be configured. Once set up, you can ask me anything about stocks, markets, or your portfolio."
+                'content': (
+                    "I'm a research assistant for Indian markets — I can help with i-Scores, "
+                    "F&O signals, mutual funds, portfolio analysis, and trading concepts.\n\n"
+                    "To enable AI-powered answers, the ANTHROPIC_API_KEY needs to be configured."
+                )
             }
 
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
 
-        system = """You are Capulse, an AI research assistant for Indian retail traders and investors. 
+        system = """You are Capulse, an AI research assistant for Indian retail traders and investors.
 You provide clear, factual information about Indian stocks (NSE/BSE), F&O markets, mutual funds, and trading concepts.
 You do NOT give buy/sell recommendations or tips. You explain, analyse, and educate.
-Keep answers concise and practical. Use markdown formatting sparingly — bold for key terms, short paragraphs.
+Keep answers concise and practical. Use markdown: **bold** for key terms, - bullet lists for multiple points, short paragraphs.
 Always note when something is research/education, not advice."""
 
         messages = []
         if conversation_history:
             for m in conversation_history[-6:]:
-                messages.append({'role': m['role'], 'content': m['content']})
+                role = m['role'] if m['role'] in ('user', 'assistant') else 'user'
+                messages.append({'role': role, 'content': m['content']})
         messages.append({'role': 'user', 'content': message})
 
         response = client.messages.create(
             model='claude-haiku-4-5',
-            max_tokens=800,
+            max_tokens=900,
             system=system,
             messages=messages
         )
@@ -240,7 +343,7 @@ Always note when something is research/education, not advice."""
         logger.error(f"General handler error: {e}")
         return {
             'card_type': 'prose',
-            'content': "I can help with i-Scores, F&O signals, portfolio analysis, and market education. What would you like to know?"
+            'content': "I can help with i-Scores, F&O signals, mutual funds, portfolio analysis, and market education. What would you like to know?"
         }
 
 
@@ -254,10 +357,11 @@ def route_message(message: str, user_id: int, conversation_history: list = None)
     classification = classify_intent(message, conversation_history)
     intent = classification.get('intent', 'GENERAL')
     symbol = classification.get('symbol')
+    fund_query = classification.get('fund_query')
     index = classification.get('index', 'NIFTY')
     level = classification.get('level')
 
-    logger.info(f"Capulse intent: {intent} symbol={symbol} index={index} user={user_id}")
+    logger.info(f"Capulse intent: {intent} symbol={symbol} fund={fund_query} index={index} user={user_id}")
 
     try:
         if intent == 'ISCORE':
@@ -265,10 +369,7 @@ def route_message(message: str, user_id: int, conversation_history: list = None)
         elif intent == 'FNO_SIGNAL':
             result = handle_fno_signal(index, level, user_id)
         elif intent == 'MUTUAL_FUND':
-            result = {
-                'card_type': 'prose',
-                'content': "Mutual fund analysis is on the roadmap for Capulse Plus. For now, you can ask me about a specific fund's category, historical NAV trend, or how to evaluate overlap in your MF portfolio."
-            }
+            result = handle_mutual_fund(fund_query, message)
         elif intent == 'PORTFOLIO':
             result = handle_portfolio(user_id)
         elif intent == 'BEHAVIOUR':
