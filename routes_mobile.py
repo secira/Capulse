@@ -10,7 +10,7 @@ from services.sms_service import sms_service
 def mobile_register():
     """Mobile number registration with OTP verification"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
     
     if request.method == 'POST':
         mobile_number = request.form.get('mobile_number', '').strip()
@@ -46,7 +46,7 @@ def mobile_register():
 def mobile_login():
     """Mobile number login with OTP verification - auto-registers new users"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
     
     if request.method == 'POST':
         mobile_number = request.form.get('mobile_number', '').strip()
@@ -119,8 +119,8 @@ def verify_mobile_otp():
                 # For new registrations, redirect to complete profile
                 return redirect(url_for('complete_profile'))
             else:
-                # For login, go to dashboard
-                return redirect(url_for('dashboard'))
+                # For login, go to chat
+                return redirect(url_for('chat.chat_home'))
         else:
             flash(message, 'error')
             return render_template('auth/verify_otp.html', mobile_number=mobile_number[-4:])
@@ -196,6 +196,6 @@ def complete_profile():
         
         db.session.commit()
         flash('Profile completed successfully!', 'success')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
     
     return render_template('auth/complete_profile.html')

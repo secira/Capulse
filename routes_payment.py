@@ -102,7 +102,7 @@ def subscribe(plan_type):
 
     if current_user.pricing_plan == plan['pricing_plan']:
         flash('You are already on this plan.', 'info')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
 
     order_result = razorpay_service.create_subscription_order(
         user_id=current_user.id,
@@ -244,7 +244,7 @@ def payment_success():
 
     if not payment:
         flash('Payment confirmed! Your account has been upgraded.', 'success')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
 
     days_remaining = 30
     if current_user.subscription_end_date:

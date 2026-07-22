@@ -392,9 +392,9 @@ def risk_disclosure_ack():
         # Validate next_url is an internal path only
         if next_url and next_url.startswith('/') and not next_url.startswith('//'):
             return redirect(next_url)
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
 
-    next_url = request.args.get('next', url_for('dashboard'))
+    next_url = request.args.get('next', url_for('chat.chat_home'))
     return render_template('auth/risk_disclosure_ack.html', next_url=next_url)
 
 @app.route('/compliance')
@@ -1375,7 +1375,7 @@ def update_language():
 def login():
     """User login route"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -1428,10 +1428,10 @@ def login():
             flash('Logged in successfully!', 'success')
             
             if user.is_admin:
-                return redirect(url_for('dashboard'))
+                return redirect(url_for('admin.dashboard'))
                 
             next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for('dashboard'))
+            return redirect(next_page) if next_page else redirect(url_for('chat.chat_home'))
         else:
             flash('Invalid username or password.', 'error')
     
@@ -1442,7 +1442,7 @@ def login():
 def register():
     """User registration route"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -1528,7 +1528,7 @@ def forgot_password():
     """Send password-reset link to user's email."""
     from flask import request as _req
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
 
     if _req.method == 'POST':
         import secrets as _secrets
@@ -1573,7 +1573,7 @@ def reset_password(token):
     """Validate token and let user set a new password."""
     from flask import request as _req
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
 
     tenant_id = get_current_tenant_id()
     user = User.query.filter(
@@ -1689,7 +1689,7 @@ def profile():
 def facebook_oauth_success():
     """Handle successful Facebook OAuth login"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
     else:
         flash('Facebook authentication failed. Please try again.', 'error')
         return redirect(url_for('login'))
@@ -1698,129 +1698,8 @@ def facebook_oauth_success():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """Main dashboard route with real portfolio data"""
-    from services.comprehensive_portfolio_service import get_comprehensive_portfolio_service
-    from models_broker import BrokerAccount
-    
-    # Get comprehensive portfolio summary
-    portfolio_service = get_comprehensive_portfolio_service(current_user.id)
-    portfolio_summary = portfolio_service.get_complete_portfolio_summary()
-    top_performers = portfolio_service.get_top_performers(limit=3)
-    
-    # Get trading signals count
-    try:
-        from models import DailyTradingSignal
-        from datetime import date
-        # Check if column exists by attempting a simpler query if needed, 
-        # but since we've fixed the DB, it should be fine.
-        trading_signals_count = DailyTradingSignal.query.filter(
-            DailyTradingSignal.status == 'ACTIVE',
-            DailyTradingSignal.signal_date == date.today()
-        ).count()
-        # Fallback to total active if none today
-        if trading_signals_count == 0:
-            trading_signals_count = DailyTradingSignal.query.filter_by(status='ACTIVE').count()
-    except Exception as e:
-        from flask import current_app
-        current_app.logger.error(f"Error getting trading signals count: {str(e)}")
-        trading_signals_count = 0
-        # CRITICAL: roll back the aborted transaction so the rest of the
-        # dashboard's queries don't fail with InFailedSqlTransaction.
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-    
-    # Get connected brokers
-    broker_accounts = BrokerAccount.query.filter_by(
-        user_id=current_user.id,
-        is_active=True
-    ).all()
-    
-    # Calculate user statistics
-    days_active = (datetime.utcnow() - current_user.created_at).days
-    
-    # Calculate user level based on portfolio value
-    portfolio_value_cr = portfolio_summary['total_current_value'] / 10000000  # Convert to Crores
-    if portfolio_value_cr >= 5:
-        user_level = "Expert Trader"
-        level_progress = 100
-    elif portfolio_value_cr >= 2:
-        user_level = "Advanced Trader"
-        level_progress = 75
-    elif portfolio_value_cr >= 0.5:
-        user_level = "Intermediate"
-        level_progress = 50
-    elif portfolio_value_cr > 0:
-        user_level = "Beginner"
-        level_progress = 25
-    else:
-        user_level = "New User"
-        level_progress = 10
-    
-    # Get account manager for HNI users
-    account_manager = None
-    if current_user.can_access_menu('dashboard_account_handling'):
-        try:
-            from models import AccountManager
-            account_manager = AccountManager.get_or_create_default()
-        except Exception:
-            account_manager = None
-
-    # Behavioural AI summary widget
-    behaviour_summary = {'has_data': False}
-    try:
-        from services.behaviour_engine import BehaviourEngine
-        _be = BehaviourEngine(current_user.id, current_user.tenant_id or 'live')
-        _cats = {
-            'trading':     _be.get_trading_behavior(),
-            'risk':        _be.get_risk_behavior(),
-            'portfolio':   _be.get_portfolio_behavior(),
-            'performance': _be.get_performance_patterns(),
-            'psychology':  _be.get_psychology_patterns(),
-        }
-        _master = _be.get_master_score(_cats)
-        _patterns = {}
-        for _cd in _cats.values():
-            _patterns.update(_cd.get('modules', {}))
-        _personality = _be.get_trading_personality(_patterns, _master['score'])
-        _alerts = _be.get_today_alerts()[:2]
-        behaviour_summary = {
-            'has_data':    True,
-            'score':       _master['score'],
-            'category':    _master['category'],
-            'color':       _master['color'],
-            'personality': _personality,
-            'alerts':      _alerts,
-            'cats': {k: v['score'] for k, v in _cats.items()},
-        }
-    except Exception as _exc:
-        from flask import current_app as _ca
-        _ca.logger.debug(f"Behaviour summary skipped on dashboard: {_exc}")
-
-    data_freshness = None
-    data_quality = None
-    try:
-        from services.broker_data_quality import BrokerDataQuality
-        _dq = BrokerDataQuality(current_user.id, current_user.tenant_id or 'live')
-        data_freshness = _dq.get_data_freshness()
-        data_quality = _dq.get_quality_score()
-    except Exception as _exc:
-        from flask import current_app as _ca
-        _ca.logger.debug(f"Data quality check skipped: {_exc}")
-
-    return render_template('dashboard/dashboard_improved.html',
-                         portfolio_summary=portfolio_summary,
-                         top_performers=top_performers,
-                         trading_signals_count=trading_signals_count,
-                         days_active=days_active,
-                         user_level=user_level,
-                         level_progress=level_progress,
-                         broker_accounts=broker_accounts,
-                         account_manager=account_manager,
-                         behaviour_summary=behaviour_summary,
-                         data_freshness=data_freshness,
-                         data_quality=data_quality)
+    """User dashboard disabled for Capulse — redirect to chat interface."""
+    return redirect(url_for('chat.chat_home'))
 
 # Stock Analysis route removed as requested by user
 
@@ -4919,7 +4798,7 @@ def dashboard_nse_stocks():
     except Exception as e:
         logging.error(f"Error loading NSE stocks dashboard: {str(e)}")
         flash('Unable to load NSE market data. Please try again later.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
 
 @app.route('/dashboard/live-market')
 @login_required
@@ -5280,7 +5159,7 @@ def dashboard_ai_advisor():
     except Exception as e:
         logger.error(f"Error loading Research Assistant: {str(e)}")
         flash('Error loading Research Assistant. Please try again.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
 
 @app.route('/api/research/upload', methods=['POST'])
 @login_required
@@ -7625,7 +7504,7 @@ def extend_trial():
             logging.error(f"extend_trial commit failed for user {current_user.id}: {e}")
             flash('Could not apply the extension. Please try again or contact support.', 'error')
             return redirect(url_for('pricing'))
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('chat.chat_home'))
 
     flash('Trial extension could not be applied.', 'warning')
     return redirect(url_for('pricing'))
