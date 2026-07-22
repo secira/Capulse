@@ -1,0 +1,263 @@
+{% extends "capulse_base.html" %}
+
+{% block title %}Capulse — AI stock research chat{% endblock %}
+
+{% block header_left %}
+  <div class="market-pill"><span class="dot"></span> NSE / BSE &middot; Live</div>
+{% endblock %}
+
+{% block main_content %}
+<div class="messages" id="messages">
+  <div class="empty" id="emptyState" {% if messages_history %}style="display:none"{% endif %}>
+    <h2>What are you looking into today?</h2>
+    <p>Ask about a stock&rsquo;s i-Score, an F&amp;O signal, your portfolio, or how something works.</p>
+    <div class="chips">
+      <button class="chip" data-prompt="What's the i-Score for Reliance Industries?">i-Score on Reliance</button>
+      <button class="chip" data-prompt="What are today's NIFTY F&O signals?">NIFTY F&amp;O signals</button>
+      <button class="chip" data-prompt="Analyse my portfolio for sector concentration">Review my portfolio</button>
+      <button class="chip" data-prompt="Explain what implied volatility means">Explain implied volatility</button>
+    </div>
+  </div>
+  <div class="msg-wrap" id="msgWrap">
+    {% for msg in messages_history %}
+      {% if msg.message_type == 'user' %}
+        <div class="row user">
+          <div class="bubble bubble-user">{{ msg.content }}</div>
+        </div>
+      {% else %}
+        <div class="row bot">
+          <div class="bot-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M2 12H7L9.5 5L14 19L16.5 12H22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="bubble bubble-bot">
+            {% set ctx = msg.get_context_json() %}
+            {% if ctx.get('card_type') == 'iscore' and ctx.get('card_data') %}
+              {% set d = ctx.card_data %}
+              <p>{{ ctx.get('content','') }}</p>
+              <div class="score-card">
+                <div class="score-head">
+                  <span class="score-name">{{ d.symbol }} &middot; I-SCORE</span>
+                  <span class="score-num">{{ d.score }}</span>
+                </div>
+                <div class="score-bars">
+                  {% for k, v in (d.components or {}).items() %}
+                    <div class="score-bar-row">
+                      <span class="score-bar-label">{{ k }}</span>
+                      <div class="score-bar-track"><div class="score-bar-fill" style="width:{{ v }}%"></div></div>
+                      <span class="score-bar-val">{{ v }}</span>
+                    </div>
+                  {% endfor %}
+                </div>
+                {% if d.summary %}<div class="score-foot"><b>Summary:</b> {{ d.summary }}</div>{% endif %}
+              </div>
+              <p class="disclaimer-inline">Research output, not a recommendation. Subject to SEBI RA oversight.</p>
+            {% elif ctx.get('card_type') == 'fno_signals' and ctx.get('card_data') %}
+              <p>{{ ctx.get('content','') }}</p>
+              {% for sig in ctx.card_data.get('signals', []) %}
+                <div class="signal-card">
+                  <div class="signal-head">
+                    <span class="signal-name">{{ sig.get('strike','') }} {{ sig.get('option_type','') }}</span>
+                    <span class="signal-dir {{ sig.get('direction','buy').lower() }}">{{ sig.get('direction','BUY').upper() }}</span>
+                  </div>
+                  <div class="signal-metrics">
+                    <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">{{ sig.get('entry','—') }}</span></div>
+                    <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">{{ sig.get('stop_loss','—') }}</span></div>
+                    <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">{{ sig.get('target','—') }}</span></div>
+                  </div>
+                  <div class="conf-bar-track"><div class="conf-bar-fill" style="width:{{ sig.get('confidence',0) }}%"></div></div>
+                </div>
+              {% endfor %}
+              <p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters.</p>
+            {% else %}
+              <p>{{ msg.content | replace('\n', '</p><p>') | safe }}</p>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<div class="composer-area">
+  <div class="composer-wrap">
+    <div class="composer">
+      <textarea id="input" rows="1" placeholder="Ask Capulse about a stock, F&amp;O level, or your portfolio..."></textarea>
+      <button class="send-btn" id="sendBtn" disabled aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="composer-foot">
+      <p>Capulse gives research, not recommendations. Not investment advice.</p>
+      {% if current_user.pricing_plan.name == 'FREE' %}
+        <p class="count"><span id="footCount">{{ 20 - today_usage }}</span> questions left today</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+const DAILY_LIMIT = {{ 200 if current_user.pricing_plan.name != 'FREE' else 20 }};
+let used = {{ today_usage }};
+const SESSION_ID = "{{ current_session_id or '' }}";
+const CSRF_TOKEN = "{{ csrf_token() if csrf_token is defined else '' }}";
+
+const messagesEl = document.getElementById('messages');
+const msgWrap = document.getElementById('msgWrap');
+const emptyState = document.getElementById('emptyState');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const footCount = document.getElementById('footCount');
+
+function updateUsage(){
+  if(footCount) footCount.textContent = Math.max(0, DAILY_LIMIT - used);
+  if(used >= DAILY_LIMIT){
+    input.placeholder = "You've used today's questions. Upgrade for more.";
+    input.disabled = true;
+    sendBtn.disabled = true;
+  }
+}
+updateUsage();
+
+function autosize(){
+  input.style.height='auto';
+  input.style.height=Math.min(input.scrollHeight,160)+'px';
+  sendBtn.disabled = input.value.trim().length===0 || used>=DAILY_LIMIT;
+}
+input.addEventListener('input', autosize);
+input.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); trySend(); }
+});
+sendBtn.addEventListener('click', trySend);
+
+document.querySelectorAll('.chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{ input.value=chip.dataset.prompt; autosize(); trySend(); });
+});
+
+function scrollBottom(){ messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+function addUserBubble(text){
+  const row=document.createElement('div');
+  row.className='row user';
+  row.innerHTML='<div class="bubble bubble-user"></div>';
+  row.querySelector('.bubble').textContent=text;
+  msgWrap.appendChild(row);
+  scrollBottom();
+}
+
+function addTyping(){
+  const row=document.createElement('div');
+  row.id='typingRow';
+  row.className='row bot';
+  row.innerHTML=`<div class="bot-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M2 12H7L9.5 5L14 19L16.5 12H22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="bubble bubble-bot"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  msgWrap.appendChild(row);
+  scrollBottom();
+}
+
+function removeTyping(){
+  const el=document.getElementById('typingRow');
+  if(el) el.remove();
+}
+
+function addBotHTML(html){
+  const row=document.createElement('div');
+  row.className='row bot';
+  row.innerHTML=`<div class="bot-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M2 12H7L9.5 5L14 19L16.5 12H22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="bubble bubble-bot">${html}</div>`;
+  msgWrap.appendChild(row);
+  scrollBottom();
+}
+
+function renderCard(data){
+  const cardType = data.card_type || 'prose';
+  let html = '';
+
+  if(data.content){
+    const escaped = data.content.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');
+    html += `<p>${escaped}</p>`;
+  }
+
+  if(cardType === 'iscore' && data.card_data){
+    const d = data.card_data;
+    const bars = Object.entries(d.components || {}).map(([k,v])=>
+      `<div class="score-bar-row">
+        <span class="score-bar-label">${k}</span>
+        <div class="score-bar-track"><div class="score-bar-fill" style="width:${v}%"></div></div>
+        <span class="score-bar-val">${v}</span>
+      </div>`
+    ).join('');
+    html += `<div class="score-card">
+      <div class="score-head">
+        <span class="score-name">${d.symbol} &middot; I-SCORE</span>
+        <span class="score-num">${d.score}</span>
+      </div>
+      <div class="score-bars">${bars}</div>
+      ${d.summary ? `<div class="score-foot"><b>Summary:</b> ${d.summary}</div>` : ''}
+    </div>
+    <p class="disclaimer-inline">Research output, not a recommendation. Subject to SEBI RA oversight.</p>`;
+  }
+
+  if(cardType === 'fno_signals' && data.card_data){
+    const signals = data.card_data.signals || [];
+    signals.forEach(sig => {
+      html += `<div class="signal-card">
+        <div class="signal-head">
+          <span class="signal-name">${sig.strike||''} ${sig.option_type||''}</span>
+          <span class="signal-dir ${(sig.direction||'buy').toLowerCase()}">${(sig.direction||'BUY').toUpperCase()}</span>
+        </div>
+        <div class="signal-metrics">
+          <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">${sig.entry||'—'}</span></div>
+          <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">${sig.stop_loss||'—'}</span></div>
+          <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">${sig.target||'—'}</span></div>
+        </div>
+        <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${sig.confidence||0}%"></div></div>
+      </div>`;
+    });
+    html += `<p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters.</p>`;
+  }
+
+  if(!html) html = `<p>I'm here to help with i-Scores, F&O signals, portfolio analysis, and market education.</p>`;
+  return html;
+}
+
+async function trySend(){
+  const text = input.value.trim();
+  if(!text || used >= DAILY_LIMIT || sendBtn.disabled) return;
+
+  if(emptyState) emptyState.style.display='none';
+  addUserBubble(text);
+  input.value='';
+  autosize();
+  used++;
+  updateUsage();
+  addTyping();
+
+  try {
+    const body = { message: text, session_id: SESSION_ID };
+    const headers = { 'Content-Type': 'application/json' };
+    if(CSRF_TOKEN) headers['X-CSRFToken'] = CSRF_TOKEN;
+
+    const resp = await fetch('/chat/message', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+
+    const data = await resp.json();
+    removeTyping();
+
+    if(data.error){
+      addBotHTML(`<p style="color:var(--risk)">${data.error}</p>`);
+    } else {
+      addBotHTML(renderCard(data));
+      // Update session ID in URL without reload
+      if(data.session_id && data.session_id !== SESSION_ID){
+        window.history.replaceState({}, '', '/chat?session_id=' + data.session_id);
+      }
+    }
+  } catch(err) {
+    removeTyping();
+    addBotHTML(`<p style="color:var(--risk)">Something went wrong. Please try again.</p>`);
+  }
+}
+
+// Scroll to bottom on load if there are messages
+if(msgWrap && msgWrap.children.length > 0){ scrollBottom(); }
+{% endblock %}

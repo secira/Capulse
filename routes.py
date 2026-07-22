@@ -183,34 +183,19 @@ def plan_required(*allowed_plans):
 
 @app.route('/')
 def index():
-    """Home page route — redirect logged-in users straight to dashboard."""
+    """Home page — redirect authenticated users to Capulse chat, others to login."""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    # Get featured testimonials with error handling
-    try:
-        testimonials = Testimonial.query.limit(3).all()
-    except Exception as e:
-        logging.warning(f"Database error loading testimonials: {e}")
-        try:
-            from app import db
-            db.session.rollback()
-        except Exception:
-            pass
-        testimonials = []
-    return render_template('index.html', testimonials=testimonials)
+        return redirect(url_for('chat.chat_home'))
+    return redirect(url_for('login'))
 
 @app.route('/about')
 def about():
-    """About Us page route"""
-    # Get team members with error handling
-    try:
-        team_members = TeamMember.query.all()
-        testimonials = Testimonial.query.limit(2).all()
-    except Exception as e:
-        logging.warning(f"Database error loading team/testimonials: {e}")
-        team_members = []
-        testimonials = []
-    return render_template('about.html', team_members=team_members, testimonials=testimonials)
+    """About page — Capulse branding."""
+    from routes_chat import _get_user_sessions, _get_today_usage
+    sessions = _get_user_sessions(current_user.id) if current_user.is_authenticated else []
+    today_usage = _get_today_usage(current_user.id) if current_user.is_authenticated else 0
+    return render_template('capulse_about.html', active_page='about',
+                           sessions=sessions, today_usage=today_usage, current_session_id=None)
 
 @app.route('/services')
 def services():
@@ -258,32 +243,12 @@ def blog_post(post_id):
 
 @app.route('/pricing')
 def pricing():
-    """Pricing page with subscription plans"""
-    try:
-        from services.razorpay_service import razorpay_service
-        plans = razorpay_service.get_subscription_plans()
-    except Exception as e:
-        logging.error(f"Error fetching subscription plans: {e}")
-        plans = {}
-    
-    # Get user's current subscription if logged in
-    current_subscription = None
-    if current_user.is_authenticated:
-        # Map PricingPlan enum to string plan names used in templates
-        # Using .name to get the string representation of the Enum member
-        try:
-            current_plan_name = current_user.pricing_plan.name
-        except AttributeError:
-            current_plan_name = 'FREE'
-            
-        current_subscription = {
-            'plan': current_plan_name,
-            'expires_at': getattr(current_user, 'subscription_expires_at', None) or getattr(current_user, 'subscription_end_date', None)
-        }
-    
-    return render_template('pricing.html', 
-                         plans=plans, 
-                         current_subscription=current_subscription)
+    """Pricing page — Capulse branding."""
+    from routes_chat import _get_user_sessions, _get_today_usage
+    sessions = _get_user_sessions(current_user.id) if current_user.is_authenticated else []
+    today_usage = _get_today_usage(current_user.id) if current_user.is_authenticated else 0
+    return render_template('capulse_pricing.html', active_page='pricing',
+                           sessions=sessions, today_usage=today_usage, current_session_id=None)
 
 
 
@@ -436,8 +401,12 @@ def risk_disclosure_ack():
 
 @app.route('/compliance')
 def compliance():
-    """Compliance page route"""
-    return render_template('compliance.html')
+    """Compliance page — Capulse branding."""
+    from routes_chat import _get_user_sessions, _get_today_usage
+    sessions = _get_user_sessions(current_user.id) if current_user.is_authenticated else []
+    today_usage = _get_today_usage(current_user.id) if current_user.is_authenticated else 0
+    return render_template('capulse_compliance.html', active_page='compliance',
+                           sessions=sessions, today_usage=today_usage, current_session_id=None)
 
 @app.route('/cancellation-refund-policy')
 def cancellation_refund_policy():

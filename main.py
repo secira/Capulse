@@ -20,6 +20,9 @@ app.register_blueprint(broker_oauth)
 from routes_partner_api import partner_api
 app.register_blueprint(partner_api)
 
+from routes_chat import chat_bp
+app.register_blueprint(chat_bp)
+
 if __name__ == '__main__':
     import os
     # In production (Railway) gunicorn imports `main:app` directly and this
