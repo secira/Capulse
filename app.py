@@ -123,14 +123,32 @@ is_production = environment == "production"
 
 # Initialize rate limiter (use Redis if available, fallback to memory)
 redis_url = os.environ.get("REDIS_URL")
-if is_production and not redis_url:
+_limiter_storage_uri = "memory://"
+
+if redis_url:
+    # Probe Redis before committing to it — Railway internal URLs aren't
+    # reachable from Replit/other non-Railway hosts, so we fall back rather
+    # than letting every request 500 on a connection error.
+    try:
+        import redis as _redis_probe
+        _probe = _redis_probe.from_url(redis_url, socket_connect_timeout=3, socket_timeout=3)
+        _probe.ping()
+        _probe.close()
+        _limiter_storage_uri = redis_url
+        logging.info("✅ Redis reachable — using Redis for rate limiting")
+    except Exception as _redis_err:
+        logging.warning(
+            f"⚠️ REDIS_URL set but Redis unreachable ({_redis_err}). "
+            "Falling back to in-memory rate limiting."
+        )
+elif is_production:
     logging.warning("⚠️ REDIS_URL not set - using in-memory rate limiting (not recommended for production with multiple workers)")
 
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
     default_limits=["300 per minute"],
-    storage_uri=redis_url or "memory://"
+    storage_uri=_limiter_storage_uri
 )
 
 if secure_config and "security_settings" in secure_config:
