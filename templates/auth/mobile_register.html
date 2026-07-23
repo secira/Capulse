@@ -1,101 +1,220 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<title>Register with Mobile — Capulse</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#FFFFFF;
+  --surface:#F9FAFB;
+  --surface-2:#FDF7EE;
+  --amber:#B8760A;
+  --amber-dim:rgba(184,118,10,0.10);
+  --green:#16A34A;
+  --green-dim:rgba(22,163,74,0.10);
+  --red:#DC2626;
+  --text:#111827;
+  --muted:#6B7280;
+  --border:#E5E7EB;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--surface);color:var(--text);font-family:'IBM Plex Sans',sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column;}
+h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;font-weight:600;letter-spacing:-0.02em;line-height:1.12;}
+a{color:inherit;text-decoration:none;}
+img,svg{display:block;}
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px;}
+::selection{background:var(--amber);color:#fff;}
 
-{% block title %}Mobile Registration - Capulse{% endblock %}
+/* NAV */
+header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);}
+nav{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;max-width:1180px;margin:0 auto;}
+.brand-name{font-family:'Space Grotesk';font-weight:700;font-size:17px;letter-spacing:-0.01em;color:var(--text);}
+.nav-cta{display:flex;align-items:center;gap:14px;}
+.btn{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:all .15s;font-family:'IBM Plex Sans',sans-serif;}
+.btn-primary{background:var(--amber);color:#fff;}
+.btn-primary:hover{background:#96600A;}
+.btn-ghost{color:var(--text);border-color:var(--border);}
+.btn-ghost:hover{border-color:var(--muted);}
 
-{% block content %}
-<section class="bg-white text-dark" style="padding-top: 120px; min-height: 100vh;">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-6 col-lg-5">
-                <div class="card shadow-lg border-0">
-                    <div class="card-body p-5">
-                        <div class="text-center mb-4">
-                            <h2 class="fw-bold text-primary">Register with Mobile</h2>
-                            <p class="text-muted">Enter your mobile number to get started</p>
-                        </div>
+/* FOOTER */
+footer{border-top:1px solid var(--border);padding:36px 0 20px;margin-top:auto;background:var(--ink);}
+.foot-bottom{font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;padding-top:16px;border-top:1px solid var(--border);margin-top:20px;}
+.foot-legal{display:flex;gap:20px;flex-wrap:wrap;}
+.foot-legal a{color:var(--muted);font-size:11.5px;transition:color .15s;}
+.foot-legal a:hover{color:var(--amber);}
 
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                                {% for category, message in messages %}
-                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
-                                        {{ message }}
-                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                    </div>
-                                {% endfor %}
-                            {% endif %}
-                        {% endwith %}
+/* CENTERED CARD */
+.auth-main{flex:1;display:flex;align-items:center;justify-content:center;padding:48px 32px;}
+.auth-card{background:var(--ink);border:1px solid var(--border);border-radius:20px;box-shadow:0 4px 24px rgba(0,0,0,0.06);padding:48px 44px;width:100%;max-width:440px;}
 
-                        <form method="POST" action="{{ url_for('mobile_register') }}">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                            <div class="mb-4">
-                                <label for="mobile_number" class="form-label">Mobile Number</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">🇮🇳 +91</span>
-                                    <input type="tel" class="form-control" id="mobile_number" name="mobile_number" 
-                                           required placeholder="Enter 10-digit mobile number" maxlength="10" 
-                                           pattern="[6-9][0-9]{9}">
-                                </div>
-                                <div class="form-text">We'll send an OTP to verify your mobile number</div>
-                            </div>
-                            
-                            <div class="mb-3 form-check">
-                                <input type="checkbox" class="form-check-input" id="agree_terms" name="agree_terms" required>
-                                <label class="form-check-label" for="agree_terms">
-                                    I agree to the <a href="{{ url_for('terms_of_service') }}" class="text-primary" target="_blank">Terms of Service</a> and 
-                                    <a href="{{ url_for('privacy_policy') }}" class="text-primary" target="_blank">Privacy Policy</a>
-                                </label>
-                            </div>
-                            
-                            <button type="submit" class="btn btn-primary w-100 py-3 mb-4">
-                                <i class="fas fa-mobile-alt me-2"></i>Send OTP
-                            </button>
-                        </form>
-                        
-                        <!-- Alternative Options -->
-                        <div class="text-center mb-3">
-                            <hr class="my-3">
-                            <small class="text-muted bg-white px-3">Other options</small>
-                        </div>
-                        
-                        <div class="d-grid gap-2 mb-3">
-                            <a href="{{ url_for('register') }}" class="btn btn-outline-secondary">
-                                <i class="fas fa-envelope me-2"></i>Register with Email
-                            </a>
-                        </div>
-                        
-                        <div class="text-center">
-                            <p class="mb-0">Already have an account? 
-                                <a href="{{ url_for('mobile_login') }}" class="text-primary text-decoration-none fw-bold">
-                                    Login with Mobile
-                                </a>
-                            </p>
-                            <p class="mb-0 mt-2">
-                                <a href="{{ url_for('login') }}" class="text-muted text-decoration-none">
-                                    Login with Email
-                                </a>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+/* Card header */
+.auth-card-icon{width:52px;height:52px;border-radius:14px;background:var(--amber-dim);display:flex;align-items:center;justify-content:center;margin-bottom:24px;}
+.auth-card-icon svg{width:24px;height:24px;color:var(--amber);}
+.auth-form-title{font-size:24px;margin-bottom:6px;color:var(--text);}
+.auth-form-sub{font-size:14px;color:var(--muted);margin-bottom:28px;}
+
+/* Flash alerts */
+.auth-alert{padding:11px 14px;border-radius:8px;font-size:13.5px;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.auth-alert.danger{background:rgba(220,38,38,0.08);color:#B91C1C;border:1px solid rgba(220,38,38,0.2);}
+.auth-alert.success{background:rgba(22,163,74,0.08);color:#15803D;border:1px solid rgba(22,163,74,0.2);}
+.auth-alert.info{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(184,118,10,0.2);}
+
+/* Phone input */
+.auth-field{margin-bottom:18px;}
+.auth-label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;font-family:'IBM Plex Mono';}
+.phone-group{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;transition:border-color .15s,box-shadow .15s;}
+.phone-group:focus-within{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-dim);}
+.phone-prefix{display:flex;align-items:center;gap:6px;padding:0 14px;background:var(--surface);border-right:1px solid var(--border);font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;flex-shrink:0;}
+.phone-input{flex:1;height:44px;background:var(--surface);border:none;padding:0 14px;font-size:15px;font-family:'IBM Plex Mono',monospace;color:var(--text);outline:none;letter-spacing:0.04em;}
+.phone-input::placeholder{color:var(--muted);opacity:.7;font-family:'IBM Plex Sans',sans-serif;letter-spacing:0;}
+.auth-hint{font-size:12px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono';}
+
+/* Terms checkbox */
+.auth-check{display:flex;align-items:flex-start;gap:9px;margin-bottom:20px;}
+.auth-check input[type="checkbox"]{width:15px;height:15px;accent-color:var(--amber);cursor:pointer;flex-shrink:0;margin-top:2px;}
+.auth-check label{font-size:12.5px;color:var(--muted);cursor:pointer;line-height:1.5;}
+.auth-check label a{color:var(--amber);font-weight:600;}
+.auth-check label a:hover{text-decoration:underline;}
+
+/* Submit */
+.btn-auth{width:100%;height:46px;background:var(--amber);border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;cursor:pointer;transition:background .15s,box-shadow .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-auth:hover{background:#96600A;box-shadow:0 4px 20px rgba(184,118,10,0.25);}
+
+/* Security note */
+.auth-security{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;font-size:11.5px;color:var(--muted);font-family:'IBM Plex Mono';}
+.auth-security svg{width:13px;height:13px;color:var(--green);}
+
+/* Divider */
+.auth-divider{display:flex;align-items:center;gap:12px;margin:20px 0;}
+.auth-divider hr{flex:1;border:none;border-top:1px solid var(--border);margin:0;}
+.auth-divider span{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono';letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;}
+
+/* Alt links */
+.auth-alt-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:42px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-weight:500;text-decoration:none;transition:all .15s;margin-bottom:10px;}
+.auth-alt-btn:hover{border-color:var(--muted);background:var(--surface-2);}
+
+.auth-foot{text-align:center;margin-top:20px;font-size:13.5px;color:var(--muted);}
+.auth-foot a{color:var(--amber);font-weight:600;}
+.auth-foot a:hover{text-decoration:underline;}
+
+@media(max-width:500px){
+  .auth-main{padding:20px 16px;}
+  .auth-card{padding:32px 24px;}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<header>
+  <nav>
+    <a href="/" style="text-decoration:none;display:flex;align-items:center;gap:8px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="color:#B8760A"><path d="M2 12H7L9.5 5L14 19L16.5 12H22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="brand-name">Capulse</div>
+    </a>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="/login">Log in</a>
+      <a class="btn btn-primary" href="/register">Start free</a>
     </div>
-</section>
+  </nav>
+</header>
+
+<!-- MAIN -->
+<main class="auth-main">
+  <div class="auth-card">
+
+    <div class="auth-card-icon">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="5" y="2" width="14" height="20" rx="2" stroke="currentColor" stroke-width="2"/><path d="M12 18h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </div>
+
+    <h2 class="auth-form-title">Register with Mobile</h2>
+    <p class="auth-form-sub">Enter your number — we'll send an OTP to verify</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="auth-alert {{ 'danger' if category == 'error' else category }}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('mobile_register') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="auth-field">
+        <label class="auth-label" for="mobile_number">Mobile Number</label>
+        <div class="phone-group">
+          <div class="phone-prefix">🇮🇳 +91</div>
+          <input type="tel" class="phone-input" id="mobile_number" name="mobile_number"
+                 required placeholder="10-digit mobile number" maxlength="10" pattern="[6-9][0-9]{9}">
+        </div>
+        <div class="auth-hint">Free · No spam · OTP verification only</div>
+      </div>
+
+      <div class="auth-check">
+        <input type="checkbox" id="agree_terms" name="agree_terms" required>
+        <label for="agree_terms">
+          I agree to the <a href="{{ url_for('terms_of_service') }}" target="_blank">Terms of Service</a> and
+          <a href="{{ url_for('privacy_policy') }}" target="_blank">Privacy Policy</a>
+        </label>
+      </div>
+
+      <button type="submit" class="btn-auth">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="2" width="14" height="20" rx="2" stroke="currentColor" stroke-width="2"/><path d="M12 18h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Send OTP
+      </button>
+    </form>
+
+    <div class="auth-security">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Bank-grade encryption. Your data is secure.
+    </div>
+
+    <div class="auth-divider"><hr><span>other options</span><hr></div>
+
+    <a href="{{ url_for('register') }}" class="auth-alt-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" stroke-width="2"/><polyline points="22,6 12,13 2,6" stroke="currentColor" stroke-width="2"/></svg>
+      Register with Email
+    </a>
+
+    <p class="auth-foot">
+      Already have an account? <a href="{{ url_for('mobile_login') }}">Login with mobile →</a>
+    </p>
+  </div>
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot-bottom">
+      <span>© 2026 Scentric Networks Private Limited · Chennai, Tamil Nadu, India</span>
+      <div class="foot-legal">
+        <a href="/privacy-policy">Privacy Policy</a>
+        <a href="/terms-of-service">Terms of Service</a>
+        <a href="/compliance">Compliance</a>
+        <a href="/contact">Contact</a>
+      </div>
+    </div>
+  </div>
+</footer>
 
 <script>
 document.getElementById('mobile_number').addEventListener('input', function() {
-    let value = this.value.replace(/\D/g, '');
-    // Handle autofill with country code: strip leading 91 if 12 digits
-    if (value.length === 12 && value.startsWith('91')) {
-        value = value.slice(2);
-    }
-    // Limit to 10 digits
-    if (value.length > 10) {
-        value = value.slice(0, 10);
-    }
-    this.value = value;
-    // Clear any custom validity so browser pattern handles validation at submit
-    this.setCustomValidity('');
+  let value = this.value.replace(/\D/g, '');
+  if (value.length === 12 && value.startsWith('91')) value = value.slice(2);
+  if (value.length > 10) value = value.slice(0, 10);
+  this.value = value;
+  this.setCustomValidity('');
 });
 </script>
-{% endblock %}
+</body>
+</html>

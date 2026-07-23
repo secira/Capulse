@@ -1,147 +1,242 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<title>Verify OTP — Capulse</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#FFFFFF;
+  --surface:#F9FAFB;
+  --surface-2:#FDF7EE;
+  --amber:#B8760A;
+  --amber-dim:rgba(184,118,10,0.10);
+  --green:#16A34A;
+  --green-dim:rgba(22,163,74,0.10);
+  --red:#DC2626;
+  --text:#111827;
+  --muted:#6B7280;
+  --border:#E5E7EB;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--surface);color:var(--text);font-family:'IBM Plex Sans',sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column;}
+h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;font-weight:600;letter-spacing:-0.02em;line-height:1.12;}
+a{color:inherit;text-decoration:none;}
+img,svg{display:block;}
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px;}
+::selection{background:var(--amber);color:#fff;}
 
-{% block title %}Verify OTP - Capulse{% endblock %}
+/* NAV */
+header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);}
+nav{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;max-width:1180px;margin:0 auto;}
+.brand-name{font-family:'Space Grotesk';font-weight:700;font-size:17px;letter-spacing:-0.01em;color:var(--text);}
+.nav-cta{display:flex;align-items:center;gap:14px;}
+.btn{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:all .15s;font-family:'IBM Plex Sans',sans-serif;}
+.btn-primary{background:var(--amber);color:#fff;}
+.btn-primary:hover{background:#96600A;}
+.btn-ghost{color:var(--text);border-color:var(--border);}
+.btn-ghost:hover{border-color:var(--muted);}
 
-{% block content %}
-<section class="bg-white text-dark" style="padding-top: 120px; min-height: 100vh;">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-6 col-lg-5">
-                <div class="card shadow-lg border-0">
-                    <div class="card-body p-5">
-                        <div class="text-center mb-4">
-                            <div class="mb-3">
-                                <i class="fas fa-mobile-alt fa-3x text-primary"></i>
-                            </div>
-                            <h2 class="fw-bold text-primary">Verify OTP</h2>
-                            <p class="text-muted">Enter the OTP sent to your mobile ending with <strong>****{{ mobile_number }}</strong></p>
-                        </div>
+/* FOOTER */
+footer{border-top:1px solid var(--border);padding:36px 0 20px;margin-top:auto;background:var(--ink);}
+.foot-bottom{font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;padding-top:16px;border-top:1px solid var(--border);margin-top:20px;}
+.foot-legal{display:flex;gap:20px;flex-wrap:wrap;}
+.foot-legal a{color:var(--muted);font-size:11.5px;transition:color .15s;}
+.foot-legal a:hover{color:var(--amber);}
 
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                                {% for category, message in messages %}
-                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
-                                        {{ message }}
-                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                    </div>
-                                {% endfor %}
-                            {% endif %}
-                        {% endwith %}
+/* CENTERED CARD */
+.auth-main{flex:1;display:flex;align-items:center;justify-content:center;padding:48px 32px;}
+.auth-card{background:var(--ink);border:1px solid var(--border);border-radius:20px;box-shadow:0 4px 24px rgba(0,0,0,0.06);padding:48px 44px;width:100%;max-width:440px;}
 
-                        <form method="POST" action="{{ url_for('verify_mobile_otp') }}">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                            <div class="mb-4">
-                                <label for="otp" class="form-label">Enter OTP</label>
-                                <input type="text" class="form-control text-center" id="otp" name="otp" 
-                                       required placeholder="Enter 6-digit OTP" maxlength="6" 
-                                       pattern="[0-9]{6}" style="font-size: 1.5rem; letter-spacing: 0.5rem;">
-                                <div class="form-text">OTP is valid for 10 minutes</div>
-                            </div>
-                            
-                            <button type="submit" class="btn btn-primary w-100 py-3 mb-3">
-                                <i class="fas fa-check-circle me-2"></i>Verify OTP
-                            </button>
-                        </form>
-                        
-                        <!-- Resend OTP -->
-                        <div class="text-center">
-                            <p class="mb-2">Didn't receive the OTP?</p>
-                            <button id="resendBtn" class="btn btn-outline-primary" onclick="resendOTP()">
-                                <i class="fas fa-redo me-2"></i>Resend OTP
-                            </button>
-                            <div id="resendCooldown" class="mt-2" style="display: none;">
-                                <small class="text-muted">Please wait <span id="countdown">60</span> seconds before resending</small>
-                            </div>
-                        </div>
+/* Card header */
+.auth-card-icon{width:52px;height:52px;border-radius:14px;background:var(--amber-dim);display:flex;align-items:center;justify-content:center;margin-bottom:24px;}
+.auth-card-icon svg{width:24px;height:24px;color:var(--amber);}
+.auth-form-title{font-size:24px;margin-bottom:6px;color:var(--text);}
+.auth-form-sub{font-size:14px;color:var(--muted);margin-bottom:28px;line-height:1.5;}
+.auth-form-sub strong{color:var(--text);}
 
-                        <div class="text-center mt-4">
-                            <a href="{{ url_for('mobile_register') }}" class="text-muted text-decoration-none">
-                                <i class="fas fa-arrow-left me-1"></i>Back to mobile registration
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+/* Flash alerts */
+.auth-alert{padding:11px 14px;border-radius:8px;font-size:13.5px;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.auth-alert.danger{background:rgba(220,38,38,0.08);color:#B91C1C;border:1px solid rgba(220,38,38,0.2);}
+.auth-alert.success{background:rgba(22,163,74,0.08);color:#15803D;border:1px solid rgba(22,163,74,0.2);}
+.auth-alert.info{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(184,118,10,0.2);}
+
+/* OTP field */
+.auth-field{margin-bottom:22px;}
+.auth-label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;font-family:'IBM Plex Mono';}
+.otp-input{width:100%;height:60px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0 20px;font-size:28px;font-family:'IBM Plex Mono',monospace;color:var(--text);outline:none;transition:border-color .15s,box-shadow .15s;text-align:center;letter-spacing:0.5em;}
+.otp-input:focus{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-dim);}
+.otp-input::placeholder{color:var(--muted);opacity:.5;letter-spacing:0.1em;font-size:18px;}
+.auth-hint{font-size:12px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono';text-align:center;}
+
+/* Submit */
+.btn-auth{width:100%;height:46px;background:var(--amber);border:none;border-radius:8px;color:#fff;font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;cursor:pointer;transition:background .15s,box-shadow .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-auth:hover{background:#96600A;box-shadow:0 4px 20px rgba(184,118,10,0.25);}
+
+/* Resend section */
+.resend-section{text-align:center;margin-top:24px;}
+.resend-section p{font-size:13.5px;color:var(--muted);margin-bottom:10px;}
+.btn-resend{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 18px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px;font-weight:600;font-family:'IBM Plex Sans',sans-serif;cursor:pointer;transition:all .15s;}
+.btn-resend:hover{border-color:var(--muted);}
+.btn-resend:disabled{opacity:.45;cursor:not-allowed;}
+.resend-countdown{font-size:12.5px;color:var(--muted);font-family:'IBM Plex Mono';margin-top:8px;}
+
+/* Back link */
+.auth-back{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:22px;font-size:13.5px;color:var(--muted);}
+.auth-back a{color:var(--amber);font-weight:600;}
+.auth-back a:hover{text-decoration:underline;}
+
+@media(max-width:500px){
+  .auth-main{padding:20px 16px;}
+  .auth-card{padding:32px 24px;}
+  .otp-input{font-size:22px;height:54px;}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<header>
+  <nav>
+    <a href="/" style="text-decoration:none;display:flex;align-items:center;gap:8px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="color:#B8760A"><path d="M2 12H7L9.5 5L14 19L16.5 12H22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="brand-name">Capulse</div>
+    </a>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="/login">Log in</a>
+      <a class="btn btn-primary" href="/register">Start free</a>
     </div>
-</section>
+  </nav>
+</header>
+
+<!-- MAIN -->
+<main class="auth-main">
+  <div class="auth-card">
+
+    <div class="auth-card-icon">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.27 9.09 19.79 19.79 0 01.22 2.46 2 2 0 012.18 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.09a16 16 0 006 6l.54-.54a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <h2 class="auth-form-title">Enter your OTP</h2>
+    <p class="auth-form-sub">We sent a 6-digit code to your number ending in <strong>****{{ mobile_number }}</strong></p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="auth-alert {{ 'danger' if category == 'error' else category }}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('verify_mobile_otp') }}" id="otpForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="auth-field">
+        <label class="auth-label" for="otp">6-Digit OTP</label>
+        <input type="text" class="otp-input" id="otp" name="otp"
+               required placeholder="• • • • • •" maxlength="6" pattern="[0-9]{6}"
+               inputmode="numeric" autocomplete="one-time-code">
+        <div class="auth-hint">Valid for 10 minutes</div>
+      </div>
+
+      <button type="submit" class="btn-auth">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Verify OTP
+      </button>
+    </form>
+
+    <div class="resend-section">
+      <p>Didn't receive the code?</p>
+      <button id="resendBtn" class="btn-resend" onclick="resendOTP()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><polyline points="1 4 1 10 7 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Resend OTP
+      </button>
+      <div id="resendCooldown" class="resend-countdown" style="display:none;">
+        Resend available in <span id="countdown">60</span>s
+      </div>
+    </div>
+
+    <div class="auth-back">
+      <a href="{{ url_for('mobile_register') }}">← Back to mobile registration</a>
+    </div>
+
+  </div>
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot-bottom">
+      <span>© 2026 Scentric Networks Private Limited · Chennai, Tamil Nadu, India</span>
+      <div class="foot-legal">
+        <a href="/privacy-policy">Privacy Policy</a>
+        <a href="/terms-of-service">Terms of Service</a>
+        <a href="/compliance">Compliance</a>
+        <a href="/contact">Contact</a>
+      </div>
+    </div>
+  </div>
+</footer>
 
 <script>
-// Auto-focus and format OTP input
+// Digits only
 document.getElementById('otp').addEventListener('input', function() {
-    let value = this.value.replace(/\D/g, ''); // Remove non-digits
-    this.value = value;
+  this.value = this.value.replace(/\D/g, '');
 });
 
-// Resend OTP functionality
+// Auto-submit on 6 digits
+document.getElementById('otp').addEventListener('input', function() {
+  if (this.value.length === 6) {
+    setTimeout(() => { if (this.value.length === 6) this.form.submit(); }, 500);
+  }
+});
+
+// Resend OTP
 function resendOTP() {
-    const resendBtn = document.getElementById('resendBtn');
-    const resendCooldown = document.getElementById('resendCooldown');
-    const countdown = document.getElementById('countdown');
-    
-    // Disable button and show cooldown
-    resendBtn.disabled = true;
-    resendBtn.style.display = 'none';
-    resendCooldown.style.display = 'block';
-    
-    // Send request
-    fetch('{{ url_for("resend_otp") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Show success message
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-info alert-dismissible fade show';
-            alertDiv.innerHTML = `
-                ${data.message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            document.querySelector('.card-body').insertBefore(alertDiv, document.querySelector('form'));
-        } else {
-            // Show error message
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-danger alert-dismissible fade show';
-            alertDiv.innerHTML = `
-                ${data.message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            document.querySelector('.card-body').insertBefore(alertDiv, document.querySelector('form'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-    
-    // Start countdown
-    let timeLeft = 60;
-    const timer = setInterval(() => {
-        timeLeft--;
-        countdown.textContent = timeLeft;
-        
-        if (timeLeft <= 0) {
-            clearInterval(timer);
-            resendBtn.disabled = false;
-            resendBtn.style.display = 'inline-block';
-            resendCooldown.style.display = 'none';
-        }
-    }, 1000);
-}
+  const resendBtn = document.getElementById('resendBtn');
+  const resendCooldown = document.getElementById('resendCooldown');
+  const countdown = document.getElementById('countdown');
 
-// Auto-submit when 6 digits entered
-document.getElementById('otp').addEventListener('input', function() {
-    if (this.value.length === 6) {
-        // Small delay to allow user to see the complete OTP
-        setTimeout(() => {
-            if (this.value.length === 6) {
-                this.form.submit();
-            }
-        }, 500);
+  resendBtn.disabled = true;
+  resendBtn.style.display = 'none';
+  resendCooldown.style.display = 'block';
+
+  fetch('{{ url_for("resend_otp") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  .then(r => r.json())
+  .then(data => {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'auth-alert ' + (data.success ? 'success' : 'danger');
+    alertDiv.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      ${data.message}`;
+    document.getElementById('otpForm').before(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+  })
+  .catch(() => {});
+
+  let timeLeft = 60;
+  const timer = setInterval(() => {
+    timeLeft--;
+    countdown.textContent = timeLeft;
+    if (timeLeft <= 0) {
+      clearInterval(timer);
+      resendBtn.disabled = false;
+      resendBtn.style.display = 'inline-flex';
+      resendCooldown.style.display = 'none';
     }
-});
+  }, 1000);
+}
 </script>
-{% endblock %}
+</body>
+</html>
