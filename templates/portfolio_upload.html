@@ -1,0 +1,282 @@
+{% extends "capulse_base.html" %}
+{% block title %}My Holdings — Capulse{% endblock %}
+
+{% block header_left %}
+<span style="font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-dim)">My Holdings</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.pu-wrap{height:calc(100vh - 57px);overflow-y:auto;padding:32px 40px;display:flex;flex-direction:column;gap:28px}
+.pu-wrap::-webkit-scrollbar{width:6px}
+.pu-wrap::-webkit-scrollbar-thumb{background:var(--ink-4);border-radius:4px}
+
+.pu-topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.pu-title{font-family:var(--serif);font-size:26px;color:var(--paper);line-height:1.2}
+.pu-subtitle{font-family:var(--mono);font-size:11.5px;color:var(--paper-faint);margin-top:4px}
+.pu-actions{display:flex;gap:10px;flex-shrink:0;align-items:center}
+.btn-primary-sm{display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:var(--radius);background:var(--amber);color:var(--ink);font-family:var(--mono);font-size:12px;font-weight:600;border:none;cursor:pointer;transition:background .15s;white-space:nowrap}
+.btn-primary-sm:hover{background:var(--amber-dim)}
+.btn-ghost-sm{display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:var(--radius);background:transparent;color:var(--paper-dim);font-family:var(--mono);font-size:12px;border:1px solid var(--line);cursor:pointer;transition:all .15s;white-space:nowrap;text-decoration:none}
+.btn-ghost-sm:hover{border-color:var(--paper-faint);color:var(--paper)}
+
+/* Add form */
+.add-form-card{background:var(--ink-2);border:1px solid var(--amber-dim);border-radius:var(--radius-lg);padding:24px;display:none}
+.add-form-card.open{display:block}
+.form-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:14px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-faint)}
+.form-input{background:var(--ink-3);border:1px solid var(--line);border-radius:var(--radius);padding:9px 12px;color:var(--paper);font-family:var(--mono);font-size:13px;width:100%;transition:border-color .15s}
+.form-input:focus{outline:none;border-color:var(--amber)}
+.form-input::placeholder{color:var(--paper-faint)}
+.form-actions{display:flex;gap:10px;padding-top:4px}
+
+/* Holdings table */
+.holdings-card{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+.holdings-card-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line-soft)}
+.card-title{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-dim)}
+.holdings-table{width:100%;border-collapse:collapse}
+.holdings-table th{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--paper-faint);padding:10px 20px;text-align:left;border-bottom:1px solid var(--line-soft);font-weight:500}
+.holdings-table td{padding:13px 20px;border-bottom:1px solid var(--line-soft);font-size:13.5px;vertical-align:middle}
+.holdings-table tr:last-child td{border-bottom:none}
+.holdings-table tr:hover td{background:var(--ink-3)}
+.sym-cell{display:flex;flex-direction:column;gap:2px}
+.sym{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--paper)}
+.cname{font-size:11.5px;color:var(--paper-faint)}
+.num-cell{font-family:var(--mono);font-size:13px;color:var(--paper-dim);text-align:right}
+.pnl-pos{color:var(--good);font-family:var(--mono);font-size:12px}
+.pnl-neg{color:var(--risk);font-family:var(--mono);font-size:12px}
+.port-badge{display:inline-block;padding:2px 8px;border-radius:3px;background:var(--ink-3);border:1px solid var(--line);font-family:var(--mono);font-size:10.5px;color:var(--paper-faint)}
+.del-btn{background:none;border:none;color:var(--paper-faint);cursor:pointer;padding:4px 8px;border-radius:3px;font-size:13px;opacity:.6;transition:opacity .15s,color .15s}
+.del-btn:hover{opacity:1;color:var(--risk)}
+
+/* Empty state */
+.empty-state{text-align:center;padding:60px 24px}
+.empty-icon{width:44px;height:44px;margin:0 auto 16px;color:var(--paper-faint);opacity:.4}
+.empty-title{font-family:var(--serif);font-size:18px;color:var(--paper-dim);margin-bottom:6px}
+.empty-sub{font-size:13px;color:var(--paper-faint)}
+
+/* CSV card */
+.csv-card{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-lg);padding:24px}
+.csv-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.drop-zone{border:1.5px dashed var(--line);border-radius:var(--radius-lg);padding:36px 24px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;position:relative}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--amber);background:var(--amber-soft)}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-icon{width:32px;height:32px;margin:0 auto 10px;color:var(--paper-faint);opacity:.5}
+.drop-label{font-family:var(--mono);font-size:12.5px;color:var(--paper-dim);margin-bottom:4px}
+.drop-sub{font-size:11.5px;color:var(--paper-faint)}
+.csv-meta{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft)}
+.template-note{font-size:12px;color:var(--paper-faint)}
+.template-link{color:var(--amber);font-family:var(--mono);font-size:11.5px;text-decoration:underline;cursor:pointer}
+</style>
+{% endblock %}
+
+{% block main_content %}
+<div class="pu-wrap">
+
+  <!-- Top bar -->
+  <div class="pu-topbar">
+    <div>
+      <div class="pu-title">My Holdings</div>
+      <div class="pu-subtitle">
+        {% if holdings %}{{ holdings|length }} position{% if holdings|length != 1 %}s{% endif %} tracked{% else %}No holdings yet — add manually or upload a CSV{% endif %}
+      </div>
+    </div>
+    <div class="pu-actions">
+      <button class="btn-ghost-sm" onclick="toggleAddForm()">
+        <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px"><path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Add holding
+      </button>
+      <a href="{{ url_for('chat.chat_home', q='Analyse my portfolio for sector concentration and risk') }}" class="btn-primary-sm">
+        <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Chat Analysis
+      </a>
+    </div>
+  </div>
+
+  <!-- Add holding form -->
+  <div class="add-form-card" id="addFormCard">
+    <div style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--amber);margin-bottom:16px">Add a holding manually</div>
+    <form method="POST" action="{{ url_for('portfolio_upload') }}">
+      <input type="hidden" name="action" value="add_holding">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Symbol *</label>
+          <input class="form-input" name="symbol" placeholder="RELIANCE" required style="text-transform:uppercase">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Company name</label>
+          <input class="form-input" name="company_name" placeholder="Reliance Industries Ltd">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quantity *</label>
+          <input class="form-input" name="quantity" type="number" step="0.001" min="0" placeholder="10" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Avg buy price (₹) *</label>
+          <input class="form-input" name="purchase_price" type="number" step="0.01" min="0" placeholder="2450.00" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Purchase date *</label>
+          <input class="form-input" name="purchase_date" type="date" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Portfolio name</label>
+          <input class="form-input" name="portfolio_name" placeholder="Default" value="Default">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary-sm" type="submit">Save holding</button>
+        <button class="btn-ghost-sm" type="button" onclick="toggleAddForm()">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Holdings table -->
+  <div class="holdings-card">
+    <div class="holdings-card-header">
+      <span class="card-title">Current positions</span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--paper-faint)">Manual entries only — broker sync coming soon</span>
+    </div>
+    {% if holdings %}
+    <table class="holdings-table">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th style="text-align:right">Qty</th>
+          <th style="text-align:right">Avg price</th>
+          <th style="text-align:right">Invested</th>
+          <th style="text-align:right">Current value</th>
+          <th style="text-align:right">P&amp;L</th>
+          <th>Portfolio</th>
+          <th>Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in holdings %}
+        <tr>
+          <td>
+            <div class="sym-cell">
+              <span class="sym">{{ h.symbol }}</span>
+              {% if h.company_name %}<span class="cname">{{ h.company_name[:28] }}</span>{% endif %}
+            </div>
+          </td>
+          <td class="num-cell">{{ h.quantity | int if h.quantity == h.quantity|int else '%.3f'|format(h.quantity) }}</td>
+          <td class="num-cell">₹{{ '%.2f'|format(h.purchase_price) }}</td>
+          <td class="num-cell">₹{{ '{:,.0f}'.format(h.total_investment or (h.quantity * h.purchase_price)) }}</td>
+          <td class="num-cell">
+            {% if h.current_value %}₹{{ '{:,.0f}'.format(h.current_value) }}{% else %}<span style="color:var(--paper-faint)">—</span>{% endif %}
+          </td>
+          <td style="text-align:right">
+            {% if h.unrealized_pnl is not none and h.unrealized_pnl != none %}
+              <div class="{{ 'pnl-pos' if h.unrealized_pnl >= 0 else 'pnl-neg' }}">
+                {{ '+' if h.unrealized_pnl >= 0 else '' }}₹{{ '{:,.0f}'.format(h.unrealized_pnl) }}
+              </div>
+              <div style="font-family:var(--mono);font-size:10.5px;color:var(--paper-faint)">
+                {{ '+' if h.unrealized_pnl_percentage >= 0 else '' }}{{ '%.1f'|format(h.unrealized_pnl_percentage) }}%
+              </div>
+            {% else %}
+              <span style="color:var(--paper-faint)">—</span>
+            {% endif %}
+          </td>
+          <td><span class="port-badge">{{ h.portfolio_name or 'Default' }}</span></td>
+          <td style="font-family:var(--mono);font-size:11.5px;color:var(--paper-faint)">{{ h.purchase_date.strftime('%d %b %Y') if h.purchase_date else '—' }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('portfolio_upload') }}" style="display:inline">
+              <input type="hidden" name="action" value="delete_holding">
+              <input type="hidden" name="holding_id" value="{{ h.id }}">
+              <button class="del-btn" type="submit" title="Remove holding" onclick="return confirm('Remove {{ h.symbol }}?')">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <svg class="empty-icon" viewBox="0 0 24 24" fill="none"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" stroke="currentColor" stroke-width="1.5"/></svg>
+      <div class="empty-title">No holdings yet</div>
+      <div class="empty-sub">Add your first holding using the button above, or upload a CSV below.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- CSV Upload -->
+  <div class="csv-card">
+    <div class="csv-header">
+      <div>
+        <div style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-dim);margin-bottom:4px">Bulk Import via CSV</div>
+        <div style="font-size:13px;color:var(--paper-faint)">Upload your Dhan or Zerodha holdings export, or use the Capulse template.</div>
+      </div>
+    </div>
+    <form method="POST" action="{{ url_for('portfolio_upload') }}" enctype="multipart/form-data" id="csvForm">
+      <input type="hidden" name="action" value="upload_csv">
+      <div class="drop-zone" id="dropZone">
+        <input type="file" name="holdings_file" id="fileInput" accept=".csv,.xlsx,.xls" onchange="showFileName(this)">
+        <svg class="drop-icon" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="drop-label" id="dropLabel">Drop your CSV / Excel here, or click to browse</div>
+        <div class="drop-sub">Supports Dhan P&amp;L, Zerodha Trade Book, or Capulse template</div>
+      </div>
+      <div class="csv-meta">
+        <span class="template-note">Not sure of the format? &nbsp;
+          <a href="/static/holdings_template.csv" download class="template-link">Download template ↓</a>
+        </span>
+        <button class="btn-primary-sm" type="submit" id="uploadBtn" disabled>Upload &amp; Import</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Format guide -->
+  <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px 24px">
+    <div style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-faint);margin-bottom:14px">Capulse CSV format (required columns)</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+      {% for col in ['symbol','company_name','quantity','purchase_price','purchase_date','portfolio_name'] %}
+      <div style="background:var(--ink-3);border-radius:4px;padding:8px 12px">
+        <div style="font-family:var(--mono);font-size:11.5px;color:var(--amber)">{{ col }}</div>
+        <div style="font-size:11px;color:var(--paper-faint);margin-top:2px">
+          {% if col == 'symbol' %}NSE ticker, e.g. RELIANCE
+          {% elif col == 'company_name' %}Optional, full name
+          {% elif col == 'quantity' %}Number of shares
+          {% elif col == 'purchase_price' %}Price per share (₹)
+          {% elif col == 'purchase_date' %}YYYY-MM-DD
+          {% elif col == 'portfolio_name' %}e.g. Default
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<script>
+function toggleAddForm() {
+  const f = document.getElementById('addFormCard');
+  f.classList.toggle('open');
+  if (f.classList.contains('open')) f.querySelector('input[name=symbol]').focus();
+}
+
+function showFileName(input) {
+  const label = document.getElementById('dropLabel');
+  const btn = document.getElementById('uploadBtn');
+  if (input.files.length) {
+    label.textContent = input.files[0].name;
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+// Drag-and-drop highlight
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('drag-over');
+  const input = document.getElementById('fileInput');
+  input.files = e.dataTransfer.files;
+  showFileName(input);
+});
+</script>
+{% endblock %}

@@ -1127,6 +1127,90 @@ def behaviour_pre_trade_check():
         return jsonify({'warnings': []})
 
 
+@app.route('/behavioural-coach', methods=['GET', 'POST'])
+@login_required
+def behavioural_coach_assessment():
+    """Investor behavioural assessment — in-page questionnaire in the Capulse dark layout."""
+    from models import RiskProfile
+
+    if request.method == 'POST':
+        try:
+            age_group = request.form.get('age_group', '26-35')
+            investment_goal = request.form.get('investment_goal', 'wealth_creation')
+            investment_horizon = request.form.get('investment_horizon', 'medium_term')
+            investment_experience = request.form.get('investment_experience', 'intermediate')
+            loss_choice = request.form.get('loss_tolerance', '5to10')
+
+            age_score = {'18-25': 25, '26-35': 20, '36-45': 15, '46-55': 10, '55+': 5}
+            goal_score = {'wealth_creation': 25, 'retirement': 15, 'children_education': 10,
+                          'house_purchase': 10, 'emergency_fund': 5}
+            horizon_score = {'short_term': 5, 'medium_term': 15, 'long_term': 25}
+            exp_score = {'beginner': 5, 'intermediate': 15, 'advanced': 25}
+            loss_map = {'lt5': 5, '5to10': 10, '10to20': 20, 'gt20': 30}
+            loss_pct_map = {'lt5': 5, '5to10': 10, '10to20': 20, 'gt20': 30}
+
+            risk_score = (
+                age_score.get(age_group, 15) +
+                goal_score.get(investment_goal, 15) +
+                horizon_score.get(investment_horizon, 15) +
+                exp_score.get(investment_experience, 15) +
+                loss_map.get(loss_choice, 10)
+            )
+
+            if risk_score <= 40:
+                risk_category = 'Conservative'
+            elif risk_score <= 70:
+                risk_category = 'Balanced'
+            else:
+                risk_category = 'Aggressive'
+
+            rp = RiskProfile.query.filter_by(user_id=current_user.id).first()
+            if rp:
+                rp.age_group = age_group
+                rp.investment_goal = investment_goal
+                rp.investment_horizon = investment_horizon
+                rp.risk_tolerance = risk_category.lower()
+                rp.loss_tolerance = loss_pct_map.get(loss_choice, 10)
+                rp.investment_experience = investment_experience
+                rp.risk_score = risk_score
+                rp.risk_category = risk_category
+                rp.updated_at = datetime.utcnow()
+            else:
+                rp = RiskProfile(
+                    user_id=current_user.id,
+                    age_group=age_group,
+                    investment_goal=investment_goal,
+                    investment_horizon=investment_horizon,
+                    risk_tolerance=risk_category.lower(),
+                    loss_tolerance=loss_pct_map.get(loss_choice, 10),
+                    investment_experience=investment_experience,
+                    risk_score=risk_score,
+                    risk_category=risk_category,
+                )
+                db.session.add(rp)
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Behavioural assessment save error: {e}")
+
+        return redirect(url_for('behavioural_coach_assessment'))
+
+    # GET
+    from models import RiskProfile
+    risk_profile = RiskProfile.query.filter_by(user_id=current_user.id).first()
+
+    from routes_chat import _get_user_sessions, _get_today_usage
+    sessions = _get_user_sessions(current_user.id) if current_user.is_authenticated else []
+    today_usage = _get_today_usage(current_user.id) if current_user.is_authenticated else 0
+
+    return render_template(
+        'behaviour_assessment.html',
+        risk_profile=risk_profile,
+        sessions=sessions,
+        today_usage=today_usage,
+        active_page='behaviour',
+    )
+
+
 @app.route('/api/behaviour/alert/<int:alert_id>/acknowledge', methods=['POST'])
 @login_required
 def acknowledge_behaviour_alert(alert_id):

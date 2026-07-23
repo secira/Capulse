@@ -1,0 +1,582 @@
+{% extends "capulse_base.html" %}
+{% block title %}Behavioural Coach — Capulse{% endblock %}
+
+{% block header_left %}
+<span style="font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-dim)">Behavioural Coach</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.bc-wrap{height:calc(100vh - 57px);overflow-y:auto;display:flex;flex-direction:column}
+.bc-wrap::-webkit-scrollbar{width:6px}
+.bc-wrap::-webkit-scrollbar-thumb{background:var(--ink-4);border-radius:4px}
+
+/* screens */
+.bc-screen{display:none;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:40px 24px;min-height:calc(100vh - 57px)}
+.bc-screen.active{display:flex}
+
+/* progress */
+.bc-progress-bar{width:100%;max-width:520px;margin-bottom:36px}
+.bc-progress-track{height:3px;background:var(--ink-4);border-radius:2px;overflow:hidden}
+.bc-progress-fill{height:100%;background:var(--amber);border-radius:2px;transition:width .4s ease}
+.bc-progress-label{font-family:var(--mono);font-size:10.5px;color:var(--paper-faint);margin-top:7px;letter-spacing:.04em}
+
+/* question */
+.bc-q-wrap{width:100%;max-width:520px}
+.bc-q-num{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-bottom:10px}
+.bc-q-text{font-family:var(--serif);font-size:22px;color:var(--paper);line-height:1.35;margin-bottom:28px}
+.bc-options{display:flex;flex-direction:column;gap:10px}
+.bc-opt{display:flex;align-items:center;gap:14px;padding:14px 18px;border:1px solid var(--line);border-radius:var(--radius-lg);cursor:pointer;transition:border-color .2s,background .2s;background:var(--ink-2)}
+.bc-opt:hover{border-color:var(--amber-dim);background:var(--amber-soft)}
+.bc-opt.selected{border-color:var(--amber);background:var(--amber-soft)}
+.bc-opt-key{font-family:var(--mono);font-size:11px;width:22px;height:22px;border-radius:4px;background:var(--ink-4);color:var(--paper-faint);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:500}
+.bc-opt.selected .bc-opt-key{background:var(--amber);color:var(--ink)}
+.bc-opt-label{font-size:14px;color:var(--paper-dim);line-height:1.4}
+.bc-opt.selected .bc-opt-label{color:var(--paper)}
+
+/* nav */
+.bc-nav{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:520px;margin-top:28px}
+.bc-back{background:none;border:1px solid var(--line);border-radius:var(--radius);padding:9px 16px;color:var(--paper-faint);font-family:var(--mono);font-size:12px;cursor:pointer;transition:all .15s}
+.bc-back:hover{border-color:var(--paper-faint);color:var(--paper)}
+.bc-back:disabled{opacity:.3;pointer-events:none}
+.bc-hint{font-family:var(--mono);font-size:10.5px;color:var(--paper-faint)}
+
+/* results */
+.bc-results{width:100%;max-width:580px;display:flex;flex-direction:column;gap:20px}
+.result-hero{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-lg);padding:32px;text-align:center}
+.result-archetype{font-family:var(--serif);font-size:28px;color:var(--amber);margin-bottom:6px;line-height:1.2}
+.result-category-badge{display:inline-block;padding:4px 14px;border-radius:20px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;margin-bottom:16px}
+.badge-conservative{background:rgba(127,174,132,.15);color:var(--good);border:1px solid rgba(127,174,132,.3)}
+.badge-balanced{background:rgba(111,168,192,.15);color:var(--signal-blue);border:1px solid rgba(111,168,192,.3)}
+.badge-aggressive{background:rgba(233,162,59,.15);color:var(--amber);border:1px solid rgba(233,162,59,.3)}
+.result-desc{font-size:13.5px;color:var(--paper-dim);line-height:1.6;max-width:420px;margin:0 auto}
+
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.result-tile{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px 20px}
+.tile-label{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--paper-faint);margin-bottom:8px}
+.tile-value{font-family:var(--serif);font-size:16px;color:var(--paper)}
+.tile-sub{font-size:12px;color:var(--paper-faint);margin-top:3px}
+
+.traits-card{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px}
+.trait-row{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.trait-row:last-child{border-bottom:none}
+.trait-dot{width:6px;height:6px;border-radius:50%;background:var(--amber);margin-top:7px;flex-shrink:0}
+.trait-text{font-size:13.5px;color:var(--paper-dim);line-height:1.5}
+
+.alloc-card{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px}
+.alloc-bars{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.alloc-row{display:flex;align-items:center;gap:12px}
+.alloc-label{font-family:var(--mono);font-size:11px;color:var(--paper-faint);width:60px}
+.alloc-track{flex:1;height:6px;background:var(--ink-4);border-radius:4px;overflow:hidden}
+.alloc-fill{height:100%;border-radius:4px}
+.alloc-pct{font-family:var(--mono);font-size:11.5px;color:var(--paper-dim);width:32px;text-align:right}
+
+.result-actions{display:flex;gap:12px}
+.btn-result-primary{flex:1;padding:13px 20px;background:var(--amber);color:var(--ink);border:none;border-radius:var(--radius);font-family:var(--mono);font-size:12.5px;font-weight:600;cursor:pointer;text-align:center;text-decoration:none;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-result-primary:hover{background:var(--amber-dim)}
+.btn-result-ghost{padding:13px 20px;background:transparent;color:var(--paper-dim);border:1px solid var(--line);border-radius:var(--radius);font-family:var(--mono);font-size:12.5px;cursor:pointer;transition:all .15s}
+.btn-result-ghost:hover{border-color:var(--paper-faint);color:var(--paper)}
+
+/* saved profile banner */
+.profile-banner{width:100%;max-width:520px;background:var(--ink-2);border:1px solid var(--amber-dim);border-radius:var(--radius-lg);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:12px}
+.profile-banner-left{display:flex;flex-direction:column;gap:2px}
+.profile-banner-label{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--amber)}
+.profile-banner-val{font-size:14px;color:var(--paper)}
+
+/* fade transition */
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.bc-screen.active{animation:fadeIn .3s ease}
+</style>
+{% endblock %}
+
+{% block main_content %}
+<div class="bc-wrap" id="bcWrap">
+
+  {% if risk_profile %}
+  <!-- ── RESULTS VIEW (already completed) ── -->
+  <div class="bc-screen active" id="screenResult">
+    <div class="bc-results">
+      {% set arch = risk_profile.risk_category %}
+      {% set score = risk_profile.risk_score %}
+
+      <!-- Profile banner -->
+      <div class="profile-banner">
+        <div class="profile-banner-left">
+          <span class="profile-banner-label">Your saved investor profile</span>
+          <span class="profile-banner-val">Last updated {{ risk_profile.updated_at.strftime('%d %b %Y') if risk_profile.updated_at else '—' }}</span>
+        </div>
+        <button class="bc-back" onclick="startFresh()" style="border-color:var(--amber-dim);color:var(--amber)">Retake ↺</button>
+      </div>
+
+      <!-- Hero -->
+      <div class="result-hero">
+        <div class="result-archetype" id="savedArchetype"></div>
+        <div id="savedBadge" style="margin-bottom:16px"></div>
+        <div class="result-desc" id="savedDesc"></div>
+      </div>
+
+      <!-- Stats grid -->
+      <div class="result-grid">
+        <div class="result-tile">
+          <div class="tile-label">Risk score</div>
+          <div class="tile-value">{{ score }} / 120</div>
+          <div class="tile-sub">{{ risk_profile.risk_category }}</div>
+        </div>
+        <div class="result-tile">
+          <div class="tile-label">Investment goal</div>
+          <div class="tile-value">{{ (risk_profile.investment_goal or '—').replace('_',' ').title() }}</div>
+          <div class="tile-sub">{{ (risk_profile.investment_horizon or '—').replace('_',' ').title() }}</div>
+        </div>
+        <div class="result-tile">
+          <div class="tile-label">Experience</div>
+          <div class="tile-value">{{ (risk_profile.investment_experience or '—').title() }}</div>
+          <div class="tile-sub">investor</div>
+        </div>
+        <div class="result-tile">
+          <div class="tile-label">Loss tolerance</div>
+          <div class="tile-value">{{ risk_profile.loss_tolerance or '—' }}%</div>
+          <div class="tile-sub">max annual drop</div>
+        </div>
+      </div>
+
+      <!-- Behavioural traits -->
+      <div class="traits-card">
+        <div class="tile-label" style="margin-bottom:4px">Key behavioural traits</div>
+        <div class="alloc-bars" id="savedTraits"></div>
+      </div>
+
+      <!-- Allocation -->
+      <div class="alloc-card">
+        <div class="tile-label">Suggested asset allocation</div>
+        <div class="alloc-bars" id="savedAlloc"></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="result-actions">
+        <a href="{{ url_for('chat.chat_home', q='Based on my behavioural profile, what stocks should I look at?') }}" class="btn-result-primary">
+          <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Chat with this context
+        </a>
+        <a href="{{ url_for('portfolio_upload') }}" class="btn-result-ghost">View holdings →</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const cat = {{ '"' + (risk_profile.risk_category or 'Balanced') + '"' | safe }};
+    const score = {{ risk_profile.risk_score or 60 }};
+    const goal = {{ '"' + (risk_profile.investment_goal or '') + '"' | safe }};
+    const horizon = {{ '"' + (risk_profile.investment_horizon or '') + '"' | safe }};
+    const exp = {{ '"' + (risk_profile.investment_experience or '') + '"' | safe }};
+    _renderSavedResult(cat, score, goal, horizon, exp);
+  })();
+  </script>
+
+  {% else %}
+  <!-- ── QUESTIONNAIRE VIEW ── -->
+  <form method="POST" action="{{ url_for('behavioural_coach_assessment') }}" id="bcForm">
+    <!-- will be submitted on final step -->
+  </form>
+
+  <!-- Screen: intro -->
+  <div class="bc-screen active" id="screen0">
+    <div style="text-align:center;max-width:480px">
+      <div style="font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-bottom:14px">Behavioural Coach</div>
+      <div style="font-family:var(--serif);font-size:28px;color:var(--paper);line-height:1.3;margin-bottom:14px">Understand your investing mind</div>
+      <div style="font-size:14px;color:var(--paper-dim);line-height:1.65;margin-bottom:32px">10 focused questions. Takes about 2 minutes. We analyse your risk appetite, emotional biases, and decision patterns to build your investor profile.</div>
+      <button class="btn-result-primary" onclick="startQuiz()" type="button">Begin assessment →</button>
+    </div>
+  </div>
+
+  <!-- Screens: questions 1–10 -->
+  {% set questions = [
+    {
+      'id': 'age_group',
+      'text': 'How old are you?',
+      'options': [
+        {'val':'18-25','label':'18 – 25 years'},
+        {'val':'26-35','label':'26 – 35 years'},
+        {'val':'36-45','label':'36 – 45 years'},
+        {'val':'46-55','label':'46 – 55 years'},
+        {'val':'55+','label':'55 years and above'}
+      ]
+    },
+    {
+      'id': 'investment_experience',
+      'text': 'How long have you been investing in Indian markets?',
+      'options': [
+        {'val':'beginner','label':'Less than 1 year — just getting started'},
+        {'val':'intermediate','label':'1 – 5 years — comfortable with the basics'},
+        {'val':'advanced','label':'5+ years — experienced across market cycles'}
+      ]
+    },
+    {
+      'id': 'investment_goal',
+      'text': 'What is your primary financial goal?',
+      'options': [
+        {'val':'wealth_creation','label':'Long-term wealth creation'},
+        {'val':'retirement','label':'Building a retirement corpus'},
+        {'val':'children_education','label':'Children\'s education or marriage'},
+        {'val':'house_purchase','label':'Buying a house or asset'},
+        {'val':'emergency_fund','label':'Capital preservation / emergency fund'}
+      ]
+    },
+    {
+      'id': 'investment_horizon',
+      'text': 'How long can you keep this money invested without touching it?',
+      'options': [
+        {'val':'short_term','label':'Less than 1 year — I may need it soon'},
+        {'val':'medium_term','label':'1 – 5 years — medium horizon'},
+        {'val':'long_term','label':'5+ years — I can leave it untouched'}
+      ]
+    },
+    {
+      'id': 'panic_response',
+      'text': 'Your portfolio drops 25% in a single month. What do you do?',
+      'options': [
+        {'val':'sell_all','label':'Sell everything — preserve what\'s left'},
+        {'val':'sell_some','label':'Sell some positions to reduce exposure'},
+        {'val':'hold','label':'Hold — this is temporary noise'},
+        {'val':'buy_more','label':'Buy more — great opportunity to average down'}
+      ]
+    },
+    {
+      'id': 'loss_tolerance',
+      'text': 'What is the maximum annual loss you can stomach without losing sleep?',
+      'options': [
+        {'val':'lt5','label':'Less than 5% — I hate losing money'},
+        {'val':'5to10','label':'5 – 10% — modest loss is acceptable'},
+        {'val':'10to20','label':'10 – 20% — I understand equity risk'},
+        {'val':'gt20','label':'More than 20% — I\'m here for high returns'}
+      ]
+    },
+    {
+      'id': 'monitoring_frequency',
+      'text': 'How often do you check your portfolio or watchlist?',
+      'options': [
+        {'val':'multiple_daily','label':'Multiple times a day — I track every move'},
+        {'val':'daily','label':'Once a day — I keep a daily tab'},
+        {'val':'weekly','label':'Weekly — I review on weekends'},
+        {'val':'monthly','label':'Monthly or less — I set and forget'}
+      ]
+    },
+    {
+      'id': 'buy_trigger',
+      'text': 'What typically triggers a buy decision for you?',
+      'options': [
+        {'val':'research','label':'Fundamental or technical research'},
+        {'val':'news','label':'Market news or analyst reports'},
+        {'val':'tips','label':'Recommendations from friends or social media'},
+        {'val':'gut','label':'Gut feeling or intuition'}
+      ]
+    },
+    {
+      'id': 'social_influence',
+      'text': 'A well-connected friend gives you a "sure-shot" stock tip. What do you do?',
+      'options': [
+        {'val':'act_immediately','label':'Buy immediately — I trust my network'},
+        {'val':'research_first','label':'Research the stock first, then decide'},
+        {'val':'ignore','label':'Ignore — I rely only on my own analysis'},
+        {'val':'ask_why','label':'Ask for the reasoning before considering it'}
+      ]
+    },
+    {
+      'id': 'savings_rate',
+      'text': 'What percentage of your monthly income do you currently invest?',
+      'options': [
+        {'val':'lt5','label':'Less than 5%'},
+        {'val':'5to15','label':'5 – 15%'},
+        {'val':'15to30','label':'15 – 30%'},
+        {'val':'gt30','label':'More than 30%'}
+      ]
+    }
+  ] %}
+
+  {% for q in questions %}
+  {% set i = loop.index0 %}
+  <div class="bc-screen" id="screen{{ loop.index }}" data-step="{{ loop.index }}">
+    <div class="bc-progress-bar">
+      <div class="bc-progress-track"><div class="bc-progress-fill" style="width:{{ (loop.index / 10 * 100)|int }}%"></div></div>
+      <div class="bc-progress-label">Question {{ loop.index }} of 10</div>
+    </div>
+    <div class="bc-q-wrap">
+      <div class="bc-q-num">{{ '%02d'|format(loop.index) }}</div>
+      <div class="bc-q-text">{{ q.text }}</div>
+      <div class="bc-options">
+        {% set keys = ['A','B','C','D','E'] %}
+        {% for opt in q.options %}
+        <div class="bc-opt" data-q="{{ q.id }}" data-val="{{ opt.val }}" onclick="selectOption(this, '{{ q.id }}', '{{ opt.val }}', {{ i + 1 }})">
+          <div class="bc-opt-key">{{ keys[loop.index0] }}</div>
+          <div class="bc-opt-label">{{ opt.label }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="bc-nav">
+        <button class="bc-back" type="button" onclick="goBack({{ loop.index }})" {% if loop.first %}disabled{% endif %}>← Back</button>
+        <span class="bc-hint">Click an answer to continue</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Screen: computing -->
+  <div class="bc-screen" id="screenComputing">
+    <div style="text-align:center">
+      <div style="font-family:var(--mono);font-size:11.5px;color:var(--amber);margin-bottom:16px">Analysing your responses…</div>
+      <div style="font-size:13px;color:var(--paper-faint)">Building your investor profile</div>
+    </div>
+  </div>
+
+  <!-- Screen: results (dynamic) -->
+  <div class="bc-screen" id="screenResultDynamic">
+    <div class="bc-results">
+      <div class="result-hero">
+        <div class="result-archetype" id="archetype"></div>
+        <div id="categoryBadge" style="margin-bottom:16px"></div>
+        <div class="result-desc" id="archetypeDesc"></div>
+      </div>
+
+      <div class="result-grid">
+        <div class="result-tile">
+          <div class="tile-label">Risk score</div>
+          <div class="tile-value" id="scoreVal">—</div>
+          <div class="tile-sub" id="scoreCat">—</div>
+        </div>
+        <div class="result-tile">
+          <div class="tile-label">Monitoring style</div>
+          <div class="tile-value" id="monitoringVal">—</div>
+          <div class="tile-sub">frequency</div>
+        </div>
+        <div class="result-tile">
+          <div class="tile-label">Decision driver</div>
+          <div class="tile-value" id="buyTriggerVal">—</div>
+          <div class="tile-sub">primary</div>
+        </div>
+        <div class="result-tile">
+          <div class="tile-label">Savings discipline</div>
+          <div class="tile-value" id="savingsVal">—</div>
+          <div class="tile-sub">of income invested</div>
+        </div>
+      </div>
+
+      <div class="traits-card">
+        <div class="tile-label" style="margin-bottom:4px">Key behavioural traits</div>
+        <div id="traitsContainer" style="display:flex;flex-direction:column;gap:0"></div>
+      </div>
+
+      <div class="alloc-card">
+        <div class="tile-label">Suggested asset allocation</div>
+        <div class="alloc-bars" id="allocContainer"></div>
+      </div>
+
+      <div class="result-actions">
+        <button class="btn-result-primary" onclick="saveAndChat()" type="button">
+          <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Save &amp; chat with this context
+        </button>
+        <button class="btn-result-ghost" onclick="startFresh()" type="button">Retake</button>
+      </div>
+    </div>
+  </div>
+
+  {% endif %}
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const answers = {};
+let currentScreen = 0;
+
+const KEYS = ['age_group','investment_experience','investment_goal','investment_horizon',
+              'panic_response','loss_tolerance','monitoring_frequency','buy_trigger',
+              'social_influence','savings_rate'];
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.bc-screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function startQuiz() { showScreen('screen1'); currentScreen = 1; }
+function startFresh() { showScreen('screen0'); }
+
+function goBack(step) {
+  if (step > 1) { showScreen('screen' + (step - 1)); currentScreen = step - 1; }
+}
+
+function selectOption(el, qId, val, step) {
+  // mark selected
+  el.closest('.bc-options').querySelectorAll('.bc-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  answers[qId] = val;
+
+  // short delay then advance
+  setTimeout(() => {
+    if (step < 10) {
+      showScreen('screen' + (step + 1));
+      currentScreen = step + 1;
+    } else {
+      computeAndShow();
+    }
+  }, 320);
+}
+
+// ── Scoring ───────────────────────────────────────────────────────────────────
+function computeScore() {
+  const ageMap = {'18-25':25,'26-35':20,'36-45':15,'46-55':10,'55+':5};
+  const goalMap = {'wealth_creation':25,'retirement':15,'children_education':10,'house_purchase':10,'emergency_fund':5};
+  const horizonMap = {'short_term':5,'medium_term':15,'long_term':25};
+  const expMap = {'beginner':5,'intermediate':15,'advanced':25};
+  const lossMap = {'lt5':5,'5to10':10,'10to20':20,'gt20':30};
+
+  return (ageMap[answers.age_group] || 15)
+       + (goalMap[answers.investment_goal] || 15)
+       + (horizonMap[answers.investment_horizon] || 15)
+       + (expMap[answers.investment_experience] || 15)
+       + (lossMap[answers.loss_tolerance] || 10);
+}
+
+function getRiskCategory(score) {
+  if (score <= 40) return 'Conservative';
+  if (score <= 70) return 'Balanced';
+  return 'Aggressive';
+}
+
+function getArchetype(cat, ans) {
+  if (cat === 'Conservative') {
+    if (ans.monitoring_frequency === 'monthly') return ['The Patient Builder','You invest steadily and sleep well. Capital protection matters more than chasing alpha. Time and compounding are your best friends.'];
+    return ['The Cautious Accumulator','You prefer stability over excitement. You are disciplined about risk and build wealth through consistency rather than concentration.'];
+  }
+  if (cat === 'Aggressive') {
+    if (ans.monitoring_frequency === 'multiple_daily') return ['The Active Trader','You are engaged, high-conviction, and move quickly. Your edge is information speed — but watch for overtrading and FOMO.'];
+    if (ans.buy_trigger === 'research') return ['The Growth Seeker','You take bold positions backed by research. You understand volatility is the price of asymmetric returns and stay course.'];
+    return ['The High-Beta Investor','You embrace risk for higher returns. Strong conviction, high tolerance — but ensure your portfolio has deliberate position sizing.'];
+  }
+  // Balanced
+  if (ans.social_influence === 'act_immediately' || ans.buy_trigger === 'tips') return ['The Momentum Chaser','You are tuned into market narratives and networks. Be aware of narrative bias — validate before you act.'];
+  if (ans.buy_trigger === 'research') return ['The Systematic Investor','You balance growth with protection. You use process to manage emotion and invest with purpose rather than impulse.'];
+  return ['The Pragmatic Investor','You adapt to market conditions without overreacting. You balance fundamentals with market awareness.'];
+}
+
+function getTraits(cat, ans) {
+  const traits = [];
+  // Panic response
+  if (ans.panic_response === 'buy_more') traits.push('Counter-cyclical buyer — you see drawdowns as opportunity, not threat.');
+  else if (ans.panic_response === 'sell_all') traits.push('Loss-aversion bias — consider systematic SIPs to smooth emotional responses.');
+  else if (ans.panic_response === 'hold') traits.push('Strong conviction — you do not let short-term volatility shake your thesis.');
+  // Social
+  if (ans.social_influence === 'ignore') traits.push('Information discipline — you resist external noise and build independent views.');
+  else if (ans.social_influence === 'act_immediately') traits.push('Social proof sensitivity — validate tips through your own research before acting.');
+  else if (ans.social_influence === 'research_first') traits.push('Balanced validation approach — you hear ideas but verify before committing capital.');
+  // Monitoring
+  if (ans.monitoring_frequency === 'multiple_daily') traits.push('High monitoring frequency increases risk of reactive decisions — consider a weekly review cadence.');
+  else if (ans.monitoring_frequency === 'monthly') traits.push('Low monitoring supports long-term thinking and reduces emotional decision-making.');
+  // Buy trigger
+  if (ans.buy_trigger === 'gut') traits.push('Intuition-led decisions can work, but building a checklist will sharpen your edge.');
+  else if (ans.buy_trigger === 'research') traits.push('Research-driven entry reduces impulse buys and improves portfolio quality over time.');
+  return traits.slice(0, 3);
+}
+
+function getAllocation(cat) {
+  if (cat === 'Conservative') return [['Equity',35,'#7FAE84'],['Debt',45,'#6FA8C0'],['Gold',15,'#E9A23B'],['Cash',5,'#6B675E']];
+  if (cat === 'Aggressive') return [['Equity',75,'#7FAE84'],['Debt',15,'#6FA8C0'],['Gold',7,'#E9A23B'],['Cash',3,'#6B675E']];
+  return [['Equity',55,'#7FAE84'],['Debt',30,'#6FA8C0'],['Gold',10,'#E9A23B'],['Cash',5,'#6B675E']];
+}
+
+const monitoringLabel = {'multiple_daily':'Multiple/day','daily':'Daily','weekly':'Weekly','monthly':'Monthly'};
+const buyTriggerLabel = {'research':'Research','news':'News/Analysts','tips':'Tips','gut':'Intuition'};
+const savingsLabel = {'lt5':'< 5%','5to15':'5–15%','15to30':'15–30%','gt30':'30%+'};
+
+// ── Render helpers ─────────────────────────────────────────────────────────────
+function renderResult(cat, score, archName, archDesc, traits, alloc, containers) {
+  const {archEl, badgeEl, descEl, scoreEl, scoreCatEl, monEl, buyEl, savEl, traitsEl, allocEl} = containers;
+  if (archEl) archEl.textContent = archName;
+  if (descEl) descEl.textContent = archDesc;
+  if (badgeEl) {
+    const cls = cat === 'Conservative' ? 'badge-conservative' : cat === 'Aggressive' ? 'badge-aggressive' : 'badge-balanced';
+    badgeEl.innerHTML = `<span class="result-category-badge ${cls}">${cat} Investor</span>`;
+  }
+  if (scoreEl) scoreEl.textContent = score + ' / 120';
+  if (scoreCatEl) scoreCatEl.textContent = cat;
+  if (monEl) monEl.textContent = monitoringLabel[answers.monitoring_frequency] || '—';
+  if (buyEl) buyEl.textContent = buyTriggerLabel[answers.buy_trigger] || '—';
+  if (savEl) savEl.textContent = savingsLabel[answers.savings_rate] || '—';
+  if (traitsEl) {
+    traitsEl.innerHTML = traits.map(t => `<div class="trait-row"><div class="trait-dot"></div><div class="trait-text">${t}</div></div>`).join('');
+  }
+  if (allocEl) {
+    allocEl.innerHTML = alloc.map(([name,pct,color]) =>
+      `<div class="alloc-row"><div class="alloc-label">${name}</div><div class="alloc-track"><div class="alloc-fill" style="width:${pct}%;background:${color}"></div></div><div class="alloc-pct">${pct}%</div></div>`
+    ).join('');
+  }
+}
+
+function computeAndShow() {
+  showScreen('screenComputing');
+  const score = computeScore();
+  const cat = getRiskCategory(score);
+  const [archName, archDesc] = getArchetype(cat, answers);
+  const traits = getTraits(cat, answers);
+  const alloc = getAllocation(cat);
+
+  setTimeout(() => {
+    renderResult(cat, score, archName, archDesc, traits, alloc, {
+      archEl: document.getElementById('archetype'),
+      badgeEl: document.getElementById('categoryBadge'),
+      descEl: document.getElementById('archetypeDesc'),
+      scoreEl: document.getElementById('scoreVal'),
+      scoreCatEl: document.getElementById('scoreCat'),
+      monEl: document.getElementById('monitoringVal'),
+      buyEl: document.getElementById('buyTriggerVal'),
+      savEl: document.getElementById('savingsVal'),
+      traitsEl: document.getElementById('traitsContainer'),
+      allocEl: document.getElementById('allocContainer'),
+    });
+    showScreen('screenResultDynamic');
+  }, 1200);
+}
+
+function saveAndChat() {
+  // Build and submit the hidden form
+  const form = document.getElementById('bcForm');
+  form.innerHTML = '';
+  KEYS.forEach(k => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = k; inp.value = answers[k] || '';
+    form.appendChild(inp);
+  });
+  // loss_tolerance needs to match backend mapping
+  form.submit();
+}
+
+// ── Saved profile render (for already-answered users) ─────────────────────────
+function _renderSavedResult(cat, score, goal, horizon, exp) {
+  const archetypes = {
+    Conservative: ['The Patient Builder','You invest steadily and sleep well. Capital protection matters more than chasing alpha. Time and compounding are your best friends.'],
+    Balanced: ['The Systematic Investor','You balance growth with protection. You use process to manage emotion and invest with purpose rather than impulse.'],
+    Aggressive: ['The Growth Seeker','You take bold positions backed by research. You understand volatility is the price of asymmetric returns.'],
+  };
+  const [archName, archDesc] = archetypes[cat] || archetypes.Balanced;
+  const traits = {
+    Conservative: ['Capital preservation drives your decisions — a healthy bias for long-term wealth.','Low-risk instruments like index funds and bonds suit your temperament.','Avoid chasing returns during bull markets — your steady approach wins over 15+ year horizons.'],
+    Balanced: ['You balance opportunity with caution, neither too greedy nor too fearful.','Systematic investment plans (SIPs) align well with your style.','Periodic rebalancing keeps your allocation aligned with goals without emotional overhaul.'],
+    Aggressive: ['High conviction positions are your strength — but ensure portfolio diversification.','Bull markets can amplify gains, but have a clear stop-loss discipline for downside protection.','Track sector concentration — aggressive investors often over-index a single theme.'],
+  };
+  const alloc = getAllocation(cat);
+  const traitList = traits[cat] || traits.Balanced;
+  const badgeCls = cat === 'Conservative' ? 'badge-conservative' : cat === 'Aggressive' ? 'badge-aggressive' : 'badge-balanced';
+
+  document.getElementById('savedArchetype').textContent = archName;
+  document.getElementById('savedDesc').textContent = archDesc;
+  document.getElementById('savedBadge').innerHTML = `<span class="result-category-badge ${badgeCls}">${cat} Investor</span>`;
+  const traitsEl = document.getElementById('savedTraits');
+  if (traitsEl) traitsEl.innerHTML = traitList.map(t => `<div class="trait-row"><div class="trait-dot"></div><div class="trait-text">${t}</div></div>`).join('');
+  const allocEl = document.getElementById('savedAlloc');
+  if (allocEl) allocEl.innerHTML = alloc.map(([name,pct,color]) =>
+    `<div class="alloc-row"><div class="alloc-label">${name}</div><div class="alloc-track"><div class="alloc-fill" style="width:${pct}%;background:${color}"></div></div><div class="alloc-pct">${pct}%</div></div>`
+  ).join('');
+}
+</script>
+{% endblock %}

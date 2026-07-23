@@ -4407,6 +4407,90 @@ def portfolio_sync_brokers():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/portfolio/upload', methods=['GET', 'POST'])
+@login_required
+def portfolio_upload():
+    """Dedicated holdings upload page — manual add & CSV import."""
+    from models import ManualEquityHolding
+    from datetime import datetime as _dt
+
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+
+        if action == 'add_holding':
+            try:
+                h = ManualEquityHolding(
+                    user_id=current_user.id,
+                    tenant_id=current_user.tenant_id or 'live',
+                    symbol=request.form.get('symbol', '').upper().strip(),
+                    company_name=request.form.get('company_name', '').strip() or None,
+                    quantity=float(request.form.get('quantity', 0)),
+                    purchase_price=float(request.form.get('purchase_price', 0)),
+                    purchase_date=_dt.strptime(request.form.get('purchase_date'), '%Y-%m-%d').date(),
+                    portfolio_name=request.form.get('portfolio_name', 'Default') or 'Default',
+                    transaction_type='BUY',
+                )
+                h.calculate_totals()
+                db.session.add(h)
+                db.session.commit()
+                flash(f'{h.symbol} added to your portfolio.', 'success')
+            except Exception as e:
+                logger.error(f"portfolio_upload add_holding error: {e}")
+                flash(f'Error adding holding: {e}', 'error')
+
+        elif action == 'upload_csv':
+            file = request.files.get('holdings_file')
+            if not file or file.filename == '':
+                flash('No file selected.', 'error')
+            else:
+                try:
+                    import pandas as pd
+                    if file.filename.endswith('.csv'):
+                        df = pd.read_csv(file)
+                    else:
+                        df = pd.read_excel(file)
+                    from services.portfolio_analyzer_service import PortfolioAnalyzerService
+                    result = PortfolioAnalyzerService(current_user.id).upload_manual_holdings(df.to_dict('records'))
+                    if result.get('success'):
+                        flash(f"Imported {result['processed']} holdings. Skipped: {result.get('skipped', 0)}", 'success')
+                    else:
+                        flash(f"Upload failed: {result.get('error', 'Unknown error')}", 'error')
+                except Exception as e:
+                    logger.error(f"portfolio_upload csv error: {e}")
+                    flash(f'Error processing file: {e}', 'error')
+
+        elif action == 'delete_holding':
+            try:
+                h = ManualEquityHolding.query.filter_by(
+                    id=request.form.get('holding_id'), user_id=current_user.id
+                ).first()
+                if h:
+                    h.is_active = False
+                    db.session.commit()
+                    flash('Holding removed.', 'success')
+            except Exception as e:
+                flash(f'Error: {e}', 'error')
+
+        return redirect(url_for('portfolio_upload'))
+
+    # GET — fetch holdings + sidebar vars
+    holdings = ManualEquityHolding.query.filter_by(
+        user_id=current_user.id, is_active=True
+    ).order_by(ManualEquityHolding.purchase_date.desc()).all()
+
+    from routes_chat import _get_user_sessions, _get_today_usage
+    sessions = _get_user_sessions(current_user.id) if current_user.is_authenticated else []
+    today_usage = _get_today_usage(current_user.id) if current_user.is_authenticated else 0
+
+    return render_template(
+        'portfolio_upload.html',
+        holdings=holdings,
+        sessions=sessions,
+        today_usage=today_usage,
+        active_page='portfolio',
+    )
+
+
 @app.route('/portfolio/upload-holdings', methods=['POST'])
 @login_required
 def portfolio_upload_holdings():

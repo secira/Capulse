@@ -275,11 +275,11 @@ h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:-0.01em}
         <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><path d="M17.5 14V21M14 17.5H21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         Mutual Funds
       </a>
-      <a href="{{ url_for('chat.chat_home', q='Analyse my portfolio for sector concentration and risk') }}" class="nav-item {% if active_page == 'portfolio' %}active{% endif %}">
+      <a href="{{ url_for('portfolio_upload') }}" class="nav-item {% if active_page == 'portfolio' %}active{% endif %}">
         <svg viewBox="0 0 24 24" fill="none"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Portfolio Review
+        My Holdings
       </a>
-      <a href="{{ url_for('chat.chat_home', q='How is my trading behaviour and discipline score?') }}" class="nav-item {% if active_page == 'behaviour' %}active{% endif %}">
+      <a href="{{ url_for('behavioural_coach_assessment') }}" class="nav-item {% if active_page == 'behaviour' %}active{% endif %}">
         <svg viewBox="0 0 24 24" fill="none"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Behavioural Coach
       </a>
