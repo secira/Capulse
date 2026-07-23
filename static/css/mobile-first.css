@@ -394,29 +394,7 @@ body {
     }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --shadow-sm: 0 1px 2px 0 rgb(255 255 255 / 0.05);
-        --shadow-md: 0 4px 6px -1px rgb(255 255 255 / 0.1), 0 2px 4px -2px rgb(255 255 255 / 0.1);
-        --shadow-lg: 0 10px 15px -3px rgb(255 255 255 / 0.1), 0 4px 6px -4px rgb(255 255 255 / 0.1);
-    }
-    
-    body {
-        background: #1a1a1a;
-        color: white;
-    }
-    
-    .card-responsive {
-        background: #2a2a2a;
-        border-color: rgba(255, 255, 255, 0.1);
-    }
-    
-    .navbar-mobile {
-        background: rgba(42, 42, 42, 0.95);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-}
+/* Dark mode support intentionally omitted — app uses a fixed light theme */
 
 /* ===== PERFORMANCE OPTIMIZATIONS ===== */
 
