@@ -5,6 +5,12 @@ Optimized Gunicorn Configuration for Production Performance
 import multiprocessing
 import os
 
+# With preload_app=True the app module is imported in the gunicorn MASTER
+# process. Background scheduler threads started there do NOT survive the
+# fork into workers — so we defer scheduler startup to post_fork below.
+# app.py checks this env var and skips its import-time scheduler start.
+os.environ["SCHEDULERS_DEFERRED"] = "1"
+
 # Server socket — PORT is set by Railway automatically; default 8080 matches Dockerfile EXPOSE
 bind = f"0.0.0.0:{os.environ.get('PORT', '8080')}"
 backlog = 2048
@@ -55,6 +61,15 @@ def post_fork(server, worker):
         db.engine.dispose()
     except Exception:
         pass
+
+    # Start background schedulers in the worker (not the master).
+    # Each scheduler takes a Postgres advisory lock, so even with many
+    # workers only ONE actually runs each job.
+    try:
+        from app import start_background_schedulers
+        start_background_schedulers()
+    except Exception as e:
+        worker.log.warning(f"Background schedulers not started in worker: {e}")
 
 
 def when_ready(server):

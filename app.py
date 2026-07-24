@@ -1116,7 +1116,15 @@ except Exception as e:
 # (which spawns non-daemon threads) never starts inside them.  Without this
 # guard the seed process can never exit, entrypoint.sh hangs forever, and
 # gunicorn never starts — causing the Railway healthcheck to time out.
-if not os.environ.get("SKIP_SCHEDULER"):
+#
+# SCHEDULERS_DEFERRED=1 is set by gunicorn.conf.py (production): with
+# preload_app=True this module is imported in the gunicorn MASTER process,
+# and background threads started there do not survive the fork into
+# workers. In that mode the schedulers are started per-worker from the
+# post_fork hook instead (Postgres advisory locks ensure only one worker
+# actually runs each scheduler).
+def start_background_schedulers():
+    """Start all APScheduler-based background jobs. Idempotent per scheduler."""
     try:
         from services.fno_monitor import start_scheduler as start_fno_monitor
         start_fno_monitor(app)
@@ -1160,6 +1168,12 @@ if not os.environ.get("SKIP_SCHEDULER"):
         logging.info("Partner commission release scheduler started (daily 01:30 UTC)")
     except Exception as e:
         logging.warning(f"Partner commission scheduler not started: {e}")
+
+
+# Start immediately unless a subprocess (SKIP_SCHEDULER) or gunicorn's
+# post_fork hook (SCHEDULERS_DEFERRED, set in gunicorn.conf.py) owns startup.
+if not os.environ.get("SKIP_SCHEDULER") and not os.environ.get("SCHEDULERS_DEFERRED"):
+    start_background_schedulers()
 
 
 # WebSocket Server Management

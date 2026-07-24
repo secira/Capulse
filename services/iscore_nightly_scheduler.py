@@ -44,10 +44,64 @@ _NIGHTLY_ADVISORY_LOCK_ID = 728193002  # unique vs fno_monitor (…001)
 _IST = timezone(timedelta(hours=5, minutes=30))
 
 
+def _persist_state():
+    """Save scheduler state to the DB so ANY gunicorn worker can read it.
+
+    Module-level _state only exists in the worker that runs the scheduler;
+    admin status requests land on arbitrary workers. This keeps the admin
+    page truthful in multi-worker production.
+    """
+    try:
+        import json
+        from sqlalchemy import text
+        from app import app, db
+        with app.app_context():
+            db.session.execute(text(
+                """
+                CREATE TABLE IF NOT EXISTS scheduler_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
+            ))
+            db.session.execute(text(
+                """
+                INSERT INTO scheduler_state (key, value, updated_at)
+                VALUES ('iscore_nightly', :v, NOW())
+                ON CONFLICT (key) DO UPDATE SET value = :v, updated_at = NOW()
+                """
+            ), {"v": json.dumps(_state)})
+            db.session.commit()
+    except Exception as e:
+        logger.warning(f"Could not persist nightly scheduler state: {e}")
+
+
+def _load_persisted_state() -> dict | None:
+    try:
+        import json
+        from sqlalchemy import text
+        from app import app, db
+        with app.app_context():
+            row = db.session.execute(text(
+                "SELECT value FROM scheduler_state WHERE key = 'iscore_nightly'"
+            )).scalar()
+            return json.loads(row) if row else None
+    except Exception:
+        return None
+
+
 def get_status() -> dict:
-    """Snapshot of scheduler state for the admin UI."""
+    """Snapshot of scheduler state for the admin UI (any worker)."""
+    state = dict(_state)
+    if not state["scheduler_started"]:
+        # This worker isn't the one running the scheduler — read the
+        # DB-persisted state written by the worker that is.
+        persisted = _load_persisted_state()
+        if persisted:
+            state = {**state, **persisted}
     return {
-        **_state,
+        **state,
         "batch_limit":    NIGHTLY_BATCH_LIMIT,
         "stale_days":     STALE_DAYS_THRESHOLD,
     }
@@ -229,6 +283,7 @@ def _nightly_job(app):
     _state["currently_running"] = True
     _state["last_run_started"] = datetime.now(_IST).isoformat()
     _state["last_run_status"] = "running"
+    _persist_state()
 
     jid = f"nightly-{datetime.now(_IST).strftime('%Y%m%d')}"
 
@@ -261,6 +316,7 @@ def _nightly_job(app):
     finally:
         _state["last_run_finished"] = datetime.now(_IST).isoformat()
         _state["currently_running"] = False
+        _persist_state()
 
 
 # ── Singleton lock + APScheduler wiring ───────────────────────────────────
@@ -313,6 +369,7 @@ def start_scheduler(app):
         job = scheduler.get_job("iscore_nightly_pending")
         if job and job.next_run_time:
             _state["next_run"] = job.next_run_time.isoformat()
+        _persist_state()
         logger.info(
             f"Nightly I-Score scheduler started — runs daily at "
             f"{hour:02d}:{minute:02d} IST (next: {_state['next_run']})"
