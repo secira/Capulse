@@ -2,8 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-# tzdata: provides /usr/share/zoneinfo so Python's zoneinfo module works on slim images
+# System dependencies
+# libpq-dev + gcc: psycopg2 build
+# curl: health-check probe during entrypoint
+# tzdata: zoneinfo support on slim images
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
@@ -11,23 +13,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies before copying app code
-# (separate layer — only rebuilt when requirements.txt changes)
+# Install Python dependencies first (separate layer — only rebuilt when requirements.txt changes)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
-# Make entrypoint executable
+# Ensure entrypoint is executable
 RUN chmod +x entrypoint.sh
 
-# Create a non-root user for security
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
-RUN chown -R appuser:appgroup /app
+# Non-root user for security
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \
+    && chown -R appuser:appgroup /app
 USER appuser
 
-# Railway injects PORT at runtime; 8080 is its default
+# Railway injects PORT at runtime (default 8080 in gunicorn.conf.py)
 EXPOSE 8080
 
 CMD ["./entrypoint.sh"]
