@@ -1311,7 +1311,7 @@ def trading_psychology():
 
         return redirect(url_for('trading_psychology'))
 
-    # ── GET: fetch trades & analyse ───────────────────────────────────────────
+    # ── GET: fetch trades & run full engine analysis ──────────────────────────
     trades = ManualTradeImport.query.filter_by(user_id=current_user.id).all()
 
     from routes_chat import _get_user_sessions, _get_today_usage
@@ -1326,92 +1326,172 @@ def trading_psychology():
             active_page='trading-psychology',
         )
 
-    # ── Run BehaviourEngine pattern detection ─────────────────────────────────
+    # ── Full engine run ───────────────────────────────────────────────────────
+    engine = _get_engine()
+
+    full = {}
+    score_breakdown = {}
+    progress = {}
+    root_cause = None
+    psych_narratives = {}
+    dna = {}
+    correlations = []
+
     try:
-        engine = _get_engine()
-        patterns = {
-            'overtrading':          engine.detect_overtrading(),
-            'revenge_trading':      engine.detect_revenge_trading(),
-            'loss_aversion':        engine.detect_loss_aversion(),
-            'profit_booking_bias':  engine.detect_profit_booking_bias(),
-            'tilt':                 engine.detect_tilt(),
-            'overconfidence':       engine.detect_overconfidence(),
-            'panic_selling':        engine.detect_panic_selling(),
-            'time_of_day':          engine.detect_time_of_day_bias(),
-        }
+        full = engine.get_full_analysis()
     except Exception as e:
-        logger.error(f'Psychology engine error: {e}')
-        patterns = {}
+        logger.error(f'get_full_analysis error: {e}')
+        full = {'has_data': False, 'score': 50, 'score_label': 'Unknown', 'score_color': '#6b7280',
+                'stats': {}, 'categories': {}, 'patterns': {}, 'active_alerts': [],
+                'by_hour': [], 'by_day': [], 'by_symbol': [], 'personality': None, 'master': {}}
 
-    # Overall score
-    scores = [p.get('score', 50) for p in patterns.values() if 'score' in p]
-    overall_score = round(sum(scores) / len(scores)) if scores else 50
-
-    # Trade stats
-    trade_count = len(trades)
-    wins = sum(1 for t in trades if t.trade_result == 'WIN')
-    losses = sum(1 for t in trades if t.trade_result == 'LOSS')
-    win_rate = round(wins / trade_count * 100) if trade_count else 0
-    total_pnl = sum(t.realized_pnl for t in trades)
-
-    # Personality archetype
-    personality = None
     try:
-        personality = engine.get_trading_personality(patterns, overall_score)
-    except Exception:
-        pass
+        score_breakdown = engine.get_score_breakdown()
+    except Exception as e:
+        logger.error(f'get_score_breakdown error: {e}')
 
-    # ── AI narrative ──────────────────────────────────────────────────────────
+    try:
+        progress = engine.get_progress_tracking()
+    except Exception as e:
+        logger.error(f'get_progress_tracking error: {e}')
+
+    try:
+        root_cause = engine.get_performance_root_cause()
+    except Exception as e:
+        logger.error(f'get_performance_root_cause error: {e}')
+
+    try:
+        psych_narratives = engine.get_psychology_narratives()
+    except Exception as e:
+        logger.error(f'get_psychology_narratives error: {e}')
+
+    try:
+        dna = engine.get_trading_dna()
+    except Exception as e:
+        logger.error(f'get_trading_dna error: {e}')
+
+    try:
+        correlations = engine.get_cross_module_correlations()
+    except Exception as e:
+        logger.error(f'get_cross_module_correlations error: {e}')
+
+    stats       = full.get('stats', {})
+    categories  = full.get('categories', {})
+    personality = full.get('personality')
+    overall_score = full.get('score', 50)
+    trade_count = stats.get('total_trades', len(trades))
+    wins        = stats.get('wins', 0)
+    losses      = stats.get('losses', 0)
+    win_rate    = stats.get('win_rate', 0)
+    total_pnl   = stats.get('total_pnl', 0)
+
+    # Flatten all modules across 5 categories for pattern cards
+    all_modules = {}
+    for cat_data in categories.values():
+        all_modules.update(cat_data.get('modules', {}))
+
+    # ── AI deep narrative using full analysis ─────────────────────────────────
     narrative = None
     action_items = []
     try:
         from services.anthropic_service import AnthropicService
 
-        detected_issues = []
-        for name, data in patterns.items():
-            if data.get('detected'):
-                label = name.replace('_', ' ').title()
-                msg = data.get('message', '')
-                detected_issues.append(f"- {label}: {msg}")
+        # Build detailed context from all 5 categories
+        cat_lines = []
+        for cat_key, cat_data in categories.items():
+            cat_label = cat_data.get('label', cat_key.title())
+            cat_score = cat_data.get('score', 50)
+            cat_lines.append(f"\n{cat_label} (score {cat_score}/100):")
+            for mod_key, mod in cat_data.get('modules', {}).items():
+                severity = mod.get('severity', 'none')
+                if severity in ('high', 'medium') or mod.get('detected'):
+                    insight = mod.get('insight') or mod.get('message', '')
+                    label   = mod.get('label', mod_key.replace('_', ' ').title())
+                    cat_lines.append(f"  ⚠ {label}: {insight}")
+                else:
+                    label = mod.get('label', mod_key.replace('_', ' ').title())
+                    cat_lines.append(f"  ✓ {label}: healthy")
+
+        rc_text = ''
+        if root_cause:
+            rc = root_cause.get('root_cause', {})
+            rc_text = (
+                f"\nROOT CAUSE: {rc.get('label', '')} — {rc.get('detail', '')}"
+                f"\nFIX PRIORITY: {root_cause.get('fix_priority', '')}"
+                f"\nPOTENTIAL UPSIDE: {root_cause.get('potential_upside', '')}"
+            )
+
+        psych_text = ''
+        for key, pn in psych_narratives.items():
+            psych_text += f"\n{key.upper()}: {pn.get('narrative', '')} Self-awareness prompt: {pn.get('self_awareness', '')}"
+
+        dna_text = ''
+        if dna and dna.get('has_data'):
+            dna_text = (
+                f"\nTRADING DNA: {dna.get('archetype', '')} — {dna.get('archetype_description', '')}"
+                f"\nActivity: {dna.get('activity', '')}, Emotional Level: {dna.get('emotional_level', '')}, R:R Quality: {dna.get('rr_quality', '')}"
+            )
+
+        rr = stats.get('risk_reward', 0)
+        avg_win = stats.get('avg_win', 0)
+        avg_loss = stats.get('avg_loss', 0)
 
         prompt = (
             f"You are analysing the trading psychology of an Indian retail trader.\n\n"
-            f"TRADE SUMMARY:\n"
-            f"- Total closed trades: {trade_count}\n"
-            f"- Win rate: {win_rate}% ({wins} wins, {losses} losses)\n"
-            f"- Net P&L: ₹{total_pnl:,.0f}\n"
-            f"- Overall psychology score: {overall_score}/100\n"
-            f"- Trader archetype: {personality['type'] if personality else 'Unknown'}\n\n"
-            f"DETECTED PSYCHOLOGICAL ISSUES:\n"
-            + (('\n'.join(detected_issues)) if detected_issues else "- No major issues detected — disciplined trader")
-            + "\n\nWrite a direct, personal 3-paragraph psychology report:\n"
-            "Paragraph 1: Overall psychological profile — what type of trader this is and the dominant pattern.\n"
-            "Paragraph 2: Specific biases found and how they are hurting P&L with concrete examples from the data.\n"
-            "Paragraph 3: Three specific, actionable changes for Indian market conditions (NIFTY/BANKNIFTY F&O if relevant).\n\n"
-            "Use 'you' and 'your trades'. Be direct and specific. No headers, no bullet points, plain paragraphs only."
+            f"OVERALL SCORE: {overall_score}/100 ({full.get('score_label', '')})\n"
+            f"TRADER ARCHETYPE: {personality['type'] if personality else 'Unknown'}\n\n"
+            f"TRADE STATS:\n"
+            f"- Total trades: {trade_count}  |  Win rate: {win_rate}%  ({wins}W / {losses}L)\n"
+            f"- Net P&L: ₹{total_pnl:,.0f}  |  Avg win: ₹{avg_win:,.0f}  |  Avg loss: ₹{avg_loss:,.0f}\n"
+            f"- Risk-Reward ratio: {rr}:1\n"
+            f"\nSCORE BREAKDOWN:\n"
+            f"- Discipline: {score_breakdown.get('discipline', '?')}/100\n"
+            f"- Risk Management: {score_breakdown.get('risk', '?')}/100\n"
+            f"- Trade Timing: {score_breakdown.get('timing', '?')}/100\n"
+            f"- Psychology: {score_breakdown.get('psychology', '?')}/100\n"
+            f"\nDETAILED MODULE ANALYSIS:{''.join(cat_lines)}"
+            f"\n{rc_text}"
+            f"\nDEEP PSYCHOLOGY INSIGHTS:{psych_text}"
+            f"\n{dna_text}"
+            f"\n\nWrite a comprehensive, direct 4-paragraph trading psychology report:\n"
+            "Paragraph 1 (Profile): Overall psychological fingerprint — their archetype, dominant pattern, and what drives their decision-making.\n"
+            "Paragraph 2 (Damage): The specific biases causing the most P&L damage — use the actual numbers (win rate, R:R, avg win/loss). Be precise.\n"
+            "Paragraph 3 (Root Cause): The root cause underneath the surface symptoms — what is the core behavioural loop creating these patterns?\n"
+            "Paragraph 4 (Actions): Three to five very specific, actionable changes ranked by impact. Indian market context (NIFTY/BANKNIFTY F&O, Dhan/Zerodha). Each action should reference actual data.\n\n"
+            "Use 'you' and 'your trades'. Be direct and data-driven. No headers, no bullet points. Plain paragraphs only. Max 450 words."
         )
         svc = AnthropicService()
         result = svc.chat(
             messages=[{'role': 'user', 'content': prompt}],
-            system="You are a trading psychology expert specialising in Indian retail traders. Be honest, direct, and constructive. Never sugarcoat issues.",
-            max_tokens=700,
-            temperature=0.4,
+            system="You are a trading psychology expert specialising in Indian retail traders. You have the bluntness of a performance coach and the depth of a behavioural economist. Never sugarcoat. Never be generic. Reference actual numbers.",
+            max_tokens=900,
+            temperature=0.35,
         )
         narrative = result.get('content', '').strip()
 
-        # Build action items from detected patterns
+        # Build prioritised action items from detected modules
+        _severity_order = {'high': 0, 'medium': 1, 'low': 2, 'none': 3}
         _action_map = {
-            'revenge_trading': '<strong>Enforce a revenge-trade cooldown:</strong> After any loss, wait at least 30 minutes before placing the next trade. Set a phone alarm.',
-            'overtrading': '<strong>Cap daily trades:</strong> Set a hard limit of 3–5 trades per day in your broker app. Overtrading is the fastest way to pay brokerage instead of earning P&L.',
-            'loss_aversion': '<strong>Set exit rules before entry:</strong> Write your stop-loss before you buy. If you cannot define your exit, do not enter the trade.',
-            'profit_booking_bias': '<strong>Use trailing stops on winners:</strong> Let winners run by trailing your stop-loss 1% below new highs instead of booking the moment you see green.',
-            'tilt': '<strong>Walk away after 2 consecutive losses:</strong> A tilt state destroys your edge. Log out of your broker app after two losses in a row and return tomorrow.',
-            'overconfidence': '<strong>Size down after a winning streak:</strong> Overconfidence peaks after wins. Cap position size to 2% of capital regardless of how good your last 5 trades were.',
-            'panic_selling': '<strong>Remove your P&L view during market hours:</strong> Watching real-time loss triggers panic exits. Check P&L only at 3:30 PM.',
-            'time_of_day': '<strong>Trade only your profitable time window:</strong> Your data shows a time-of-day bias. Restrict live trading to your proven profitable hours only.',
+            'revenge_trading':    '<strong>30-minute revenge-trade cooldown:</strong> After any loss, set a phone timer and step away. Trades placed within 30 min of a loss have a statistically lower win rate in your data.',
+            'overtrading':        '<strong>Hard cap of 3 trades per day:</strong> Excess frequency destroys edge through brokerage drag. Set the limit in your broker and treat it like a circuit breaker.',
+            'loss_aversion':      '<strong>Pre-define your stop before entering:</strong> Write the exact exit price before you buy. If your stop is hit, close without renegotiating. Hope is not a trade plan.',
+            'profit_booking':     '<strong>Trail stops instead of booking early:</strong> Move your stop to entry on a 1R move; trail at 1R below the high thereafter. Let the market take you out.',
+            'tilt':               '<strong>Two-consecutive-loss rule:</strong> Log out of your broker after two back-to-back losses. Return the next session. Tilt compounds losses geometrically.',
+            'overconfidence':     '<strong>Flat-size rule after win streaks:</strong> After 3+ consecutive wins, cap position size at 1% of capital regardless of confidence. Overconfidence peaks exactly when caution is most needed.',
+            'fomo':               '<strong>Flat-size rule after win streaks:</strong> After 3+ consecutive wins, cap position size at 1% of capital regardless of confidence. Overconfidence peaks exactly when caution is most needed.',
+            'panic_selling':      '<strong>Hide your P&L during market hours:</strong> Use broker settings to hide the unrealized P&L column. Evaluate positions on thesis validity, not current pain.',
+            'time_of_day':        '<strong>Trade only in your profitable hour window:</strong> Your data shows a clear time-of-day bias. Only place live trades during your proven profitable hours.',
+            'drawdown_sensitivity': '<strong>Cap daily drawdown at 2% of capital:</strong> When the day\'s loss hits 2%, stop trading. Drawdown sensitivity means further losses compound emotional decision-making.',
+            'position_sizing':    '<strong>Standardise position sizing to 1–2% risk per trade:</strong> Inconsistent sizing means your results are driven by bet size, not skill. Use a fixed-risk calculator.',
+            'leverage_risk':      '<strong>Reduce F&O lot count immediately:</strong> Leverage risk detected — one bad trade at current sizing can create unrecoverable drawdown. Cut to half the current lots.',
+            'behavioral_drift':   '<strong>Journal your original trading plan:</strong> Behavioral drift was detected mid-period. Write down your rules and review them every morning before market open.',
         }
-        for key, p in patterns.items():
-            if p.get('detected') and key in _action_map:
+        detected_sorted = sorted(
+            [(k, v) for k, v in all_modules.items() if v.get('detected') or v.get('severity') in ('high', 'medium')],
+            key=lambda x: _severity_order.get(x[1].get('severity', 'none'), 3)
+        )
+        for key, _ in detected_sorted:
+            if key in _action_map and _action_map[key] not in action_items:
                 action_items.append(_action_map[key])
 
     except Exception as e:
@@ -1420,16 +1500,32 @@ def trading_psychology():
     return render_template(
         'trading_psychology.html',
         has_trades=True,
-        patterns=patterns,
-        overall_score=overall_score,
-        personality=personality,
-        narrative=narrative,
-        action_items=action_items,
+        # core stats
         trade_count=trade_count,
         wins=wins,
         losses=losses,
         win_rate=win_rate,
         total_pnl=total_pnl,
+        overall_score=overall_score,
+        # engine outputs
+        full=full,
+        categories=categories,
+        all_modules=all_modules,
+        personality=personality,
+        score_breakdown=score_breakdown,
+        progress=progress,
+        root_cause=root_cause,
+        psych_narratives=psych_narratives,
+        dna=dna,
+        correlations=correlations,
+        by_hour=full.get('by_hour', []),
+        by_day=full.get('by_day', []),
+        by_symbol=full.get('by_symbol', []),
+        active_alerts=full.get('active_alerts', []),
+        # AI outputs
+        narrative=narrative,
+        action_items=action_items,
+        # nav
         sessions=sessions,
         today_usage=today_usage,
         active_page='trading-psychology',

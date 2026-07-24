@@ -4,8 +4,8 @@
 {% block content %}
 <style>
 /* ── Page shell ── */
-.tp-page{padding:32px 36px;max-width:960px;margin:0 auto;}
-@media(max-width:700px){.tp-page{padding:20px 16px;}}
+.tp-page{padding:28px 32px;max-width:1080px;margin:0 auto;}
+@media(max-width:720px){.tp-page{padding:16px 14px;}}
 
 /* ── Upload zone ── */
 .tp-upload-wrap{border:2px dashed var(--line);border-radius:16px;padding:48px 32px;text-align:center;background:var(--ink-2);transition:border-color .2s,background .2s;cursor:pointer;position:relative;}
@@ -18,347 +18,586 @@
 .tp-broker-chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:18px;}
 .tp-chip{font-size:11.5px;font-family:var(--mono);padding:4px 10px;border-radius:100px;border:1px solid var(--line);color:var(--paper-faint);}
 .tp-template-link{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--amber);margin-top:14px;font-weight:600;}
-.tp-template-link:hover{text-decoration:underline;}
 
-/* ── Upload form section ── */
-.tp-upload-section{margin-bottom:32px;}
-.tp-section-title{font-family:var(--head);font-size:13px;font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}
+/* ── Section title ── */
+.tp-section-title{font-family:var(--head);font-size:11.5px;font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;margin-top:28px;}
 
-/* ── Score hero ── */
-.tp-hero{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;background:var(--ink);border:1px solid var(--line);border-radius:16px;padding:28px 28px;margin-bottom:24px;}
-.tp-score-ring{width:96px;height:96px;position:relative;flex-shrink:0;}
-.tp-score-ring svg{width:96px;height:96px;transform:rotate(-90deg);}
-.tp-score-ring .track{stroke:var(--ink-3);stroke-width:7;fill:none;}
-.tp-score-ring .fill{stroke-width:7;fill:none;stroke-linecap:round;transition:stroke-dashoffset .6s ease;}
-.tp-score-num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--head);font-size:22px;font-weight:700;color:var(--paper);line-height:1;}
-.tp-score-num small{font-size:10px;color:var(--paper-faint);font-weight:500;margin-top:1px;font-family:var(--mono);}
-.tp-hero-info h2{font-family:var(--head);font-size:20px;font-weight:700;color:var(--paper);margin-bottom:4px;}
-.tp-hero-info p{font-size:14px;color:var(--paper-dim);line-height:1.55;margin-bottom:12px;}
-.tp-personality-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:100px;font-size:12.5px;font-weight:600;font-family:var(--mono);}
-.tp-hero-meta{font-size:12px;color:var(--paper-faint);font-family:var(--mono);margin-top:8px;}
-@media(max-width:600px){.tp-hero{grid-template-columns:1fr;text-align:center;}.tp-score-ring{margin:0 auto;}}
-
-/* ── Pattern grid ── */
-.tp-patterns{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:24px;}
-.tp-card{background:var(--ink);border:1px solid var(--line);border-radius:12px;padding:18px 18px 14px;}
-.tp-card-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
-.tp-card-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.tp-card-icon svg{width:16px;height:16px;}
-.tp-card-label{font-size:13px;font-weight:700;color:var(--paper);flex:1;}
-.tp-badge{font-size:10.5px;font-family:var(--mono);padding:3px 8px;border-radius:100px;font-weight:600;white-space:nowrap;}
-.tp-badge.ok{background:rgba(22,163,74,.1);color:#15803d;border:1px solid rgba(22,163,74,.2);}
-.tp-badge.warn{background:rgba(245,158,11,.1);color:#b45309;border:1px solid rgba(245,158,11,.2);}
-.tp-badge.bad{background:rgba(220,38,38,.1);color:#b91c1c;border:1px solid rgba(220,38,38,.2);}
-.tp-card-score{margin-bottom:8px;}
-.tp-score-bar{height:5px;border-radius:3px;background:var(--ink-3);overflow:hidden;margin-bottom:4px;}
-.tp-score-bar-fill{height:100%;border-radius:3px;transition:width .5s ease;}
-.tp-score-label{display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:var(--paper-faint);}
-.tp-card-msg{font-size:12.5px;color:var(--paper-dim);line-height:1.5;}
-
-/* ── AI Narrative ── */
-.tp-narrative{background:var(--ink-2);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:12px;padding:22px 24px;margin-bottom:24px;}
-.tp-narrative-head{display:flex;align-items:center;gap:8px;font-family:var(--head);font-size:13px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px;}
-.tp-narrative-head svg{width:15px;height:15px;}
-.tp-narrative-body{font-size:14px;color:var(--paper-dim);line-height:1.7;}
-.tp-narrative-body p+p{margin-top:10px;}
-
-/* ── Action items ── */
-.tp-actions-list{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:24px;}
-.tp-action-item{display:flex;align-items:flex-start;gap:12px;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
-.tp-action-num{width:24px;height:24px;border-radius:50%;background:var(--amber-dim);color:var(--amber);font-family:var(--mono);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
-.tp-action-text{font-size:13.5px;color:var(--paper-dim);line-height:1.5;}
-.tp-action-text strong{color:var(--paper);}
-
-/* ── Controls bar ── */
-.tp-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:24px;}
-.tp-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-size:13.5px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all .15s;text-decoration:none;font-family:'IBM Plex Sans',sans-serif;}
-.tp-btn-amber{background:var(--amber);color:#fff;}
+/* ── Buttons ── */
+.tp-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all .15s;text-decoration:none;font-family:'IBM Plex Sans',sans-serif;}
+.tp-btn-amber{background:var(--amber);color:#fff;border-color:var(--amber);}
 .tp-btn-amber:hover{background:#96600A;}
 .tp-btn-ghost{background:var(--ink);border-color:var(--line);color:var(--paper-dim);}
 .tp-btn-ghost:hover{border-color:var(--paper-faint);color:var(--paper);}
 .tp-btn-danger{background:rgba(220,38,38,.07);border-color:rgba(220,38,38,.2);color:#B91C1C;}
 .tp-btn-danger:hover{background:rgba(220,38,38,.14);}
+
+/* ── Controls bar ── */
+.tp-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
 .tp-trade-count{font-size:12.5px;color:var(--paper-faint);font-family:var(--mono);margin-left:auto;}
 
-/* ── Upload more (compact) ── */
-.tp-upload-compact{border:1.5px dashed var(--line);border-radius:10px;padding:20px;text-align:center;background:var(--ink-2);cursor:pointer;position:relative;margin-bottom:24px;}
+/* ── Score hero ── */
+.tp-hero{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:start;background:var(--ink);border:1px solid var(--line);border-radius:16px;padding:24px;margin-bottom:16px;}
+.tp-score-ring{width:88px;height:88px;position:relative;flex-shrink:0;}
+.tp-score-ring svg{width:88px;height:88px;transform:rotate(-90deg);}
+.tp-score-ring .track{stroke:var(--ink-3);stroke-width:7;fill:none;}
+.tp-score-ring .fill{stroke-width:7;fill:none;stroke-linecap:round;}
+.tp-score-num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--head);font-size:20px;font-weight:700;color:var(--paper);line-height:1;}
+.tp-score-num small{font-size:9.5px;color:var(--paper-faint);font-weight:500;margin-top:1px;font-family:var(--mono);}
+.tp-hero-right{}
+.tp-personality-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:100px;font-size:12px;font-weight:600;font-family:var(--mono);margin-bottom:8px;}
+.tp-hero-label{font-family:var(--head);font-size:18px;font-weight:700;color:var(--paper);margin-bottom:4px;}
+.tp-hero-desc{font-size:13px;color:var(--paper-dim);line-height:1.55;margin-bottom:10px;max-width:560px;}
+.tp-hero-traits{display:flex;gap:20px;flex-wrap:wrap;}
+.tp-trait{font-size:12px;font-family:var(--mono);color:var(--paper-faint);}
+.tp-trait strong{color:var(--paper-dim);}
+.tp-hero-stats{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);}
+.tp-stat{font-size:12px;font-family:var(--mono);color:var(--paper-faint);}
+.tp-stat strong{color:var(--paper);font-size:14px;}
+@media(max-width:600px){.tp-hero{grid-template-columns:1fr;}.tp-score-ring{margin:0 auto;}}
+
+/* ── Score breakdown bars ── */
+.tp-breakdown{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:16px;}
+.tp-breakdown-item{background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px;}
+.tp-bd-label{font-size:11.5px;font-family:var(--mono);color:var(--paper-faint);margin-bottom:6px;display:flex;justify-content:space-between;}
+.tp-bd-label strong{color:var(--paper-dim);}
+.tp-bd-bar{height:4px;border-radius:2px;background:var(--ink-3);overflow:hidden;}
+.tp-bd-fill{height:100%;border-radius:2px;transition:width .5s ease;}
+
+/* ── Category sections ── */
+.tp-cat-section{background:var(--ink);border:1px solid var(--line);border-radius:14px;margin-bottom:14px;overflow:hidden;}
+.tp-cat-header{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);cursor:pointer;}
+.tp-cat-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.tp-cat-icon svg{width:14px;height:14px;}
+.tp-cat-name{font-family:var(--head);font-size:14px;font-weight:700;color:var(--paper);flex:1;}
+.tp-cat-score-pill{font-size:11px;font-family:var(--mono);padding:3px 9px;border-radius:100px;}
+.tp-cat-toggle{color:var(--paper-faint);transition:transform .2s;}
+.tp-cat-toggle.open{transform:rotate(180deg);}
+.tp-cat-body{padding:16px 20px;}
+.tp-module-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;}
+
+/* ── Module cards ── */
+.tp-mod{background:var(--ink-2);border:1px solid var(--line);border-radius:10px;padding:14px;}
+.tp-mod-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.tp-mod-label{font-size:12.5px;font-weight:700;color:var(--paper);flex:1;}
+.tp-badge{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:100px;font-weight:700;white-space:nowrap;}
+.tp-badge.ok{background:rgba(22,163,74,.1);color:#15803d;border:1px solid rgba(22,163,74,.2);}
+.tp-badge.warn{background:rgba(245,158,11,.1);color:#b45309;border:1px solid rgba(245,158,11,.2);}
+.tp-badge.bad{background:rgba(220,38,38,.1);color:#b91c1c;border:1px solid rgba(220,38,38,.2);}
+.tp-mod-bar{height:3px;border-radius:2px;background:var(--ink-3);overflow:hidden;margin-bottom:6px;}
+.tp-mod-bar-fill{height:100%;border-radius:2px;}
+.tp-mod-insight{font-size:12px;color:var(--paper-dim);line-height:1.5;}
+
+/* ── By-hour / by-day heatmap ── */
+.tp-heatmap-grid{display:grid;gap:6px;margin-bottom:6px;}
+.tp-heatmap-grid.hours{grid-template-columns:repeat(7,1fr);}
+.tp-heatmap-grid.days{grid-template-columns:repeat(5,1fr);}
+.tp-heat-cell{border-radius:8px;padding:10px 6px;text-align:center;position:relative;}
+.tp-heat-label{font-size:10px;font-family:var(--mono);color:var(--paper-faint);margin-bottom:3px;}
+.tp-heat-wr{font-size:14px;font-weight:700;font-family:var(--head);}
+.tp-heat-count{font-size:9.5px;font-family:var(--mono);color:var(--paper-faint);margin-top:2px;}
+
+/* ── Symbol table ── */
+.tp-sym-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+.tp-sym-table th{font-size:10.5px;font-family:var(--mono);color:var(--paper-faint);font-weight:600;text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);}
+.tp-sym-table td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.03);color:var(--paper-dim);}
+.tp-sym-table td:first-child{font-weight:700;color:var(--paper);font-family:var(--mono);}
+.tp-sym-wr{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;font-family:var(--mono);font-weight:700;}
+
+/* ── Progress tracking ── */
+.tp-progress-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.tp-prog-item{background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center;}
+.tp-prog-label{font-size:11px;font-family:var(--mono);color:var(--paper-faint);margin-bottom:6px;}
+.tp-prog-val{font-family:var(--head);font-size:20px;font-weight:700;color:var(--paper);}
+.tp-prog-delta{font-size:11.5px;font-family:var(--mono);margin-top:3px;}
+.tp-prog-delta.up{color:#16a34a;}
+.tp-prog-delta.dn{color:#dc2626;}
+.tp-prog-delta.flat{color:var(--paper-faint);}
+
+/* ── Root cause ── */
+.tp-root-cause{border-radius:12px;padding:18px 20px;margin-bottom:6px;}
+.tp-root-cause.critical{background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);}
+.tp-root-cause.warning{background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);}
+.tp-root-cause.good{background:rgba(22,163,74,.07);border:1px solid rgba(22,163,74,.2);}
+.tp-root-label{font-size:11px;font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+.tp-root-cause.critical .tp-root-label{color:#b91c1c;}
+.tp-root-cause.warning .tp-root-label{color:#b45309;}
+.tp-root-cause.good .tp-root-label{color:#15803d;}
+.tp-root-detail{font-size:13.5px;color:var(--paper-dim);line-height:1.55;margin-bottom:10px;}
+.tp-root-fix{font-size:12.5px;color:var(--paper-faint);line-height:1.5;}
+.tp-root-fix strong{color:var(--paper-dim);}
+.tp-root-upside{margin-top:8px;font-size:12px;font-family:var(--mono);color:var(--amber);}
+
+/* ── Psychology narratives ── */
+.tp-psych-card{background:var(--ink);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:10px;}
+.tp-psych-key{font-size:11px;font-family:var(--mono);font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+.tp-psych-narrative{font-size:13.5px;color:var(--paper-dim);line-height:1.6;margin-bottom:8px;}
+.tp-psych-self{font-size:12px;color:var(--paper-faint);font-style:italic;border-left:2px solid var(--amber-dim);padding-left:10px;line-height:1.5;}
+
+/* ── Correlations ── */
+.tp-corr-list{display:flex;flex-direction:column;gap:8px;}
+.tp-corr-item{background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:13px 16px;}
+.tp-corr-text{font-size:13px;color:var(--paper-dim);line-height:1.5;}
+.tp-corr-text strong{color:var(--paper);}
+
+/* ── AI Narrative ── */
+.tp-narrative{background:var(--ink-2);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:12px;padding:22px 24px;margin-bottom:6px;}
+.tp-narrative-head{display:flex;align-items:center;gap:8px;font-family:var(--head);font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;}
+.tp-narrative-body{font-size:14px;color:var(--paper-dim);line-height:1.75;}
+.tp-narrative-body p+p{margin-top:12px;}
+
+/* ── Action items ── */
+.tp-actions-list{list-style:none;display:flex;flex-direction:column;gap:8px;}
+.tp-action-item{display:flex;align-items:flex-start;gap:12px;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:13px 15px;}
+.tp-action-num{width:22px;height:22px;border-radius:50%;background:var(--amber-dim);color:var(--amber);font-family:var(--mono);font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.tp-action-text{font-size:13px;color:var(--paper-dim);line-height:1.55;}
+.tp-action-text strong{color:var(--paper);}
+
+/* ── Upload compact ── */
+.tp-upload-compact{border:1.5px dashed var(--line);border-radius:10px;padding:16px;text-align:center;background:var(--ink-2);cursor:pointer;position:relative;margin-bottom:20px;}
 .tp-upload-compact input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-.tp-upload-compact p{font-size:13px;color:var(--paper-faint);}
+.tp-upload-compact p{font-size:12.5px;color:var(--paper-faint);}
 .tp-upload-compact p b{color:var(--amber);}
 
-/* ── Spinner ── */
-.tp-spinner{display:none;text-align:center;padding:60px 0;}
-.tp-spinner.active{display:block;}
-.spin-ring{width:36px;height:36px;border:3px solid var(--ink-3);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;}
-@keyframes spin{to{transform:rotate(360deg)}}
-.tp-spinner p{font-size:13px;color:var(--paper-faint);font-family:var(--mono);}
+/* ── Empty state ── */
+.tp-intro h1{font-family:var(--head);font-size:24px;font-weight:700;color:var(--paper);margin-bottom:8px;}
+.tp-intro p{font-size:14px;color:var(--paper-dim);line-height:1.6;max-width:600px;}
+.tp-feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:11px;margin:22px 0;}
+.tp-feature{background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px;}
+.tp-feature-icon{width:30px;height:30px;border-radius:7px;background:var(--amber-dim);display:flex;align-items:center;justify-content:center;margin-bottom:9px;}
+.tp-feature-icon svg{width:14px;height:14px;color:var(--amber);}
+.tp-feature strong{display:block;font-size:12.5px;font-weight:700;color:var(--paper);margin-bottom:3px;}
+.tp-feature span{font-size:11.5px;color:var(--paper-faint);}
 
-/* ── Empty state (no trades) ── */
-.tp-intro{margin-bottom:28px;}
-.tp-intro h1{font-family:var(--head);font-size:26px;font-weight:700;color:var(--paper);margin-bottom:8px;}
-.tp-intro p{font-size:14.5px;color:var(--paper-dim);line-height:1.6;max-width:580px;}
-.tp-feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:24px 0;}
-.tp-feature{background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:16px;}
-.tp-feature-icon{width:32px;height:32px;border-radius:8px;background:var(--amber-dim);display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
-.tp-feature-icon svg{width:15px;height:15px;color:var(--amber);}
-.tp-feature strong{display:block;font-size:13px;font-weight:700;color:var(--paper);margin-bottom:3px;}
-.tp-feature span{font-size:12px;color:var(--paper-faint);}
+/* ── Two-col layout for stats ── */
+.tp-two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:680px){.tp-two-col{grid-template-columns:1fr;}.tp-progress-grid{grid-template-columns:repeat(2,1fr);}}
+.tp-panel{background:var(--ink);border:1px solid var(--line);border-radius:14px;padding:18px;}
+.tp-panel-title{font-size:11.5px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;}
 </style>
 
 <div class="tp-page">
 
-  {% if not has_trades %}
-  {# ── EMPTY STATE — UPLOAD FIRST ── #}
-  <div class="tp-intro">
-    <h1>Trading Psychology Analysis</h1>
-    <p>Upload your trade history and get a data-driven report of your psychological patterns — FOMO, revenge trading, overtrading, loss aversion, and more. Backed by AI analysis specific to Indian markets.</p>
-  </div>
+{% if not has_trades %}
+{# ── EMPTY STATE ── #}
+<div class="tp-intro" style="margin-bottom:24px;">
+  <h1>Trading Psychology Analysis</h1>
+  <p>Upload your Dhan or Zerodha trade export and get a full data-driven report across Trading Behaviour, Risk Management, Portfolio Health, Performance Patterns, and Psychology — backed by AI specific to Indian markets.</p>
+</div>
 
-  <div class="tp-feature-grid">
-    <div class="tp-feature">
-      <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div>
-      <strong>FOMO Detection</strong>
-      <span>Spots chasing behaviour after big moves</span>
+<div class="tp-feature-grid">
+  <div class="tp-feature">
+    <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div>
+    <strong>FOMO & Overconfidence</strong><span>Spots post-win oversizing and chase patterns</span>
+  </div>
+  <div class="tp-feature">
+    <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><polyline points="1 4 1 10 7 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+    <strong>Revenge Trading</strong><span>Identifies aggressive re-entry after losses</span>
+  </div>
+  <div class="tp-feature">
+    <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+    <strong>Loss Aversion</strong><span>Measures holding losers vs cutting winners</span>
+  </div>
+  <div class="tp-feature">
+    <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><polyline points="12 6 12 12 16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+    <strong>Time-of-Day Bias</strong><span>Finds your worst decision-making hours</span>
+  </div>
+  <div class="tp-feature">
+    <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <strong>Risk & Leverage</strong><span>Position sizing, overexposure, drawdown sensitivity</span>
+  </div>
+  <div class="tp-feature">
+    <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l1.9 5.85h6.15l-4.97 3.61 1.9 5.85L12 14.7l-4.98 3.61 1.9-5.85L4 8.85h6.15z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div>
+    <strong>AI Deep Report</strong><span>4-paragraph personalised psychology analysis</span>
+  </div>
+</div>
+
+<div style="margin-bottom:10px;" class="tp-section-title">Upload your trade history</div>
+<form method="POST" action="{{ url_for('trading_psychology') }}" enctype="multipart/form-data" id="uploadForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <div class="tp-upload-wrap" id="dropZone">
+    <input type="file" name="trade_file" accept=".csv" id="tradeFile" required>
+    <div class="tp-upload-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
-    <div class="tp-feature">
-      <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><polyline points="1 4 1 10 7 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
-      <strong>Revenge Trading</strong>
-      <span>Identifies aggressive re-entry after losses</span>
-    </div>
-    <div class="tp-feature">
-      <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
-      <strong>Overtrading</strong>
-      <span>Counts excessive trade frequency patterns</span>
-    </div>
-    <div class="tp-feature">
-      <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
-      <strong>Loss Aversion</strong>
-      <span>Measures holding losers vs cutting winners</span>
-    </div>
-    <div class="tp-feature">
-      <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><polyline points="12 6 12 12 16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
-      <strong>Time-of-Day Bias</strong>
-      <span>Finds when you make your worst decisions</span>
-    </div>
-    <div class="tp-feature">
-      <div class="tp-feature-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l1.9 5.85h6.15l-4.97 3.61 1.9 5.85L12 14.7l-4.98 3.61 1.9-5.85L4 8.85h6.15z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div>
-      <strong>AI Narrative</strong>
-      <span>Personalised report from your actual data</span>
+    <div class="tp-upload-title">Drop your CSV here or click to browse</div>
+    <div class="tp-upload-sub">Supports <b>Dhan P&L</b>, <b>Dhan Trade History</b>, <b>Zerodha P&L</b>, <b>Zerodha Console</b>, and generic CSVs</div>
+    <div class="tp-broker-chips">
+      <span class="tp-chip">Dhan P&amp;L</span><span class="tp-chip">Dhan Trades</span>
+      <span class="tp-chip">Zerodha P&amp;L</span><span class="tp-chip">Zerodha Console</span>
+      <span class="tp-chip">Generic CSV</span>
     </div>
   </div>
+  <div style="text-align:center;margin-top:12px;">
+    <a href="{{ url_for('behaviour_csv_template') }}" class="tp-template-link">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Download generic CSV template
+    </a>
+  </div>
+  <div style="text-align:center;margin-top:14px;">
+    <button type="submit" class="tp-btn tp-btn-amber">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 3l14 9-14 9V3z" fill="currentColor"/></svg>
+      Analyse my trades
+    </button>
+  </div>
+</form>
 
-  <div class="tp-section-title">Upload your trade history</div>
-  <form method="POST" action="{{ url_for('trading_psychology') }}" enctype="multipart/form-data" id="uploadForm">
+{% else %}
+{# ── RESULTS VIEW ── #}
+
+{# Controls bar #}
+<div class="tp-controls">
+  <span style="font-family:var(--head);font-size:19px;font-weight:700;color:var(--paper);">Trading Psychology</span>
+  <div class="tp-trade-count">{{ trade_count }} trade{{ 's' if trade_count != 1 }} analysed</div>
+  <form method="POST" action="{{ url_for('trading_psychology_clear') }}" style="display:inline" onsubmit="return confirm('Clear all imported trades?')">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <div class="tp-upload-wrap" id="dropZone">
-      <input type="file" name="trade_file" accept=".csv" id="tradeFile" required>
-      <div class="tp-upload-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-      <div class="tp-upload-title">Drop your CSV here or click to browse</div>
-      <div class="tp-upload-sub">Supports <b>Dhan P&L</b>, <b>Dhan Trade History</b>, <b>Zerodha P&L</b>, <b>Zerodha Console</b>, and generic CSVs</div>
-      <div class="tp-broker-chips">
-        <span class="tp-chip">Dhan P&amp;L</span>
-        <span class="tp-chip">Dhan Trades</span>
-        <span class="tp-chip">Zerodha P&amp;L</span>
-        <span class="tp-chip">Zerodha Console</span>
-        <span class="tp-chip">Generic CSV</span>
-      </div>
-    </div>
-    <div style="text-align:center">
-      <a href="{{ url_for('behaviour_csv_template') }}" class="tp-template-link">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Download generic CSV template
-      </a>
-    </div>
-    <div style="text-align:center;margin-top:16px;">
-      <button type="submit" class="tp-btn tp-btn-amber">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" fill="currentColor"/></svg>
-        Analyse my trades
-      </button>
-    </div>
+    <button type="submit" class="tp-btn tp-btn-danger" style="padding:6px 12px;font-size:12px;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Clear
+    </button>
   </form>
+</div>
 
-  {% else %}
-  {# ── RESULTS VIEW ── #}
-
-  {# Controls bar #}
-  <div class="tp-controls">
-    <span style="font-family:var(--head);font-size:20px;font-weight:700;color:var(--paper);">Trading Psychology</span>
-    <div class="tp-trade-count">{{ trade_count }} trade{{ 's' if trade_count != 1 }} analysed</div>
-    <form method="POST" action="{{ url_for('trading_psychology_clear') }}" style="display:inline" onsubmit="return confirm('Clear all imported trades and start fresh?')">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-      <button type="submit" class="tp-btn tp-btn-danger">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        Clear trades
-      </button>
-    </form>
+{# Upload more #}
+<form method="POST" action="{{ url_for('trading_psychology') }}" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+  <div class="tp-upload-compact">
+    <input type="file" name="trade_file" accept=".csv" onchange="this.form.submit()">
+    <p>📂 <b>Add more trades</b> — drop another CSV to append to analysis</p>
   </div>
+</form>
 
-  {# Upload more (compact) #}
-  <form method="POST" action="{{ url_for('trading_psychology') }}" enctype="multipart/form-data">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <div class="tp-upload-compact">
-      <input type="file" name="trade_file" accept=".csv" onchange="this.form.submit()">
-      <p>📂 <b>Add more trades</b> — drop another CSV here to append to your analysis</p>
+{# ── SCORE HERO ── #}
+{% set score = overall_score %}
+{% if score >= 80 %}{% set sc = '#22c55e' %}{% set sl = 'Disciplined' %}
+{% elif score >= 65 %}{% set sc = '#3b82f6' %}{% set sl = 'Developing' %}
+{% elif score >= 45 %}{% set sc = '#f59e0b' %}{% set sl = 'Needs Work' %}
+{% else %}{% set sc = '#ef4444' %}{% set sl = 'Critical' %}{% endif %}
+{% set circ = 226.2 %}
+{% set offset = circ - (score / 100) * circ %}
+
+<div class="tp-hero">
+  <div class="tp-score-ring">
+    <svg viewBox="0 0 80 80">
+      <circle class="track" cx="40" cy="40" r="36"/>
+      <circle class="fill" cx="40" cy="40" r="36"
+        stroke="{{ sc }}"
+        stroke-dasharray="{{ circ }}"
+        stroke-dashoffset="{{ offset }}"/>
+    </svg>
+    <div class="tp-score-num">{{ score }}<small>/100</small></div>
+  </div>
+  <div class="tp-hero-right">
+    {% if personality %}
+    <div class="tp-personality-badge" style="background:{{ personality.color }}18;color:{{ personality.color }};border:1px solid {{ personality.color }}30;">
+      {{ personality.type }}
     </div>
-  </form>
-
-  {# Score hero #}
-  {% set score = overall_score %}
-  {% if score >= 75 %}
-    {% set score_color = '#16A34A' %}{% set score_label = 'Disciplined' %}
-  {% elif score >= 55 %}
-    {% set score_color = '#2563EB' %}{% set score_label = 'Developing' %}
-  {% elif score >= 35 %}
-    {% set score_color = '#D97706' %}{% set score_label = 'Needs Work' %}
-  {% else %}
-    {% set score_color = '#DC2626' %}{% set score_label = 'Critical' %}
-  {% endif %}
-  {% set circumference = 251.2 %}
-  {% set offset = circumference - (score / 100) * circumference %}
-
-  <div class="tp-hero">
-    <div class="tp-score-ring">
-      <svg viewBox="0 0 96 96">
-        <circle class="track" cx="48" cy="48" r="40"/>
-        <circle class="fill" cx="48" cy="48" r="40"
-          stroke="{{ score_color }}"
-          stroke-dasharray="{{ circumference }}"
-          stroke-dashoffset="{{ offset }}"/>
-      </svg>
-      <div class="tp-score-num">{{ score }}<small>/100</small></div>
+    {% endif %}
+    <div class="tp-hero-label">{{ sl }} Trader</div>
+    {% if personality %}
+    <div class="tp-hero-desc">{{ personality.description }}</div>
+    <div class="tp-hero-traits">
+      <span class="tp-trait">💪 <strong>Strength:</strong> {{ personality.strength }}</span>
+      <span class="tp-trait">⚠ <strong>Watch:</strong> {{ personality.weakness }}</span>
     </div>
-    <div class="tp-hero-info">
-      {% if personality %}
-      <div class="tp-personality-badge" style="background:{{ personality.color }}18;color:{{ personality.color }};border:1px solid {{ personality.color }}30;margin-bottom:10px;">
-        {{ personality.type }}
-      </div>
-      {% endif %}
-      <h2>{{ score_label }} Trader</h2>
-      {% if personality %}
-      <p>{{ personality.description }}</p>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;">
-        <span style="font-size:12px;font-family:var(--mono);color:var(--paper-faint)">
-          💪 <strong style="color:var(--paper-dim)">Strength:</strong> {{ personality.strength }}
-        </span>
-        <span style="font-size:12px;font-family:var(--mono);color:var(--paper-faint)">
-          ⚠️ <strong style="color:var(--paper-dim)">Watch out:</strong> {{ personality.weakness }}
-        </span>
-      </div>
-      {% endif %}
-      <div class="tp-hero-meta">{{ trade_count }} trades · Win rate {{ win_rate }}% · Net P&amp;L ₹{{ total_pnl | int | abs }}{% if total_pnl < 0 %} loss{% else %} profit{% endif %}</div>
+    {% endif %}
+    <div class="tp-hero-stats">
+      <div class="tp-stat"><strong>{{ win_rate }}%</strong> win rate</div>
+      <div class="tp-stat"><strong>{{ wins }}W / {{ losses }}L</strong></div>
+      <div class="tp-stat"><strong style="color:{{ '#16a34a' if total_pnl >= 0 else '#dc2626' }}">₹{{ '{:,}'.format(total_pnl | int | abs) }}</strong> net P&amp;L</div>
+      {% set rr = full.get('stats', {}).get('risk_reward', 0) %}
+      <div class="tp-stat"><strong>{{ rr }}:1</strong> risk-reward</div>
     </div>
   </div>
+</div>
 
-  {# Pattern cards #}
-  <div class="tp-section-title">Psychological Patterns</div>
-  <div class="tp-patterns">
-    {% for key, p in patterns.items() %}
-      {% set detected = p.get('detected', False) %}
-      {% set pscore = p.get('score', 50) %}
-      {% set severity = p.get('severity', 'low') %}
-      {% if detected and severity == 'high' %}
-        {% set badge_class = 'bad' %}{% set badge_label = '⚠ Detected' %}{% set icon_bg = 'rgba(220,38,38,.1)' %}{% set icon_col = '#DC2626' %}{% set bar_col = '#DC2626' %}
-      {% elif detected %}
-        {% set badge_class = 'warn' %}{% set badge_label = '△ Mild' %}{% set icon_bg = 'rgba(245,158,11,.1)' %}{% set icon_col = '#D97706' %}{% set bar_col = '#D97706' %}
-      {% else %}
-        {% set badge_class = 'ok' %}{% set badge_label = '✓ OK' %}{% set icon_bg = 'rgba(22,163,74,.1)' %}{% set icon_col = '#16A34A' %}{% set bar_col = '#16A34A' %}
-      {% endif %}
+{# ── SCORE BREAKDOWN ── #}
+{% if score_breakdown %}
+<div class="tp-breakdown">
+  {% set bd_items = [
+    ('Discipline', score_breakdown.discipline, '#3b82f6'),
+    ('Risk Mgmt', score_breakdown.risk, '#f59e0b'),
+    ('Trade Timing', score_breakdown.timing, '#8b5cf6'),
+    ('Psychology', score_breakdown.psychology, '#ec4899'),
+  ] %}
+  {% for label, val, col in bd_items %}
+  <div class="tp-breakdown-item">
+    <div class="tp-bd-label"><span>{{ label }}</span><strong style="color:{{ col }}">{{ val }}/100</strong></div>
+    <div class="tp-bd-bar"><div class="tp-bd-fill" style="width:{{ val }}%;background:{{ col }};"></div></div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
-      {% set label_map = {
-        'overtrading': 'Overtrading',
-        'revenge_trading': 'Revenge Trading',
-        'loss_aversion': 'Loss Aversion',
-        'profit_booking_bias': 'Cutting Winners Early',
-        'tilt': 'Tilt / Emotional Spiral',
-        'overconfidence': 'FOMO / Overconfidence',
-        'panic_selling': 'Panic Selling',
-        'time_of_day': 'Time-of-Day Bias',
-        'drawdown_sensitivity': 'Drawdown Sensitivity',
-        'position_sizing': 'Inconsistent Sizing',
-      } %}
-      {% set icon_map = {
-        'overtrading': '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-        'revenge_trading': '<polyline points="1 4 1 10 7 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-        'loss_aversion': '<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-        'profit_booking_bias': '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="17 18 23 18 23 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-        'tilt': '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
-        'overconfidence': '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
-        'panic_selling': '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-        'time_of_day': '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><polyline points="12 6 12 12 16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-        'drawdown_sensitivity': '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
-        'position_sizing': '<line x1="8" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="18" x2="21" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="6" x2="3.01" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="12" x2="3.01" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="18" x2="3.01" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-      } %}
+{# ── CATEGORY SECTIONS — all 5 ── #}
+<div class="tp-section-title" style="margin-top:24px;">Detailed Module Analysis</div>
 
-      <div class="tp-card">
-        <div class="tp-card-head">
-          <div class="tp-card-icon" style="background:{{ icon_bg }};">
-            <svg viewBox="0 0 24 24" fill="none" style="color:{{ icon_col }}">{{ icon_map.get(key, '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>') | safe }}</svg>
-          </div>
-          <div class="tp-card-label">{{ label_map.get(key, key.replace('_',' ').title()) }}</div>
-          <span class="tp-badge {{ badge_class }}">{{ badge_label }}</span>
+{% set cat_meta = {
+  'trading':     {'label': 'Trading Behaviour', 'icon': '<polyline points="1 4 1 10 7 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>', 'col': '#3b82f6'},
+  'risk':        {'label': 'Risk Management',   'icon': '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>', 'col': '#f59e0b'},
+  'portfolio':   {'label': 'Portfolio Health',  'icon': '<rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/><line x1="8" y1="21" x2="16" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="17" x2="12" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>', 'col': '#10b981'},
+  'performance': {'label': 'Performance Patterns','icon': '<line x1="18" y1="20" x2="18" y2="10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>', 'col': '#a78bfa'},
+  'psychology':  {'label': 'Psychology',         'icon': '<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>', 'col': '#ec4899'},
+} %}
+
+{% for cat_key, cat_data in categories.items() %}
+{% set meta = cat_meta.get(cat_key, {'label': cat_key.title(), 'icon': '', 'col': '#6b7280'}) %}
+{% set cscore = cat_data.get('score', 50) %}
+{% if cscore >= 70 %}{% set csc = '#22c55e' %}{% set csl = 'Healthy' %}
+{% elif cscore >= 50 %}{% set csc = '#f59e0b' %}{% set csl = 'Fair' %}
+{% else %}{% set csc = '#ef4444' %}{% set csl = 'Needs Work' %}{% endif %}
+
+<div class="tp-cat-section" id="cat-{{ cat_key }}">
+  <div class="tp-cat-header" onclick="toggleCat('{{ cat_key }}')">
+    <div class="tp-cat-icon" style="background:{{ meta.col }}18;">
+      <svg viewBox="0 0 24 24" fill="none" style="color:{{ meta.col }}">{{ meta.icon | safe }}</svg>
+    </div>
+    <span class="tp-cat-name">{{ meta.label }}</span>
+    <span class="tp-cat-score-pill" style="background:{{ csc }}18;color:{{ csc }};border:1px solid {{ csc }}30;font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:100px;">{{ cscore }}/100 · {{ csl }}</span>
+    <svg class="tp-cat-toggle open" id="toggle-{{ cat_key }}" width="14" height="14" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>
+  <div class="tp-cat-body" id="body-{{ cat_key }}">
+    <div class="tp-module-grid">
+    {% for mod_key, mod in cat_data.get('modules', {}).items() %}
+      {% set detected = mod.get('detected', False) %}
+      {% set sev = mod.get('severity', 'none') %}
+      {% if detected and sev == 'high' %}{% set bc = 'bad' %}{% set bl = '⚠ Detected' %}{% set mfc = '#DC2626' %}
+      {% elif detected or sev == 'medium' %}{% set bc = 'warn' %}{% set bl = '△ Mild' %}{% set mfc = '#D97706' %}
+      {% else %}{% set bc = 'ok' %}{% set bl = '✓ OK' %}{% set mfc = '#16A34A' %}{% endif %}
+      {% set mscore = mod.get('score', 50) %}
+      {% set mlabel = mod.get('label', mod_key.replace('_', ' ').title()) %}
+      {% set insight = mod.get('insight') or mod.get('message', '—') %}
+      <div class="tp-mod">
+        <div class="tp-mod-head">
+          <span class="tp-mod-label">{{ mlabel }}</span>
+          <span class="tp-badge {{ bc }}">{{ bl }}</span>
         </div>
-        <div class="tp-card-score">
-          <div class="tp-score-bar"><div class="tp-score-bar-fill" style="width:{{ pscore }}%;background:{{ bar_col }};"></div></div>
-          <div class="tp-score-label"><span>Score</span><span>{{ pscore }}/100</span></div>
+        <div class="tp-mod-bar"><div class="tp-mod-bar-fill" style="width:{{ mscore }}%;background:{{ mfc }};"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:10.5px;font-family:var(--mono);color:var(--paper-faint);margin-bottom:6px;">
+          <span>Score</span><span style="color:{{ mfc }}">{{ mscore }}/100</span>
         </div>
-        <div class="tp-card-msg">{{ p.get('message', '—') }}</div>
+        <div class="tp-mod-insight">{{ insight }}</div>
       </div>
     {% endfor %}
-  </div>
-
-  {# AI Narrative #}
-  {% if narrative %}
-  <div class="tp-section-title">AI Psychology Report</div>
-  <div class="tp-narrative">
-    <div class="tp-narrative-head">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-4h2v2h-2zm0-2h2V7h-2z" fill="currentColor"/></svg>
-      AI Analysis · Personalised to your trades
     </div>
-    <div class="tp-narrative-body">
-      {% for para in narrative.split('\n\n') %}
-        {% if para.strip() %}<p>{{ para.strip() }}</p>{% endif %}
+  </div>
+</div>
+{% endfor %}
+
+{# ── WIN RATE HEATMAPS ── #}
+<div class="tp-section-title" style="margin-top:28px;">Trade Timing Intelligence</div>
+<div class="tp-two-col">
+
+  {# By Hour #}
+  <div class="tp-panel">
+    <div class="tp-panel-title">Win Rate by Hour</div>
+    {% if by_hour %}
+    <div class="tp-heatmap-grid hours">
+      {% for h in by_hour %}
+        {% if h.total > 0 %}
+          {% if h.win_rate >= 60 %}{% set hc = '#22c55e' %}{% set hbg = 'rgba(34,197,94,.12)' %}
+          {% elif h.win_rate >= 45 %}{% set hc = '#f59e0b' %}{% set hbg = 'rgba(245,158,11,.1)' %}
+          {% else %}{% set hc = '#ef4444' %}{% set hbg = 'rgba(239,68,68,.1)' %}{% endif %}
+        {% else %}{% set hc = 'var(--paper-faint)' %}{% set hbg = 'var(--ink-2)' %}{% endif %}
+        <div class="tp-heat-cell" style="background:{{ hbg }};">
+          <div class="tp-heat-label" style="font-size:9.5px;color:var(--paper-faint);">{{ h.hour }}</div>
+          <div class="tp-heat-wr" style="color:{{ hc }};font-size:13px;">{% if h.total > 0 %}{{ h.win_rate }}%{% else %}—{% endif %}</div>
+          <div class="tp-heat-count">{{ h.total }}T</div>
+        </div>
       {% endfor %}
     </div>
+    {% else %}<div style="color:var(--paper-faint);font-size:12.5px;">Not enough data</div>{% endif %}
   </div>
-  {% endif %}
 
-  {# Action items #}
-  {% if action_items %}
-  <div class="tp-section-title">What to do next</div>
-  <ul class="tp-actions-list">
-    {% for item in action_items %}
-    <li class="tp-action-item">
-      <div class="tp-action-num">{{ loop.index }}</div>
-      <div class="tp-action-text">{{ item | safe }}</div>
-    </li>
+  {# By Day #}
+  <div class="tp-panel">
+    <div class="tp-panel-title">Win Rate by Day</div>
+    {% if by_day %}
+    <div class="tp-heatmap-grid days">
+      {% for d in by_day %}
+        {% if d.total > 0 %}
+          {% if d.win_rate >= 60 %}{% set dc = '#22c55e' %}{% set dbg = 'rgba(34,197,94,.12)' %}
+          {% elif d.win_rate >= 45 %}{% set dc = '#f59e0b' %}{% set dbg = 'rgba(245,158,11,.1)' %}
+          {% else %}{% set dc = '#ef4444' %}{% set dbg = 'rgba(239,68,68,.1)' %}{% endif %}
+        {% else %}{% set dc = 'var(--paper-faint)' %}{% set dbg = 'var(--ink-2)' %}{% endif %}
+        <div class="tp-heat-cell" style="background:{{ dbg }};">
+          <div class="tp-heat-label" style="font-size:9.5px;color:var(--paper-faint);">{{ d.day_short }}</div>
+          <div class="tp-heat-wr" style="color:{{ dc }};font-size:13px;">{% if d.total > 0 %}{{ d.win_rate }}%{% else %}—{% endif %}</div>
+          <div class="tp-heat-count">{{ d.total }}T</div>
+        </div>
+      {% endfor %}
+    </div>
+    {% else %}<div style="color:var(--paper-faint);font-size:12.5px;">Not enough data</div>{% endif %}
+  </div>
+</div>
+
+{# By Symbol #}
+{% if by_symbol %}
+<div class="tp-panel" style="margin-top:14px;">
+  <div class="tp-panel-title">Top Traded Symbols</div>
+  <table class="tp-sym-table">
+    <thead>
+      <tr><th>Symbol</th><th>Trades</th><th>W/L</th><th>Win Rate</th><th>Net P&amp;L</th></tr>
+    </thead>
+    <tbody>
+      {% for s in by_symbol %}
+      {% if s.win_rate >= 60 %}{% set swc = '#22c55e' %}{% set sbg = 'rgba(34,197,94,.08)' %}
+      {% elif s.win_rate >= 45 %}{% set swc = '#f59e0b' %}{% set sbg = 'rgba(245,158,11,.08)' %}
+      {% else %}{% set swc = '#ef4444' %}{% set sbg = 'rgba(239,68,68,.08)' %}{% endif %}
+      <tr>
+        <td>{{ s.symbol }}</td>
+        <td>{{ s.total }}</td>
+        <td style="color:var(--paper-faint)">{{ s.wins }}W / {{ s.losses }}L</td>
+        <td><span class="tp-sym-wr" style="background:{{ sbg }};color:{{ swc }}">{{ s.win_rate }}%</span></td>
+        <td style="color:{{ '#22c55e' if s.pnl >= 0 else '#ef4444' }}">₹{{ s.pnl | int | abs }}{% if s.pnl < 0 %} loss{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── PERFORMANCE ROOT CAUSE ── #}
+{% if root_cause %}
+<div class="tp-section-title" style="margin-top:28px;">Root Cause Analysis</div>
+{% set rc = root_cause.root_cause %}
+{% set sev = rc.get('severity', 'warning') %}
+<div class="tp-root-cause {{ sev }}">
+  <div class="tp-root-label">{{ rc.get('label', '') }}</div>
+  <div class="tp-root-detail">{{ rc.get('detail', '') }}</div>
+  <div class="tp-root-fix"><strong>Fix priority:</strong> {{ root_cause.fix_priority }}</div>
+  <div class="tp-root-upside">↗ {{ root_cause.potential_upside }}</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;">
+  {% for label, val, suffix in [
+    ('Win Rate', root_cause.win_rate, '%'),
+    ('Risk-Reward', root_cause.rr, ':1'),
+    ('Avg Win', '₹' ~ (root_cause.avg_win | int | abs), ''),
+    ('Avg Loss', '₹' ~ (root_cause.avg_loss | int | abs), ''),
+  ] %}
+  <div style="background:var(--ink);border:1px solid var(--line);border-radius:9px;padding:12px;text-align:center;">
+    <div style="font-size:10.5px;font-family:var(--mono);color:var(--paper-faint);margin-bottom:4px;">{{ label }}</div>
+    <div style="font-family:var(--head);font-size:17px;font-weight:700;color:var(--paper);">{{ val }}{{ suffix }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── PROGRESS TRACKING ── #}
+{% if progress and progress.has_prev %}
+<div class="tp-section-title" style="margin-top:28px;">Month-over-Month Progress</div>
+<div class="tp-progress-grid">
+  {% set prog_items = [
+    ('Win Rate', progress.current.win_rate ~ '%', progress.wr_delta),
+    ('Trades', progress.current.total, progress.trades_delta),
+    ('Net P&L', '₹' ~ (progress.current.pnl | int), progress.pnl_delta),
+  ] %}
+  {% for label, val, delta in prog_items %}
+  <div class="tp-prog-item">
+    <div class="tp-prog-label">{{ label }} (this month)</div>
+    <div class="tp-prog-val">{{ val }}</div>
+    {% if delta > 0 %}
+    <div class="tp-prog-delta up">▲ +{{ delta }}</div>
+    {% elif delta < 0 %}
+    <div class="tp-prog-delta dn">▼ {{ delta }}</div>
+    {% else %}
+    <div class="tp-prog-delta flat">— same</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── CROSS-MODULE CORRELATIONS ── #}
+{% if correlations %}
+<div class="tp-section-title" style="margin-top:28px;">Cross-Pattern Insights</div>
+<div class="tp-corr-list">
+  {% for corr in correlations[:4] %}
+  <div class="tp-corr-item">
+    <div class="tp-corr-text">
+      <strong>{{ corr.get('title', '') }}:</strong> {{ corr.get('description', '') }}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── PSYCHOLOGY DEEP NARRATIVES ── #}
+{% if psych_narratives %}
+<div class="tp-section-title" style="margin-top:28px;">Deep Psychology Analysis</div>
+{% set pn_labels = {
+  'behavioral_drift': 'Behavioral Drift',
+  'panic_selling': 'Panic Selling',
+  'fomo': 'FOMO / Overconfidence',
+  'loss_aversion': 'Loss Aversion',
+} %}
+{% for key, pn in psych_narratives.items() %}
+<div class="tp-psych-card">
+  <div class="tp-psych-key">{{ pn_labels.get(key, key.replace('_', ' ').title()) }}</div>
+  <div class="tp-psych-narrative">{{ pn.get('narrative', '') }}</div>
+  {% if pn.get('self_awareness') %}
+  <div class="tp-psych-self">{{ pn.self_awareness }}</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{# ── AI DEEP NARRATIVE ── #}
+{% if narrative %}
+<div class="tp-section-title" style="margin-top:28px;">AI Psychology Report</div>
+<div class="tp-narrative">
+  <div class="tp-narrative-head">
+    <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    AI Analysis · Personalised to your trade data
+  </div>
+  <div class="tp-narrative-body">
+    {% for para in narrative.split('\n\n') %}
+      {% if para.strip() %}<p>{{ para.strip() }}</p>{% endif %}
     {% endfor %}
-  </ul>
-  {% endif %}
+  </div>
+</div>
+{% endif %}
 
-  {% endif %}{# end has_trades #}
+{# ── ACTION ITEMS ── #}
+{% if action_items %}
+<div class="tp-section-title" style="margin-top:28px;">Priority Actions</div>
+<ul class="tp-actions-list" style="margin-bottom:40px;">
+  {% for item in action_items %}
+  <li class="tp-action-item">
+    <div class="tp-action-num">{{ loop.index }}</div>
+    <div class="tp-action-text">{{ item | safe }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% endif %}{# end has_trades #}
 </div>
 
 <script>
-// Drag and drop styling
+// ── Upload drag & drop ──
 const dropZone = document.getElementById('dropZone');
 if (dropZone) {
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
   dropZone.addEventListener('drop', () => dropZone.classList.remove('drag-over'));
+  const fi = document.getElementById('tradeFile');
+  if (fi) fi.addEventListener('change', function() {
+    if (this.files[0]) {
+      dropZone.querySelector('.tp-upload-title').textContent = this.files[0].name;
+      dropZone.querySelector('.tp-upload-sub').textContent = 'Ready to analyse — uploading…';
+      document.getElementById('uploadForm').submit();
+    }
+  });
+}
 
-  // Show filename when selected
-  const fileInput = document.getElementById('tradeFile');
-  if (fileInput) {
-    fileInput.addEventListener('change', function() {
-      if (this.files[0]) {
-        dropZone.querySelector('.tp-upload-title').textContent = this.files[0].name;
-        dropZone.querySelector('.tp-upload-sub').textContent = 'Ready to analyse — click the button below';
-        document.getElementById('uploadForm').submit();
-      }
-    });
-  }
+// ── Category accordion ──
+function toggleCat(key) {
+  const body   = document.getElementById('body-' + key);
+  const toggle = document.getElementById('toggle-' + key);
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  if (toggle) toggle.classList.toggle('open', !open);
 }
 </script>
 {% endblock %}
