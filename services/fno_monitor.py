@@ -1399,6 +1399,13 @@ def run_scan(app):
 
 _FNO_ADVISORY_LOCK_ID = 728193001  # arbitrary unique int per scheduler
 
+# Pinned lock-holding connections, keyed by lock_id. Session-level advisory
+# locks are released when the connection closes — a local variable would be
+# garbage-collected and returned to the pool, silently dropping the lock and
+# letting another worker start a duplicate scheduler. Module-level refs keep
+# the connections (and therefore the locks) alive for the worker's lifetime.
+_lock_connections: dict = {}
+
 
 def _try_acquire_scheduler_lock(app, lock_id: int) -> bool:
     """
@@ -1412,14 +1419,18 @@ def _try_acquire_scheduler_lock(app, lock_id: int) -> bool:
         from sqlalchemy import text
         from app import db
         with app.app_context():
-            # Use a dedicated, never-released connection so the lock survives
-            # for the worker's lifetime.
+            # Dedicated raw connection, pinned in module state so it is never
+            # garbage-collected or returned to the pool while the worker lives.
             conn = db.engine.connect()
+            # detach() removes it from the pool entirely — pool recycling /
+            # dispose() can no longer close it underneath us.
+            conn.detach()
             got = conn.execute(
                 text("SELECT pg_try_advisory_lock(:k)"), {"k": lock_id}
             ).scalar()
             if got:
-                # Intentionally never close `conn` — keeps the lock held.
+                _lock_connections[lock_id] = conn   # hold forever (worker lifetime)
+                logger.info(f"Advisory lock {lock_id} acquired by PID {os.getpid()}")
                 return True
             conn.close()
             return False

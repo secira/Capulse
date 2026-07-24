@@ -554,14 +554,12 @@ def _try_acquire_scheduler_lock(app, lock_id: int) -> bool:
     disable the monitor.
     """
     try:
-        from app import db
-        with app.app_context():
-            row = db.session.execute(
-                db.text("SELECT pg_try_advisory_lock(:lid) AS acquired"),
-                {"lid": lock_id},
-            ).first()
-            db.session.commit()
-            return bool(row and row.acquired)
+        # Delegate to fno_monitor's helper: it uses a dedicated, detached,
+        # module-pinned connection so the session-level lock survives for the
+        # worker's lifetime (a pooled session connection would return to the
+        # pool and silently release the lock).
+        from services.fno_monitor import _try_acquire_scheduler_lock as _acquire
+        return _acquire(app, lock_id)
     except Exception as e:
         logger.warning(f"broker_health advisory-lock check failed ({e}); starting anyway")
         return True

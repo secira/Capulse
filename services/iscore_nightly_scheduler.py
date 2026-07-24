@@ -40,7 +40,7 @@ _state = {
     "currently_running": False,
 }
 
-_NIGHTLY_ADVISORY_LOCK_ID = 728193002  # unique vs fno_monitor (…001)
+_NIGHTLY_ADVISORY_LOCK_ID = 728193003  # unique: fno=…001, alert_dispatcher=…002, partner=…005
 _IST = timezone(timedelta(hours=5, minutes=30))
 
 
@@ -321,25 +321,14 @@ def _nightly_job(app):
 
 # ── Singleton lock + APScheduler wiring ───────────────────────────────────
 def _try_acquire_lock(app, lock_id: int) -> bool:
-    """Postgres advisory lock — only one gunicorn worker runs the scheduler."""
-    if os.environ.get("DISABLE_SCHEDULERS", "").lower() in ("1", "true", "yes"):
-        return False
-    try:
-        from sqlalchemy import text
-        from app import db
-        with app.app_context():
-            conn = db.engine.connect()
-            got = conn.execute(
-                text("SELECT pg_try_advisory_lock(:k)"), {"k": lock_id}
-            ).scalar()
-            if got:
-                # Never close the connection — keeps the lock for this worker.
-                return True
-            conn.close()
-            return False
-    except Exception as e:
-        logger.warning(f"I-Score nightly lock check failed ({e}); starting anyway")
-        return True
+    """Postgres advisory lock — only one gunicorn worker runs the scheduler.
+
+    Delegates to fno_monitor's helper, which pins the lock-holding connection
+    in module state (detached from the pool) so the session-level lock can
+    never be dropped by garbage collection or pool recycling.
+    """
+    from services.fno_monitor import _try_acquire_scheduler_lock
+    return _try_acquire_scheduler_lock(app, lock_id)
 
 
 def start_scheduler(app):

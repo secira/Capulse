@@ -1155,7 +1155,16 @@ def start_background_schedulers():
         logging.warning(f"Broker health monitor not started: {e}")
 
     # Partner Network: daily job to release held commissions → partner wallets
+    # Advisory lock so only ONE gunicorn worker runs this daily payout job
+    # (without it, every worker would fire the same payout at 01:30 UTC).
     try:
+        from services.fno_monitor import _try_acquire_scheduler_lock
+        _partner_lock_ok = _try_acquire_scheduler_lock(app, 728193005)
+    except Exception:
+        _partner_lock_ok = True
+    try:
+        if not _partner_lock_ok:
+            raise RuntimeError("lock held by another worker — skipping here")
         from apscheduler.schedulers.background import BackgroundScheduler
         _partner_scheduler = BackgroundScheduler()
         def _release_partner_commissions():
