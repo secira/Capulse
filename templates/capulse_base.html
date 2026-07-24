@@ -29,39 +29,39 @@ button{font-family:inherit;cursor:pointer}
 :focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:-0.01em}
 
-.app{display:grid;grid-template-columns:264px 1fr;height:100vh}
+.app{display:grid;grid-template-columns:300px 1fr;height:100vh}
 
 /* sidebar */
-.sidebar{background:var(--ink-2);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:16px 14px;overflow:hidden}
+.sidebar{background:var(--ink-2);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 12px;overflow:hidden}
 .logo{display:flex;align-items:center;gap:9px;font-family:var(--serif);font-size:18px;font-weight:600;padding:6px 6px 18px;color:var(--paper)}
 .logo svg{width:19px;height:19px;color:var(--amber);flex-shrink:0}
-.new-chat{display:flex;align-items:center;gap:9px;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-lg);background:transparent;color:var(--paper);font-size:13.5px;font-weight:500;transition:border-color .15s,background .15s;margin-bottom:14px;text-decoration:none}
+.new-chat{display:flex;align-items:center;gap:9px;width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-lg);background:transparent;color:var(--paper);font-size:13px;font-weight:500;transition:border-color .15s,background .15s;margin-bottom:10px;text-decoration:none}
 .new-chat:hover{border-color:var(--paper-faint);background:var(--ink-3)}
 .new-chat svg{width:15px;height:15px;color:var(--amber)}
-.sidebar-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--paper-faint);padding:0 6px;margin-bottom:8px}
-.nav-menu{display:flex;flex-direction:column;gap:1px;margin-bottom:16px}
-.nav-item{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:6px;background:none;border:1px solid transparent;color:var(--paper-dim);font-size:13.5px;transition:background .15s,color .15s;text-decoration:none}
+.sidebar-label{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--paper-faint);padding:0 6px;margin-bottom:5px}
+.nav-menu{display:flex;flex-direction:column;gap:1px;margin-bottom:10px}
+.nav-item{display:flex;align-items:center;gap:9px;width:100%;padding:6px 9px;border-radius:6px;background:none;border:1px solid transparent;color:var(--paper-dim);font-size:13px;transition:background .15s,color .15s;text-decoration:none}
 .nav-item svg{width:15px;height:15px;flex-shrink:0;opacity:.8}
 .nav-item:hover{background:var(--ink-3);color:var(--paper)}
 .nav-item.active{background:var(--ink-3);color:var(--amber);border-color:var(--line)}
 .nav-item.active svg{opacity:1}
-.thread-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;margin-bottom:12px;min-height:20px}
+.thread-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;margin-bottom:8px;min-height:80px}
 .thread-list::-webkit-scrollbar{width:6px}
 .thread-list::-webkit-scrollbar-thumb{background:var(--ink-4);border-radius:4px}
-.conv-item{display:flex;flex-direction:column;gap:1px;padding:9px 10px;border-radius:6px;color:var(--paper-dim);font-size:13.5px;transition:background .15s;border:1px solid transparent;cursor:pointer;text-decoration:none}
+.conv-item{display:flex;flex-direction:column;gap:1px;padding:6px 9px;border-radius:6px;color:var(--paper-dim);font-size:13px;transition:background .15s;border:1px solid transparent;cursor:pointer;text-decoration:none}
 .conv-item:hover{background:var(--ink-3)}
 .conv-item.active{background:var(--ink-3);border-color:var(--line)}
 .conv-item .t{color:var(--paper);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .conv-item .m{font-family:var(--mono);font-size:10.5px;color:var(--paper-faint)}
 .spacer{flex:1}
-.usage-widget{border:1px solid var(--line);border-radius:var(--radius-lg);padding:13px 14px;margin-bottom:10px;flex-shrink:0}
+.usage-widget{border:1px solid var(--line);border-radius:var(--radius-lg);padding:10px 12px;margin-bottom:8px;flex-shrink:0}
 .usage-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}
 .usage-top span:first-child{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--paper-faint)}
 .usage-top span:last-child{font-family:var(--mono);font-size:12px;color:var(--paper)}
 .usage-track{height:4px;background:var(--ink-3);border-radius:3px;overflow:hidden}
 .usage-fill{height:100%;background:var(--amber)}
-.upgrade-card{background:linear-gradient(155deg,var(--amber-soft),transparent);border:1px solid var(--amber-dim);border-radius:var(--radius-lg);padding:14px;margin-bottom:14px;flex-shrink:0}
-.upgrade-card p{font-size:12.5px;color:var(--paper-dim);line-height:1.5;margin-bottom:10px}
+.upgrade-card{background:linear-gradient(155deg,var(--amber-soft),transparent);border:1px solid var(--amber-dim);border-radius:var(--radius-lg);padding:10px 12px;margin-bottom:10px;flex-shrink:0}
+.upgrade-card p{font-size:12px;color:var(--paper-dim);line-height:1.45;margin-bottom:8px}
 .upgrade-card p b{color:var(--paper);font-weight:600}
 .upgrade-btn{display:block;text-align:center;width:100%;background:var(--amber);color:#171008;font-weight:600;font-size:12.5px;padding:8px;border-radius:5px;text-decoration:none}
 .upgrade-btn:hover{background:var(--amber-dim)}
@@ -292,7 +292,7 @@ h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:-0.01em}
         Trading Psychology
       </a>
     </div>
-    <div class="sidebar-label" style="margin-top:6px">Pages</div>
+    <div class="sidebar-label" style="margin-top:4px">Pages</div>
     <div class="nav-menu">
       <a href="{{ url_for('pricing') }}" class="nav-item {% if active_page == 'pricing' %}active{% endif %}">
         <svg viewBox="0 0 24 24" fill="none"><path d="M12 2V22M17 6H9.5C8.11929 6 7 7.11929 7 8.5C7 9.88071 8.11929 11 9.5 11H14.5C15.8807 11 17 12.1193 17 13.5C17 14.8807 15.8807 16 14.5 16H7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
