@@ -116,8 +116,8 @@ def verify_mobile_otp():
             
             # Redirect based on purpose
             if otp_purpose == 'registration':
-                # For new registrations, redirect to complete profile
-                return redirect(url_for('complete_profile'))
+                # For new registrations, redirect to the new profile page
+                return redirect(url_for('account_profile'))
             else:
                 # For login, go to chat
                 return redirect(url_for('chat.chat_home'))
