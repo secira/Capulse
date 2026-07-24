@@ -822,43 +822,64 @@ class NiftyOptionsEngine:
         }
 
     def _time_filter(self) -> Dict[str, Any]:
+        """
+        Always returns pass=True — signals are generated at any time.
+        Caution flags are set for high-volatility windows so the caller can
+        warn the user; they reduce confidence but never block signal output.
+
+        Volatility windows (caution=True):
+          - Weekend: no live market — data is last known close prices
+          - Pre-market (< 9:15 AM): pre-open session, thin liquidity
+          - Opening (9:15–10:00 AM): high volatility, wide spreads, gap-fill noise
+          - Lunch (12:00–12:30 PM): low liquidity, choppy moves
+          - Post-market (≥ 3:30 PM): market closed, option premiums stale
+        """
         now = datetime.now(IST)
         current_time = now.time()
-        if now.weekday() >= 5:
-            return {'pass': False, 'reason': 'Weekend — market closed', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
-        # No trades before 10:00 AM — opening 30 min is pure noise
-        # (9:30-10:00 AM: institutions settling overnight gaps, wide spreads,
-        # inflated premiums, high false-signal rate — all historical SL hits
-        # in this window justify blocking it entirely).
-        if current_time < dtime(10, 0):
-            return {'pass': False, 'reason': 'No trades before 10:00 AM — opening noise window', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
-        # No trades after 2:59 PM
-        if current_time >= dtime(15, 0):
-            return {'pass': False, 'reason': 'No trades after 2:59 PM — market closing', 'status': 'blocked', 'caution': False, 'caution_weight': 0}
-        # Opening caution: 10:00–10:15 AM — transition zone, still elevated volatility
+
+        is_weekend  = now.weekday() >= 5
+        pre_market  = current_time < dtime(9, 15)
+        opening_vol = dtime(9, 15) <= current_time < dtime(10, 0)
         opening_caution = dtime(10, 0) <= current_time <= dtime(10, 15)
-        # Mid-session caution: 12:00–12:30 → index-aware penalty
-        # NIFTY genuinely chops at lunch (-10). BANKNIFTY frequently active (-5).
-        # FINNIFTY/SENSEX track NIFTY behaviour (-10).
-        lunch_caution = dtime(12, 0) <= current_time <= dtime(12, 30)
-        caution = opening_caution or lunch_caution
+        lunch_caution   = dtime(12, 0) <= current_time <= dtime(12, 30)
+        post_market = current_time >= dtime(15, 30)
+
         caution_weight = 0
-        if opening_caution:
+        if is_weekend:
+            reason = 'Weekend — market closed, using last known prices. High volatility at Monday open.'
+            caution_weight = 20
+        elif pre_market:
+            reason = 'Pre-market — thin liquidity, wide spreads. Signals are indicative only.'
+            caution_weight = 15
+        elif opening_vol:
+            reason = 'Opening volatility window (9:15–10:00 AM) — gap-fills and institution imbalances cause wide swings. Trade with tight stops.'
+            caution_weight = 15
+        elif opening_caution:
+            reason = 'Opening caution (10:00–10:15 AM) — transition zone, confidence slightly reduced.'
             caution_weight = 10
         elif lunch_caution:
+            reason = 'Mid-session (12:00–12:30 PM) — low liquidity, choppy moves. Confidence slightly reduced.'
             caution_weight = 5 if self.index == 'BANKNIFTY' else 10
-        if caution:
-            reason = ('Opening caution — 10:00–10:15 AM transition zone, confidence reduced'
-                      if opening_caution else
-                      'Mid-session caution — lunch hour, confidence reduced')
+        elif post_market:
+            reason = 'Post-market (after 3:30 PM) — market closed, premiums are stale. Use signals for next-session planning.'
+            caution_weight = 20
         else:
-            reason = 'Trading window active'
+            reason = 'Active trading window'
+            caution_weight = 0
+
+        caution = caution_weight > 0
+        status  = 'caution' if caution else 'active'
+
         return {
-            'pass': True,
-            'reason': reason,
-            'status': 'caution' if caution else 'active',
-            'caution': caution,
+            'pass':          True,   # never blocks — user decides risk
+            'reason':        reason,
+            'status':        status,
+            'caution':       caution,
             'caution_weight': caution_weight,
+            # Extra flags for the response card
+            'is_weekend':    is_weekend,
+            'is_post_market': post_market,
+            'is_pre_market': pre_market or opening_vol,
         }
 
     # ------------------------------------------------------------------
@@ -2435,7 +2456,7 @@ class NiftyOptionsEngine:
         strength_gate_pass = (not strength['no_trade_zone']) or weak_trend_bypass
 
         entry_mode = 'NO TRADE'
-        if (time_check['pass'] and strength_gate_pass
+        if (strength_gate_pass
                 and regime['pass'] and direction['indicators_aligned'] and trigger['triggered']):
             if strength.get('ema_distance_pct', 0) >= 0.15 and strength.get('ema_crossover'):
                 entry_mode = 'CONFIRMED'
@@ -2489,8 +2510,7 @@ class NiftyOptionsEngine:
                 f"Flat market — ADX {_adx_val:.1f} (< 20): sideways conditions detected, "
                 f"all signals suppressed to protect capital"
             )
-        if not time_check['pass']:
-            block_reasons.append(time_check['reason'])
+        # Time is always pass=True; caution reason shown as a card warning, not a block
         # Regime filter reasons (chop / vwap-distance / compression / overlap)
         for r in regime.get('reasons', []):
             block_reasons.append(r)
@@ -2528,7 +2548,7 @@ class NiftyOptionsEngine:
         )
 
         setup_state = 'NO_TRADE'
-        if not time_check['pass'] or not regime['pass'] or (strength['no_trade_zone'] and not weak_trend_bypass):
+        if not regime['pass'] or (strength['no_trade_zone'] and not weak_trend_bypass):
             setup_state = 'NO_TRADE'
         elif not direction['indicators_aligned']:
             # EARLY_MOMENTUM = building setup with at least 2/5 votes on the leading side

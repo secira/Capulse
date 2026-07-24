@@ -180,6 +180,11 @@ def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[
 
         spot_str = f"₹{spot:,.2f}" if spot else "—"
 
+        # Time-window caution from the engine (never a block — just a warning)
+        time_check     = analysis.get('time_filter', {})
+        time_caution   = time_check.get('caution', False)
+        time_reason    = time_check.get('reason', '')
+
         # Build a plain-English summary line
         if is_blocked or final_decision in ('NO TRADE', 'WAIT', 'AVOID'):
             reasons_md = '\n'.join(f"- {r}" for r in block_reasons[:4]) if block_reasons else ""
@@ -196,6 +201,10 @@ def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[
                 f"Bias: **{trade_direction}** · Confidence: **{confidence_grade}** ({confidence}%)"
             )
 
+        # Append volatility warning when outside the core 10 AM–3:30 PM window
+        if time_caution and time_reason:
+            content += f"\n\n⚠️ **Volatility note:** {time_reason} Trade based on your own risk tolerance."
+
         return {
             'card_type': 'fno_signals',
             'content': content,
@@ -210,6 +219,8 @@ def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[
                 'is_blocked':       is_blocked,
                 'signals':          signals,
                 'data_source':      data_source,
+                'time_caution':     time_caution,
+                'time_reason':      time_reason,
             }
         }
 
@@ -225,8 +236,9 @@ def _fno_fallback(index: str) -> Dict[str, Any]:
         'content': (
             f"The F&O engine for **{idx}** analyses option chain OI, IV, VWAP, RSI, "
             f"Supertrend, and EMA momentum to generate ranked trade signals.\n\n"
-            f"Signals are generated during market hours (9:15 AM – 3:30 PM IST). "
-            f"Try again when the market is open."
+            f"Signals are available 24/7 — use them for planning anytime. "
+            f"During market hours (9:15 AM – 3:30 PM IST) live option chain data is used; "
+            f"outside hours, signals are based on last known prices. Always set your own risk parameters."
         )
     }
 
