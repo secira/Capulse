@@ -90,6 +90,17 @@ echo "Syncing NSE stock universe (research_list)..."
 SKIP_SCHEDULER=1 python seed_research_list.py \
     || echo "⚠️  Research list seed exited non-zero; continuing to gunicorn."
 
+# ─── Optional: create / reset admin user (only when ADMIN_EMAIL is set) ──
+# Set ADMIN_EMAIL + ADMIN_PASSWORD in Railway Variables for the first deploy,
+# then delete both variables — the script is idempotent and safe to re-run.
+if [ -n "${ADMIN_EMAIL}" ] && [ -n "${ADMIN_PASSWORD}" ]; then
+    echo ""
+    echo "ADMIN_EMAIL set — creating/resetting admin user (${ADMIN_EMAIL})..."
+    SKIP_SCHEDULER=1 python reset_admin.py --env \
+        && echo "  ✓ Admin user ready. Remove ADMIN_EMAIL + ADMIN_PASSWORD from Railway Variables." \
+        || echo "  ⚠️  reset_admin.py exited non-zero; continuing to gunicorn."
+fi
+
 # ─── Optional: heavy one-shot seeding (only when RUN_SEEDS=1) ────────────
 # Covers: I-Score data, blog posts, and full railway_migrate.py flow.
 # Set RUN_SEEDS=1 on first deploy of a blank database, then unset it.
