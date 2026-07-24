@@ -7,8 +7,6 @@ from datetime import datetime, timezone, timedelta
 from flask import Flask, g
 from flask.helpers import send_from_directory
 from flask_compress import Compress
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
@@ -39,10 +37,7 @@ def setup_logging():
 
 setup_logging()
 
-class Base(DeclarativeBase):
-    pass
-
-db = SQLAlchemy(model_class=Base)
+from db_instance import db, Base  # noqa: E402 — must precede app/model imports
 
 # Create the app
 app = Flask(__name__)

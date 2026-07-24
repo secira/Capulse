@@ -8,7 +8,7 @@ Three tables:
   api_alert_log     — every webhook delivery attempt (idempotency + audit)
 """
 from datetime import datetime
-from app import db
+from db_instance import db
 
 
 class ApiPartner(db.Model):

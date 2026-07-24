@@ -27,7 +27,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, g, jsonify, render_template, request
 from flask_login import current_user, login_required
 
-from app import db
+from db_instance import db
 from models_partner_api import ApiAlertLog, ApiPartner, ApiSubscription
 from services.partner_auth import generate_api_key, partner_api_key_required
 

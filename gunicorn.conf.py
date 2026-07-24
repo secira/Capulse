@@ -51,7 +51,7 @@ def post_fork(server, worker):
     pool on first use.
     """
     try:
-        from app import db
+        from db_instance import db
         db.engine.dispose()
     except Exception:
         pass

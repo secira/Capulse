@@ -108,7 +108,7 @@ class ProductionDeployment:
         
         # Check database connectivity
         try:
-            from app import db
+            from db_instance import db
             with db.engine.connect() as conn:
                 conn.execute("SELECT 1")
             logger.info("✅ Database connection verified")
@@ -282,7 +282,7 @@ class ProductionDeployment:
     async def check_database_health(self) -> bool:
         """Check database health"""
         try:
-            from app import db
+            from db_instance import db
             with db.engine.connect() as conn:
                 result = conn.execute("SELECT 1")
                 return True

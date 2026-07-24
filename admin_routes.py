@@ -12,7 +12,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
-from app import db
+from db_instance import db
 from models import Admin, User, PricingPlan, DailyTradingSignal, ResearchList, BlogPost, ContactMessage, ResearchCache
 from models_broker import BrokerAccount, AdminDataBroker, DataApiBroker
 
@@ -1113,7 +1113,7 @@ def telegram_messenger():
                     body = format_daily_signal_telegram(sig)
                     ok, err = _telegram_send_with_error(body, parse_mode='HTML')
                     if ok:
-                        from app import db
+                        from db_instance import db
                         from datetime import datetime as _dt
                         sig.shared_telegram = True
                         sig.telegram_shared_at = _dt.utcnow()

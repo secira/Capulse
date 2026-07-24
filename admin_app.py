@@ -27,7 +27,7 @@ admin_app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 
 # Import models from main app
-from app import db
+from db_instance import db
 from models import User, TradingSignal, BrokerAccount, ExecutedTrade
 from models_broker import BrokerHolding, BrokerPosition, BrokerOrder
 from models.payment_models import PaymentOrder, Subscription

@@ -5,7 +5,7 @@ Versioned REST API for mobile app integration with JWT authentication
 import logging
 from flask import Blueprint, request, jsonify, g
 from werkzeug.security import check_password_hash
-from app import db
+from db_instance import db
 from models import User, Portfolio, TradingSignal
 from models_broker import BrokerAccount
 from services.jwt_service import jwt_service, jwt_required, jwt_optional

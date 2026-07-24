@@ -5,7 +5,7 @@ import secrets
 import logging
 
 import requests
-from app import db
+from db_instance import db
 from flask import Blueprint, redirect, request, url_for, flash, render_template_string, session
 from flask_login import login_required, login_user, logout_user
 from models import User

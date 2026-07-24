@@ -7,7 +7,7 @@ from functools import wraps
 from flask import Blueprint, request, jsonify, render_template
 from flask_login import login_required, current_user
 
-from app import db
+from db_instance import db
 
 logger = logging.getLogger(__name__)
 

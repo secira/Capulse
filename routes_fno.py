@@ -245,7 +245,7 @@ def _calc_trade_pnl(atm_trade, outcome, exit_spot=None):
 @login_required
 def fno_signal_history():
     try:
-        from app import db
+        from db_instance import db
         from datetime import datetime, timedelta
         ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
         ist_today_start = ist_now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -351,7 +351,7 @@ def fno_pnl_analysis():
 @login_required
 def fno_pnl_history():
     try:
-        from app import db
+        from db_instance import db
         from datetime import datetime, timedelta
         from collections import OrderedDict
 
@@ -538,7 +538,7 @@ def fno_correct_trade_outcome():
         return jsonify({'success': False, 'error': f'Invalid outcome. Valid values: {sorted(VALID_OUTCOMES)}'}), 400
 
     try:
-        from app import db
+        from db_instance import db
         from datetime import datetime, timedelta
 
         # Determine exit timestamp

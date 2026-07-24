@@ -1,4 +1,4 @@
-from app import db
+from db_instance import db
 from datetime import datetime, timedelta, time as dt_time, date
 from flask_login import UserMixin
 from enum import Enum

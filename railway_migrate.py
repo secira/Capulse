@@ -1068,7 +1068,7 @@ def create_tables_directly():
 
     # 2. Create all tables (new tables only; existing tables are untouched)
     try:
-        from app import db, app
+        from db_instance import db, app
         with app.app_context():
             db.create_all()
             logger.info("db.create_all() complete — all new tables created.")
@@ -1097,7 +1097,7 @@ def create_tables_directly():
 def seed_defaults():
     """Ensure default Tenant and AccountManager rows exist."""
     try:
-        from app import db, app
+        from db_instance import db, app
         with app.app_context():
             from models import Tenant
             Tenant.get_or_create_default()
@@ -1145,7 +1145,7 @@ def seed_initial_admin():
     is_super = os.environ.get("ADMIN_SUPER", "true").lower() not in ("0", "false", "no")
 
     try:
-        from app import db, app
+        from db_instance import db, app
         with app.app_context():
             from models import Admin
             existing = Admin.query.filter(
@@ -1180,7 +1180,7 @@ def seed_research_list():
     """Merge all RESEARCH_LIST_STOCKS into research_list — safe to re-run (ON CONFLICT DO NOTHING)."""
     try:
         from seed_data import RESEARCH_LIST_STOCKS
-        from app import db, app
+        from db_instance import db, app
         with app.app_context():
             from sqlalchemy import text
             inserted = 0
@@ -1236,7 +1236,7 @@ def run_migrations():
 
     # Always seed defaults and patch columns even after Alembic
     try:
-        from app import db, app
+        from db_instance import db, app
         with app.app_context():
             from sqlalchemy.orm import sessionmaker
             Session = sessionmaker(bind=db.engine)

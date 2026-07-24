@@ -18,7 +18,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from app import db
+from db_instance import db
 from decorators import paid_plan_required
 from models_broker import BrokerAccount, BrokerType, ConnectionStatus, compute_token_expiry
 

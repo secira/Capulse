@@ -21,7 +21,7 @@ if __name__ == '__main__':
     
     # Initialize database tables
     with admin_app.app_context():
-        from app import db
+        from db_instance import db
         db.create_all()
         print("✅ Database tables initialized")
     

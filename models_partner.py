@@ -7,7 +7,7 @@ import uuid
 import random
 import string
 from datetime import datetime
-from app import db
+from db_instance import db
 
 
 def _gen_uuid():

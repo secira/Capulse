@@ -10,7 +10,7 @@ from datetime import datetime, date
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from flask_login import login_required, current_user
 
-from app import db
+from db_instance import db
 from models import ChatConversation, ChatMessage
 
 logger = logging.getLogger(__name__)

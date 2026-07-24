@@ -3,7 +3,7 @@ Vector Database Models for RAG-powered Portfolio Analysis
 Stores embeddings and document chunks for intelligent search and analysis
 """
 
-from app import db
+from db_instance import db
 from datetime import datetime
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy import Text
