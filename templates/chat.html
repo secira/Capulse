@@ -140,12 +140,12 @@
     <h2>What are you looking into today?</h2>
     <p>Ask about a stock&rsquo;s i-Score, F&amp;O signals, a mutual fund, your portfolio, or how something works.</p>
     <div class="chips">
-      <button class="chip" data-prompt="What's the i-Score for Reliance Industries?">i-Score on Reliance</button>
-      <button class="chip" data-prompt="Probability of Nifty closing above 25,000 this expiry?">Nifty F&amp;O signal</button>
-      <button class="chip" data-prompt="Analyse Parag Parikh Flexi Cap fund">Parag Parikh MF NAV</button>
-      <button class="chip" data-prompt="Review my portfolio for sector concentration">Review my portfolio</button>
-      <button class="chip" data-prompt="How is my trading behaviour and discipline score?">My behaviour score</button>
-      <button class="chip" data-prompt="Explain what implied volatility means">Explain implied volatility</button>
+      <button class="chip" data-prompt="What's the i-Score for Reliance Industries?">i-Score: Reliance</button>
+      <button class="chip" data-prompt="Show me F&O signals for Nifty today">Nifty F&amp;O signals</button>
+      <button class="chip" data-prompt="Show BankNifty F&O trade signals">BankNifty signals</button>
+      <button class="chip" data-prompt="Analyse Parag Parikh Flexi Cap mutual fund">MF: Parag Parikh</button>
+      <button class="chip" data-prompt="Analyse my portfolio — sector concentration, risk, and rebalancing suggestions">My portfolio</button>
+      <button class="chip" data-prompt="Show my trading behaviour score, detected biases, and psychology analysis">My trading psychology</button>
     </div>
   </div>
   <div class="msg-wrap" id="msgWrap">
@@ -238,6 +238,68 @@
                 </div>
               </div>
               <p class="disclaimer-inline">NAV data from MFApi.in. Past returns are not indicative of future performance.</p>
+            {% elif ctx.get('card_type') == 'portfolio' and ctx.get('card_data') %}
+              {% set d = ctx.card_data %}
+              {% set s = d.get('summary', {}) %}
+              <p>{{ ctx.get('content','') }}</p>
+              <div style="background:var(--ink);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:6px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
+                  <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:9px;padding:12px;text-align:center;">
+                    <div style="font-size:10px;font-family:var(--mono);color:var(--paper-faint);text-transform:uppercase;margin-bottom:4px;">Value</div>
+                    <div style="font-family:var(--head);font-size:15px;font-weight:700;color:var(--paper);">₹{{ "{:,.0f}".format(s.get('total_value',0)) }}</div>
+                  </div>
+                  <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:9px;padding:12px;text-align:center;">
+                    <div style="font-size:10px;font-family:var(--mono);color:var(--paper-faint);text-transform:uppercase;margin-bottom:4px;">P&amp;L</div>
+                    <div style="font-family:var(--head);font-size:15px;font-weight:700;color:{% if s.get('total_pnl',0) >= 0 %}var(--good){% else %}var(--risk){% endif %};">{% if s.get('total_pnl',0) >= 0 %}+{% endif %}₹{{ "{:,.0f}".format(s.get('total_pnl',0)|abs) }}</div>
+                  </div>
+                  <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:9px;padding:12px;text-align:center;">
+                    <div style="font-size:10px;font-family:var(--mono);color:var(--paper-faint);text-transform:uppercase;margin-bottom:4px;">Health</div>
+                    <div style="font-family:var(--head);font-size:15px;font-weight:700;color:{% set h=d.get('ai_assessment',{}).get('health_score',75) %}{% if h >= 70 %}var(--good){% elif h >= 50 %}var(--amber){% else %}var(--risk){% endif %};">{{ d.get('ai_assessment',{}).get('health_score',75) }}/100</div>
+                  </div>
+                </div>
+                {% set sectors = d.get('sectors', []) %}
+                {% if sectors %}
+                <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Sector Allocation</div>
+                {% set sector_cols = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#ef4444','#06b6d4','#84cc16'] %}
+                {% for sector, pct in sectors[:6] %}
+                <div style="margin-bottom:7px;">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:var(--paper-faint);margin-bottom:3px;">
+                    <span>{{ sector }}</span><strong>{{ pct }}%</strong>
+                  </div>
+                  <div style="height:4px;background:var(--ink-3);border-radius:2px;overflow:hidden;"><div style="height:100%;width:{{ pct }}%;background:{{ sector_cols[loop.index0 % 8] }};border-radius:2px;"></div></div>
+                </div>
+                {% endfor %}
+                <div style="margin-bottom:14px;"></div>
+                {% endif %}
+                {% if d.get('narrative') %}
+                <div style="background:var(--ink-2);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:10px;padding:14px 16px;margin-bottom:10px;">
+                  {% for para in d.get('narrative','').split('\n\n') %}{% if para.strip() %}<p style="font-size:13px;color:var(--paper-dim);line-height:1.7;margin-bottom:8px;">{{ para.strip() }}</p>{% endif %}{% endfor %}
+                </div>
+                {% endif %}
+                <p class="disclaimer-inline">Based on entered holdings · Research only · Not financial advice</p>
+              </div>
+            {% elif ctx.get('card_type') == 'behaviour' and ctx.get('card_data') %}
+              {# Legacy behaviour card — show minimal summary #}
+              {% set d = ctx.card_data %}
+              <p>{{ ctx.get('content','') }}</p>
+              <div class="beh-card">
+                <div class="beh-head">
+                  <div class="beh-score-wrap">
+                    <span class="beh-score">{{ d.get('score',0)|round|int }}</span>
+                    <span class="beh-category">{{ d.get('category','') }}</span>
+                  </div>
+                  <span class="beh-personality">{{ d.get('personality','') }}</span>
+                </div>
+                <div class="beh-cats">
+                  {% for k, v in d.get('cats',{}).items() %}
+                  <div class="beh-cat-row">
+                    <span class="beh-cat-label">{{ k.title() }}</span>
+                    <div class="beh-bar-track"><div class="beh-bar-fill" style="width:{{ v }}%"></div></div>
+                    <span class="beh-cat-val">{{ v|round|int }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
             {% elif ctx.get('card_type') == 'psychology' and ctx.get('card_data') %}
               {% set d = ctx.card_data %}
               {% set sc = d.get('score', 50) %}
@@ -673,36 +735,145 @@ function renderMfCard(d) {
 
 function renderPortfolioCard(d) {
   if (!d) return '<p>No portfolio data available.</p>';
-  const totalVal  = d.total_current_value || d.total_value || 0;
-  const totalPnl  = d.total_pnl || d.unrealized_pnl || 0;
-  const holdings  = d.holdings || d.top_holdings || [];
-  const pnlClass  = totalPnl >= 0 ? 'pos' : 'neg';
-  const pnlSign   = totalPnl >= 0 ? '+' : '';
+  const s        = d.summary || {};
+  const totalVal = s.total_value || 0;
+  const totalPnl = s.total_pnl  || 0;
+  const pnlPct   = s.total_pnl_percentage || 0;
+  const nHold    = s.holdings_count || 0;
+  const pnlCol   = totalPnl >= 0 ? '#22c55e' : '#ef4444';
+  const pnlSign  = totalPnl >= 0 ? '+' : '';
 
-  const holdRows = holdings.slice(0, 5).map(h => {
-    const sym  = h.ticker_symbol || h.symbol || '';
-    const val  = h.current_value != null ? '₹' + Number(h.current_value).toLocaleString('en-IN', {maximumFractionDigits:0}) : '—';
-    const pct  = h.pnl_percentage || h.change_pct;
-    const pctCls = pct != null ? (pct >= 0 ? 'pos' : 'neg') : '';
-    const pctStr = pct != null ? (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%' : '';
-    return `<div class="port-holding-row">
-      <span class="port-holding-sym">${sym}</span>
-      <span class="port-holding-val">${val}</span>
-      <span class="port-holding-pct ${pctCls}">${pctStr}</span>
+  const fmt = v => Number(v).toLocaleString('en-IN', {maximumFractionDigits:0});
+
+  // ── Summary strip ──────────────────────────────────────────────────────────
+  const ai   = d.ai_assessment || {};
+  const risk = d.risk_metrics  || {};
+  const hlth = ai.health_score || 75;
+  const hlthCol = hlth >= 70 ? '#22c55e' : hlth >= 50 ? '#f59e0b' : '#ef4444';
+
+  const summaryRow = `
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+    <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:9px;padding:12px;text-align:center;">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--paper-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Value</div>
+      <div style="font-family:var(--head);font-size:16px;font-weight:700;color:var(--paper);">₹${fmt(totalVal)}</div>
+    </div>
+    <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:9px;padding:12px;text-align:center;">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--paper-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">P&amp;L</div>
+      <div style="font-family:var(--head);font-size:16px;font-weight:700;color:${pnlCol};">${pnlSign}₹${fmt(Math.abs(totalPnl))}</div>
+      <div style="font-size:10px;font-family:var(--mono);color:${pnlCol};">${pnlSign}${Math.abs(pnlPct).toFixed(1)}%</div>
+    </div>
+    <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:9px;padding:12px;text-align:center;">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--paper-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Holdings</div>
+      <div style="font-family:var(--head);font-size:16px;font-weight:700;color:var(--paper);">${nHold}</div>
+    </div>
+    <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:9px;padding:12px;text-align:center;">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--paper-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Health</div>
+      <div style="font-family:var(--head);font-size:16px;font-weight:700;color:${hlthCol};">${hlth}/100</div>
+    </div>
+  </div>`;
+
+  // ── Risk flags ─────────────────────────────────────────────────────────────
+  const flags = d.flags || {};
+  const flagItems = [
+    [flags.concentration_risk,   '⚠ High single-stock concentration'],
+    [flags.under_diversified,    '⚠ Under-diversified portfolio'],
+    [flags.high_volatility,      '⚠ High volatility detected'],
+    [flags.sector_concentration, '⚠ Sector over-concentration'],
+  ].filter(([f]) => f);
+  const flagsHtml = flagItems.length ? `
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
+    ${flagItems.map(([, t]) => `<span style="font-size:11px;font-family:var(--mono);padding:3px 9px;border-radius:100px;background:rgba(220,38,38,.08);color:#b91c1c;border:1px solid rgba(220,38,38,.2);">${t}</span>`).join('')}
+  </div>` : '';
+
+  // ── Sector allocation bars ─────────────────────────────────────────────────
+  const sectors = d.sectors || [];
+  const sectorColors = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#ef4444','#06b6d4','#84cc16'];
+  const sectorBars = sectors.slice(0,7).map(([name, pct], i) => {
+    const col = sectorColors[i % sectorColors.length];
+    return `<div style="margin-bottom:7px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);color:var(--paper-faint);margin-bottom:3px;">
+        <span>${name}</span><strong style="color:${col}">${pct}%</strong>
+      </div>
+      <div style="height:4px;background:var(--ink-3);border-radius:2px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${col};border-radius:2px;"></div>
+      </div>
     </div>`;
   }).join('');
+  const sectorsHtml = sectors.length ? `
+  <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Sector Allocation</div>
+  <div style="margin-bottom:14px;">${sectorBars}</div>` : '';
 
-  return `<div class="port-card">
-    <div class="port-header">
-      <div>
-        <div class="port-total-label">Portfolio value</div>
-        <div class="port-total-val">₹${Number(totalVal).toLocaleString('en-IN', {maximumFractionDigits:0})}</div>
-      </div>
-      ${totalPnl !== 0 ? `<span class="port-pnl ${pnlClass}">${pnlSign}₹${Math.abs(totalPnl).toLocaleString('en-IN', {maximumFractionDigits:0})}</span>` : ''}
-    </div>
-    ${holdRows ? `<div class="port-section-title">Top holdings</div><div class="port-holdings">${holdRows}</div>` : ''}
-  </div>
-  <p class="disclaimer-inline">Based on manually entered holdings. Update regularly for accurate analysis.</p>`;
+  // ── Top holdings table ─────────────────────────────────────────────────────
+  const topH = (d.top_holdings || []).slice(0,6);
+  const holdRows = topH.map(h => {
+    const sym    = h.symbol || '';
+    const pct    = h.percentage != null ? h.percentage.toFixed(1) + '%' : '—';
+    const val    = h.value != null ? '₹' + fmt(h.value) : '—';
+    const pnlP   = h.pnl_percentage;
+    const pnlStr = pnlP != null ? (pnlP >= 0 ? '+' : '') + pnlP.toFixed(1) + '%' : '—';
+    const pc     = pnlP != null ? (pnlP >= 0 ? '#22c55e' : '#ef4444') : 'var(--paper-faint)';
+    return `<tr>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--paper);">${sym}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11.5px;color:var(--paper-dim);">${val}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11.5px;color:var(--paper-faint);">${pct}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11.5px;color:${pc};text-align:right;">${pnlStr}</td>
+    </tr>`;
+  }).join('');
+  const holdingsHtml = holdRows ? `
+  <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Top Holdings</div>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
+    <thead><tr>
+      <th style="font-size:9.5px;font-family:var(--mono);color:var(--paper-faint);text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);">Symbol</th>
+      <th style="font-size:9.5px;font-family:var(--mono);color:var(--paper-faint);text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);">Value</th>
+      <th style="font-size:9.5px;font-family:var(--mono);color:var(--paper-faint);text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);">Weight</th>
+      <th style="font-size:9.5px;font-family:var(--mono);color:var(--paper-faint);text-align:right;padding:4px 8px;border-bottom:1px solid var(--line);">P&amp;L</th>
+    </tr></thead>
+    <tbody>${holdRows}</tbody>
+  </table>` : '';
+
+  // ── Risk metrics ───────────────────────────────────────────────────────────
+  const riskHtml = `
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
+    ${[
+      ['Concentration', ((risk.concentration_index||0)*100).toFixed(0) + '%', risk.concentration_index > 0.25 ? '#ef4444' : '#22c55e'],
+      ['Est. Volatility', ((risk.volatility||0)*100).toFixed(0) + '%', (risk.volatility||0) > 0.22 ? '#ef4444' : '#22c55e'],
+      ['Risk Level', ai.risk_level || 'Medium', ai.risk_level === 'High' ? '#ef4444' : ai.risk_level === 'Low' ? '#22c55e' : '#f59e0b'],
+    ].map(([l, v, c]) => `
+    <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center;">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--paper-faint);margin-bottom:4px;">${l}</div>
+      <div style="font-size:14px;font-weight:700;font-family:var(--head);color:${c};">${v}</div>
+    </div>`).join('')}
+  </div>`;
+
+  // ── AI Narrative ───────────────────────────────────────────────────────────
+  const narrativeHtml = d.narrative ? `
+  <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">AI Portfolio Assessment</div>
+  <div style="background:var(--ink-2);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+    ${d.narrative.split('\n\n').filter(p=>p.trim()).map(p=>`<p style="font-size:13px;color:var(--paper-dim);line-height:1.7;margin-bottom:8px;">${p.trim()}</p>`).join('')}
+  </div>` : '';
+
+  // ── Suggestions ────────────────────────────────────────────────────────────
+  const sugg = d.suggestions || [];
+  const suggHtml = sugg.length ? `
+  <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Recommendations</div>
+  <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
+    ${sugg.slice(0,4).map((s,i)=>`
+    <div style="display:flex;gap:10px;align-items:flex-start;background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;">
+      <div style="width:18px;height:18px;border-radius:50%;background:var(--amber-dim);color:var(--amber);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</div>
+      <div style="font-size:12.5px;color:var(--paper-dim);line-height:1.5;">${s}</div>
+    </div>`).join('')}
+  </div>` : '';
+
+  return `<div style="background:var(--ink);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:6px;">
+    ${summaryRow}
+    ${flagsHtml}
+    ${sectorsHtml}
+    ${holdingsHtml}
+    ${riskHtml}
+    ${narrativeHtml}
+    ${suggHtml}
+    <div style="font-size:11px;color:var(--paper-faint);font-family:var(--mono);">Based on manually entered holdings · Research only · Not financial advice</div>
+  </div>`;
 }
 
 function renderBehaviourCard(d) {
@@ -909,10 +1080,11 @@ function renderCard(data) {
     html += renderMfCard(data.card_data);
   } else if (cardType === 'portfolio' && data.card_data) {
     html += renderPortfolioCard(data.card_data);
-  } else if (cardType === 'behaviour' && data.card_data) {
-    html += renderBehaviourCard(data.card_data);
   } else if (cardType === 'psychology' && data.card_data) {
     html += renderPsychologyCard(data.card_data);
+  } else if (cardType === 'behaviour' && data.card_data) {
+    // Older stored messages used 'behaviour'; route to same rich card
+    html += renderBehaviourCard(data.card_data);
   }
 
   if (!html) html = `<p>I'm here to help with i-Scores, F&O signals, mutual funds, portfolio analysis, and market education.</p>`;

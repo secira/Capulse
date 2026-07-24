@@ -11,31 +11,31 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 INTENTS = {
-    'ISCORE': 'i-Score lookup for a specific stock or company',
-    'FNO_SIGNAL': 'F&O signals, NIFTY/BANKNIFTY levels, options probability, futures analysis',
+    'ISCORE':      'i-Score lookup for a specific stock or company',
+    'FNO_SIGNAL':  'F&O signals, NIFTY/BANKNIFTY/FINNIFTY levels, options probability, futures analysis',
     'MUTUAL_FUND': 'Mutual fund analysis, NAV, fund comparison, scheme lookup',
-    'PORTFOLIO': 'Portfolio analysis, holdings review, sector concentration, rebalancing',
-    'BEHAVIOUR': 'Behavioural coaching, trading patterns, discipline score, emotional trading',
-    'GENERAL': 'General market questions, concepts, education, anything else',
+    'PORTFOLIO':   'Portfolio analysis, holdings review, sector concentration, rebalancing, my stocks',
+    'BEHAVIOUR':   'Behavioural analysis, trading psychology, discipline score, emotional patterns, biases, revenge trading, overtrading',
+    'GENERAL':     'General market questions, concepts, education, anything else',
 }
 
 INTENT_CLASSIFIER_PROMPT = """You are an intent classifier for Capulse, an AI stock research chat for Indian markets.
 
 Classify the user's message into exactly ONE of these intents:
-- ISCORE: User wants an i-Score for a specific stock/company (e.g. "i-Score for Reliance", "score of TCS", "rate HDFC Bank")
-- FNO_SIGNAL: User wants F&O signals, NIFTY/BANKNIFTY analysis, options probability (e.g. "NIFTY signals", "probability of 24000", "F&O outlook")
-- MUTUAL_FUND: User wants mutual fund info, NAV, fund analysis (e.g. "analyse Parag Parikh fund", "MF suggestions", "NAV of HDFC mid cap")
-- PORTFOLIO: User wants portfolio analysis, holding review, diversification check
-- BEHAVIOUR: User wants behavioural analysis, trading psychology, discipline review
-- GENERAL: Everything else — explanations, education, market concepts, news
+- ISCORE: User wants an i-Score, rating, or fundamental analysis for a specific stock/company (e.g. "i-Score for Reliance", "rate TCS", "score HDFC Bank", "how is Infosys")
+- FNO_SIGNAL: User wants F&O trade signals, NIFTY/BANKNIFTY/FINNIFTY/SENSEX analysis, options probability, premium decay, OI analysis (e.g. "NIFTY signals", "BANKNIFTY setup", "probability of 24000", "F&O outlook today")
+- MUTUAL_FUND: User wants mutual fund info, NAV, fund comparison, SIP analysis (e.g. "Parag Parikh fund NAV", "best mid cap fund", "HDFC flexi cap returns")
+- PORTFOLIO: User wants analysis of THEIR OWN portfolio/holdings, sector concentration, rebalancing, portfolio health (e.g. "my portfolio", "my holdings", "how is my portfolio", "sector concentration", "rebalance")
+- BEHAVIOUR: User wants analysis of THEIR OWN trading behaviour, psychology, bias detection, discipline score, pattern analysis (e.g. "my behaviour score", "am I overtrading", "trading psychology", "my biases", "revenge trading", "trading patterns", "my trading discipline", "analyse my trades")
+- GENERAL: Everything else — market education, concepts, news, how things work, strategy questions
 
-Also extract entities:
-- symbol: NSE ticker if a specific stock was mentioned (e.g. "RELIANCE", "TCS", "HDFCBANK")
-- fund_query: Fund name or keyword if a mutual fund was mentioned (e.g. "Parag Parikh Flexi Cap", "HDFC Mid Cap")
-- index: "NIFTY" or "BANKNIFTY" if mentioned (default "NIFTY" for FNO_SIGNAL)
-- level: Numeric level mentioned for F&O (e.g. 24000)
+Also extract:
+- symbol: NSE ticker if a specific stock was mentioned (e.g. "RELIANCE", "TCS", "HDFCBANK") — null otherwise
+- fund_query: Fund name/keyword if a mutual fund was mentioned — null otherwise
+- index: "NIFTY", "BANKNIFTY", "FINNIFTY", or "SENSEX" if mentioned (default "NIFTY" for FNO_SIGNAL)
+- level: Numeric price level mentioned for F&O (e.g. 24000) — null otherwise
 
-Respond with ONLY valid JSON in this exact format:
+Respond with ONLY valid JSON:
 {"intent": "INTENT_NAME", "symbol": "SYMBOL_OR_NULL", "fund_query": "FUND_NAME_OR_NULL", "index": "INDEX_OR_NULL", "level": null_or_number, "confidence": 0.0_to_1.0}"""
 
 
@@ -283,96 +283,308 @@ def handle_mutual_fund(fund_query: str, message: str) -> Dict[str, Any]:
 
 
 def handle_portfolio(user_id: int) -> Dict[str, Any]:
-    """Analyse user's portfolio holdings."""
+    """Full portfolio analysis — sector breakdown, risk, holdings, AI narrative."""
     try:
-        from models import ManualEquityHolding
-        holdings = ManualEquityHolding.query.filter_by(user_id=user_id).all()
-
-        if not holdings:
+        from models import Portfolio
+        holdings_check = Portfolio.query.filter_by(user_id=user_id).first()
+        if not holdings_check:
             return {
-                'card_type': 'no_holdings',
+                'card_type': 'prose',
                 'content': (
-                    "You haven't added any equity holdings yet.\n\n"
-                    "Add your stocks via **Portfolio → My Holdings** and I'll analyse "
-                    "sector concentration, risk, diversification gaps, and suggest rebalancing."
+                    "You haven't added any holdings yet.\n\n"
+                    "Upload your holdings CSV using the **+** button in the chat, "
+                    "or add stocks manually via **My Holdings**. "
+                    "Once added, I'll give you sector concentration, risk metrics, "
+                    "diversification gaps, and AI-powered rebalancing suggestions."
                 )
             }
 
         from services.portfolio_analyzer_service import PortfolioAnalyzerService
         service = PortfolioAnalyzerService(user_id)
-        result = service.analyze_portfolio()
+        result  = service.analyze_portfolio()
 
-        if not result:
-            raise ValueError("Empty result from analyzer")
+        if not result or not result.get('success'):
+            raise ValueError(result.get('error', 'Empty result'))
+
+        analysis        = result['analysis']
+        summary         = analysis.get('portfolio_summary', {})
+        sector_alloc    = analysis.get('sector_allocation', {})
+        top_holdings    = analysis.get('top_holdings', [])
+        risk_metrics    = analysis.get('risk_metrics', {})
+        ai_assessment   = analysis.get('ai_assessment', {})
+
+        # Sort sectors by allocation descending
+        sectors_sorted = sorted(sector_alloc.items(), key=lambda x: x[1], reverse=True)
+
+        # AI narrative from portfolio assessment
+        narrative = None
+        try:
+            from services.anthropic_service import AnthropicService
+            total_val   = summary.get('total_value', 0)
+            total_pnl   = summary.get('total_pnl', 0)
+            pnl_pct     = summary.get('total_pnl_percentage', 0)
+            n_holdings  = summary.get('holdings_count', 0)
+            health_sc   = ai_assessment.get('health_score', 75)
+            risk_level  = ai_assessment.get('risk_level', 'Medium')
+            conc_idx    = risk_metrics.get('concentration_index', 0)
+            top3_sectors= ', '.join(f"{s} ({p}%)" for s, p in sectors_sorted[:3])
+            suggestions = ai_assessment.get('suggestions', [])
+            flags = []
+            if ai_assessment.get('concentration_risk'):   flags.append('high single-stock concentration')
+            if ai_assessment.get('under_diversified'):    flags.append('under-diversified')
+            if ai_assessment.get('high_volatility'):      flags.append('high volatility')
+            if ai_assessment.get('sector_concentration'): flags.append('sector over-concentration')
+
+            prompt = (
+                f"Analyse this Indian retail investor's portfolio:\n"
+                f"- Total value: ₹{total_val:,.0f} | P&L: ₹{total_pnl:,.0f} ({pnl_pct:.1f}%)\n"
+                f"- Holdings: {n_holdings} stocks | Health score: {health_sc}/100 | Risk: {risk_level}\n"
+                f"- Top sectors: {top3_sectors}\n"
+                f"- Concentration index: {conc_idx:.2f} (0=perfectly diversified, 1=single stock)\n"
+                + (f"- Risk flags: {', '.join(flags)}\n" if flags else "- No major risk flags\n")
+                + (f"- AI suggestions: {'; '.join(suggestions[:3])}\n" if suggestions else "")
+                + "\nWrite a 3-paragraph portfolio health report:\n"
+                "Para 1: Overall portfolio health — what's working, what isn't.\n"
+                "Para 2: The biggest risk in this portfolio — sector, concentration, or volatility risk. Be specific.\n"
+                "Para 3: Two concrete actions to improve the portfolio for Indian market conditions.\n"
+                "Use 'your portfolio'. Direct, specific, max 220 words. No headers, no bullets."
+            )
+            svc  = AnthropicService()
+            resp = svc.chat(
+                messages=[{'role': 'user', 'content': prompt}],
+                system="Portfolio analyst for Indian retail investors. Direct, data-driven. Not financial advice.",
+                max_tokens=500,
+                temperature=0.3,
+            )
+            narrative = resp.get('content', '').strip()
+        except Exception as e:
+            logger.error(f"Portfolio AI narrative error: {e}")
 
         return {
             'card_type': 'portfolio',
-            'content': "Here's your portfolio analysis:",
-            'card_data': result
+            'content':   f"Here's your portfolio analysis across {summary.get('holdings_count', 0)} holdings:",
+            'card_data': {
+                'summary':       summary,
+                'sectors':       sectors_sorted[:8],          # [(name, pct), ...]
+                'top_holdings':  top_holdings[:8],
+                'risk_metrics':  risk_metrics,
+                'ai_assessment': ai_assessment,
+                'narrative':     narrative,
+                'flags': {
+                    'concentration_risk':    ai_assessment.get('concentration_risk', False),
+                    'under_diversified':     ai_assessment.get('under_diversified', False),
+                    'high_volatility':       ai_assessment.get('high_volatility', False),
+                    'sector_concentration':  ai_assessment.get('sector_concentration', False),
+                },
+                'suggestions':   ai_assessment.get('suggestions', []),
+                'rebalance':     ai_assessment.get('rebalance_actions', []),
+            }
         }
 
-    except ImportError:
-        return {'card_type': 'prose', 'content': "Portfolio analysis is available once you add your holdings. The engine analyses sector concentration, volatility, and rebalancing opportunities."}
     except Exception as e:
-        logger.error(f"Portfolio error: {e}")
+        logger.error(f"Portfolio handler error: {e}", exc_info=True)
         return {
             'card_type': 'prose',
-            'content': "There was an issue loading your portfolio. Make sure you've added holdings first, then ask me again."
+            'content': "There was an issue loading your portfolio analysis. Make sure holdings are added and try again."
         }
 
 
 def handle_behaviour(user_id: int) -> Dict[str, Any]:
-    """Get behavioural coaching analysis."""
+    """Full behavioural + psychology analysis — same rich card as CSV upload path."""
     try:
         from services.behaviour_engine import BehaviourEngine
         engine = BehaviourEngine(user_id, 'live')
 
-        cats = {
-            'trading':     engine.get_trading_behavior(),
-            'risk':        engine.get_risk_behavior(),
-            'portfolio':   engine.get_portfolio_behavior(),
-            'performance': engine.get_performance_patterns(),
-            'psychology':  engine.get_psychology_patterns(),
-        }
-        master = engine.get_master_score(cats)
-        patterns = {}
-        for cd in cats.values():
-            patterns.update(cd.get('modules', {}))
-        personality = engine.get_trading_personality(patterns, master.get('score', 0))
-        alerts = engine.get_today_alerts()[:3]
-
-        score = master.get('score', 0)
-        if score == 0 and not alerts:
+        # Quick data-presence check
+        from models import ManualTradeImport, TradeHistory
+        has_data = (
+            ManualTradeImport.query.filter_by(user_id=user_id).first() is not None or
+            TradeHistory.query.filter_by(user_id=user_id).first() is not None
+        )
+        if not has_data:
             return {
                 'card_type': 'prose',
                 'content': (
-                    "I need some trading history to give you a behavioural analysis.\n\n"
-                    "Once you have trades recorded, I can detect revenge trading, overtrading, "
-                    "loss aversion, and give you a discipline score with coaching tips."
+                    "I need your trade history to run a behavioural analysis.\n\n"
+                    "**Upload a CSV** (Dhan P&L, Dhan Trade History, Zerodha Trade Book, or Zerodha P&L) "
+                    "directly in this chat window using the **+** button. "
+                    "I'll instantly run a full psychology report — revenge trading, overtrading, "
+                    "loss aversion, tilt detection, and a personalised AI narrative."
                 )
             }
 
+        # Full engine run
+        full         = engine.get_full_analysis()
+        score_bd     = engine.get_score_breakdown()
+        root_cause   = engine.get_performance_root_cause()
+        psych_narr   = engine.get_psychology_narratives()
+        correlations = engine.get_cross_module_correlations()
+
+        stats       = full.get('stats', {})
+        categories  = full.get('categories', {})
+        personality = full.get('personality')
+
+        # Flatten modules
+        all_modules = {}
+        for cat_data in categories.values():
+            all_modules.update(cat_data.get('modules', {}))
+
+        active_issues = sorted(
+            [
+                {
+                    'key':      k,
+                    'label':    v.get('label', k.replace('_', ' ').title()),
+                    'severity': v.get('severity', 'none'),
+                    'score':    v.get('score', 50),
+                    'insight':  v.get('insight') or v.get('message', ''),
+                }
+                for k, v in all_modules.items()
+                if v.get('detected') or v.get('severity') in ('high', 'medium')
+            ],
+            key=lambda x: {'high': 0, 'medium': 1, 'low': 2, 'none': 3}.get(x['severity'], 3)
+        )
+
+        _cat_labels = {
+            'trading': 'Trading Behaviour', 'risk': 'Risk Management',
+            'portfolio': 'Portfolio Health', 'performance': 'Performance Patterns',
+            'psychology': 'Psychology',
+        }
+        cat_summary = [
+            {
+                'key':   cat_key,
+                'label': _cat_labels.get(cat_key, cat_key.title()),
+                'score': cat_data.get('score', 50),
+                'modules': [
+                    {
+                        'key':      mk,
+                        'label':    mv.get('label', mk.replace('_', ' ').title()),
+                        'score':    mv.get('score', 50),
+                        'severity': mv.get('severity', 'none'),
+                        'detected': mv.get('detected', False),
+                        'insight':  mv.get('insight') or mv.get('message', ''),
+                    }
+                    for mk, mv in cat_data.get('modules', {}).items()
+                ],
+            }
+            for cat_key, cat_data in categories.items()
+        ]
+
+        # AI narrative
+        narrative   = None
+        action_items = []
+        try:
+            from services.anthropic_service import AnthropicService
+            trade_count = stats.get('total_trades', 0)
+            win_rate    = stats.get('win_rate', 0)
+            wins        = stats.get('wins', 0)
+            losses      = stats.get('losses', 0)
+            total_pnl   = stats.get('total_pnl', 0)
+            rr          = stats.get('risk_reward', 0)
+            overall_sc  = full.get('score', 50)
+
+            issue_lines = '\n'.join(
+                f"  ⚠ {i['label']} ({i['severity']}): {i['insight']}"
+                for i in active_issues[:8]
+            ) or '  ✓ No major issues detected'
+
+            rc_text = ''
+            if root_cause:
+                rc = root_cause.get('root_cause', {})
+                rc_text = f"\nROOT CAUSE: {rc.get('label','')} — {rc.get('detail','')}\nFIX: {root_cause.get('fix_priority','')}\nUPSIDE: {root_cause.get('potential_upside','')}"
+
+            psych_text = '\n'.join(
+                f"  {k}: {v.get('narrative', '')} | Self-check: {v.get('self_awareness', '')}"
+                for k, v in psych_narr.items()
+            )
+
+            prompt = (
+                f"Trading psychology analysis for Indian retail trader.\n"
+                f"SCORE: {overall_sc}/100 ({full.get('score_label','')}) · Archetype: {personality['type'] if personality else 'Unknown'}\n"
+                f"STATS: {trade_count} trades · {win_rate}% win rate ({wins}W/{losses}L) · P&L ₹{total_pnl:,.0f} · R:R {rr}:1\n"
+                f"BREAKDOWN: Discipline {score_bd.get('discipline','?')}/100 · Risk {score_bd.get('risk','?')}/100 · Timing {score_bd.get('timing','?')}/100 · Psychology {score_bd.get('psychology','?')}/100\n"
+                f"ISSUES:\n{issue_lines}"
+                f"\n{rc_text}"
+                + (f"\nDEEP PSYCHOLOGY:\n{psych_text}" if psych_text else '')
+                + "\n\nWrite a 4-paragraph trading psychology report:\n"
+                "Para 1: Archetype and dominant emotional pattern.\n"
+                "Para 2: Specific biases hurting P&L — use actual numbers.\n"
+                "Para 3: Root cause — the core behavioural loop.\n"
+                "Para 4: 3-5 specific ranked actions for Indian markets.\n"
+                "Use 'you'. Direct, data-driven. No headers, no bullets. Max 350 words."
+            )
+            svc  = AnthropicService()
+            resp = svc.chat(
+                messages=[{'role': 'user', 'content': prompt}],
+                system="Trading psychology expert for Indian retail traders. Blunt, specific, data-driven.",
+                max_tokens=700,
+                temperature=0.35,
+            )
+            narrative = resp.get('content', '').strip()
+
+            _action_map = {
+                'revenge_trading':    'Enforce a 30-minute no-trade cooldown after every loss.',
+                'overtrading':        'Hard cap: 3 trades per day. Set this in your broker app.',
+                'loss_aversion':      'Write your stop-loss before entering. Close it when hit — no renegotiating.',
+                'profit_booking':     'Trail stops to entry on a 1R move — let the market exit you.',
+                'tilt':               'Two consecutive losses = stop for the day. Return tomorrow.',
+                'overconfidence':     'After 3 consecutive wins, cap position size to 1% of capital.',
+                'fomo':               'After 3 consecutive wins, cap position size to 1% of capital.',
+                'panic_selling':      'Hide P&L during market hours. Evaluate positions by thesis validity.',
+                'time_of_day':        'Only trade during your proven profitable hours (see timing above).',
+                'drawdown_sensitivity': 'Stop trading when day drawdown hits 2% of capital.',
+                'position_sizing':    'Risk exactly 1-2% of capital per trade using a fixed calculator.',
+                'leverage_risk':      'Immediately halve your F&O lot count to avoid unrecoverable drawdown.',
+                'behavioral_drift':   'Write your trading rules. Read them every morning before market open.',
+            }
+            seen = set()
+            for iss in active_issues:
+                k = iss['key']
+                if k in _action_map and k not in seen:
+                    action_items.append(_action_map[k])
+                    seen.add(k)
+        except Exception as e:
+            logger.error(f"Behaviour AI narrative error: {e}")
+
         return {
-            'card_type': 'behaviour',
-            'content': "Here's your behavioural trading analysis:",
+            'card_type': 'psychology',
+            'content':   f"Here's your full behavioural analysis across {stats.get('total_trades', 0)} trades:",
             'card_data': {
-                'score': score,
-                'category': master.get('category', ''),
-                'color': master.get('color', ''),
-                'personality': personality,
-                'alerts': alerts,
-                'cats': {k: v.get('score', 0) for k, v in cats.items()},
+                'score':          full.get('score', 50),
+                'score_label':    full.get('score_label', ''),
+                'score_color':    full.get('score_color', '#6b7280'),
+                'personality':    personality,
+                'trade_count':    stats.get('total_trades', 0),
+                'win_rate':       stats.get('win_rate', 0),
+                'wins':           stats.get('wins', 0),
+                'losses':         stats.get('losses', 0),
+                'total_pnl':      stats.get('total_pnl', 0),
+                'rr':             stats.get('risk_reward', 0),
+                'avg_win':        stats.get('avg_win', 0),
+                'avg_loss':       stats.get('avg_loss', 0),
+                'score_breakdown': score_bd,
+                'categories':     cat_summary,
+                'active_issues':  active_issues,
+                'root_cause':     root_cause,
+                'psych_narratives': {
+                    k: {'narrative': v.get('narrative', ''), 'self_awareness': v.get('self_awareness', '')}
+                    for k, v in psych_narr.items()
+                },
+                'by_hour':        full.get('by_hour', []),
+                'by_day':         full.get('by_day', []),
+                'by_symbol':      full.get('by_symbol', []),
+                'narrative':      narrative,
+                'action_items':   action_items,
+                'correlations':   correlations[:3],
             }
         }
 
     except Exception as e:
-        logger.error(f"Behaviour error: {e}")
+        logger.error(f"Behaviour handler error: {e}")
         return {
             'card_type': 'prose',
             'content': (
-                "The behavioural coach analyses your trading patterns to detect emotional biases — "
-                "revenge trading, overtrading, and poor risk discipline.\n\n"
-                "Add some trade history first, then ask me again."
+                "The behavioural analysis engine hit an error. "
+                "Make sure you have some trade history — upload a Dhan or Zerodha CSV via the + button."
             )
         }
 
