@@ -49,8 +49,11 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # Try finding in database first
-        admin = Admin.query.filter_by(username=username, active=True).first()
+        # Try finding by username OR email
+        admin = Admin.query.filter(
+            Admin.active == True,
+            (Admin.username == username) | (Admin.email == username)
+        ).first()
         
         if admin and admin.check_password(password):
             session['admin_id'] = admin.id

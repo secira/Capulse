@@ -18,7 +18,7 @@ import sys
 os.environ.setdefault("SKIP_SCHEDULER", "1")
 
 from app import app, db
-from models import User, PricingPlan, SubscriptionStatus
+from models import User, Admin, PricingPlan, SubscriptionStatus
 
 
 TENANT_ID = "live"
@@ -26,16 +26,19 @@ TENANT_ID = "live"
 
 def _upsert(email: str, password: str):
     with app.app_context():
-        user = User.query.filter_by(email=email, tenant_id=TENANT_ID).first()
+        # ── 1. User model — powers /login (main app) ──────────────────────
+        user = User.query.filter(
+            User.tenant_id == TENANT_ID,
+            (User.email == email) | (User.username == email)
+        ).first()
         if user:
             user.set_password(password)
             user.is_admin = True
             user.active = True
             user.pricing_plan = PricingPlan.HNI
-            action = "updated"
+            user_action = "updated"
         else:
             username = email.split("@")[0]
-            # ensure username is unique in this tenant
             if User.query.filter_by(username=username, tenant_id=TENANT_ID).first():
                 username = username + "_admin"
             user = User(
@@ -49,16 +52,34 @@ def _upsert(email: str, password: str):
             )
             user.set_password(password)
             db.session.add(user)
-            action = "created"
+            user_action = "created"
+
+        # ── 2. Admin model — powers /admin/login (admin dashboard) ────────
+        admin = Admin.query.filter(
+            (Admin.email == email) | (Admin.username == email)
+        ).first()
+        if admin:
+            admin.set_password(password)
+            admin.active = True
+            admin.is_super_admin = True
+            admin_action = "updated"
+        else:
+            admin = Admin(
+                username=email,
+                email=email,
+                is_super_admin=True,
+                active=True,
+            )
+            admin.set_password(password)
+            db.session.add(admin)
+            admin_action = "created"
 
         db.session.commit()
-        print(f"✅ Admin user {action}: {email}  (id={user.id})")
-        print(f"   Username : {user.username}")
-        print(f"   is_admin : {user.is_admin}")
-        print(f"   active   : {user.active}")
-        print(f"   Plan     : {user.pricing_plan}")
+        print(f"✅ User  (main app)     {user_action}: {email}  (id={user.id})")
+        print(f"✅ Admin (dashboard)    {admin_action}: {email}  (id={admin.id})")
         print()
-        print("   Login at  /login  with the email + password you just set.")
+        print("   Main app login   →  /login")
+        print("   Admin dashboard  →  /admin/login")
 
 
 def _from_env():
