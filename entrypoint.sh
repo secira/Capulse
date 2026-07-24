@@ -90,6 +90,15 @@ echo "Syncing NSE stock universe (research_list)..."
 SKIP_SCHEDULER=1 python seed_research_list.py \
     || echo "⚠️  Research list seed exited non-zero; continuing to gunicorn."
 
+# ─── Always: seed the admin account (idempotent, hash-only) ──────────────
+# seed_admin.py creates/updates the admin login on every deploy so the
+# account always exists in the production database. It stores only a
+# password hash, never a plaintext password.
+echo ""
+echo "Seeding admin account..."
+SKIP_SCHEDULER=1 python seed_admin.py \
+    || echo "⚠️  Admin seed exited non-zero; continuing to gunicorn."
+
 # ─── Optional: create / reset admin user (only when ADMIN_EMAIL is set) ──
 # Set ADMIN_EMAIL + ADMIN_PASSWORD in Railway Variables for the first deploy,
 # then delete both variables — the script is idempotent and safe to re-run.
