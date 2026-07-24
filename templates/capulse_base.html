@@ -66,6 +66,10 @@ h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:-0.01em}
 .upgrade-btn{display:block;text-align:center;width:100%;background:var(--amber);color:#171008;font-weight:600;font-size:12.5px;padding:8px;border-radius:5px;text-decoration:none}
 .upgrade-btn:hover{background:var(--amber-dim)}
 .sidebar-foot{display:flex;align-items:center;gap:10px;padding:10px 6px;border-top:1px solid var(--line);flex-shrink:0}
+.sidebar-foot-profile{display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-decoration:none;border-radius:6px;transition:background .15s;}
+.sidebar-foot-profile:hover{background:var(--ink-2);}
+.logout-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;color:var(--paper-faint);flex-shrink:0;transition:color .15s,background .15s;text-decoration:none;}
+.logout-btn:hover{color:var(--paper);background:var(--ink-3);}
 .avatar{width:26px;height:26px;border-radius:50%;background:var(--ink-4);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;color:var(--paper-dim);flex-shrink:0;text-transform:uppercase}
 .sidebar-foot .name{font-size:13px;color:var(--paper)}
 .sidebar-foot .plan{font-family:var(--mono);font-size:10px;color:var(--paper-faint)}
@@ -332,14 +336,18 @@ h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:-0.01em}
         <div class="spacer"></div>
       {% endif %}
 
-      <a href="{{ url_for('profile') }}" class="sidebar-foot" style="text-decoration:none;transition:background .15s;border-radius:6px" title="View profile">
-        <div class="avatar">{{ current_user.username[:2] if current_user.username else 'U' }}</div>
-        <div style="flex:1;min-width:0">
-          <div class="name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ current_user.full_name or current_user.username }}</div>
-          <div class="plan">{{ current_user.pricing_plan.name.replace('_', ' ').title() }} plan</div>
-        </div>
-        <svg viewBox="0 0 24 24" fill="none" style="width:13px;height:13px;color:var(--paper-faint);flex-shrink:0"><path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
+      <div class="sidebar-foot">
+        <a href="{{ url_for('profile') }}" class="sidebar-foot-profile" title="View profile">
+          <div class="avatar">{{ current_user.username[:2] if current_user.username else 'U' }}</div>
+          <div style="flex:1;min-width:0">
+            <div class="name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ current_user.full_name or current_user.username }}</div>
+            <div class="plan">{{ current_user.pricing_plan.name.replace('_', ' ').title() }} plan</div>
+          </div>
+        </a>
+        <a href="{{ url_for('logout') }}" class="logout-btn" title="Sign out">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
     {% else %}
       <div class="spacer"></div>
       <div class="sidebar-auth">
