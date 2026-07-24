@@ -111,6 +111,27 @@
 .bubble-bot li{font-size:14px;color:var(--paper-dim);line-height:1.55}
 .bubble-bot ol{margin:6px 0 10px 18px;display:flex;flex-direction:column;gap:4px;list-style:decimal}
 .bubble-bot code{font-family:var(--mono);font-size:12.5px;background:var(--ink-3);padding:2px 5px;border-radius:3px}
+/* ── Composer toolbar — override base flex-row with column layout ─────── */
+.composer{flex-direction:column!important;gap:0!important;padding:10px 10px 6px 14px!important}
+.composer-input-row{display:flex;align-items:flex-end;gap:8px;width:100%}
+.composer-input-row textarea{flex:1;padding:4px 0!important}
+.composer-toolbar{display:flex;align-items:center;justify-content:space-between;padding:4px 2px 2px;width:100%}
+.toolbar-right{display:flex;align-items:center;gap:2px}
+.toolbar-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;background:none;border-radius:7px;cursor:pointer;color:var(--paper-faint);transition:color .15s,background .15s;flex-shrink:0}
+.toolbar-btn:hover{color:var(--paper-dim);background:var(--ink-3)}
+.toolbar-btn svg{width:17px;height:17px}
+/* mic active state */
+.mic-btn.recording{color:var(--risk);background:rgba(239,68,68,.08);animation:mic-pulse 1s ease-in-out infinite}
+@keyframes mic-pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.mic-btn.recording .mic-icon{display:none}
+.mic-btn.recording .mic-wave{display:block!important;color:var(--risk);width:22px;height:14px}
+/* attach preview pill */
+.attach-preview{padding:0 2px 6px}
+.attach-pill{display:inline-flex;align-items:center;gap:7px;background:var(--ink-3);border:1px solid var(--line);border-radius:20px;padding:5px 10px 5px 8px;font-size:12px;color:var(--paper-dim);max-width:280px}
+.attach-pill-icon{font-size:14px;flex-shrink:0}
+.attach-pill span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px}
+.attach-remove{background:none;border:none;color:var(--paper-faint);font-size:16px;line-height:1;cursor:pointer;padding:0 0 0 2px;margin-left:2px;flex-shrink:0}
+.attach-remove:hover{color:var(--risk)}
 {% endblock %}
 
 {% block main_content %}
@@ -239,10 +260,46 @@
 <div class="composer-area">
   <div class="composer-wrap">
     <div class="composer">
-      <textarea id="input" rows="1" placeholder="Ask about a stock, F&amp;O level, mutual fund, or your portfolio..."></textarea>
-      <button class="send-btn" id="sendBtn" disabled aria-label="Send">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
+      <!-- File attachment preview pill -->
+      <div class="attach-preview" id="attachPreview" style="display:none">
+        <span class="attach-pill" id="attachPill">
+          <span class="attach-pill-icon" id="attachPillIcon"></span>
+          <span id="attachPillName"></span>
+          <button class="attach-remove" id="attachRemove" aria-label="Remove attachment">&times;</button>
+        </span>
+      </div>
+      <!-- Main text row -->
+      <div class="composer-input-row">
+        <textarea id="input" rows="1" placeholder="Ask about a stock, F&amp;O level, mutual fund, or your portfolio..."></textarea>
+        <button class="send-btn" id="sendBtn" disabled aria-label="Send">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <!-- Bottom toolbar -->
+      <div class="composer-toolbar">
+        <button class="toolbar-btn attach-btn" id="attachBtn" title="Attach file — image, PDF or CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <!-- hidden file input -->
+        <input type="file" id="fileInput" accept="image/*,.pdf,.csv,.xlsx" style="display:none">
+        <div class="toolbar-right">
+          <button class="toolbar-btn mic-btn" id="micBtn" title="Voice input">
+            <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="2" width="6" height="12" rx="3"/>
+              <path d="M5 10a7 7 0 0 0 14 0M12 19v3M9 22h6"/>
+            </svg>
+            <svg class="mic-wave" viewBox="0 0 32 20" fill="none" style="display:none">
+              <rect x="0" y="6" width="4" height="8" rx="2" fill="currentColor" opacity=".7"/>
+              <rect x="7" y="2" width="4" height="16" rx="2" fill="currentColor"/>
+              <rect x="14" y="4" width="4" height="12" rx="2" fill="currentColor" opacity=".85"/>
+              <rect x="21" y="1" width="4" height="18" rx="2" fill="currentColor"/>
+              <rect x="28" y="5" width="4" height="10" rx="2" fill="currentColor" opacity=".7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
     <div class="composer-foot">
       <p>Capulse gives research, not recommendations. Not investment advice.</p>
@@ -275,6 +332,100 @@ const emptyState = document.getElementById('emptyState');
 const input      = document.getElementById('input');
 const sendBtn    = document.getElementById('sendBtn');
 const footCount  = document.getElementById('footCount');
+
+// ── Attachment state ──────────────────────────────────────────────────────
+const attachBtn     = document.getElementById('attachBtn');
+const fileInput     = document.getElementById('fileInput');
+const attachPreview = document.getElementById('attachPreview');
+const attachPill    = document.getElementById('attachPill');
+const attachPillName= document.getElementById('attachPillName');
+const attachPillIcon= document.getElementById('attachPillIcon');
+const attachRemove  = document.getElementById('attachRemove');
+let   attachedFile  = null;
+
+const FILE_ICONS = { image:'🖼️', pdf:'📄', csv:'📊', excel:'📊', default:'📎' };
+
+function fileIcon(file) {
+  if (file.type.startsWith('image/')) return FILE_ICONS.image;
+  if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) return FILE_ICONS.pdf;
+  if (file.name.endsWith('.csv')) return FILE_ICONS.csv;
+  if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) return FILE_ICONS.excel;
+  return FILE_ICONS.default;
+}
+
+function setAttachment(file) {
+  attachedFile = file;
+  attachPillIcon.textContent = fileIcon(file);
+  attachPillName.textContent = file.name;
+  attachPreview.style.display = 'block';
+  sendBtn.disabled = false;
+}
+
+function clearAttachment() {
+  attachedFile = null;
+  fileInput.value = '';
+  attachPreview.style.display = 'none';
+}
+
+attachBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) setAttachment(file);
+});
+attachRemove.addEventListener('click', () => { clearAttachment(); autosize(); });
+
+// ── Voice input ───────────────────────────────────────────────────────────
+const micBtn = document.getElementById('micBtn');
+let recognition = null;
+let isRecording = false;
+
+(function initVoice() {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) { micBtn.title = 'Voice not supported in this browser'; micBtn.style.opacity = '.35'; micBtn.disabled = true; return; }
+  recognition = new SpeechRec();
+  recognition.lang = 'en-IN';
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+  recognition.continuous = false;
+
+  let interimText = '';
+  const prevText  = () => input.value.replace(interimText, '').trimEnd();
+
+  recognition.onresult = e => {
+    let interim = '', final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      e.results[i].isFinal ? (final += t) : (interim += t);
+    }
+    interimText = interim;
+    input.value = (prevText() + ' ' + (final || interim)).trim();
+    autosize();
+  };
+  recognition.onend = () => {
+    interimText = '';
+    isRecording = false;
+    micBtn.classList.remove('recording');
+  };
+  recognition.onerror = e => {
+    interimText = '';
+    isRecording = false;
+    micBtn.classList.remove('recording');
+    if (e.error !== 'no-speech') console.warn('Speech error:', e.error);
+  };
+})();
+
+micBtn.addEventListener('click', () => {
+  if (!recognition) return;
+  if (isRecording) {
+    recognition.stop();
+    isRecording = false;
+    micBtn.classList.remove('recording');
+  } else {
+    recognition.start();
+    isRecording = true;
+    micBtn.classList.add('recording');
+  }
+});
 
 function updateUsage() {
   if (!IS_AUTH) return;
@@ -560,16 +711,25 @@ function renderCard(data) {
 
 async function trySend() {
   const text = input.value.trim();
-  if (!text || sendBtn.disabled) return;
+  const hasFile = !!attachedFile;
+  if ((!text && !hasFile) || sendBtn.disabled) return;
 
   if (emptyState) emptyState.style.display = 'none';
-  addUserBubble(text);
+
+  // Build display label for user bubble
+  const displayLabel = text
+    ? (hasFile ? `📎 ${attachedFile.name}\n\n${text}` : text)
+    : `📎 ${attachedFile.name}`;
+  addUserBubble(displayLabel);
+
+  const capturedFile = attachedFile;
   input.value = '';
+  clearAttachment();
   autosize();
 
   // Guest: show sign-in gate instead of API call
   if (!IS_AUTH) {
-    addSignInGate(text);
+    addSignInGate(text || attachedFile?.name || '');
     return;
   }
 
@@ -578,19 +738,31 @@ async function trySend() {
   addTyping();
 
   try {
-    const resp = await fetch('/chat/message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, session_id: currentSessionId })
-    });
-    const data = await resp.json();
+    let resp, data;
+
+    if (capturedFile) {
+      // ── File upload path ─────────────────────────────────────────────
+      const fd = new FormData();
+      fd.append('file', capturedFile);
+      fd.append('message', text);
+      fd.append('session_id', currentSessionId);
+      resp = await fetch('/chat/upload', { method: 'POST', body: fd });
+    } else {
+      // ── Text-only path ───────────────────────────────────────────────
+      resp = await fetch('/chat/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, session_id: currentSessionId })
+      });
+    }
+
+    data = await resp.json();
     removeTyping();
 
     if (data.error) {
       addBotHTML(`<p style="color:var(--risk)">${data.error}</p>`);
     } else {
       addBotHTML(renderCard(data));
-      // Track session_id — update once and keep for entire conversation
       if (data.session_id && data.session_id !== currentSessionId) {
         currentSessionId = data.session_id;
         window.history.replaceState({}, '', '/chat?session_id=' + currentSessionId);
