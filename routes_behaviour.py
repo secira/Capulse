@@ -1211,6 +1211,242 @@ def behavioural_coach_assessment():
     )
 
 
+@app.route('/trading-psychology', methods=['GET', 'POST'])
+@login_required
+def trading_psychology():
+    """Trading Psychology Analysis — upload trades, get FOMO/revenge/overtrading report."""
+    from models import ManualTradeImport
+
+    # ── POST: CSV upload ──────────────────────────────────────────────────────
+    if request.method == 'POST':
+        file = request.files.get('trade_file')
+        if not file or not file.filename.endswith('.csv'):
+            flash('Please upload a valid CSV file.', 'danger')
+            return redirect(url_for('trading_psychology'))
+
+        content = file.read().decode('utf-8-sig', errors='replace')
+        fmt = _detect_format(content)
+        tenant_id = current_user.tenant_id or 'live'
+        imported = 0
+        errors = []
+
+        _BROKER_FMTS = ('dhan_pnl', 'dhan_trades', 'zerodha_trades', 'zerodha_pnl')
+        if fmt in _BROKER_FMTS:
+            _PARSER_MAP = {
+                'dhan_pnl': _parse_dhan_pnl,
+                'dhan_trades': _parse_dhan_trade_history,
+                'zerodha_trades': _parse_zerodha_trades,
+                'zerodha_pnl': _parse_zerodha_pnl,
+            }
+            _BROKER_LABEL = {
+                'dhan_pnl': 'Dhan P&L', 'dhan_trades': 'Dhan Trade History',
+                'zerodha_trades': 'Zerodha Trade Book', 'zerodha_pnl': 'Zerodha P&L',
+            }
+            try:
+                trade_dicts = _PARSER_MAP[fmt](content)
+            except ValueError as e:
+                flash(str(e), 'danger')
+                return redirect(url_for('trading_psychology'))
+            if not trade_dicts:
+                flash('No completed round-trip trades found. Open positions are skipped.', 'warning')
+                return redirect(url_for('trading_psychology'))
+            for td in trade_dicts:
+                try:
+                    db.session.add(ManualTradeImport(user_id=current_user.id, tenant_id=tenant_id, **td))
+                    imported += 1
+                except Exception as e:
+                    errors.append(str(e))
+        else:
+            # Generic CSV
+            import csv as _csv, io as _io
+            REQUIRED = {'symbol', 'entry_date', 'exit_date', 'quantity', 'entry_price', 'exit_price'}
+            reader = _csv.DictReader(_io.StringIO(content))
+            headers = {h.strip().lower() for h in (reader.fieldnames or [])}
+            missing = REQUIRED - headers
+            if missing:
+                flash(f'Unrecognised CSV. Missing columns: {", ".join(sorted(missing))}. Download the template below.', 'danger')
+                return redirect(url_for('trading_psychology'))
+            for i, row in enumerate(reader, start=2):
+                try:
+                    row = {k.strip().lower(): v.strip() for k, v in row.items() if k}
+                    entry_dt = _parse_date_any(row['entry_date'])
+                    exit_dt = _parse_date_any(row['exit_date'])
+                    qty = int(float(row['quantity']))
+                    ep = float(row['entry_price'])
+                    xp = float(row['exit_price'])
+                    pnl = (xp - ep) * qty
+                    hold_hrs = max(0.0, (exit_dt - entry_dt).total_seconds() / 3600)
+                    result = 'WIN' if pnl > 0 else ('LOSS' if pnl < 0 else 'BREAKEVEN')
+                    pnl_pct = round((xp - ep) / ep * 100, 2) if ep else 0
+                    charges = float(row.get('charges', 0) or 0)
+                    asset_type = row.get('asset_type', 'STOCK').strip().upper()
+                    if asset_type not in ('STOCK', 'OPTION', 'FUTURES', 'MF'):
+                        asset_type = 'STOCK'
+                    db.session.add(ManualTradeImport(
+                        user_id=current_user.id, tenant_id=tenant_id,
+                        symbol=row['symbol'].upper().strip(), asset_type=asset_type,
+                        instrument_detail='',
+                        strategy_name=row.get('strategy_name', 'Manual').strip() or 'Manual',
+                        quantity=qty, entry_price=ep, exit_price=xp,
+                        realized_pnl=round(pnl, 2), pnl_percentage=pnl_pct,
+                        holding_period_hours=round(hold_hrs, 2),
+                        trade_result=result,
+                        exit_reason=(row.get('exit_reason', 'MANUAL').strip().upper() or 'MANUAL'),
+                        broker_name=row.get('broker_name', 'Manual').strip() or 'Manual',
+                        total_charges=charges, net_pnl=round(pnl - charges, 2),
+                        entry_time=entry_dt, exit_time=exit_dt, source='csv_upload',
+                    ))
+                    imported += 1
+                except Exception as e:
+                    errors.append(f'Row {i}: {e}')
+
+        if imported:
+            db.session.commit()
+            flash(f'Imported {imported} trade{"s" if imported != 1 else ""}. Analysis ready!', 'success')
+        else:
+            db.session.rollback()
+            flash('No valid trades found. Check the file and try again.', 'warning')
+        if errors:
+            flash(f'Skipped {len(errors)} rows with errors: {errors[0]}', 'warning')
+
+        return redirect(url_for('trading_psychology'))
+
+    # ── GET: fetch trades & analyse ───────────────────────────────────────────
+    trades = ManualTradeImport.query.filter_by(user_id=current_user.id).all()
+
+    from routes_chat import _get_user_sessions, _get_today_usage
+    sessions = _get_user_sessions(current_user.id) if current_user.is_authenticated else []
+    today_usage = _get_today_usage(current_user.id) if current_user.is_authenticated else 0
+
+    if not trades:
+        return render_template(
+            'trading_psychology.html',
+            has_trades=False,
+            sessions=sessions, today_usage=today_usage,
+            active_page='trading-psychology',
+        )
+
+    # ── Run BehaviourEngine pattern detection ─────────────────────────────────
+    try:
+        engine = _get_engine()
+        patterns = {
+            'overtrading':          engine.detect_overtrading(),
+            'revenge_trading':      engine.detect_revenge_trading(),
+            'loss_aversion':        engine.detect_loss_aversion(),
+            'profit_booking_bias':  engine.detect_profit_booking_bias(),
+            'tilt':                 engine.detect_tilt(),
+            'overconfidence':       engine.detect_overconfidence(),
+            'panic_selling':        engine.detect_panic_selling(),
+            'time_of_day':          engine.detect_time_of_day_bias(),
+        }
+    except Exception as e:
+        logger.error(f'Psychology engine error: {e}')
+        patterns = {}
+
+    # Overall score
+    scores = [p.get('score', 50) for p in patterns.values() if 'score' in p]
+    overall_score = round(sum(scores) / len(scores)) if scores else 50
+
+    # Trade stats
+    trade_count = len(trades)
+    wins = sum(1 for t in trades if t.trade_result == 'WIN')
+    losses = sum(1 for t in trades if t.trade_result == 'LOSS')
+    win_rate = round(wins / trade_count * 100) if trade_count else 0
+    total_pnl = sum(t.realized_pnl for t in trades)
+
+    # Personality archetype
+    personality = None
+    try:
+        personality = engine.get_trading_personality(patterns, overall_score)
+    except Exception:
+        pass
+
+    # ── AI narrative ──────────────────────────────────────────────────────────
+    narrative = None
+    action_items = []
+    try:
+        from services.anthropic_service import AnthropicService
+
+        detected_issues = []
+        for name, data in patterns.items():
+            if data.get('detected'):
+                label = name.replace('_', ' ').title()
+                msg = data.get('message', '')
+                detected_issues.append(f"- {label}: {msg}")
+
+        prompt = (
+            f"You are analysing the trading psychology of an Indian retail trader.\n\n"
+            f"TRADE SUMMARY:\n"
+            f"- Total closed trades: {trade_count}\n"
+            f"- Win rate: {win_rate}% ({wins} wins, {losses} losses)\n"
+            f"- Net P&L: ₹{total_pnl:,.0f}\n"
+            f"- Overall psychology score: {overall_score}/100\n"
+            f"- Trader archetype: {personality['type'] if personality else 'Unknown'}\n\n"
+            f"DETECTED PSYCHOLOGICAL ISSUES:\n"
+            + (('\n'.join(detected_issues)) if detected_issues else "- No major issues detected — disciplined trader")
+            + "\n\nWrite a direct, personal 3-paragraph psychology report:\n"
+            "Paragraph 1: Overall psychological profile — what type of trader this is and the dominant pattern.\n"
+            "Paragraph 2: Specific biases found and how they are hurting P&L with concrete examples from the data.\n"
+            "Paragraph 3: Three specific, actionable changes for Indian market conditions (NIFTY/BANKNIFTY F&O if relevant).\n\n"
+            "Use 'you' and 'your trades'. Be direct and specific. No headers, no bullet points, plain paragraphs only."
+        )
+        svc = AnthropicService()
+        result = svc.chat(
+            messages=[{'role': 'user', 'content': prompt}],
+            system="You are a trading psychology expert specialising in Indian retail traders. Be honest, direct, and constructive. Never sugarcoat issues.",
+            max_tokens=700,
+            temperature=0.4,
+        )
+        narrative = result.get('content', '').strip()
+
+        # Build action items from detected patterns
+        _action_map = {
+            'revenge_trading': '<strong>Enforce a revenge-trade cooldown:</strong> After any loss, wait at least 30 minutes before placing the next trade. Set a phone alarm.',
+            'overtrading': '<strong>Cap daily trades:</strong> Set a hard limit of 3–5 trades per day in your broker app. Overtrading is the fastest way to pay brokerage instead of earning P&L.',
+            'loss_aversion': '<strong>Set exit rules before entry:</strong> Write your stop-loss before you buy. If you cannot define your exit, do not enter the trade.',
+            'profit_booking_bias': '<strong>Use trailing stops on winners:</strong> Let winners run by trailing your stop-loss 1% below new highs instead of booking the moment you see green.',
+            'tilt': '<strong>Walk away after 2 consecutive losses:</strong> A tilt state destroys your edge. Log out of your broker app after two losses in a row and return tomorrow.',
+            'overconfidence': '<strong>Size down after a winning streak:</strong> Overconfidence peaks after wins. Cap position size to 2% of capital regardless of how good your last 5 trades were.',
+            'panic_selling': '<strong>Remove your P&L view during market hours:</strong> Watching real-time loss triggers panic exits. Check P&L only at 3:30 PM.',
+            'time_of_day': '<strong>Trade only your profitable time window:</strong> Your data shows a time-of-day bias. Restrict live trading to your proven profitable hours only.',
+        }
+        for key, p in patterns.items():
+            if p.get('detected') and key in _action_map:
+                action_items.append(_action_map[key])
+
+    except Exception as e:
+        logger.error(f'Psychology AI narrative error: {e}')
+
+    return render_template(
+        'trading_psychology.html',
+        has_trades=True,
+        patterns=patterns,
+        overall_score=overall_score,
+        personality=personality,
+        narrative=narrative,
+        action_items=action_items,
+        trade_count=trade_count,
+        wins=wins,
+        losses=losses,
+        win_rate=win_rate,
+        total_pnl=total_pnl,
+        sessions=sessions,
+        today_usage=today_usage,
+        active_page='trading-psychology',
+    )
+
+
+@app.route('/trading-psychology/clear', methods=['POST'])
+@login_required
+def trading_psychology_clear():
+    """Delete all imported trades for this user and restart fresh."""
+    from models import ManualTradeImport
+    ManualTradeImport.query.filter_by(user_id=current_user.id).delete()
+    db.session.commit()
+    flash('All imported trades cleared. Upload a new CSV to start fresh.', 'success')
+    return redirect(url_for('trading_psychology'))
+
+
 @app.route('/api/behaviour/alert/<int:alert_id>/acknowledge', methods=['POST'])
 @login_required
 def acknowledge_behaviour_alert(alert_id):
