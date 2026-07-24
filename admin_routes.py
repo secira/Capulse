@@ -1151,7 +1151,7 @@ def research_config():
     portfolio_flags = tenant.config.get('portfolio_hub', {}) if tenant and tenant.config else {}
     
     # Define all possible asset keys from routes_research
-    from routes_research import ASSET_TYPES
+    from constants.research_assets import ASSET_TYPES
     all_asset_keys = ASSET_TYPES.keys()
     
     # Portfolio hub sections
@@ -1251,7 +1251,7 @@ def save_portfolio_flags():
 def save_research_flags():
     """Save asset visibility flags for Research Co-Pilot"""
     from models import Tenant
-    from routes_research import ASSET_TYPES
+    from constants.research_assets import ASSET_TYPES
     
     try:
         tenant = Tenant.query.get('live')
