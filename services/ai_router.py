@@ -16,7 +16,7 @@ Each provider is used for what it does best:
   Claude      → Deep structured analysis requiring long context and careful
                 reasoning: portfolio narratives, workflow hub reports, risk
                 heat-map narration, trade plan generation.
-                Model: claude-3-5-sonnet-20241022 (primary),
+                Model: claude-sonnet-4-5 (primary),
                        claude-haiku-4-5 (fallback for speed).
                 Used by: Workflow Hub (Chief Portfolio Strategist),
                          Portfolio analysis pages, Risk Engine narration.
@@ -87,7 +87,7 @@ def call_claude(
     """
     Make an Anthropic Claude call.
 
-    Primary model:  claude-3-5-sonnet-20241022
+    Primary model:  claude-sonnet-4-5
     Fallback model: claude-3-5-haiku-20241022
 
     Returns the response text, or None on failure.

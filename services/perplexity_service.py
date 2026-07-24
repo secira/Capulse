@@ -39,7 +39,7 @@ class PerplexityService:
                     'citations': [],
                     'timestamp': datetime.now(timezone.utc).isoformat(),
                     'source': 'claude_ai',
-                    'model_used': 'claude-3-5-sonnet-20241022',
+                    'model_used': 'claude-sonnet-4-5',
                     'success': True
                 }
 
@@ -66,7 +66,7 @@ class PerplexityService:
                     'criteria_used': criteria or self._get_default_criteria(),
                     'timestamp': datetime.now(timezone.utc).isoformat(),
                     'source': 'claude_ai',
-                    'model_used': 'claude-3-5-sonnet-20241022',
+                    'model_used': 'claude-sonnet-4-5',
                     'success': True
                 }
 
@@ -132,7 +132,7 @@ class PerplexityService:
                 return None
             client = anthropic.Anthropic(api_key=api_key)
             msg = client.messages.create(
-                model='claude-3-5-sonnet-20241022',
+                model='claude-sonnet-4-5',
                 max_tokens=1500,
                 system=(
                     "You are an expert financial analyst specializing in Indian stock markets (NSE/BSE). "

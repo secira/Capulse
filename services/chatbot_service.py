@@ -254,7 +254,7 @@ Remember: You provide educational insights, not guaranteed investment advice."""
 
             client = _ant.Anthropic(api_key=self.anthropic_api_key)
             response = client.messages.create(
-                model='claude-3-5-sonnet-20241022',
+                model='claude-sonnet-4-5',
                 max_tokens=1000,
                 system=system_text,
                 messages=cleaned_messages,
@@ -264,7 +264,7 @@ Remember: You provide educational insights, not guaranteed investment advice."""
             usage_info = {
                 'tokens_used': (response.usage.input_tokens or 0) + (response.usage.output_tokens or 0),
                 'processing_time': processing_time,
-                'model': 'claude-3-5-sonnet-20241022'
+                'model': 'claude-sonnet-4-5'
             }
             logger.info(f"Generated Claude response in {processing_time:.2f}s using {usage_info['tokens_used']} tokens")
             return ai_response, usage_info

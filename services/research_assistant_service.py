@@ -379,7 +379,7 @@ Format stock data in a table with: Stock Name | Symbol | Current Price (₹) | M
                 import anthropic as _ant
                 client = _ant.Anthropic(api_key=self.anthropic_api_key)
                 msg = client.messages.create(
-                    model='claude-3-5-sonnet-20241022',
+                    model='claude-sonnet-4-5',
                     max_tokens=3000,
                     system=self.system_prompt,
                     messages=[{'role': 'user', 'content': full_prompt}],
