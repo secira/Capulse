@@ -238,6 +238,62 @@
                 </div>
               </div>
               <p class="disclaimer-inline">NAV data from MFApi.in. Past returns are not indicative of future performance.</p>
+            {% elif ctx.get('card_type') == 'psychology' and ctx.get('card_data') %}
+              {% set d = ctx.card_data %}
+              {% set sc = d.get('score', 50) %}
+              {% set pnl = d.get('total_pnl', 0) %}
+              <p>{{ ctx.get('content','') }}</p>
+              <div style="background:var(--ink);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:6px;">
+                {# Mini header #}
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;flex-wrap:wrap;">
+                  <div style="font-family:var(--head);font-size:22px;font-weight:700;color:{{ d.get('score_color','#6b7280') }};min-width:48px;">{{ sc }}<span style="font-size:11px;color:var(--paper-faint)">/100</span></div>
+                  <div>
+                    {% if d.get('personality') %}<div style="font-size:11.5px;font-family:var(--mono);color:{{ d.personality.color }};font-weight:700;margin-bottom:2px;">{{ d.personality.type }}</div>{% endif %}
+                    <div style="font-size:14px;font-weight:700;color:var(--paper);">{{ d.get('score_label','') }} Trader &middot; {{ d.get('trade_count',0) }} trades</div>
+                    <div style="font-size:12px;font-family:var(--mono);color:var(--paper-faint);">{{ d.get('win_rate',0) }}% win rate &middot; R:R {{ d.get('rr',0) }}:1 &middot; P&amp;L ₹{{ d.get('total_pnl',0) | int | abs }}</div>
+                  </div>
+                </div>
+                {# Detected issues #}
+                {% set issues = d.get('active_issues', []) %}
+                {% if issues %}
+                <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;">Detected Patterns</div>
+                <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+                  {% for iss in issues[:5] %}
+                  {% set sev = iss.get('severity','none') %}
+                  {% if sev == 'high' %}{% set ic = '#b91c1c' %}{% set il = '⚠ High' %}
+                  {% elif sev == 'medium' %}{% set ic = '#b45309' %}{% set il = '△ Medium' %}
+                  {% else %}{% set ic = '#15803d' %}{% set il = '✓ OK' %}{% endif %}
+                  <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                      <span style="font-size:12px;font-weight:700;color:var(--paper);">{{ iss.get('label','') }}</span>
+                      <span style="font-size:10px;color:{{ ic }};font-family:var(--mono);font-weight:700;">{{ il }}</span>
+                    </div>
+                    <div style="font-size:12px;color:var(--paper-dim);line-height:1.5;">{{ iss.get('insight','') }}</div>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
+                {# AI Narrative #}
+                {% if d.get('narrative') %}
+                <div style="background:var(--ink-2);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+                  <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">AI Psychology Report</div>
+                  {% for para in d.get('narrative','').split('\n\n') %}
+                    {% if para.strip() %}<p style="font-size:13px;color:var(--paper-dim);line-height:1.7;margin-bottom:8px;">{{ para.strip() }}</p>{% endif %}
+                  {% endfor %}
+                </div>
+                {% endif %}
+                {# Actions #}
+                {% if d.get('action_items') %}
+                <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;">Priority Actions</div>
+                {% for act in d.get('action_items', []) %}
+                <div style="display:flex;gap:10px;align-items:flex-start;background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:6px;">
+                  <div style="width:18px;height:18px;border-radius:50%;background:var(--amber-dim);color:var(--amber);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ loop.index }}</div>
+                  <div style="font-size:12.5px;color:var(--paper-dim);line-height:1.5;">{{ act }}</div>
+                </div>
+                {% endfor %}
+                {% endif %}
+              </div>
+              <p class="disclaimer-inline">Research output only · Not financial advice</p>
             {% else %}
               <div class="prose-content">{{ msg.content }}</div>
             {% endif %}
@@ -676,6 +732,167 @@ function renderBehaviourCard(d) {
   </div>`;
 }
 
+function renderPsychologyCard(d) {
+  const sc = d.score || 50;
+  const scColor = d.score_color || '#6b7280';
+  const circ = 226.2;
+  const offset = circ - (sc / 100) * circ;
+  const pnlColor = (d.total_pnl || 0) >= 0 ? '#22c55e' : '#ef4444';
+  const pnlAbs = Math.abs(Math.round(d.total_pnl || 0)).toLocaleString('en-IN');
+
+  // Score ring
+  const ring = `
+  <div style="display:flex;align-items:center;gap:18px;margin-bottom:14px;flex-wrap:wrap;">
+    <div style="position:relative;width:74px;height:74px;flex-shrink:0;">
+      <svg width="74" height="74" viewBox="0 0 80 80" style="transform:rotate(-90deg)">
+        <circle cx="40" cy="40" r="34" fill="none" stroke="var(--ink-3)" stroke-width="6"/>
+        <circle cx="40" cy="40" r="34" fill="none" stroke="${scColor}" stroke-width="6"
+          stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"/>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--head);font-weight:700;font-size:17px;color:var(--paper);line-height:1.1;">
+        ${sc}<span style="font-size:9px;color:var(--paper-faint);font-family:var(--mono)">/100</span>
+      </div>
+    </div>
+    <div style="flex:1;min-width:180px;">
+      ${d.personality ? `<div style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:11.5px;font-family:var(--mono);font-weight:700;background:${d.personality.color}18;color:${d.personality.color};border:1px solid ${d.personality.color}30;margin-bottom:6px;">${d.personality.type}</div>` : ''}
+      <div style="font-family:var(--head);font-size:16px;font-weight:700;color:var(--paper);margin-bottom:2px;">${d.score_label || ''} Trader</div>
+      ${d.personality ? `<div style="font-size:12px;color:var(--paper-dim);line-height:1.5;margin-bottom:6px;">${d.personality.description}</div>` : ''}
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        <span style="font-size:11.5px;font-family:var(--mono);color:var(--paper-faint);"><strong style="color:var(--paper)">${d.win_rate}%</strong> win rate</span>
+        <span style="font-size:11.5px;font-family:var(--mono);color:var(--paper-faint);"><strong style="color:var(--paper)">${d.wins}W / ${d.losses}L</strong></span>
+        <span style="font-size:11.5px;font-family:var(--mono);color:var(--paper-faint);"><strong style="color:${pnlColor}">₹${pnlAbs}</strong> P&L</span>
+        <span style="font-size:11.5px;font-family:var(--mono);color:var(--paper-faint);"><strong style="color:var(--paper)">${d.rr}:1</strong> R:R</span>
+      </div>
+    </div>
+  </div>`;
+
+  // Score breakdown
+  const bdItems = [
+    ['Discipline', d.score_breakdown?.discipline || 0, '#3b82f6'],
+    ['Risk Mgmt',  d.score_breakdown?.risk || 0,       '#f59e0b'],
+    ['Timing',     d.score_breakdown?.timing || 0,     '#8b5cf6'],
+    ['Psychology', d.score_breakdown?.psychology || 0, '#ec4899'],
+  ];
+  const breakdown = `
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;">
+    ${bdItems.map(([label, val, col]) => `
+    <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;font-family:var(--mono);color:var(--paper-faint);margin-bottom:5px;">
+        <span>${label}</span><strong style="color:${col}">${val}</strong>
+      </div>
+      <div style="height:3px;border-radius:2px;background:var(--ink-3);overflow:hidden;">
+        <div style="height:100%;width:${val}%;background:${col};border-radius:2px;"></div>
+      </div>
+    </div>`).join('')}
+  </div>`;
+
+  // Top detected issues
+  const issues = (d.active_issues || []).slice(0, 6);
+  const issueCards = issues.length ? `
+  <div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Detected Patterns</div>
+  <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px;">
+    ${issues.map(iss => {
+      const sev = iss.severity;
+      const [bc, btext] = sev === 'high' ? ['rgba(220,38,38,.1)', '#b91c1c'] :
+                          sev === 'medium' ? ['rgba(245,158,11,.1)', '#b45309'] :
+                          ['rgba(22,163,74,.1)', '#15803d'];
+      const badge = sev === 'high' ? '⚠ High' : sev === 'medium' ? '△ Medium' : '✓ OK';
+      return `<div style="background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:11px 13px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="font-size:12px;font-weight:700;color:var(--paper);flex:1;">${iss.label}</span>
+          <span style="font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:100px;background:${bc};color:${btext};font-weight:700;">${badge}</span>
+        </div>
+        <div style="height:2px;background:var(--ink-3);border-radius:2px;overflow:hidden;margin-bottom:5px;">
+          <div style="height:100%;width:${iss.score}%;background:${btext};border-radius:2px;"></div>
+        </div>
+        <div style="font-size:12px;color:var(--paper-dim);line-height:1.5;">${iss.insight}</div>
+      </div>`;
+    }).join('')}
+  </div>` : '';
+
+  // Root cause
+  let rootCauseHtml = '';
+  if (d.root_cause) {
+    const rc = d.root_cause.root_cause || {};
+    const sev = rc.severity || 'warning';
+    const [rbg, rcol] = sev === 'critical' ? ['rgba(220,38,38,.07)', '#b91c1c'] :
+                        sev === 'good'     ? ['rgba(22,163,74,.07)', '#15803d'] :
+                        ['rgba(245,158,11,.07)', '#b45309'];
+    rootCauseHtml = `
+    <div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Root Cause</div>
+    <div style="background:${rbg};border:1px solid ${rcol}40;border-radius:10px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:11px;font-family:var(--mono);font-weight:700;color:${rcol};margin-bottom:5px;">${rc.label || ''}</div>
+      <div style="font-size:13px;color:var(--paper-dim);line-height:1.55;margin-bottom:8px;">${rc.detail || ''}</div>
+      <div style="font-size:12px;color:var(--paper-faint);line-height:1.5;"><strong style="color:var(--paper-dim)">Fix:</strong> ${d.root_cause.fix_priority || ''}</div>
+      ${d.root_cause.potential_upside ? `<div style="font-size:11.5px;font-family:var(--mono);color:var(--amber);margin-top:6px;">↗ ${d.root_cause.potential_upside}</div>` : ''}
+    </div>`;
+  }
+
+  // Deep psychology narratives
+  let psychHtml = '';
+  const pn = d.psych_narratives || {};
+  const pnKeys = Object.keys(pn).filter(k => pn[k].narrative);
+  if (pnKeys.length) {
+    const pnLabels = { behavioral_drift: 'Behavioral Drift', panic_selling: 'Panic Selling', fomo: 'FOMO / Overconfidence', loss_aversion: 'Loss Aversion' };
+    psychHtml = `
+    <div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Deep Psychology</div>
+    ${pnKeys.map(k => `
+    <div style="background:var(--ink-2);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:8px;">
+      <div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--amber);text-transform:uppercase;margin-bottom:5px;">${pnLabels[k] || k}</div>
+      <div style="font-size:13px;color:var(--paper-dim);line-height:1.6;margin-bottom:6px;">${pn[k].narrative}</div>
+      ${pn[k].self_awareness ? `<div style="font-size:12px;color:var(--paper-faint);font-style:italic;border-left:2px solid var(--amber-dim);padding-left:8px;line-height:1.5;">${pn[k].self_awareness}</div>` : ''}
+    </div>`).join('')}`;
+  }
+
+  // Win rate by hour/day mini heatmaps
+  let timingHtml = '';
+  if ((d.by_hour || []).some(h => h.total > 0)) {
+    const hourCells = (d.by_hour || []).map(h => {
+      if (!h.total) return `<div style="background:var(--ink-2);border-radius:5px;padding:8px 4px;text-align:center;"><div style="font-size:9px;color:var(--paper-faint);">${h.hour}</div><div style="font-size:11px;color:var(--paper-faint);">—</div></div>`;
+      const c = h.win_rate >= 60 ? '#22c55e' : h.win_rate >= 45 ? '#f59e0b' : '#ef4444';
+      const bg = h.win_rate >= 60 ? 'rgba(34,197,94,.12)' : h.win_rate >= 45 ? 'rgba(245,158,11,.1)' : 'rgba(239,68,68,.1)';
+      return `<div style="background:${bg};border-radius:5px;padding:8px 4px;text-align:center;" title="${h.total} trades">
+        <div style="font-size:9px;color:var(--paper-faint);">${h.hour}</div>
+        <div style="font-size:12px;font-weight:700;color:${c};">${h.win_rate}%</div>
+        <div style="font-size:9px;color:var(--paper-faint);">${h.total}T</div>
+      </div>`;
+    }).join('');
+    timingHtml = `
+    <div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Win Rate by Hour</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:14px;">${hourCells}</div>`;
+  }
+
+  // AI narrative
+  const narrativeHtml = d.narrative ? `
+  <div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">AI Psychology Report</div>
+  <div style="background:var(--ink-2);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:10px;padding:16px 18px;margin-bottom:14px;">
+    ${d.narrative.split('\n\n').filter(p => p.trim()).map(p => `<p style="font-size:13.5px;color:var(--paper-dim);line-height:1.7;margin-bottom:10px;">${p.trim()}</p>`).join('')}
+  </div>` : '';
+
+  // Action items
+  const actionsHtml = (d.action_items || []).length ? `
+  <div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--paper-faint);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Priority Actions</div>
+  <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px;">
+    ${(d.action_items).map((act, i) => `
+    <div style="display:flex;align-items:flex-start;gap:10px;background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:11px 13px;">
+      <div style="width:20px;height:20px;border-radius:50%;background:var(--amber-dim);color:var(--amber);font-family:var(--mono);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</div>
+      <div style="font-size:12.5px;color:var(--paper-dim);line-height:1.5;">${act}</div>
+    </div>`).join('')}
+  </div>` : '';
+
+  return `<div style="background:var(--ink);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:8px;">
+    ${ring}
+    ${breakdown}
+    ${issueCards}
+    ${rootCauseHtml}
+    ${timingHtml}
+    ${psychHtml}
+    ${narrativeHtml}
+    ${actionsHtml}
+    <div style="font-size:11px;color:var(--paper-faint);font-family:var(--mono);margin-top:4px;">Research output only · Not financial advice</div>
+  </div>`;
+}
+
 function renderCard(data) {
   const cardType = data.card_type || 'prose';
   let html = '';
@@ -694,6 +911,8 @@ function renderCard(data) {
     html += renderPortfolioCard(data.card_data);
   } else if (cardType === 'behaviour' && data.card_data) {
     html += renderBehaviourCard(data.card_data);
+  } else if (cardType === 'psychology' && data.card_data) {
+    html += renderPsychologyCard(data.card_data);
   }
 
   if (!html) html = `<p>I'm here to help with i-Scores, F&O signals, mutual funds, portfolio analysis, and market education.</p>`;
