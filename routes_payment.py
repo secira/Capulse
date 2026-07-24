@@ -114,6 +114,27 @@ def subscribe(plan_type):
         flash('Payment service is temporarily unavailable. Please try again shortly.', 'danger')
         return redirect(url_for('pricing'))
 
+    # ── Create a pending Payment record so the webhook can activate the
+    # subscription even if the frontend verification call never arrives
+    # (network drop, browser closed after Razorpay succeeds, etc.)
+    try:
+        pending = Payment(
+            user_id=current_user.id,
+            razorpay_payment_id=f"pending_{order_result['order_id']}",
+            razorpay_order_id=order_result['order_id'],
+            amount=plan['price'],
+            currency='INR',
+            status='pending',
+            plan_type=plan['pricing_plan'],
+            billing_period='monthly',
+            tenant_id='live',
+        )
+        db.session.add(pending)
+        db.session.commit()
+    except Exception as _pe:
+        logger.warning(f"Could not create pending payment record: {_pe}")
+        db.session.rollback()
+
     return render_template(
         'payment/checkout.html',
         plan=plan,
@@ -251,10 +272,16 @@ def payment_success():
         delta = current_user.subscription_end_date - datetime.utcnow()
         days_remaining = max(0, delta.days)
 
+    # Find the matching plan key by PricingPlan enum value (PLANS keys are
+    # lowercase strings; payment.plan_type is a PricingPlan enum)
+    _plan_key = next(
+        (k for k, v in PLANS.items() if v['pricing_plan'] == payment.plan_type),
+        None
+    )
     subscription = {
         'end_date': current_user.subscription_end_date,
         'days_remaining': days_remaining,
-        'features': PLANS.get(payment.plan_type.value, {}).get('features', []),
+        'features': PLANS[_plan_key]['features'] if _plan_key else [],
     }
 
     return render_template('payment/success.html',
@@ -293,55 +320,133 @@ def upgrade_plan():
 @app.route('/webhook/razorpay', methods=['POST'])
 @csrf.exempt
 def razorpay_webhook():
-    """Handle Razorpay webhooks"""
+    """Handle Razorpay webhooks — fallback subscription activator."""
     try:
         webhook_signature = request.headers.get('X-Razorpay-Signature')
-        webhook_body = request.get_data()
-        webhook_secret = os.environ.get('RAZORPAY_WEBHOOK_SECRET')
+        webhook_body     = request.get_data()
+        webhook_secret   = os.environ.get('RAZORPAY_WEBHOOK_SECRET')
 
-        if webhook_secret and webhook_signature:
-            expected_signature = hmac.new(
+        # ── Signature verification ────────────────────────────────────────
+        if webhook_secret:
+            if not webhook_signature:
+                logger.warning("Webhook: missing X-Razorpay-Signature header — rejected")
+                return jsonify({'status': 'error', 'message': 'Missing signature'}), 403
+            expected = hmac.new(
                 webhook_secret.encode(),
                 webhook_body,
                 hashlib.sha256,
             ).hexdigest()
-
-            if not hmac.compare_digest(webhook_signature, expected_signature):
-                logger.warning("Invalid webhook signature")
+            if not hmac.compare_digest(webhook_signature, expected):
+                logger.warning("Webhook: invalid signature — rejected")
                 return jsonify({'status': 'error', 'message': 'Invalid signature'}), 403
+        else:
+            # Secret not configured — log and accept (set RAZORPAY_WEBHOOK_SECRET for production)
+            logger.warning("Webhook: RAZORPAY_WEBHOOK_SECRET not set; skipping signature check")
 
-        event_data = request.get_json()
-        event_type = event_data.get('event') if event_data else None
-        logger.info(f"Received Razorpay webhook: {event_type}")
+        event_data = request.get_json(silent=True) or {}
+        event_type = event_data.get('event')
+        logger.info(f"Razorpay webhook received: {event_type}")
 
         if event_type == 'payment.captured':
-            payment_data = event_data.get('payload', {}).get('payment', {}).get('entity', {})
+            payment_data  = event_data.get('payload', {}).get('payment', {}).get('entity', {})
             rzp_payment_id = payment_data.get('id')
-            order_id = payment_data.get('order_id')
-            if order_id and rzp_payment_id:
-                payment = Payment.query.filter_by(razorpay_order_id=order_id).first()
-                if payment and payment.status == 'pending':
-                    payment.razorpay_payment_id = rzp_payment_id
-                    payment.status = 'captured'
-                    user = User.query.get(payment.user_id)
-                    if user:
-                        user.pricing_plan = payment.plan_type
-                        user.subscription_status = SubscriptionStatus.ACTIVE
-                        user.subscription_start_date = datetime.utcnow()
-                        user.subscription_end_date = datetime.utcnow() + timedelta(days=30)
-                    db.session.commit()
+            order_id       = payment_data.get('order_id')
+            notes          = payment_data.get('notes', {})
+
+            if not (order_id and rzp_payment_id):
+                return jsonify({'status': 'ok'}), 200
+
+            existing = Payment.query.filter_by(razorpay_order_id=order_id).first()
+
+            if existing and existing.status == 'captured':
+                # Frontend already verified and activated — nothing to do
+                logger.info(f"Webhook: order {order_id} already captured, skipping")
+                return jsonify({'status': 'ok'}), 200
+
+            if existing and existing.status == 'pending':
+                # Pending record exists (created by subscribe()) — activate it
+                existing.razorpay_payment_id = rzp_payment_id
+                existing.status = 'captured'
+                user = User.query.get(existing.user_id)
+                plan_info = next(
+                    (v for v in PLANS.values() if v['pricing_plan'] == existing.plan_type),
+                    None
+                )
+                duration_days = plan_info['duration_days'] if plan_info else 30
+                if user:
+                    now = datetime.utcnow()
+                    user.pricing_plan = existing.plan_type
+                    user.subscription_status = SubscriptionStatus.ACTIVE
+                    user.subscription_start_date = now
+                    base = user.subscription_end_date if (
+                        user.subscription_end_date and user.subscription_end_date > now
+                    ) else now
+                    user.subscription_end_date = base + timedelta(days=duration_days)
+                    logger.info(f"Webhook: activated {existing.plan_type} for user {user.id}")
+                db.session.commit()
+
+            elif not existing:
+                # No record at all (edge case: pending write failed) — try from notes
+                user_id_str = notes.get('user_id') or notes.get('user_id', '')
+                plan_type   = notes.get('plan_type', '')
+                if user_id_str and plan_type and plan_type in PLANS:
+                    try:
+                        uid = int(user_id_str)
+                        plan_info = PLANS[plan_type]
+                        user = User.query.get(uid)
+                        if user:
+                            now = datetime.utcnow()
+                            new_payment = Payment(
+                                user_id=uid,
+                                razorpay_payment_id=rzp_payment_id,
+                                razorpay_order_id=order_id,
+                                amount=plan_info['price'],
+                                currency='INR',
+                                status='captured',
+                                plan_type=plan_info['pricing_plan'],
+                                billing_period='monthly',
+                                tenant_id='live',
+                            )
+                            db.session.add(new_payment)
+                            user.pricing_plan = plan_info['pricing_plan']
+                            user.subscription_status = SubscriptionStatus.ACTIVE
+                            user.subscription_start_date = now
+                            base = user.subscription_end_date if (
+                                user.subscription_end_date and user.subscription_end_date > now
+                            ) else now
+                            user.subscription_end_date = base + timedelta(days=plan_info['duration_days'])
+                            db.session.commit()
+                            logger.info(f"Webhook: created payment+activated user {uid} via notes fallback")
+                    except Exception as _wb_err:
+                        db.session.rollback()
+                        logger.error(f"Webhook notes-fallback error: {_wb_err}")
+                else:
+                    logger.warning(f"Webhook: no pending payment and no usable notes for order {order_id}")
 
         elif event_type == 'payment.failed':
             payment_data = event_data.get('payload', {}).get('payment', {}).get('entity', {})
             order_id = payment_data.get('order_id')
             if order_id:
                 payment = Payment.query.filter_by(razorpay_order_id=order_id).first()
-                if payment:
+                if payment and payment.status == 'pending':
                     payment.status = 'failed'
                     db.session.commit()
+                    logger.info(f"Webhook: marked order {order_id} as failed")
+
+        elif event_type == 'subscription.charged':
+            # Recurring subscription renewal
+            sub_data = event_data.get('payload', {}).get('payment', {}).get('entity', {})
+            order_id = sub_data.get('order_id')
+            if order_id:
+                payment = Payment.query.filter_by(razorpay_order_id=order_id).first()
+                if payment:
+                    user = User.query.get(payment.user_id)
+                    if user and user.subscription_end_date:
+                        user.subscription_end_date += timedelta(days=30)
+                        db.session.commit()
 
         return jsonify({'status': 'ok'}), 200
 
     except Exception as e:
-        logger.error(f"Webhook processing error: {e}")
+        logger.error(f"Webhook processing error: {e}", exc_info=True)
         return jsonify({'status': 'error', 'message': str(e)}), 500

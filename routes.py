@@ -7710,62 +7710,83 @@ def create_razorpay_order():
 @app.route('/api/payment-success', methods=['POST'])
 @login_required
 def handle_payment_success():
-    """Handle successful payment and upgrade user plan"""
+    """Legacy payment handler — delegates to the main /payment/verify endpoint.
+    
+    This endpoint existed before the proper checkout flow was built.
+    It now enforces signature verification before doing anything.
+    New integrations should use /subscribe/<plan_type> + /payment/verify instead.
+    """
     try:
-        data = request.get_json()
-        payment_id = data.get('payment_id')
-        order_id = data.get('order_id')
-        signature = data.get('signature')
-        plan_type = data.get('plan_type')
-        
-        # Verify payment signature if using real Razorpay
-        if razorpay_client and signature:
-            try:
-                razorpay_client.utility.verify_payment_signature({
-                    'razorpay_order_id': order_id,
-                    'razorpay_payment_id': payment_id,
-                    'razorpay_signature': signature
-                })
-            except:
-                return jsonify({'success': False, 'message': 'Payment verification failed'})
-        
-        # Determine plan and amount
-        if plan_type == 'target_plus':
-            current_user.pricing_plan = PricingPlan.TARGET_PLUS
-            amount = 1499
-        elif plan_type == 'target_pro':
-            current_user.pricing_plan = PricingPlan.TARGET_PRO
-            amount = 2499
-        else:
-            return jsonify({'success': False, 'message': 'Invalid plan type'})
-        
-        # Update user subscription
+        data = request.get_json() or {}
+        payment_id = data.get('payment_id', '').strip()
+        order_id   = data.get('order_id', '').strip()
+        signature  = data.get('signature', '').strip()
+        plan_type  = data.get('plan_type', '').strip()
+
+        if not all([payment_id, order_id, signature, plan_type]):
+            return jsonify({'success': False, 'message': 'Missing required payment parameters'}), 400
+
+        # Signature verification is MANDATORY — no upgrade without it
+        if not razorpay_client:
+            logging.error("handle_payment_success: Razorpay client not initialised")
+            return jsonify({'success': False, 'message': 'Payment service not configured'}), 503
+
+        try:
+            razorpay_client.utility.verify_payment_signature({
+                'razorpay_order_id': order_id,
+                'razorpay_payment_id': payment_id,
+                'razorpay_signature': signature,
+            })
+        except Exception as sig_err:
+            logging.warning(f"handle_payment_success: signature verification failed: {sig_err}")
+            return jsonify({'success': False, 'message': 'Payment verification failed'}), 403
+
+        _PLAN_MAP = {
+            'target_plus':   (PricingPlan.TARGET_PLUS, 1499),
+            'capulse_plus':  (PricingPlan.TARGET_PLUS, 999),
+            'target_pro':    (PricingPlan.TARGET_PRO,  2499),
+            'hni':           (PricingPlan.HNI,         4999),
+        }
+        if plan_type not in _PLAN_MAP:
+            return jsonify({'success': False, 'message': f'Unknown plan: {plan_type}'}), 400
+
+        pricing_plan_enum, amount = _PLAN_MAP[plan_type]
+
+        # Idempotency — don't double-process the same payment_id
+        existing = Payment.query.filter_by(razorpay_payment_id=payment_id).first()
+        if existing:
+            return jsonify({'success': True, 'message': 'Payment already processed'})
+
+        now = datetime.utcnow()
+        current_user.pricing_plan = pricing_plan_enum
         current_user.subscription_status = SubscriptionStatus.ACTIVE
-        current_user.subscription_start_date = datetime.utcnow()
-        current_user.subscription_end_date = datetime.utcnow() + timedelta(days=30)
-        current_user.total_payments += amount
-        
-        # Create payment record
+        current_user.subscription_start_date = now
+        base = current_user.subscription_end_date if (
+            current_user.subscription_end_date and current_user.subscription_end_date > now
+        ) else now
+        current_user.subscription_end_date = base + timedelta(days=30)
+        current_user.total_payments = (current_user.total_payments or 0) + amount
+
         payment = Payment(
             user_id=current_user.id,
             razorpay_payment_id=payment_id,
             razorpay_order_id=order_id,
             amount=amount,
+            currency='INR',
             status='captured',
-            plan_type=current_user.pricing_plan,
-            billing_period='monthly'
+            plan_type=pricing_plan_enum,
+            billing_period='monthly',
         )
-        
         db.session.add(payment)
         db.session.commit()
-        
-        logging.info(f"User {current_user.id} upgraded to {plan_type} plan")
+
+        logging.info(f"User {current_user.id} upgraded to {plan_type} via legacy endpoint")
         return jsonify({'success': True, 'message': 'Plan upgraded successfully!'})
-        
+
     except Exception as e:
         db.session.rollback()
-        logging.error(f"Payment processing failed: {str(e)}")
-        return jsonify({'success': False, 'message': 'Payment processing failed'})
+        logging.error(f"handle_payment_success failed: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Payment processing failed'}), 500
 
 @app.route('/api/generate-referral-code', methods=['POST'])
 @login_required
