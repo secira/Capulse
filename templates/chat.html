@@ -178,7 +178,7 @@
                 </div>
                 {% if d.summary %}<div class="score-foot"><b>Summary:</b> {{ d.summary }}</div>{% endif %}
               </div>
-              <p class="disclaimer-inline">Research output, not a recommendation. Subject to SEBI RA oversight.</p>
+              <p class="disclaimer-inline">Research output only · Not a recommendation.</p>
             {% elif ctx.get('card_type') == 'fno_signals' and ctx.get('card_data') %}
               {% set fno = ctx.card_data %}
               <p>{{ ctx.get('content','') }}</p>
@@ -666,7 +666,7 @@ function renderIScoreCard(d) {
     <div class="score-bars">${bars}</div>
     ${d.summary ? `<div class="score-foot"><b>Summary:</b> ${d.summary}</div>` : ''}
   </div>
-  <p class="disclaimer-inline">Research output, not a recommendation. Subject to SEBI RA oversight.</p>`;
+  <p class="disclaimer-inline">Research output only · Not a recommendation.</p>`;
 }
 
 function renderFnoCard(d) {
