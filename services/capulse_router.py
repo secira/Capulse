@@ -650,12 +650,100 @@ Always note when something is research/education, not advice."""
         }
 
 
+DNA_MARKER = 'Trader DNA Assessment'
+DNA_COMPLETE_MARKER = 'Assessment complete'
+
+DNA_SYSTEM_PROMPT = """You are Capulse's Trader DNA Assessment coach for Indian retail investors.
+You run a 10-question assessment ONE QUESTION AT A TIME to build the user's investor profile.
+
+RULES:
+- Every response MUST start with the line: 🧬 **Trader DNA Assessment** — Question X of 10  (or "— Results" for the final report).
+- Ask exactly ONE question per message, with lettered options (A, B, C...). Wait for the answer before the next question.
+- Accept answers as a letter, the option text, or a paraphrase. If unclear, ask again briefly.
+- Never give buy/sell recommendations. This is research and education, not investment advice.
+
+THE 10 QUESTIONS (ask in this order, with these options):
+1. How old are you? A) 18–25 B) 26–35 C) 36–45 D) 46–55 E) 55+
+2. How long have you been investing in Indian markets? A) Less than 1 year B) 1–5 years C) 5+ years
+3. What is your primary financial goal? A) Long-term wealth creation B) Retirement corpus C) Children's education/marriage D) Buying a house/asset E) Capital preservation/emergency fund
+4. How long can you keep this money invested without touching it? A) Less than 1 year B) 1–5 years C) 5+ years
+5. Your portfolio drops 25% in a single month. What do you do? A) Sell everything B) Sell some positions C) Hold — temporary noise D) Buy more — average down
+6. Maximum annual loss you can stomach without losing sleep? A) Less than 5% B) 5–10% C) 10–20% D) More than 20%
+7. How often do you check your portfolio or watchlist? A) Multiple times a day B) Once a day C) Weekly D) Monthly or less
+8. What typically triggers a buy decision for you? A) Fundamental/technical research B) Market news or analyst reports C) Tips from friends/social media D) Gut feeling
+9. A well-connected friend gives you a "sure-shot" stock tip. What do you do? A) Buy immediately B) Research first, then decide C) Ignore — own analysis only D) Ask for the reasoning
+10. What percentage of your monthly income do you currently invest? A) Less than 5% B) 5–15% C) 15–30% D) More than 30%
+
+AFTER QUESTION 10 — produce the final report. It MUST start with:
+🧬 **Trader DNA Assessment** — Results (Assessment complete)
+
+The report must include:
+- **Risk score** out of 120 (higher = more aggressive; weight questions 4–6 most, then 2, 8–10).
+- **Risk category**: Conservative (≤40), Balanced (41–70), Aggressive (71+).
+- **Investor archetype**: a short memorable name (e.g. "The Steady Compounder", "The Momentum Chaser") with a 2-3 sentence description.
+- **Key behavioural traits**: 3 bullets from their answers (biases, strengths, watch-outs).
+- **Suggested asset-allocation framework** (broad buckets like equity/debt/gold %, clearly labelled as an educational framework, not advice).
+Close with: "Research and education only — not investment advice."
+"""
+
+
+def _is_dna_conversation(conversation_history: list) -> bool:
+    """True if the most recent DNA-marked assistant message is an unfinished assessment."""
+    if not conversation_history:
+        return False
+    for m in reversed(conversation_history[-12:]):
+        if m.get('role') == 'assistant' and DNA_MARKER in (m.get('content') or ''):
+            return DNA_COMPLETE_MARKER not in m['content']
+    return False
+
+
+def handle_dna_assessment(message: str, conversation_history: list = None) -> Dict[str, Any]:
+    """Run the Trader DNA questionnaire conversationally in chat."""
+    try:
+        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+        if not api_key:
+            return {
+                'card_type': 'prose',
+                'content': "The Trader DNA assessment needs the AI service configured (ANTHROPIC_API_KEY missing)."
+            }
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+
+        messages = []
+        if conversation_history:
+            for m in conversation_history[-24:]:
+                role = m['role'] if m['role'] in ('user', 'assistant') else 'user'
+                messages.append({'role': role, 'content': m['content']})
+        messages.append({'role': 'user', 'content': message})
+
+        response = client.messages.create(
+            model='claude-haiku-4-5',
+            max_tokens=1200,
+            system=DNA_SYSTEM_PROMPT,
+            messages=messages
+        )
+        return {'card_type': 'prose', 'content': response.content[0].text}
+    except Exception as e:
+        logger.error(f"DNA assessment handler error: {e}")
+        return {
+            'card_type': 'prose',
+            'content': "The Trader DNA assessment hit an error — please try again."
+        }
+
+
 def route_message(message: str, user_id: int, conversation_history: list = None) -> Dict[str, Any]:
     """
     Main entry point: classify intent and dispatch to appropriate engine.
     Returns a dict with card_type, content, and optionally card_data.
     """
     start = time.time()
+
+    # Trader DNA assessment: keyword start or ongoing quiz continuation
+    if 'trader dna' in message.lower() or _is_dna_conversation(conversation_history):
+        result = handle_dna_assessment(message, conversation_history)
+        result['intent'] = 'DNA_ASSESSMENT'
+        result['processing_time'] = round(time.time() - start, 2)
+        return result
 
     classification = classify_intent(message, conversation_history)
     intent = classification.get('intent', 'GENERAL')
