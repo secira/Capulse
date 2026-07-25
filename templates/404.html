@@ -1,271 +1,94 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-<title>Page Not Found — Capulse</title>
-<meta name="robots" content="noindex, nofollow">
-<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+{% extends "base.html" %}
+
+{% block title %}Page Not Found — Capulse{% endblock %}
+
+{% block content %}
 <style>
-:root {
-  --ink:      #0A0F1E;
-  --surface:  #121A2E;
-  --surface-2:#182241;
-  --teal:     #16E0BD;
-  --teal-dim: rgba(22,224,189,0.12);
-  --gold:     #F5A623;
-  --gold-dim: rgba(245,166,35,0.12);
-  --red:      #EF4444;
-  --text:     #F4F6FB;
-  --muted:    #8B93A7;
-  --border:   rgba(244,246,251,0.09);
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-body {
-  background: var(--ink);
-  color: var(--text);
-  font-family: 'IBM Plex Sans', sans-serif;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
+.err-page {
+  min-height: 78vh;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
 }
-h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
-a { color: inherit; text-decoration: none; }
-img, svg { display: block; }
-
-/* ── NAV ── */
-header {
-  position: sticky; top: 0; z-index: 50;
-  background: rgba(10,15,30,0.86);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
+.err-box {
+  text-align: center;
+  max-width: 480px;
+  width: 100%;
 }
-nav {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 32px; max-width: 1180px; margin: 0 auto;
-}
-.brand { display: flex; align-items: center; gap: 10px; }
-.brand-name {
-  font-family: 'Space Grotesk'; font-weight: 700; font-size: 17px;
-  letter-spacing: -0.01em;
-}
-.brand-sub { font-size: 10px; color: var(--muted); font-family: 'IBM Plex Mono'; letter-spacing: 0.04em; margin-top: 1px; }
-.nav-links { display: flex; align-items: center; gap: 28px; }
-.nav-links a { font-size: 14.5px; color: var(--muted); transition: color .15s; }
-.nav-links a:hover { color: var(--text); }
-.nav-cta { display: flex; align-items: center; gap: 12px; }
-.btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 14px; font-weight: 600;
-  padding: 10px 20px; border-radius: 8px;
-  cursor: pointer; border: 1px solid transparent; transition: all .15s;
-}
-.btn-ghost { color: var(--text); border-color: var(--border); }
-.btn-ghost:hover { border-color: var(--muted); }
-.btn-primary { background: var(--teal); color: var(--ink); }
-.btn-primary:hover { background: #3CEBCC; }
-@media (max-width: 900px) { .nav-links { display: none; } }
-
-/* ── BETA BANNER ── */
-.beta-banner {
-  background: linear-gradient(90deg, #7c3aed 0%, #2563eb 100%);
-  color: #fff;
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 13px; font-weight: 500;
-  text-align: center; padding: 9px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.15);
-  letter-spacing: 0.01em;
-}
-.beta-badge {
-  display: inline-block;
-  background: rgba(255,255,255,0.2);
-  padding: 2px 8px; border-radius: 4px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; margin-right: 8px;
-}
-.beta-banner a { color: #fff; text-decoration: underline; font-weight: 600; margin: 0 4px; }
-
-/* ── MAIN CONTENT ── */
-main {
-  flex: 1;
+.err-icon-wrap {
+  width: 80px; height: 80px;
+  background: #fff8ec;
+  border: 1.5px solid #fde68a;
+  border-radius: 20px;
   display: flex; align-items: center; justify-content: center;
-  padding: 80px 24px;
+  margin: 0 auto 24px;
 }
-.err-wrap { text-align: center; max-width: 520px; }
-
-/* animated grid background */
-.err-wrap::before {
-  content: '';
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background-image:
-    linear-gradient(rgba(22,224,189,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(22,224,189,0.04) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-.err-icon {
-  position: relative; z-index: 1;
-  width: 88px; height: 88px; margin: 0 auto 28px;
-  background: var(--gold-dim);
-  border: 1px solid rgba(245,166,35,0.25);
-  border-radius: 24px;
-  display: flex; align-items: center; justify-content: center;
-  animation: pulse 3s ease-in-out infinite;
-}
-.err-icon svg { width: 40px; height: 40px; }
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245,166,35,0); }
-  50%       { box-shadow: 0 0 0 16px rgba(245,166,35,0.08); }
-}
-
+.err-icon-wrap svg { width: 38px; height: 38px; }
 .err-code {
-  position: relative; z-index: 1;
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: clamp(80px, 16vw, 120px);
-  font-weight: 700; letter-spacing: -0.04em; line-height: 1;
-  background: linear-gradient(135deg, var(--gold) 0%, #F97316 50%, var(--teal) 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 12px;
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 80px; font-weight: 700; line-height: 1;
+  color: #111827;
+  letter-spacing: -2px;
+  margin-bottom: 8px;
 }
 .err-title {
-  position: relative; z-index: 1;
-  font-size: 24px; font-weight: 700; margin-bottom: 12px;
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 20px; font-weight: 600;
+  color: #374151; margin-bottom: 12px;
 }
 .err-desc {
-  position: relative; z-index: 1;
-  color: var(--muted); font-size: 15px; line-height: 1.65; margin-bottom: 36px;
+  font-size: 15px; color: #6b7280;
+  line-height: 1.65; margin-bottom: 32px;
 }
-.err-actions {
-  position: relative; z-index: 1;
+.err-btns {
   display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
 }
-.err-actions .btn {
-  padding: 12px 24px; border-radius: 50px; font-size: 15px;
+.err-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 26px; border-radius: 50px;
+  font-size: 15px; font-weight: 600;
+  text-decoration: none; transition: all .18s;
 }
-.btn-home {
-  background: var(--teal); color: var(--ink); font-weight: 700;
+.err-btn-primary {
+  background: #0066cc; color: #fff; border: 2px solid #0066cc;
 }
-.btn-home:hover { background: #3CEBCC; transform: translateY(-1px); }
-.btn-dash {
-  color: var(--text);
-  border: 1px solid var(--border);
-  background: rgba(244,246,251,0.05);
+.err-btn-primary:hover { background: #0052a3; border-color: #0052a3; color: #fff; }
+.err-btn-outline {
+  background: #fff; color: #374151;
+  border: 2px solid #d1d5db;
 }
-.btn-dash:hover { border-color: var(--muted); transform: translateY(-1px); }
-
-/* divider */
-.err-divider {
-  position: relative; z-index: 1;
-  margin: 40px auto 32px;
-  width: 48px; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--border), transparent);
-}
-.err-links {
-  position: relative; z-index: 1;
-  display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center;
-}
-.err-links a {
-  font-size: 13px; color: var(--muted); transition: color .15s;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.err-links a:hover { color: var(--teal); }
-.err-links a svg { width: 13px; height: 13px; }
-
-/* ── FOOTER ── */
-footer {
-  padding: 20px 32px;
-  border-top: 1px solid var(--border);
-  text-align: center;
-  font-size: 12px; color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
-}
+.err-btn-outline:hover { border-color: #9ca3af; color: #111827; }
 </style>
-</head>
-<body>
 
-<!-- NAV -->
-<header>
-  <nav>
-    <div class="brand">
-      <a href="/" style="display:flex;align-items:center;gap:10px;">
-        <svg height="30" viewBox="0 0 130 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 17H11L14.5 8L21 26L24.5 17H32" stroke="#F5A623" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-          <text x="40" y="24" font-family="Space Grotesk,system-ui,sans-serif" font-weight="700" font-size="19" fill="#F4F6FB" letter-spacing="-0.3">Capulse</text>
-        </svg>
-        <div>
-          <div class="brand-name">Capulse</div>
-          <div class="brand-sub">SCENTRIC AI ENGINE</div>
-        </div>
-      </a>
-    </div>
-    <div class="nav-links">
-      <a href="/equities">Equities</a>
-      <a href="/mutual-funds">Mutual Funds</a>
-      <a href="/fo">F&amp;O</a>
-      <a href="/pricing">Pricing</a>
-      <a href="/about">About</a>
-    </div>
-    <div class="nav-cta">
-      <a class="btn btn-ghost" href="/login">Log in</a>
-      <a class="btn btn-primary" href="/register">Start free</a>
-    </div>
-  </nav>
-</header>
+<div class="err-page">
+  <div class="err-box">
 
-<!-- BETA BANNER -->
-<div class="beta-banner">
-  <span class="beta-badge">BETA</span>
-  Welcome to Capulse — India's AI-powered trading decision engine.
-  {% if not current_user.is_authenticated %}
-    <a href="{{ url_for('register') }}">Create a free account</a>
-    &nbsp;·&nbsp;
-    <a href="{{ url_for('login') }}">Sign in</a>
-  {% endif %}
-</div>
-
-<!-- MAIN -->
-<main>
-  <div class="err-wrap">
-
-    <!-- icon -->
-    <div class="err-icon">
+    <div class="err-icon-wrap">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-              fill="rgba(245,166,35,0.2)" stroke="#F5A623" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-        <line x1="12" y1="9" x2="12" y2="13" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
-        <line x1="12" y1="17" x2="12.01" y2="17" stroke="#F5A623" stroke-width="2.2" stroke-linecap="round"/>
+              fill="#fef3c7" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="12" y1="9" x2="12" y2="13" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
+        <line x1="12" y1="17" x2="12.01" y2="17" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round"/>
       </svg>
     </div>
 
-    <!-- number -->
     <div class="err-code">404</div>
-
-    <!-- heading & copy -->
-    <h1 class="err-title">Page Not Found</h1>
+    <div class="err-title">Page Not Found</div>
     <p class="err-desc">
-      The page you're looking for doesn't exist or has been moved.<br>
-      It may have been renamed, or the URL might be incorrect.
+      The page you're looking for doesn't exist or has been moved.
     </p>
 
-    <!-- CTA buttons -->
-    <div class="err-actions">
-      <a href="/" class="btn btn-home">
+    <div class="err-btns">
+      <a href="{{ url_for('index') }}" class="err-btn err-btn-primary">
         <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
           <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7A1 1 0 003 11h1v6a1 1 0 001 1h4v-4h2v4h4a1 1 0 001-1v-6h1a1 1 0 00.707-1.707l-7-7z"/>
         </svg>
         Go Home
       </a>
       {% if current_user.is_authenticated %}
-      <a href="{{ url_for('dashboard') }}" class="btn btn-dash">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" width="16" height="16">
+      <a href="{{ url_for('dashboard') }}" class="err-btn err-btn-outline">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
           <rect x="2" y="2" width="7" height="7" rx="1.5"/>
           <rect x="11" y="2" width="7" height="7" rx="1.5"/>
           <rect x="2" y="11" width="7" height="7" rx="1.5"/>
@@ -274,8 +97,8 @@ footer {
         Dashboard
       </a>
       {% else %}
-      <a href="{{ url_for('login') }}" class="btn btn-dash">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" width="16" height="16">
+      <a href="{{ url_for('login') }}" class="err-btn err-btn-outline">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
           <path d="M3 10h12M11 5l5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         Sign In
@@ -283,42 +106,6 @@ footer {
       {% endif %}
     </div>
 
-    <!-- quick links -->
-    <div class="err-divider"></div>
-    <div class="err-links">
-      <a href="/equities">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <polyline points="1,12 5,7 9,9 15,3"/>
-        </svg>
-        I-Score Equities
-      </a>
-      <a href="/fo">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/>
-        </svg>
-        F&amp;O Signals
-      </a>
-      <a href="/pricing">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M2 4h12v8H2z" rx="1"/><path d="M6 4V2h4v2"/>
-        </svg>
-        Pricing
-      </a>
-      <a href="{{ url_for('chat.chat_home') if current_user.is_authenticated else url_for('register') }}">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M2 3h12a1 1 0 011 1v7a1 1 0 01-1 1H5l-3 2V4a1 1 0 011-1z"/>
-        </svg>
-        Ask AI
-      </a>
-    </div>
-
   </div>
-</main>
-
-<!-- FOOTER -->
-<footer>
-  &copy; {{ 2026 }} Capulse · Scentric Networks Pvt. Ltd. · Not investment advice.
-</footer>
-
-</body>
-</html>
+</div>
+{% endblock %}
