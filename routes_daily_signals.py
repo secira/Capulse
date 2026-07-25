@@ -489,7 +489,7 @@ def dashboard_daily_signals():
     the F&O hybrid loading pattern).
     """
     if not current_user.is_authenticated or not current_user.can_access_menu('dashboard_trading_signals'):
-        flash("This feature requires a Target Plus or higher subscription.", "warning")
+        flash("This feature requires a Capulse Plus subscription.", "warning")
         return redirect(url_for('pricing'))
     return render_template('dashboard/live_market_pulse.html')
 

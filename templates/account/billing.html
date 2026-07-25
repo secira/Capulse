@@ -49,7 +49,7 @@
 
                                 {% if is_trial %}
                                     {% if current_user.is_trial_active() %}
-                                    <p class="text-muted mb-0 small">14-day free trial — full Growth Plan privileges</p>
+                                    <p class="text-muted mb-0 small">14-day free trial — full Capulse Plus privileges</p>
                                     {% else %}
                                     <p class="text-danger mb-0 small fw-semibold">Trial ended — upgrade to continue</p>
                                     {% endif %}
@@ -103,10 +103,6 @@
                         <a href="{{ url_for('pricing') }}" class="btn btn-primary btn-lg rounded-pill px-4">
                             <i class="fas fa-arrow-up me-1"></i>Upgrade Plan
                         </a>
-                        {% elif current_user.pricing_plan == PricingPlan.HNI %}
-                        <a href="{{ url_for('contact') }}" class="btn btn-outline-primary rounded-pill px-4">
-                            Contact Manager
-                        </a>
                         {% else %}
                         <a href="{{ url_for('pricing') }}" class="btn {% if expiring_soon %}btn-danger{% else %}btn-outline-primary{% endif %} rounded-pill px-4">
                             {% if expiring_soon %}<i class="fas fa-redo me-1"></i>Renew Now{% else %}Change Plan{% endif %}
@@ -129,17 +125,52 @@
             </div>
         </div>
         
-        <div class="row g-4">
-            <!-- Growth Plan -->
-            <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100 {% if current_user.pricing_plan == PricingPlan.TARGET_PLUS %}border-primary border-2{% endif %}" style="border-radius: 16px;">
+        <div class="row g-4 justify-content-center">
+            <!-- Free Plan -->
+            <div class="col-lg-5">
+                <div class="card border-0 shadow-sm h-100 {% if current_user.pricing_plan == PricingPlan.FREE %}border-secondary border-2{% endif %}" style="border-radius: 16px;">
                     <div class="card-body p-4">
                         <div class="text-center mb-4">
-                            <span class="badge bg-success rounded-pill px-3 py-1 mb-2" style="background:#16a34a!important;font-size:11px;">Growth</span>
-                            <h4 class="fw-bold text-dark mb-1">Growth Plan</h4>
-                            <p class="text-muted small mb-4">Build consistency</p>
+                            <span class="badge bg-secondary rounded-pill px-3 py-1 mb-2" style="font-size:11px;">Free</span>
+                            <h4 class="fw-bold text-dark mb-1">Free Plan</h4>
+                            <p class="text-muted small mb-4">Explore Capulse risk-free</p>
                             <div class="d-flex align-items-baseline justify-content-center">
-                                <h2 class="display-5 fw-bold text-primary mb-0 me-1">₹1,499</h2>
+                                <h2 class="display-5 fw-bold text-dark mb-0 me-1">₹0</h2>
+                                <small class="text-muted">/14-day trial</small>
+                            </div>
+                        </div>
+                        <div class="features-list mb-4">
+                            <ul class="list-unstyled" style="font-size:14px;">
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Dashboard access</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Live Market Pulse</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Portfolio analysis (manual upload)</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>5 AI questions/day</li>
+                                <li class="mb-2"><i class="fas fa-times text-muted me-2"></i>No broker connection</li>
+                                <li class="mb-2"><i class="fas fa-times text-muted me-2"></i>No F&O signals</li>
+                            </ul>
+                        </div>
+                        {% if current_user.pricing_plan == PricingPlan.FREE %}
+                            <span class="btn btn-secondary w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
+                        {% else %}
+                            <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Free Trial Ended</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Capulse Plus Plan -->
+            <div class="col-lg-5">
+                <div class="card border-0 shadow-lg h-100 position-relative {% if current_user.pricing_plan != PricingPlan.FREE %}border-primary border-2{% endif %}" style="border-radius: 16px;">
+                    <div class="position-absolute top-0 start-50 translate-middle">
+                        <span class="badge bg-primary px-3 py-2 rounded-pill">Most Popular</span>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="text-center mb-4">
+                            <span class="badge rounded-pill px-3 py-1 mb-2" style="background:#ede9fe;color:#7c3aed;font-size:11px;">Plus</span>
+                            <h4 class="fw-bold text-dark mb-1">Capulse Plus</h4>
+                            <p class="text-muted small mb-4">Full AI-powered trading intelligence</p>
+                            <div class="d-flex align-items-baseline justify-content-center">
+                                <h2 class="display-5 fw-bold text-primary mb-0 me-1">₹999</h2>
                                 <small class="text-muted">/month</small>
                             </div>
                         </div>
@@ -151,83 +182,13 @@
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Behavioural AI Engine</li>
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Daily Trading Signals</li>
                                 <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Trade Now with guardrails</li>
+                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>100 AI questions/day</strong></li>
                             </ul>
                         </div>
-                        {% if current_user.pricing_plan == PricingPlan.TARGET_PLUS %}
+                        {% if current_user.pricing_plan != PricingPlan.FREE %}
                             <span class="btn btn-success w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
-                        {% elif current_user.pricing_plan.value in ['TARGET_PRO', 'HNI'] %}
-                            <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Included in Plan</span>
                         {% else %}
-                            <button class="btn btn-primary w-100 py-2 rounded-pill fw-semibold" onclick="upgradeToPlan('target_plus')">Upgrade Now</button>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Pro Plan (Popular) -->
-            <div class="col-lg-4">
-                <div class="card border-0 shadow-lg h-100 position-relative {% if current_user.pricing_plan == PricingPlan.TARGET_PRO %}border-primary border-2{% endif %}" style="border-radius: 16px;">
-                    <div class="position-absolute top-0 start-50 translate-middle">
-                        <span class="badge bg-primary px-3 py-2 rounded-pill">Most Popular</span>
-                    </div>
-                    <div class="card-body p-4">
-                        <div class="text-center mb-4">
-                            <span class="badge rounded-pill px-3 py-1 mb-2" style="background:#ede9fe;color:#7c3aed;font-size:11px;">Pro</span>
-                            <h4 class="fw-bold text-dark mb-1">Pro Plan</h4>
-                            <p class="text-muted small mb-4">Scale capital safely</p>
-                            <div class="d-flex align-items-baseline justify-content-center">
-                                <h2 class="display-5 fw-bold text-primary mb-0 me-1">₹2,499</h2>
-                                <small class="text-muted">/month</small>
-                            </div>
-                        </div>
-                        <div class="features-list mb-4">
-                            <ul class="list-unstyled" style="font-size:14px;">
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>3 broker connections</strong></li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>1 data API broker</strong></li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>All Growth Plan features</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Multi-broker Trade Now</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Portfolio optimization</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Priority email support</li>
-                            </ul>
-                        </div>
-                        {% if current_user.pricing_plan == PricingPlan.TARGET_PRO %}
-                            <span class="btn btn-success w-100 py-2 rounded-pill fw-semibold disabled">Current Plan</span>
-                        {% elif current_user.pricing_plan == PricingPlan.HNI %}
-                            <span class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-semibold disabled">Included in Plan</span>
-                        {% else %}
-                            <button class="btn btn-primary w-100 py-2 rounded-pill fw-semibold" onclick="upgradeToPlan('target_pro')">Upgrade Now</button>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Elite Plan -->
-            <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100 {% if current_user.pricing_plan == PricingPlan.HNI %}border-warning border-2{% endif %}" style="border-radius: 16px; border: 1px solid #fde68a !important;">
-                    <div class="card-body p-4">
-                        <div class="text-center mb-4">
-                            <span class="badge rounded-pill px-3 py-1 mb-2" style="background:#fef3c7;color:#d97706;font-size:11px;">Elite</span>
-                            <h4 class="fw-bold text-dark mb-1">Elite Plan</h4>
-                            <p class="text-muted small mb-4">Active decision-making</p>
-                            <div class="d-flex align-items-baseline justify-content-center">
-                                <h2 class="display-5 fw-bold text-primary mb-0 me-1">₹4,999</h2>
-                                <small class="text-muted">/month</small>
-                            </div>
-                        </div>
-                        <div class="features-list mb-4">
-                            <ul class="list-unstyled" style="font-size:14px;">
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>3 broker connections</strong></li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>1 data API broker</strong></li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>All Pro Plan features</li>
-                                <li class="mb-2"><i class="fas fa-star text-warning me-2"></i><strong>Dedicated account manager</strong></li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Premium 24/7 support</li>
-                                <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Priority onboarding</li>
-                            </ul>
-                        </div>
-                        {% if current_user.pricing_plan == PricingPlan.HNI %}
-                            <span class="btn btn-warning w-100 py-2 rounded-pill fw-semibold disabled text-dark">Current Plan</span>
-                        {% else %}
-                            <button class="btn btn-warning w-100 py-2 rounded-pill fw-semibold text-dark" onclick="upgradeToPlan('hni')">Upgrade to Elite</button>
+                            <button class="btn btn-primary w-100 py-2 rounded-pill fw-semibold" onclick="upgradeToPlan('target_plus')">Upgrade Now — ₹999/mo</button>
                         {% endif %}
                     </div>
                 </div>

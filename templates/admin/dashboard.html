@@ -112,15 +112,7 @@
                 </div>
                 <div class="d-flex justify-content-between mb-2">
                     <span><span class="badge bg-info me-1">Plus</span> Capulse Plus</span>
-                    <strong>{{ plan_breakdown.target_plus|default(0) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                    <span><span class="badge bg-primary me-1">Pro</span> Capulse Pro</span>
-                    <strong>{{ plan_breakdown.target_pro|default(0) }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                    <span><span class="badge bg-warning text-dark me-1">Elite</span> Elite (HNI)</span>
-                    <strong>{{ plan_breakdown.hni|default(0) }}</strong>
+                    <strong>{{ (plan_breakdown.target_plus|default(0)) + (plan_breakdown.target_pro|default(0)) + (plan_breakdown.hni|default(0)) }}</strong>
                 </div>
                 <hr class="my-2">
                 <div class="d-flex justify-content-between">

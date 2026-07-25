@@ -137,7 +137,7 @@
             </thead>
             <tbody>
               {% set rate = partner.commission_percentage | float %}
-              {% for plan, price in [('Growth', 1499), ('Pro', 2499), ('Elite', 4999)] %}
+              {% for plan, price in [('Free', 0), ('Capulse Plus', 999)] %}
               {% set net = price * 0.98 %}
               {% set comm = net * rate / 100 %}
               <tr>

@@ -85,9 +85,7 @@
                 {% set plan_val = user.pricing_plan.value if user.pricing_plan else 'free' %}
                 <div class="mb-3 d-flex align-items-center gap-2">
                     <span class="fw-bold text-muted small">Current:</span>
-                    {% if plan_val == 'hni' %}<span class="badge bg-danger">Elite (HNI)</span>
-                    {% elif plan_val == 'target_pro' %}<span class="badge bg-warning text-dark">Pro</span>
-                    {% elif plan_val == 'target_plus' %}<span class="badge bg-info text-dark">Growth</span>
+                    {% if plan_val in ('hni', 'target_pro', 'target_plus') %}<span class="badge bg-info text-dark">Capulse Plus</span>
                     {% else %}<span class="badge bg-secondary">Free</span>{% endif %}
                     {% if user.subscription_end_date %}
                         {% if user.subscription_end_date < now %}
@@ -105,10 +103,8 @@
                     <div class="mb-2">
                         <label class="form-label fw-semibold small mb-1">Plan</label>
                         <select name="pricing_plan" class="form-select form-select-sm" id="planSelect">
-                            <option value="free"         {{ 'selected' if plan_val == 'free' }}>Free (Trial)</option>
-                            <option value="target_plus"  {{ 'selected' if plan_val == 'target_plus' }}>Capulse Plus</option>
-                            <option value="target_pro"   {{ 'selected' if plan_val == 'target_pro' }}>Capulse Pro</option>
-                            <option value="hni"          {{ 'selected' if plan_val == 'hni' }}>Elite (HNI)</option>
+                            <option value="free"        {{ 'selected' if plan_val == 'free' }}>Free (Trial)</option>
+                            <option value="target_plus" {{ 'selected' if plan_val in ('target_plus','target_pro','hni') }}>Capulse Plus</option>
                         </select>
                     </div>
 

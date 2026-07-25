@@ -18,8 +18,6 @@
             </button>
             <ul class="dropdown-menu">
                 <li><a class="dropdown-item" href="{{ url_for('admin.users') }}">All Users</a></li>
-                <li><a class="dropdown-item" href="{{ url_for('admin.users') }}?plan=hni">HNI Users</a></li>
-                <li><a class="dropdown-item" href="{{ url_for('admin.users') }}?plan=target_pro">Capulse Pro Users</a></li>
                 <li><a class="dropdown-item" href="{{ url_for('admin.users') }}?plan=target_plus">Capulse Plus Users</a></li>
                 <li><a class="dropdown-item" href="{{ url_for('admin.users') }}?plan=free">Free Users</a></li>
             </ul>
@@ -118,12 +116,8 @@
                             </td>
                             <td>
                                 {% set pv = user.pricing_plan.value if user.pricing_plan else 'free' %}
-                                {% if pv == 'hni' %}
-                                    <span class="badge bg-danger">Elite</span>
-                                {% elif pv == 'target_pro' %}
-                                    <span class="badge bg-warning text-dark">Pro</span>
-                                {% elif pv == 'target_plus' %}
-                                    <span class="badge bg-info text-dark">Growth</span>
+                                {% if pv in ('target_plus', 'target_pro', 'hni') %}
+                                    <span class="badge bg-info text-dark">Capulse Plus</span>
                                 {% else %}
                                     <span class="badge bg-secondary">Free</span>
                                 {% endif %}

@@ -340,10 +340,10 @@ def send_trade_alert_email(to_emails, signal_data: dict, index_id: str = 'NIFTY'
 
 # ── 6. Subscription Update Email ──────────────────────────────────────────────
 PLAN_DISPLAY = {
-    'FREE': 'Starter (Free)',
-    'TARGET_PLUS': 'Growth',
-    'TARGET_PRO': 'Pro',
-    'HNI': 'Elite',
+    'FREE': 'Free (Trial)',
+    'TARGET_PLUS': 'Capulse Plus',
+    'TARGET_PRO': 'Capulse Plus',
+    'HNI': 'Capulse Plus',
 }
 
 def send_subscription_update_email(user, old_plan: str, new_plan: str) -> bool:

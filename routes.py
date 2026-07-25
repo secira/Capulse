@@ -677,7 +677,7 @@ def add_broker():
         existing_brokers_count = BrokerAccount.query.filter_by(user_id=current_user.id, is_active=True).count()
 
         if max_brokers == 0:
-            flash('Broker connections are not available on the Starter Plan. Upgrade to Growth Plan or higher.', 'error')
+            flash('Broker connections are not available on the Free Plan. Upgrade to Capulse Plus to connect your broker.', 'error')
             return redirect(url_for('broker_management'))
 
         if existing_brokers_count >= max_brokers:
@@ -1994,7 +1994,7 @@ def dashboard_trading_signals():
     # Check if user has paid subscription (admins always have full access)
     from models import PricingPlan
     if not current_user.is_admin and not current_user.has_full_access():
-        flash('Trading signals are available for Target Plus, Target Pro, and HNI subscribers only.', 'warning')
+        flash('Trading signals are available for Capulse Plus subscribers.', 'warning')
         return redirect(url_for('pricing'))
     
     # Get date filter parameter — default to today in Indian Standard Time

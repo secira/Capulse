@@ -13,13 +13,9 @@
                 <span class="plan-name">{{ current_user.get_plan_display_name() }}</span>
                 <span class="plan-badge {{ current_user.pricing_plan.value }}">
                     {% if current_user.pricing_plan.value == 'free' %}
-                    Starter
-                    {% elif current_user.pricing_plan.value == 'target_plus' %}
-                    Growth
-                    {% elif current_user.pricing_plan.value == 'target_pro' %}
-                    Pro
+                    Free
                     {% else %}
-                    Elite
+                    Plus
                     {% endif %}
                 </span>
             </div>

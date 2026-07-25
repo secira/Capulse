@@ -245,7 +245,7 @@
                 <input type="number" id="triggerPriceInput" class="form-control"
                        name="trigger_price" step="0.01" placeholder="0.00">
             </div>
-            {% if connected_brokers|length > 0 and current_user.pricing_plan in [PricingPlan.TARGET_PRO, PricingPlan.HNI] %}
+            {% if connected_brokers|length > 0 and current_user.pricing_plan != PricingPlan.FREE %}
             <button type="button" id="instantTradeBtn" onclick="showTradeConfirmation()" class="tn-cta">
                 <i class="fas fa-bolt me-1"></i><span id="ctaLabel">Instant Buy</span>
             </button>

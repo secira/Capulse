@@ -570,7 +570,7 @@ h5, h6 {
                             </td>
                             <td class="text-center">
                                 <div class="btn-group">
-                                    {% if current_user.is_admin or current_user.pricing_plan in [PricingPlan.TARGET_PRO, PricingPlan.HNI] %}
+                                    {% if current_user.is_admin or current_user.pricing_plan != PricingPlan.FREE %}
                                     <button class="btn btn-success btn-sm" 
                                             onclick="tradeSignal('{{ signal.symbol }}', '{{ signal.action }}', {{ signal.entry_price }}, {{ signal.quantity or 100 }}, '{{ signal.signal_type }}', {{ signal.id }}, '{{ signal.strategy_name or 'Trend Following' }}')"
                                             title="Execute Trade">
@@ -579,7 +579,7 @@ h5, h6 {
                                     {% else %}
                                     <button class="btn btn-secondary btn-sm" 
                                             onclick="showUpgradeToProAlert()"
-                                            title="Upgrade to TARGET PRO to Trade">
+                                            title="Upgrade to Capulse Plus to Trade">
                                         <i class="fas fa-lock"></i>
                                     </button>
                                     {% endif %}
@@ -1223,7 +1223,7 @@ function showUpgradeAlert() {
 }
 
 function showUpgradeToProAlert() {
-    alert('capulse.tech says: Upgrade to TARGET PRO (₹2,499) or HNI (₹4,999) to execute trades with your primary broker. TARGET PLUS users can view signals but cannot trade.');
+    alert('Upgrade to Capulse Plus (₹999/mo) to execute trades with your broker.');
     window.location.href = '/pricing';
 }
 

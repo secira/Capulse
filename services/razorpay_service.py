@@ -157,36 +157,36 @@ class RazorpayService:
         """Get available subscription plans with pricing"""
         return {
             'FREE': {
-                'name': 'Starter Plan',
+                'name': 'Free Plan',
                 'tagline': 'Start your journey',
                 'price': 0,
                 'duration_days': 0,
                 'features': ['Dashboard access', 'Live Market Pulse', 'Portfolio Analysis (manual upload)', 'Equity, MF & Gold tracking'],
-                'limits': {'portfolios': 1, 'watchlist': 10, 'ai_queries': 0, 'brokers': 0, 'trade_brokers': 0}
+                'limits': {'portfolios': 1, 'watchlist': 10, 'ai_queries': 5, 'brokers': 0, 'trade_brokers': 0}
             },
             'TARGET_PLUS': {
-                'name': 'Growth Plan',
-                'tagline': 'Build consistency',
-                'price': 1499,
+                'name': 'Capulse Plus',
+                'tagline': 'Full AI-powered trading intelligence',
+                'price': 999,
                 'duration_days': 30,
-                'features': ['1 broker connection (trading + data API)', 'AI Research Co-Pilot', 'F&O Analysis Engine', 'Behavioural AI Engine', 'Daily Trading Signals', 'Trade Now with guardrails'],
+                'features': ['1 broker connection (trading + data API)', 'AI Research Co-Pilot', 'F&O Analysis Engine', 'Behavioural AI Engine', 'Daily Trading Signals', 'Trade Now with guardrails', '100 AI questions/day'],
                 'limits': {'portfolios': 5, 'watchlist': 50, 'ai_queries': 100, 'brokers': 1, 'trade_brokers': 1}
             },
             'TARGET_PRO': {
-                'name': 'Pro Plan',
-                'tagline': 'Scale capital safely',
-                'price': 2499,
+                'name': 'Capulse Plus',
+                'tagline': 'Full AI-powered trading intelligence',
+                'price': 999,
                 'duration_days': 30,
-                'features': ['3 broker connections (trading)', '1 data API broker', 'All Growth Plan features', 'Multi-broker Trade Now', 'Advanced portfolio optimization', 'Priority email support'],
-                'limits': {'portfolios': 10, 'watchlist': 200, 'ai_queries': 500, 'brokers': 3, 'trade_brokers': 3}
+                'features': ['1 broker connection (trading + data API)', 'AI Research Co-Pilot', 'F&O Analysis Engine', 'Behavioural AI Engine', 'Daily Trading Signals', 'Trade Now with guardrails', '100 AI questions/day'],
+                'limits': {'portfolios': 5, 'watchlist': 50, 'ai_queries': 100, 'brokers': 1, 'trade_brokers': 1}
             },
             'HNI': {
-                'name': 'Elite Plan',
-                'tagline': 'Active decision-making',
-                'price': 4999,
+                'name': 'Capulse Plus',
+                'tagline': 'Full AI-powered trading intelligence',
+                'price': 999,
                 'duration_days': 30,
-                'features': ['3 broker connections (trading)', '1 data API broker', 'All Pro Plan features', 'Dedicated account manager', 'Premium 24/7 support', 'Priority onboarding'],
-                'limits': {'portfolios': -1, 'watchlist': -1, 'ai_queries': -1, 'brokers': 3, 'trade_brokers': 3}
+                'features': ['1 broker connection (trading + data API)', 'AI Research Co-Pilot', 'F&O Analysis Engine', 'Behavioural AI Engine', 'Daily Trading Signals', 'Trade Now with guardrails', '100 AI questions/day'],
+                'limits': {'portfolios': 5, 'watchlist': 50, 'ai_queries': 100, 'brokers': 1, 'trade_brokers': 1}
             }
         }
     

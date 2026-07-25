@@ -372,19 +372,13 @@ class TradingService:
             if user.pricing_plan == PricingPlan.TARGET_PLUS:
                 return {
                     'success': False, 
-                    'error': 'Target Plus plan allows portfolio analysis only. Upgrade to Target Pro for trade execution.'
+                    'error': 'Upgrade to Capulse Plus to unlock trade execution.'
                 }
             
-            if user.pricing_plan == PricingPlan.HNI:
+            if user.pricing_plan not in (PricingPlan.TARGET_PLUS, PricingPlan.TARGET_PRO, PricingPlan.HNI):
                 return {
                     'success': False, 
-                    'error': 'HNI accounts are managed by our account executives. Your account manager will execute trades on your behalf. Contact your account executive for trade requests.'
-                }
-            
-            if user.pricing_plan != PricingPlan.TARGET_PRO:
-                return {
-                    'success': False, 
-                    'error': 'Direct trade execution is only available for Target Pro subscription.'
+                    'error': 'Direct trade execution is only available for Capulse Plus subscribers.'
                 }
             
             recommendation = TenantQuery(TradeRecommendation).filter_by(
