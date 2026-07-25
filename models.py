@@ -443,20 +443,20 @@ class User(UserMixin, db.Model):
     def get_plan_display_name(self):
         """Get human-readable plan name"""
         plan_names = {
-            PricingPlan.FREE: "Starter Plan",
-            PricingPlan.TARGET_PLUS: "Growth Plan",
-            PricingPlan.TARGET_PRO: "Pro Plan",
-            PricingPlan.HNI: "Elite Plan"
+            PricingPlan.FREE: "Free Plan",
+            PricingPlan.TARGET_PLUS: "Capulse Plus",
+            PricingPlan.TARGET_PRO: "Capulse Plus",
+            PricingPlan.HNI: "Capulse Plus"
         }
         return plan_names.get(self.pricing_plan, "Unknown")
 
     def get_plan_tagline(self):
         """Get short tagline for the user's plan"""
         taglines = {
-            PricingPlan.FREE: "Start your journey",
-            PricingPlan.TARGET_PLUS: "Build consistency",
-            PricingPlan.TARGET_PRO: "Scale capital safely",
-            PricingPlan.HNI: "Active decision-making"
+            PricingPlan.FREE: "Explore Capulse risk-free",
+            PricingPlan.TARGET_PLUS: "Full AI-powered trading intelligence",
+            PricingPlan.TARGET_PRO: "Full AI-powered trading intelligence",
+            PricingPlan.HNI: "Full AI-powered trading intelligence"
         }
         return taglines.get(self.pricing_plan, "")
 
@@ -464,9 +464,9 @@ class User(UserMixin, db.Model):
         """Get monthly price for the current plan"""
         prices = {
             PricingPlan.FREE: 0,
-            PricingPlan.TARGET_PLUS: 1499,
-            PricingPlan.TARGET_PRO: 2499,
-            PricingPlan.HNI: 4999
+            PricingPlan.TARGET_PLUS: 999,
+            PricingPlan.TARGET_PRO: 999,
+            PricingPlan.HNI: 999
         }
         return prices.get(self.pricing_plan, 0)
     
