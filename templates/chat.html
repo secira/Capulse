@@ -421,7 +421,7 @@
     <div class="composer-foot">
       <p>Capulse gives research, not recommendations. Not investment advice.</p>
       {% if current_user.is_authenticated %}
-        {% set daily_limit = 200 if current_user.pricing_plan.name != 'FREE' else 5 %}
+        {% set daily_limit = 100 if current_user.pricing_plan.name != 'FREE' else 5 %}
         {% if current_user.pricing_plan.name == 'FREE' %}
           <p class="count"><span id="footCount">{{ [daily_limit - today_usage, 0] | max }}</span> of {{ daily_limit }} questions left today</p>
         {% endif %}
@@ -435,7 +435,7 @@
 
 {% block extra_js %}
 const IS_AUTH    = {{ 'true' if current_user.is_authenticated else 'false' }};
-const DAILY_LIMIT = {{ (200 if current_user.pricing_plan.name != 'FREE' else 5) if current_user.is_authenticated else 9999 }};
+const DAILY_LIMIT = {{ (100 if current_user.pricing_plan.name != 'FREE' else 5) if current_user.is_authenticated else 9999 }};
 let used = {{ today_usage if current_user.is_authenticated else 0 }};
 let currentSessionId = "{{ current_session_id or '' }}";
 const LOGIN_URL    = "{{ url_for('login') }}";

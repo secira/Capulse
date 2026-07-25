@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 chat_bp = Blueprint('chat', __name__)
 
 DAILY_LIMIT_FREE = 5
-DAILY_LIMIT_PAID = 200
+DAILY_LIMIT_PAID = 100
 
 
 def _get_daily_limit(user):
@@ -170,7 +170,7 @@ def chat_message():
             return jsonify({
                 'error': f"You've used your {daily_limit} daily questions. Upgrade for more.",
                 'card_type': 'prose',
-                'content': f"Daily limit reached ({daily_limit} questions). Upgrade to Capulse Plus for ~150–200 questions per day.",
+                'content': f"Daily limit reached ({daily_limit} questions). Upgrade to Capulse Plus for 100 questions per day.",
             }), 429
 
         # Get or create conversation
