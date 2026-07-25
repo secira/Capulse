@@ -97,6 +97,15 @@
         <div class="sidebar-menu" style="padding-top:4px;">
             <ul class="nav-list">
                 <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint in ['chat.chat_home','chat.chat_message'] else '' }}"
+                       href="{{ url_for('chat.chat_home') }}"
+                       style="{{ 'background:linear-gradient(90deg,#1e40af 0%,#1d4ed8 100%);color:#fff;border-radius:8px;' if request.endpoint in ['chat.chat_home','chat.chat_message'] else '' }}">
+                        <i class="nav-icon fas fa-comment-dots"></i>
+                        <span class="nav-text" style="font-weight:600;">Capulse AI</span>
+                        <span class="nav-badge-new" style="background:#2563eb;color:#fff;">CHAT</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint == 'dashboard' else '' }}"
                        href="{{ url_for('dashboard') }}">
                         <i class="nav-icon fas fa-home"></i>
@@ -144,49 +153,49 @@
                 </li>
                 {% endif %}
 
-                <!-- Stock Research -->
+                <!-- I-Score Lookup → Chat -->
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if 'research' in request.endpoint else '' }}"
-                       href="{{ url_for('research_dashboard') }}">
+                       href="{{ url_for('chat.chat_home') }}?q=I-Score+for+">
                         <i class="nav-icon fas fa-search-dollar"></i>
-                        <span class="nav-text">Stock Research</span>
+                        <span class="nav-text">I-Score Lookup</span>
                     </a>
                 </li>
 
-                <!-- F&O Research -->
+                <!-- F&O Signals → Chat with prefill -->
                 <li class="nav-item">
                     <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['fno.fno_nifty','fno.fno_banknifty','fno.fno_finnifty','fno.fno_sensex','fno.fno_pnl_analysis','our_signals','daily_signals_analysis'] else '' }}"
                          onclick="toggleFnoMenu()">
                         <i class="nav-icon fas fa-chart-area"></i>
-                        <span class="nav-text">F&amp;O Research</span>
+                        <span class="nav-text">F&amp;O Signals</span>
                         <span class="nav-badge-new">NEW</span>
                         <i class="fas fa-chevron-down toggle-icon" id="fnoMenuToggle"></i>
                     </div>
                     <ul class="nav-list submenu-list" id="fnoMenu" style="display: none;">
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'fno.fno_nifty' else '' }}"
-                               href="{{ url_for('fno.fno_nifty') }}">
+                            <a class="nav-link submenu-link"
+                               href="{{ url_for('chat.chat_home') }}?q=NIFTY+50+F%26O+signals">
                                 <i class="nav-icon fas fa-chart-line"></i>
                                 <span class="nav-text">NIFTY 50</span>
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'fno.fno_banknifty' else '' }}"
-                               href="{{ url_for('fno.fno_banknifty') }}">
+                            <a class="nav-link submenu-link"
+                               href="{{ url_for('chat.chat_home') }}?q=BANKNIFTY+F%26O+signals">
                                 <i class="nav-icon fas fa-university"></i>
                                 <span class="nav-text">Bank Nifty</span>
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'fno.fno_finnifty' else '' }}"
-                               href="{{ url_for('fno.fno_finnifty') }}">
+                            <a class="nav-link submenu-link"
+                               href="{{ url_for('chat.chat_home') }}?q=FINNIFTY+F%26O+signals">
                                 <i class="nav-icon fas fa-landmark"></i>
                                 <span class="nav-text">Fin Nifty</span>
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'fno.fno_sensex' else '' }}"
-                               href="{{ url_for('fno.fno_sensex') }}">
+                            <a class="nav-link submenu-link"
+                               href="{{ url_for('chat.chat_home') }}?q=SENSEX+F%26O+signals">
                                 <i class="nav-icon fas fa-rupee-sign"></i>
                                 <span class="nav-text">SENSEX</span>
                             </a>
@@ -274,42 +283,49 @@
                 </li>
                 {% endif %}
 
-                <!-- Behavioural AI -->
+                <!-- Behavioural Coach → Chat with prefill -->
                 <li class="nav-item">
                     <div class="nav-link collapsible-header {{ 'active' if request.endpoint in ['behavioural_insights','behavioural_trading','behavioural_portfolio','behavioural_risk','behavioural_performance','trader_intelligence','trader_intelligence_result','behavioural_psychology'] else '' }}"
                          onclick="toggleBehaviourMenu()">
                         <i class="nav-icon fas fa-brain"></i>
-                        <span class="nav-text">Behavioural AI</span>
+                        <span class="nav-text">Behavioural Coach</span>
                         <span class="nav-badge-new">USP</span>
                         <i class="fas fa-chevron-down toggle-icon" id="behaviourToggle"></i>
                     </div>
                     <ul class="nav-list submenu-list" id="behaviourMenu" style="display: none;">
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint == 'behavioural_insights' else '' }}"
-                               href="{{ url_for('behavioural_insights') }}">
+                            <a class="nav-link submenu-link"
+                               href="{{ url_for('chat.chat_home') }}?q=Show+my+complete+behavioural+trading+analysis+and+score">
                                 <i class="nav-icon fas fa-tachometer-alt"></i>
-                                <span class="nav-text">Overview</span>
+                                <span class="nav-text">Behaviour Overview</span>
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['behavioural_trading', 'behavioural_portfolio'] else '' }}"
-                               href="{{ url_for('behavioural_trading') }}">
+                            <a class="nav-link submenu-link"
+                               href="{{ url_for('chat.chat_home') }}?q=Analyse+my+trading+patterns+and+portfolio+behaviour">
                                 <i class="nav-icon fas fa-exchange-alt"></i>
-                                <span class="nav-text">Trading &amp; Portfolio</span>
+                                <span class="nav-text">Trading Patterns</span>
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
-                            <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['behavioural_risk', 'behavioural_performance'] else '' }}"
-                               href="{{ url_for('behavioural_risk') }}">
+                            <a class="nav-link submenu-link"
+                               href="{{ url_for('chat.chat_home') }}?q=Analyse+my+trading+risk+management+and+performance+patterns">
                                 <i class="nav-icon fas fa-shield-alt"></i>
                                 <span class="nav-text">Risk &amp; Performance</span>
+                            </a>
+                        </li>
+                        <li class="nav-item submenu-item">
+                            <a class="nav-link submenu-link"
+                               href="{{ url_for('chat.chat_home') }}?q=Help+me+understand+my+trading+psychology%2C+emotional+biases+and+mental+blocks">
+                                <i class="nav-icon fas fa-head-side-brain"></i>
+                                <span class="nav-text">Trading Psychology</span>
                             </a>
                         </li>
                         <li class="nav-item submenu-item">
                             <a class="nav-link submenu-link {{ 'active' if request.endpoint in ['trader_intelligence', 'trader_intelligence_result', 'behavioural_psychology'] else '' }}"
                                href="{{ url_for('trader_intelligence_result') if trader_profile_badge else url_for('trader_intelligence') }}">
                                 <i class="nav-icon fas fa-dna"></i>
-                                <span class="nav-text">Behavioural Score</span>
+                                <span class="nav-text">Trader DNA Assessment</span>
                                 {% if trader_profile_badge %}
                                 <span class="nav-badge-new" style="background:{{ trader_profile_badge.level_color }};">{{ trader_profile_badge.level }}</span>
                                 {% else %}
