@@ -836,8 +836,36 @@ class NiftyOptionsEngine:
         """
         now = datetime.now(IST)
         current_time = now.time()
+        today = now.date()
 
         is_weekend  = now.weekday() >= 5
+
+        # ── NSE holiday check ────────────────────────────────────────────────
+        is_holiday      = False
+        holiday_name    = ''
+        if not is_weekend:
+            try:
+                from nsepython import nse_holidays
+                holidays_raw = nse_holidays()
+                cm_holidays = holidays_raw.get('CM', [])
+                for h in cm_holidays:
+                    td = h.get('tradingDate', '')
+                    for fmt in ('%d-%b-%Y', '%d-%m-%Y', '%Y-%m-%d'):
+                        try:
+                            from datetime import datetime as _dt
+                            hdate = _dt.strptime(td, fmt).date()
+                            if hdate == today:
+                                is_holiday   = True
+                                holiday_name = h.get('description', 'NSE Holiday')
+                            break
+                        except ValueError:
+                            continue
+                    if is_holiday:
+                        break
+            except Exception as _e:
+                logger.warning(f"Holiday lookup failed (non-fatal): {_e}")
+        # ────────────────────────────────────────────────────────────────────
+
         pre_market  = current_time < dtime(9, 15)
         opening_vol = dtime(9, 15) <= current_time < dtime(10, 0)
         opening_caution = dtime(10, 0) <= current_time <= dtime(10, 15)
@@ -848,6 +876,9 @@ class NiftyOptionsEngine:
         if is_weekend:
             reason = 'Weekend — market closed, using last known prices. High volatility at Monday open.'
             caution_weight = 20
+        elif is_holiday:
+            reason = f'NSE holiday ({holiday_name}) — market is closed today. No live data available.'
+            caution_weight = 25
         elif pre_market:
             reason = 'Pre-market — thin liquidity, wide spreads. Signals are indicative only.'
             caution_weight = 15
@@ -868,18 +899,20 @@ class NiftyOptionsEngine:
             caution_weight = 0
 
         caution = caution_weight > 0
-        status  = 'caution' if caution else 'active'
+        status  = 'holiday' if is_holiday else ('caution' if caution else 'active')
 
         return {
-            'pass':          True,   # never blocks — user decides risk
-            'reason':        reason,
-            'status':        status,
-            'caution':       caution,
+            'pass':           True,   # never blocks — user decides risk
+            'reason':         reason,
+            'status':         status,
+            'caution':        caution,
             'caution_weight': caution_weight,
             # Extra flags for the response card
-            'is_weekend':    is_weekend,
+            'is_weekend':     is_weekend,
+            'is_holiday':     is_holiday,
+            'holiday_name':   holiday_name,
             'is_post_market': post_market,
-            'is_pre_market': pre_market or opening_vol,
+            'is_pre_market':  pre_market or opening_vol,
         }
 
     # ------------------------------------------------------------------

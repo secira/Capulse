@@ -184,6 +184,39 @@ def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[
         time_check     = analysis.get('time_filter', {})
         time_caution   = time_check.get('caution', False)
         time_reason    = time_check.get('reason', '')
+        is_holiday     = time_check.get('is_holiday', False)
+        holiday_name   = time_check.get('holiday_name', '')
+        is_weekend     = time_check.get('is_weekend', False)
+
+        # ── Hard stop: holiday or weekend — no signal makes sense ───────────
+        if is_holiday:
+            holiday_label = f" ({holiday_name})" if holiday_name else ""
+            return {
+                'card_type': 'prose',
+                'content': (
+                    f"🚫 **No F&O signal — NSE is closed today{holiday_label}.**\n\n"
+                    f"Markets will reopen on the next trading day. "
+                    f"You can still use this time to review your watchlist or plan your strategy for tomorrow."
+                ),
+                'card_data': {
+                    'index': idx, 'is_holiday': True, 'holiday_name': holiday_name,
+                    'signals': [], 'final_decision': 'MARKET CLOSED',
+                }
+            }
+        if is_weekend:
+            return {
+                'card_type': 'prose',
+                'content': (
+                    f"🚫 **No F&O signal — market is closed on weekends.**\n\n"
+                    f"NSE F&O trading runs Monday–Friday, 9:15 AM – 3:30 PM IST. "
+                    f"Check back on the next trading day."
+                ),
+                'card_data': {
+                    'index': idx, 'is_weekend': True,
+                    'signals': [], 'final_decision': 'MARKET CLOSED',
+                }
+            }
+        # ────────────────────────────────────────────────────────────────────
 
         # Build a plain-English summary line
         if is_blocked or final_decision in ('NO TRADE', 'WAIT', 'AVOID'):
