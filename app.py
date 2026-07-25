@@ -1051,7 +1051,7 @@ with app.app_context():
                 with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as _conn:
                     # Bound how long any single migration can wait/run so the
                     # master process can never be hung by a stuck ALTER.
-                    _conn.exec_driver_sql("SET lock_timeout = '5s'")
+                    _conn.exec_driver_sql("SET lock_timeout = '500ms'")
                     _conn.exec_driver_sql("SET statement_timeout = '30s'")
                     _conn.execute(db.text(_sql))
                 _ok += 1
