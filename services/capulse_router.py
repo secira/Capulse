@@ -687,14 +687,35 @@ Close with: "Research and education only — not investment advice."
 """
 
 
+_DNA_EXIT_WORDS = ('stop', 'exit', 'cancel', 'quit', 'skip', 'never mind', 'nevermind')
+_DNA_BREAKOUT_KEYWORDS = (
+    'i-score', 'iscore', 'f&o', 'fno', 'signal', 'nifty', 'banknifty', 'sensex',
+    'mutual fund', 'portfolio', 'holding', 'stock', 'share price',
+)
+
+
 def _is_dna_conversation(conversation_history: list) -> bool:
     """True if the most recent DNA-marked assistant message is an unfinished assessment."""
     if not conversation_history:
         return False
     for m in reversed(conversation_history[-12:]):
-        if m.get('role') == 'assistant' and DNA_MARKER in (m.get('content') or ''):
-            return DNA_COMPLETE_MARKER not in m['content']
+        content = (m.get('content') or '')
+        if m.get('role') == 'assistant' and DNA_MARKER.lower() in content.lower():
+            return DNA_COMPLETE_MARKER.lower() not in content.lower()
     return False
+
+
+def _dna_should_continue(message: str, conversation_history: list) -> bool:
+    """Continue an unfinished DNA quiz unless the user exits or clearly asks for something else."""
+    if not _is_dna_conversation(conversation_history):
+        return False
+    low = message.lower().strip()
+    if any(w in low for w in _DNA_EXIT_WORDS):
+        return False
+    # Long messages mentioning other features are treated as a change of topic
+    if len(low) > 25 and any(k in low for k in _DNA_BREAKOUT_KEYWORDS):
+        return False
+    return True
 
 
 def handle_dna_assessment(message: str, conversation_history: list = None) -> Dict[str, Any]:
@@ -739,7 +760,7 @@ def route_message(message: str, user_id: int, conversation_history: list = None)
     start = time.time()
 
     # Trader DNA assessment: keyword start or ongoing quiz continuation
-    if 'trader dna' in message.lower() or _is_dna_conversation(conversation_history):
+    if 'trader dna' in message.lower() or _dna_should_continue(message, conversation_history):
         result = handle_dna_assessment(message, conversation_history)
         result['intent'] = 'DNA_ASSESSMENT'
         result['processing_time'] = round(time.time() - start, 2)
