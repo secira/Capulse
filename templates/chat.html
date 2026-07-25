@@ -95,6 +95,9 @@
 .score-num{font-family:var(--serif);font-size:36px;color:var(--amber);line-height:1}
 .score-label{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--paper-faint)}
 .iscore-rec{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.iscore-rec-badge{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.06em;padding:2px 7px;border-radius:4px;background:var(--ink-3);color:var(--paper-dim)}
+.iscore-rec-badge.pos{background:rgba(52,199,89,.15);color:#34c759}
+.iscore-rec-badge.neg{background:rgba(255,59,48,.15);color:#ff3b30}
 .rec-badge{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 10px;border-radius:5px;background:var(--ink-3);color:var(--paper)}
 .rec-badge.buy,.rec-badge.strong-buy{background:rgba(var(--good-rgb,34,197,94),.15);color:var(--good)}
 .rec-badge.sell,.rec-badge.strong-sell{background:rgba(var(--risk-rgb,239,68,68),.15);color:var(--risk)}
@@ -165,7 +168,12 @@
               <div class="score-card">
                 <div class="score-head">
                   <span class="score-name">{{ d.symbol }} &middot; I-SCORE</span>
-                  <span class="score-num">{{ d.score }}</span>
+                  <div class="iscore-rec">
+                    <span class="score-num">{{ d.score }}</span>
+                    {% if d.recommendation %}
+                      <span class="iscore-rec-badge {% if d.recommendation == 'BUY' %}pos{% elif d.recommendation == 'SELL' %}neg{% endif %}">{{ d.recommendation }}</span>
+                    {% endif %}
+                  </div>
                 </div>
                 <div class="score-bars">
                   {% for k, v in (d.components or {}).items() %}
@@ -658,10 +666,16 @@ function renderIScoreCard(d) {
       <span class="score-bar-val">${v}</span>
     </div>`
   ).join('');
+  const rec = d.recommendation || '';
+  const recCls = rec === 'BUY' ? 'pos' : rec === 'SELL' ? 'neg' : '';
+  const recBadge = rec ? `<span class="iscore-rec-badge ${recCls}">${rec}</span>` : '';
   return `<div class="score-card">
     <div class="score-head">
       <span class="score-name">${d.symbol} &middot; I-SCORE</span>
-      <span class="score-num">${d.score}</span>
+      <div class="iscore-rec">
+        <span class="score-num">${d.score}</span>
+        ${recBadge}
+      </div>
     </div>
     <div class="score-bars">${bars}</div>
     ${d.summary ? `<div class="score-foot"><b>Summary:</b> ${d.summary}</div>` : ''}
