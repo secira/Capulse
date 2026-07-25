@@ -345,7 +345,7 @@ h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:-0.01em}
           <div class="avatar">{{ current_user.username[:2] if current_user.username else 'U' }}</div>
           <div style="flex:1;min-width:0">
             <div class="name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ current_user.full_name or current_user.username }}</div>
-            <div class="plan">{{ current_user.pricing_plan.name.replace('_', ' ').title() }} plan</div>
+            <div class="plan">{{ current_user.get_plan_display_name() }}</div>
           </div>
         </a>
         <a href="{{ url_for('logout') }}" class="logout-btn" title="Sign out">
