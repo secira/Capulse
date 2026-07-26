@@ -3389,16 +3389,33 @@ def dashboard_mutual_funds():
             return redirect(url_for('dashboard_mutual_funds'))
     
     # GET request - display holdings
-    # Get manual holdings
     manual_holdings = ManualMutualFundHolding.query.filter_by(
         user_id=current_user.id,
         is_active=True
     ).all()
-    
+
+    # Refresh current NAVs from mfapi.in for all holdings
+    if manual_holdings:
+        try:
+            from services.mfapi_service import MFApiService
+            mf_svc = MFApiService()
+            nav_updated = False
+            for holding in manual_holdings:
+                try:
+                    fresh_nav = mf_svc.get_current_nav(holding.scheme_name)
+                    if fresh_nav and fresh_nav > 0:
+                        holding.current_nav = fresh_nav
+                        holding.calculate_totals()
+                        nav_updated = True
+                except Exception as _e:
+                    logger.debug(f"NAV refresh failed for {holding.scheme_name}: {_e}")
+            if nav_updated:
+                db.session.commit()
+        except Exception as e:
+            logger.warning(f"MF NAV refresh error: {e}")
+
     # Combine holdings for display
     combined_holdings = []
-    
-    # Add manual holdings
     for holding in manual_holdings:
         combined_holdings.append({
             'id': holding.id,
@@ -3415,7 +3432,7 @@ def dashboard_mutual_funds():
             'platform_name': holding.platform_name,
             'source': 'manual'
         })
-    
+
     # Calculate summary
     total_investment = sum(h['total_investment'] for h in combined_holdings)
     current_value = sum(h['current_value'] or h['total_investment'] for h in combined_holdings)

@@ -307,15 +307,22 @@ def handle_mutual_fund(fund_query: str, message: str) -> Dict[str, Any]:
             'card_type': 'mutual_fund',
             'content': f"Here's the fund snapshot for **{details.get('scheme_name', query)}**:",
             'card_data': {
-                'scheme_name': details.get('scheme_name', ''),
-                'fund_house': details.get('fund_house', ''),
+                'scheme_name':    details.get('scheme_name', ''),
+                'fund_house':     details.get('fund_house', ''),
                 'scheme_category': details.get('scheme_category', ''),
-                'scheme_type': details.get('scheme_type', ''),
-                'current_nav': details.get('current_nav', 0),
-                'nav_date': details.get('nav_date', ''),
-                'returns_1y': details.get('returns_1y'),
-                'returns_3y': details.get('returns_3y'),
-                'returns_5y': details.get('returns_5y'),
+                'scheme_type':    details.get('scheme_type', ''),
+                'current_nav':    details.get('current_nav', 0),
+                'nav_date':       details.get('nav_date', ''),
+                # mfapi_service stores keys WITHOUT trailing 's' — return_1y not returns_1y
+                'return_1y':  details.get('return_1y'),
+                'return_3y':  details.get('return_3y'),
+                'return_5y':  details.get('return_5y'),
+                'cagr_1y':    details.get('cagr_1y'),
+                'cagr_3y':    details.get('cagr_3y'),
+                'cagr_5y':    details.get('cagr_5y'),
+                'volatility':       details.get('volatility'),
+                'sharpe_ratio':     details.get('sharpe_ratio'),
+                'annualized_return': details.get('annualized_return'),
             }
         }
 

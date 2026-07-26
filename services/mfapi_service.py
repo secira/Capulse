@@ -13,13 +13,15 @@ logger = logging.getLogger(__name__)
 class MFApiService:
     """Service to fetch mutual fund data from MFapi.in"""
     
-    BASE_URL = "https://api.mfapi.in/mf"
+    # Use HTTP — mfapi.in's HTTPS certificate causes SSL handshake timeouts
+    # from many cloud hosts (confirmed: http:// responds in ~0.2 s; https:// hangs).
+    BASE_URL = "http://api.mfapi.in/mf"
     
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({
             'Accept': 'application/json',
-            'User-Agent': 'TargeCapulse/1.0'
+            'User-Agent': 'Capulse/1.0'
         })
     
     def search_fund(self, query: str) -> List[Dict[str, Any]]:
@@ -142,10 +144,15 @@ class MFApiService:
             if len(navs) < 30:
                 return {}
             
+            # mfapi.in returns NAV data newest-first (navs[0] = most recent).
+            # Daily return from day i to day i+1 (forward in time) is:
+            #   (navs[i] - navs[i+1]) / navs[i+1]   →   (newer - older) / older
             daily_returns = []
-            for i in range(1, len(navs)):
-                if navs[i-1] > 0:
-                    ret = (navs[i] - navs[i-1]) / navs[i-1]
+            for i in range(len(navs) - 1):
+                older = navs[i + 1]
+                newer = navs[i]
+                if older > 0:
+                    ret = (newer - older) / older
                     daily_returns.append(ret)
             
             if not daily_returns:
@@ -172,16 +179,42 @@ class MFApiService:
             return {}
     
     def get_fund_by_name(self, fund_name: str) -> Optional[Dict[str, Any]]:
-        """Search and get fund details by name"""
+        """Search and get fund details by name — prefers Direct Growth plans."""
         results = self.search_fund(fund_name)
-        
-        direct_growth_funds = [f for f in results if 'DIRECT' in f['schemeName'].upper() and 'GROWTH' in f['schemeName'].upper()]
-        
-        if direct_growth_funds:
-            return self.get_fund_details(direct_growth_funds[0]['schemeCode'])
-        elif results:
-            return self.get_fund_details(results[0]['schemeCode'])
-        
+        if not results:
+            return None
+        # Prefer Direct Growth; fall back to first result
+        direct_growth = [f for f in results
+                         if 'DIRECT' in f.get('schemeName', '').upper()
+                         and 'GROWTH' in f.get('schemeName', '').upper()]
+        chosen = direct_growth[0] if direct_growth else results[0]
+        return self.get_fund_details(chosen['schemeCode'])
+
+    def get_current_nav(self, scheme_name: str) -> Optional[float]:
+        """
+        Return just the current NAV for a fund by name.
+        Used for lightweight dashboard refreshes — avoids full history fetch.
+        Returns None if not found or API unavailable.
+        """
+        try:
+            results = self.search_fund(scheme_name)
+            if not results:
+                return None
+            direct_growth = [f for f in results
+                             if 'DIRECT' in f.get('schemeName', '').upper()
+                             and 'GROWTH' in f.get('schemeName', '').upper()]
+            chosen = direct_growth[0] if direct_growth else results[0]
+            sc = chosen.get('schemeCode')
+            if not sc:
+                return None
+            resp = self.session.get(f"{self.BASE_URL}/{sc}", timeout=8)
+            resp.raise_for_status()
+            data = resp.json()
+            nav_data = data.get('data', [])
+            if nav_data:
+                return float(nav_data[0]['nav'])
+        except Exception as e:
+            logger.debug(f"get_current_nav({scheme_name}): {e}")
         return None
     
     def analyze_for_iscore(self, scheme_code_or_name: str) -> Dict[str, Any]:
