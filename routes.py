@@ -4386,17 +4386,320 @@ def import_holdings_upload():
 @app.route('/api/import/template/<asset_class>/<format>')
 @login_required
 def download_import_template(asset_class, format):
-    """Download Excel template for importing holdings"""
+    """Download Excel sample template for importing holdings"""
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from flask import send_file
+
+    # ── per-asset-class definition ─────────────────────────────────────────
+    # Each entry: (column_header, sample_row_1, sample_row_2, sample_row_3, description)
+    TEMPLATES = {
+        'equities': {
+            'sheet': 'Equity Holdings',
+            'columns': [
+                ('Symbol',            'RELIANCE',   'TCS',        'HDFCBANK',   'NSE/BSE ticker symbol (e.g. RELIANCE, TCS)'),
+                ('Company Name',      'Reliance Industries Ltd', 'Tata Consultancy Services', 'HDFC Bank Ltd', 'Full company name (optional)'),
+                ('ISIN',              'INE002A01018','INE467B01029','INE040A01034','12-character ISIN (optional)'),
+                ('Transaction Type',  'BUY',        'BUY',        'BUY',        'BUY or SELL'),
+                ('Purchase Date',     '15-01-2024', '20-03-2024', '05-06-2024', 'DD-MM-YYYY format'),
+                ('Quantity',          '10',         '5',          '20',         'Number of shares'),
+                ('Purchase Price',    '2450.50',    '3800.00',    '1620.75',    'Price per share in INR'),
+                ('Brokerage',         '24.50',      '19.00',      '32.40',      'Brokerage charges in INR (optional, default 0)'),
+                ('STT',               '12.25',      '9.50',       '16.20',      'Securities Transaction Tax in INR (optional)'),
+                ('Transaction Charges','5.00',      '4.00',       '7.00',       'Exchange transaction charges (optional)'),
+                ('GST',               '2.21',       '1.71',       '2.92',       'GST on brokerage (optional)'),
+                ('Stamp Duty',        '1.22',       '0.95',       '1.62',       'Stamp duty (optional)'),
+                ('Portfolio Name',    'Default',    'Default',    'Long Term',  'Portfolio label (optional, default: Default)'),
+                ('Notes',             '',           'Bought on dip', '',        'Any remarks (optional)'),
+            ],
+        },
+        'mutual_funds': {
+            'sheet': 'Mutual Fund Holdings',
+            'columns': [
+                ('Scheme Name',       'Mirae Asset Large Cap Fund - Direct Plan - Growth',
+                                      'SBI Small Cap Fund - Direct Plan - Growth',
+                                      'HDFC Flexi Cap Fund - Direct Plan - Growth',
+                                      'Full scheme name as listed on AMFI / CAMS'),
+                ('Fund House',        'Mirae Asset',  'SBI Mutual Fund', 'HDFC AMC', 'AMC / fund house name'),
+                ('ISIN',              'INF769K01010', 'INF200K01RO2',    'INF179K01VY6', '12-character ISIN (optional)'),
+                ('Folio Number',      '12345678',    '87654321',    '11223344',   'Folio number from your CAS statement'),
+                ('Fund Category',     'Equity',      'Equity',      'Equity',     'Equity / Debt / Hybrid / ELSS / Index / Other'),
+                ('Transaction Type',  'PURCHASE',    'PURCHASE',    'PURCHASE',   'PURCHASE / REDEMPTION / SWITCH_IN / SWITCH_OUT / DIVIDEND'),
+                ('Transaction Date',  '10-01-2024',  '15-02-2024',  '01-04-2024', 'DD-MM-YYYY format'),
+                ('Units',             '500.000',     '200.000',     '350.000',    'Number of units transacted'),
+                ('NAV',               '85.42',       '145.70',      '120.35',     'Net Asset Value on transaction date'),
+                ('Amount (INR)',       '42710.00',    '29140.00',    '42122.50',   'Total transaction amount'),
+                ('Entry Load',        '0',           '0',           '0',          'Entry load in INR (usually 0)'),
+                ('Exit Load',         '0',           '0',           '0',          'Exit load in INR (if applicable)'),
+                ('Stamp Duty',        '0',           '0',           '0',          'Stamp duty in INR'),
+                ('STT',               '0',           '0',           '0',          'STT in INR'),
+                ('Portfolio Name',    'Default',     'Default',     'Retirement', 'Portfolio label (optional)'),
+                ('Notes',             'SIP',         'Lumpsum',     'SIP',        'Any remarks (optional)'),
+            ],
+        },
+        'fixed_deposits': {
+            'sheet': 'Fixed Deposit Holdings',
+            'columns': [
+                ('Bank Name',         'SBI',         'HDFC Bank',   'ICICI Bank',  'Name of bank / NBFC / Post Office'),
+                ('FD Number',         'SBI/FD/2024/001', 'FD123456', 'ICFD789012', 'FD account / receipt number (optional)'),
+                ('Deposit Type',      'Regular',     'Tax Saver',   'Senior Citizen', 'Regular / Tax Saver / Senior Citizen / Flexi'),
+                ('Principal Amount',  '100000',      '50000',       '200000',      'Deposit amount in INR'),
+                ('Interest Rate (%)', '7.10',        '7.00',        '7.75',        'Annual interest rate in %'),
+                ('Tenure (Months)',   '12',          '60',          '24',          'Deposit tenure in months'),
+                ('Deposit Date',      '01-01-2024',  '15-02-2024',  '10-03-2024',  'DD-MM-YYYY format'),
+                ('Maturity Date',     '01-01-2025',  '15-02-2029',  '10-03-2026',  'DD-MM-YYYY format'),
+                ('Interest Frequency','Cumulative',  'Cumulative',  'Quarterly',   'Monthly / Quarterly / Half-Yearly / Annual / Cumulative'),
+                ('Interest Payout',   'Reinvest',    'Reinvest',    'Payout',      'Payout / Reinvest / Cumulative'),
+                ('TDS Applicable',    'No',          'No',          'Yes',         'Yes / No'),
+                ('Nominee Name',      'Priya Sharma', '',           'Rahul Verma', 'Nominee full name (optional)'),
+                ('Nominee Relation',  'Spouse',      '',            'Son',         'Relationship with nominee (optional)'),
+                ('Portfolio Name',    'Default',     'Default',     'Default',     'Portfolio label (optional)'),
+                ('Notes',             '',            '80C benefit', '',            'Any remarks (optional)'),
+            ],
+        },
+        'real_estate': {
+            'sheet': 'Real Estate Holdings',
+            'columns': [
+                ('Property Name',     '3BHK Flat Powai', 'Plot Sector 45', 'Commercial Office Lower Parel', 'Friendly name for the property'),
+                ('Property Type',     'Apartment',   'Plot',        'Commercial',  'Apartment / Villa / Plot / Commercial / Warehouse'),
+                ('Location / Address','Powai, Mumbai', 'Sector 45, Gurugram', 'Lower Parel, Mumbai', 'Full address or area'),
+                ('City',              'Mumbai',      'Gurugram',    'Mumbai',      'City'),
+                ('State',             'Maharashtra', 'Haryana',     'Maharashtra', 'State'),
+                ('Purchase Date',     '15-03-2020',  '10-06-2018',  '01-09-2022',  'DD-MM-YYYY format'),
+                ('Purchase Price',    '8500000',     '3000000',     '12000000',    'Purchase price in INR'),
+                ('Registration Charges', '170000',   '60000',       '240000',      'Stamp duty + registration in INR'),
+                ('Other Charges',     '50000',       '0',           '100000',      'Brokerage, legal, other costs in INR'),
+                ('Carpet Area (sqft)', '950',        '2000',        '1200',        'Carpet area in square feet (optional)'),
+                ('Built Up Area (sqft)', '1150',     '2000',        '1400',        'Built-up area in square feet (optional)'),
+                ('Is Rented',         'Yes',         'No',          'Yes',         'Yes / No'),
+                ('Monthly Rent (INR)', '35000',      '0',           '80000',       'Current monthly rent (0 if not rented)'),
+                ('Current Value (INR)', '11000000',  '4500000',     '15000000',    'Estimated current market value (optional)'),
+                ('Portfolio Name',    'Default',     'Default',     'Default',     'Portfolio label (optional)'),
+                ('Notes',             'Self occupied', 'Agricultural conversion pending', 'Co-working tenant', 'Any remarks (optional)'),
+            ],
+        },
+        'commodities': {
+            'sheet': 'Gold & Commodity Holdings',
+            'columns': [
+                ('Commodity Type',    'Gold',        'Silver',      'Gold',        'Gold / Silver / Platinum / Palladium'),
+                ('Commodity Form',    'Physical',    'Physical',    'Sovereign Gold Bond', 'Physical / Digital Gold / ETF / Sovereign Gold Bond'),
+                ('Sub Form',          'Coins',       'Bars',        '',            'Coins / Bars / Jewelry / Biscuit (for physical gold)'),
+                ('Item Name',         '24K Gold Coin 10g', 'Silver Bar 100g', 'SGB 2023-24 Series I', 'Descriptive name (optional)'),
+                ('Purity',            '24K',         '999',         '',            'Gold purity: 24K/22K/18K; Silver: 999/925'),
+                ('Weight (grams)',    '10',          '100',         '',            'Weight in grams'),
+                ('Purchase Date',     '10-11-2023',  '01-02-2024',  '15-09-2023',  'DD-MM-YYYY format'),
+                ('Quantity',          '1',           '1',           '5',           'Number of units / coins / bonds purchased'),
+                ('Purchase Rate per Gram', '6200',   '750',         '',            'Purchase rate per gram in INR'),
+                ('Purchase Amount',   '62000',       '75000',       '28500',       'Total purchase amount in INR'),
+                ('Making Charges',    '0',           '0',           '0',           'Jewellery making charges in INR (optional)'),
+                ('GST',               '1860',        '2250',        '0',           'GST paid in INR'),
+                ('Platform / Vendor', 'Tanishq',     'Malabar Gold','RBI / NSE',   'Store / platform / exchange name'),
+                ('Portfolio Name',    'Default',     'Default',     'Default',     'Portfolio label (optional)'),
+                ('Notes',             '',            '',            '8 units @5700 issue price', 'Any remarks (optional)'),
+            ],
+        },
+        'cryptocurrency': {
+            'sheet': 'Cryptocurrency Holdings',
+            'columns': [
+                ('Crypto Symbol',     'BTC',         'ETH',         'SOL',         'Ticker symbol: BTC / ETH / SOL / BNB etc.'),
+                ('Crypto Name',       'Bitcoin',     'Ethereum',    'Solana',      'Full name of the cryptocurrency'),
+                ('Platform / Exchange', 'WazirX',    'CoinDCX',     'Binance',     'Exchange or wallet name'),
+                ('Wallet Type',       'Exchange',    'Software Wallet', 'Exchange', 'Exchange / Hardware Wallet / Software Wallet / Cold Storage'),
+                ('Purchase Date',     '05-01-2024',  '20-02-2024',  '10-04-2024',  'DD-MM-YYYY format'),
+                ('Quantity',          '0.01',        '0.50',        '5.00',        'Number of coins / tokens purchased'),
+                ('Purchase Rate (INR)', '3500000',   '220000',      '14000',       'Purchase price per coin in INR'),
+                ('Purchase Amount (INR)', '35000',   '110000',      '70000',       'Total purchase amount in INR'),
+                ('Transaction Fee',   '100',         '55',          '70',          'Exchange fee in INR (optional)'),
+                ('Gas Fee',           '0',           '800',         '0',           'On-chain gas fee in INR (optional, mainly ETH)'),
+                ('Portfolio Name',    'Default',     'Default',     'Default',     'Portfolio label (optional)'),
+                ('Notes',             '',            'DeFi staking','',            'Any remarks (optional)'),
+            ],
+        },
+        'insurance': {
+            'sheet': 'Insurance Holdings',
+            'columns': [
+                ('Insurance Type',    'Term Life',   'Health',      'Life (ULIP)', 'Term Life / Life (ULIP) / Health / Motor / Property / Other'),
+                ('Policy Name',       'HDFC Click 2 Protect Life', 'Star Health Family Optima', 'LIC Jeevan Anand', 'Full policy product name'),
+                ('Policy Number',     'HDFC-TL-00123', 'STAR-1234567', 'LIC-12345678', 'Policy number from documents'),
+                ('Insurance Company', 'HDFC Life',   'Star Health',  'LIC',        'Insurer name'),
+                ('Policy Holder Name', 'Arjun Mehta', 'Arjun Mehta', 'Arjun Mehta', 'Name of the insured person'),
+                ('Sum Assured (INR)', '10000000',    '1000000',     '5000000',    'Coverage / sum assured amount'),
+                ('Policy Term (Years)', '30',        '1',           '25',         'Total policy duration in years'),
+                ('Premium Amount (INR)', '12000',    '18500',       '35000',      'Premium amount per payment period'),
+                ('Premium Frequency', 'Annual',      'Annual',      'Annual',     'Monthly / Quarterly / Half-Yearly / Annual'),
+                ('Policy Start Date', '01-04-2020',  '01-04-2024',  '01-06-2005', 'DD-MM-YYYY format'),
+                ('Policy End Date',   '01-04-2050',  '01-04-2025',  '01-06-2030', 'DD-MM-YYYY format (expiry / maturity)'),
+                ('Next Premium Due',  '01-04-2025',  '01-04-2025',  '01-06-2025', 'DD-MM-YYYY format (optional)'),
+                ('Maturity Amount',   '0',           '0',           '7500000',    'Expected maturity amount (0 for pure protection plans)'),
+                ('Nominee Name',      'Priya Mehta', 'Priya Mehta', 'Priya Mehta', 'Nominee full name'),
+                ('Nominee Relation',  'Spouse',      'Spouse',      'Spouse',     'Relationship with nominee'),
+                ('Portfolio Name',    'Default',     'Default',     'Default',    'Portfolio label (optional)'),
+                ('Notes',             '',            '',            '20-year money-back plan', 'Any remarks (optional)'),
+            ],
+        },
+        'banks': {
+            'sheet': 'Bank & Cash Holdings',
+            'columns': [
+                ('Account Type',      'Savings',     'Current',     'Salary',     'Savings / Current / Salary / Cash / NRE / NRO'),
+                ('Bank Name',         'HDFC Bank',   'ICICI Bank',  'Axis Bank',  'Name of the bank'),
+                ('Account Number',    'XXXX1234',    'XXXX5678',    'XXXX9012',   'Masked account number (optional)'),
+                ('Branch Name',       'Powai, Mumbai', 'Connaught Place', 'Andheri West', 'Branch name / city (optional)'),
+                ('IFSC Code',         'HDFC0001234', 'ICIC0005678', 'UTIB0009012', 'Branch IFSC code (optional)'),
+                ('Account Holder Name', 'Arjun Mehta', 'Arjun Mehta', 'Arjun Mehta', 'Name as in bank records'),
+                ('Current Balance',   '250000',      '80000',       '45000',      'Current balance in INR'),
+                ('As On Date',        '26-07-2026',  '26-07-2026',  '26-07-2026', 'Balance as on date (DD-MM-YYYY)'),
+                ('Interest Rate (%)', '3.50',        '0',           '3.50',       'Annual interest rate (for savings accounts)'),
+                ('Account Opening Date', '15-06-2018', '01-01-2020', '10-09-2021', 'DD-MM-YYYY format (optional)'),
+                ('Portfolio Name',    'Default',     'Default',     'Default',    'Portfolio label (optional)'),
+                ('Notes',             'Primary account', 'Business', 'Employer payroll', 'Any remarks (optional)'),
+            ],
+        },
+        'futures_options': {
+            'sheet': 'F&O Holdings',
+            'columns': [
+                ('Contract Type',     'Futures',     'Call Option', 'Put Option',  'Futures / Call Option / Put Option'),
+                ('Underlying Symbol', 'NIFTY',       'BANKNIFTY',   'RELIANCE',    'Underlying index or stock ticker'),
+                ('Strike Price',      '0',           '52000',       '2400',        'Strike price (0 for Futures)'),
+                ('Lot Size',          '25',          '15',          '250',         'Contract lot size as specified by NSE/BSE'),
+                ('Quantity (Lots)',   '2',           '1',           '3',           'Number of lots traded'),
+                ('Expiry Date',       '25-07-2024',  '25-07-2024',  '31-07-2024',  'DD-MM-YYYY format'),
+                ('Trade Date',        '10-07-2024',  '15-07-2024',  '18-07-2024',  'DD-MM-YYYY format'),
+                ('Position Type',     'Buy',         'Buy',         'Buy',         'Buy (Long) or Sell (Short)'),
+                ('Entry Price',       '23500',       '450.50',      '85.25',       'Price at which position was entered'),
+                ('Premium Paid',      '0',           '6757.50',     '6393.75',     'Total premium paid in INR (options only)'),
+                ('Brokerage',         '40.00',       '20.00',       '20.00',       'Brokerage in INR (optional)'),
+                ('STT',               '20.00',       '6.76',        '6.39',        'STT in INR (optional)'),
+                ('Exchange Charges',  '8.00',        '4.00',        '4.00',        'Exchange charges in INR (optional)'),
+                ('GST',               '8.64',        '4.32',        '4.32',        'GST in INR (optional)'),
+                ('Portfolio Name',    'Default',     'Default',     'Default',     'Portfolio label (optional)'),
+                ('Notes',             'Directional trade', 'Hedge', 'Protective put', 'Any remarks (optional)'),
+            ],
+        },
+    }
+
     try:
-        # TODO: Generate actual Excel template based on asset class
-        # For now, return a simple message
-        
-        flash(f'Template download for {asset_class} will be implemented soon', 'info')
-        return redirect(url_for('import_holdings', asset_class=asset_class))
-        
+        config = TEMPLATES.get(asset_class)
+        if not config:
+            flash(f'No template available for {asset_class}', 'warning')
+            return redirect(url_for('import_holdings', asset_class=asset_class))
+
+        # ── build workbook ────────────────────────────────────────────────
+        wb = openpyxl.Workbook()
+
+        # --- Sheet 1: Data sheet ---
+        ws = wb.active
+        ws.title = config['sheet']
+
+        header_fill   = PatternFill('solid', fgColor='1E3A5F')   # dark navy
+        header_font   = Font(bold=True, color='FFFFFF', name='Calibri', size=11)
+        sample_fill   = PatternFill('solid', fgColor='EAF4FF')   # light blue
+        sample_font   = Font(name='Calibri', size=10)
+        thin_side     = Side(style='thin', color='AAAAAA')
+        thin_border   = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+        center_align  = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        left_align    = Alignment(horizontal='left',   vertical='center', wrap_text=False)
+
+        columns = config['columns']
+        headers      = [c[0] for c in columns]
+        sample_rows  = [
+            [c[1] for c in columns],
+            [c[2] for c in columns],
+            [c[3] for c in columns],
+        ]
+
+        # Header row
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col_idx, value=header)
+            cell.font      = header_font
+            cell.fill      = header_fill
+            cell.alignment = center_align
+            cell.border    = thin_border
+
+        # Sample data rows
+        for row_idx, row_data in enumerate(sample_rows, start=2):
+            fill = sample_fill if row_idx % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
+            for col_idx, value in enumerate(row_data, start=1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell.font      = sample_font
+                cell.fill      = fill
+                cell.alignment = left_align
+                cell.border    = thin_border
+
+        # Auto-size columns (cap at 45 chars wide)
+        for col_idx, col_cells in enumerate(ws.columns, start=1):
+            max_len = max((len(str(c.value)) if c.value else 0) for c in col_cells)
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = min(max_len + 3, 45)
+
+        ws.row_dimensions[1].height = 28
+        ws.freeze_panes = 'A2'
+
+        # --- Sheet 2: Instructions ---
+        wi = wb.create_sheet(title='Instructions')
+        wi.column_dimensions['A'].width = 30
+        wi.column_dimensions['B'].width = 70
+
+        title_font    = Font(bold=True, size=13, color='1E3A5F', name='Calibri')
+        subhdr_font   = Font(bold=True, size=11, name='Calibri')
+        note_font     = Font(size=10, name='Calibri')
+        col_hdr_fill  = PatternFill('solid', fgColor='1E3A5F')
+
+        wi['A1'] = f'Capulse — {config["sheet"]} Import Template'
+        wi['A1'].font = title_font
+        wi.merge_cells('A1:B1')
+
+        wi['A3'] = 'Column'
+        wi['B3'] = 'Description'
+        for cell in [wi['A3'], wi['B3']]:
+            cell.font      = Font(bold=True, color='FFFFFF', name='Calibri', size=10)
+            cell.fill      = col_hdr_fill
+            cell.alignment = center_align
+            cell.border    = thin_border
+
+        for r, (col_name, *_, desc) in enumerate(columns, start=4):
+            a = wi.cell(row=r, column=1, value=col_name)
+            b = wi.cell(row=r, column=2, value=desc)
+            a.font = Font(bold=True, size=10, name='Calibri')
+            b.font = note_font
+            a.border = b.border = thin_border
+            a.alignment = b.alignment = left_align
+
+        # General notes below the table
+        note_start = len(columns) + 6
+        notes = [
+            '',
+            'General Notes:',
+            '• Fill in the data from Row 2 onwards in the "' + config['sheet'] + '" sheet.',
+            '• Do not modify the header row (Row 1) or remove any columns.',
+            '• Date fields must use DD-MM-YYYY format (e.g. 15-01-2024).',
+            '• Leave optional fields blank — do not enter "N/A" or "-".',
+            '• Amounts and prices should be plain numbers without commas (e.g. 100000, not 1,00,000).',
+            '• The sample rows (rows 2-4) are for reference; clear them before uploading your data.',
+        ]
+        for i, note in enumerate(notes):
+            cell = wi.cell(row=note_start + i, column=1, value=note)
+            cell.font = Font(bold=(note == 'General Notes:'), size=10, name='Calibri',
+                             color='1E3A5F' if note == 'General Notes:' else '333333')
+            if note.startswith('General'):
+                cell.font = Font(bold=True, size=11, name='Calibri', color='1E3A5F')
+            wi.merge_cells(f'A{note_start + i}:B{note_start + i}')
+
+        # ── stream to browser ─────────────────────────────────────────────
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        filename = f'capulse_{asset_class}_template.xlsx'
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+
     except Exception as e:
-        logger.error(f"Error downloading template: {str(e)}")
-        flash(f'Error: {str(e)}', 'error')
+        logger.error(f"Error generating template for {asset_class}: {str(e)}")
+        flash(f'Error generating template: {str(e)}', 'error')
         return redirect(url_for('import_holdings', asset_class=asset_class))
 
 @app.route('/portfolio/sync-brokers', methods=['POST'])

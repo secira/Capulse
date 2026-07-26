@@ -12,6 +12,9 @@
     <a href="{{ url_for('import_holdings', asset_class='insurance') }}" class="btn btn-sm btn-success">
         <i class="fas fa-file-import me-1"></i>Import
     </a>
+    <a href="{{ url_for('download_import_template', asset_class='insurance', format='excel') }}" class="btn btn-sm btn-outline-secondary" title="Download a sample Excel template to fill and import">
+        <i class="fas fa-file-download me-1"></i>Sample Template
+    </a>
     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
         <i class="fas fa-sync me-1"></i>Refresh
     </button>
