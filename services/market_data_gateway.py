@@ -4,10 +4,10 @@ Market Data Gateway — single authoritative source for all real-time market dat
 Uniform fallback chain applied by every area of the platform
 (Market Intelligence, Stock Research, F&O Analysis, Trade Execution):
 
-  1. Admin Broker Pool  — admin-configured broker (Dhan/Zerodha/etc.)
-  2. TrueData          — if data_api_plan.plan_type == 'nse_truedata'
-  3. System Dhan       — any connected DataApiBroker on the platform
-  4. NSEPython         — direct NSE India scrape
+  1. Admin Dhan        — admin-configured Dhan broker (primary)
+  2. Admin Zerodha     — admin-configured Zerodha/Kite broker (secondary)
+  3. NSEPython         — direct NSE India scrape (5 s hard timeout — may fail in cloud)
+  4. TrueData          — if data_api_plan.plan_type == 'nse_truedata'
   5. yfinance          — universal final fallback
 
 Every function returns a standardised dict with a 'source' key so UI
@@ -210,30 +210,11 @@ def get_price(symbol: str, user_id: Optional[int] = None) -> Dict:
         except Exception as e:
             logger.debug(f"gateway: user broker price({sym}): {e}")
 
-    # ── 3. TrueData (when admin configured plan_type='nse_truedata') ──────────
-    plan_type, td_key, _td_secret = _get_admin_plan()
-    if plan_type == 'nse_truedata' and td_key:
-        px = _truedata_ltp(sym, td_key)
-        if px > 0:
-            _cache_set(_PRICE_CACHE, cache_key, px, SRC_TRUEDATA)
-            return {"value": px, "source": SRC_TRUEDATA, "success": True, "cached": False}
-
-    # ── 4. System Dhan (any connected DataApiBroker) ─────────────────────────
+    # ── 3. NSEPython (5 s hard timeout — DNS may fail in cloud) ──────────────
     try:
-        from services.dhan_service import get_eq_quote
-        dhan_data = get_eq_quote(sym)
-        if dhan_data and dhan_data.get("ltp", 0) > 0:
-            px = float(dhan_data["ltp"])
-            _cache_set(_PRICE_CACHE, cache_key, px, SRC_ADMIN)
-            return {"value": px, "source": SRC_ADMIN,
-                    "source_detail": "dhan:system", "success": True, "cached": False}
-    except Exception as e:
-        logger.debug(f"gateway: system Dhan price({sym}): {e}")
-
-    # ── 5. NSEPython ─────────────────────────────────────────────────────────
-    try:
+        from services.nse_service import _nsepy_call
         from nsepython import nse_quote
-        q = nse_quote(sym)
+        q = _nsepy_call(nse_quote, sym, timeout=5)
         if q:
             lp = float(q.get('lastPrice') or 0)
             if lp > 0:
@@ -242,7 +223,15 @@ def get_price(symbol: str, user_id: Optional[int] = None) -> Dict:
     except Exception as e:
         logger.debug(f"gateway: NSEPython price({sym}): {e}")
 
-    # ── 6. yfinance ──────────────────────────────────────────────────────────
+    # ── 4. TrueData (when admin configured plan_type='nse_truedata') ──────────
+    plan_type, td_key, _td_secret = _get_admin_plan()
+    if plan_type == 'nse_truedata' and td_key:
+        px = _truedata_ltp(sym, td_key)
+        if px > 0:
+            _cache_set(_PRICE_CACHE, cache_key, px, SRC_TRUEDATA)
+            return {"value": px, "source": SRC_TRUEDATA, "success": True, "cached": False}
+
+    # ── 5. yfinance ──────────────────────────────────────────────────────────
     px, src = _yfinance_ltp(sym)
     if px > 0:
         _cache_set(_PRICE_CACHE, cache_key, px, src)
@@ -269,7 +258,7 @@ def get_ohlcv(symbol: str, days: int = 120, user_id: Optional[int] = None) -> Di
     if cv is not None:
         return {"df": cv, "source": cs, "success": True, "cached": True}
 
-    # ── 1. Admin Broker Pool (prefer any Dhan entry for equity OHLCV) ────────
+    # ── 1. Admin Dhan (primary) ───────────────────────────────────────────────
     try:
         from services.broker_factory import get_admin_data_brokers
         for _prio, btype, bname, _broker in get_admin_data_brokers():
@@ -278,32 +267,37 @@ def get_ohlcv(symbol: str, days: int = 120, user_id: Optional[int] = None) -> Di
                     from services.dhan_service import get_stock_historical_ohlcv
                     df = get_stock_historical_ohlcv(symbol=sym, days=days)
                     if df is not None and not df.empty and len(df) >= 10:
-                        logger.info(f"gateway: OHLCV({sym}) {len(df)} rows via admin:{bname}")
+                        logger.info(f"gateway: OHLCV({sym}) {len(df)} rows via admin:{bname} (Dhan)")
                         _cache_set(_OHLCV_CACHE, cache_key, df, SRC_ADMIN)
-                        return {"df": df, "source": SRC_ADMIN, "success": True, "cached": False}
+                        return {"df": df, "source": SRC_ADMIN,
+                                "source_detail": f"admin:{bname}", "success": True, "cached": False}
                 except Exception as _e:
                     logger.debug(f"gateway: admin Dhan OHLCV({sym}): {_e}")
                 break  # only try first Dhan admin broker
     except Exception as e:
-        logger.debug(f"gateway: admin pool OHLCV error: {e}")
+        logger.debug(f"gateway: admin pool OHLCV error (Dhan): {e}")
 
-    # ── 2. System Dhan ────────────────────────────────────────────────────────
+    # ── 2. Admin Zerodha (secondary) ─────────────────────────────────────────
     try:
-        from services.dhan_service import get_stock_historical_ohlcv
-        df = get_stock_historical_ohlcv(symbol=sym, days=days)
-        if df is not None and not df.empty and len(df) >= 10:
-            logger.info(f"gateway: OHLCV({sym}) {len(df)} rows via system Dhan")
-            _cache_set(_OHLCV_CACHE, cache_key, df, SRC_ADMIN)
-            return {"df": df, "source": SRC_ADMIN, "source_detail": "dhan:system", "success": True, "cached": False}
+        from services.broker_factory import get_admin_data_brokers
+        for _prio, btype, bname, broker in get_admin_data_brokers():
+            if btype.lower() == 'zerodha':
+                try:
+                    if broker.connect() and hasattr(broker, 'get_historical_ohlcv'):
+                        df = broker.get_historical_ohlcv(sym, days)
+                        if df is not None and not df.empty and len(df) >= 10:
+                            logger.info(f"gateway: OHLCV({sym}) {len(df)} rows via admin:{bname} (Zerodha)")
+                            _cache_set(_OHLCV_CACHE, cache_key, df, SRC_ADMIN)
+                            return {"df": df, "source": SRC_ADMIN,
+                                    "source_detail": f"admin:{bname}", "success": True, "cached": False}
+                except Exception as _e:
+                    logger.debug(f"gateway: admin Zerodha OHLCV({sym}): {_e}")
+                break  # only try first Zerodha admin broker
     except Exception as e:
-        logger.debug(f"gateway: system Dhan OHLCV({sym}): {e}")
+        logger.debug(f"gateway: admin pool OHLCV error (Zerodha): {e}")
 
-    # NOTE — TrueData and NSEPython are intentionally absent from the OHLCV chain.
-    # Policy: TrueData exposes only LTP + option chain endpoints (no historical bars).
-    # NSEPython provides only current-day quote data, not multi-day OHLCV series.
-    # The canonical OHLCV chain is therefore:
-    #   Admin Dhan → System Dhan → User Broker → yfinance
-    # This is explicitly policy-driven, not an oversight.
+    # NOTE — NSEPython and TrueData have no historical OHLCV endpoint.
+    # The OHLCV chain is: Admin Dhan → Admin Zerodha → User Broker → yfinance.
 
     # ── 3. User's own data broker ─────────────────────────────────────────────
     if user_id:
@@ -314,7 +308,9 @@ def get_ohlcv(symbol: str, days: int = 120, user_id: Optional[int] = None) -> Di
                 df = ub.get_historical_ohlcv(sym, days)
                 if df is not None and not df.empty and len(df) >= 10:
                     _cache_set(_OHLCV_CACHE, cache_key, df, SRC_ADMIN)
-                    return {"df": df, "source": SRC_ADMIN, "source_detail": f"user:{getattr(ub, 'BROKER_NAME', 'broker')}", "success": True, "cached": False}
+                    return {"df": df, "source": SRC_ADMIN,
+                            "source_detail": f"user:{getattr(ub, 'BROKER_NAME', 'broker')}",
+                            "success": True, "cached": False}
         except Exception as e:
             logger.debug(f"gateway: user broker OHLCV({sym}): {e}")
 
@@ -366,18 +362,14 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
     result: Dict[str, Dict] = {}
     remaining = list(symbols)
 
-    # ── 1. Admin Pool — prefer Dhan for batch equity quotes ──────────────────
+    # ── 1. Admin Dhan (primary) ───────────────────────────────────────────────
     try:
         from services.broker_factory import get_admin_data_brokers
         for _prio, btype, bname, _broker in get_admin_data_brokers():
             if btype.lower() == 'dhan':
                 try:
                     from services.dhan_service import get_security_id, get_nifty50_stock_quotes
-                    sec_id_map = {}
-                    for s in symbols:
-                        sid = get_security_id(s)
-                        if sid:
-                            sec_id_map[s] = sid
+                    sec_id_map = {s: sid for s in symbols if (sid := get_security_id(s))}
                     if sec_id_map:
                         raw = get_nifty50_stock_quotes(sec_id_map, timeout=5.0)
                         for sym, d in raw.items():
@@ -387,22 +379,57 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
                             if not pchg and ltp and close:
                                 pchg = round((ltp - close) / close * 100, 2)
                             if ltp > 0:
-                                result[sym] = {
-                                    'price': ltp, 'change_percent': pchg, 'source': SRC_ADMIN,
-                                }
-                        remaining = [s for s in remaining if s not in result]
+                                result[sym] = {'price': ltp, 'change_percent': pchg, 'source': SRC_ADMIN}
                         if result:
-                            logger.info(f"gateway: batch quotes {len(result)}/{len(symbols)} via admin:{bname}")
+                            logger.info(f"gateway: batch quotes {len(result)}/{len(symbols)} via admin:{bname} (Dhan)")
                 except Exception as _e:
                     logger.debug(f"gateway: admin Dhan batch quotes: {_e}")
-                break  # only try first Dhan admin broker
+                break  # only first Dhan admin broker
     except Exception as e:
-        logger.debug(f"gateway: admin pool quotes error: {e}")
+        logger.debug(f"gateway: admin pool quotes error (Dhan): {e}")
 
-    # ── 2. TrueData (secondary — when admin plan = nse_truedata) ────────────────
-    # TrueData is the designated secondary source; it runs before system Dhan
-    # so that admin TrueData configuration takes effect everywhere uniformly.
-    # TrueData has no batch equity endpoint so we iterate per-symbol.
+    # ── 2. Admin Zerodha (secondary) — batch LTP for remaining ───────────────
+    remaining = [s for s in symbols if s not in result]
+    if remaining:
+        try:
+            from services.broker_factory import get_admin_data_brokers
+            for _prio, btype, bname, broker in get_admin_data_brokers():
+                if btype.lower() == 'zerodha':
+                    try:
+                        if broker.connect() and hasattr(broker, 'get_batch_ltp'):
+                            ltp_map = broker.get_batch_ltp(remaining)
+                            for sym, ltp in ltp_map.items():
+                                if ltp > 0:
+                                    result[sym] = {'price': ltp, 'change_percent': 0.0, 'source': SRC_ADMIN}
+                            if any(s in result for s in remaining):
+                                logger.info(f"gateway: Zerodha batch LTP filled "
+                                            f"{sum(1 for s in remaining if s in result)}/{len(remaining)} via admin:{bname}")
+                    except Exception as _e:
+                        logger.debug(f"gateway: admin Zerodha batch quotes: {_e}")
+                    break  # only first Zerodha admin broker
+        except Exception as e:
+            logger.debug(f"gateway: admin pool quotes error (Zerodha): {e}")
+
+    # ── 3. NSEPython (per-symbol, 5 s timeout each) ───────────────────────────
+    remaining = [s for s in symbols if s not in result]
+    if remaining:
+        try:
+            from services.nse_service import _nsepy_call
+            from nsepython import nse_quote
+            for sym in remaining:
+                try:
+                    q = _nsepy_call(nse_quote, sym, timeout=5)
+                    if q:
+                        lp = float(q.get('lastPrice') or 0)
+                        if lp > 0:
+                            result[sym] = {'price': lp, 'change_percent': 0.0, 'source': SRC_NSE}
+                except Exception:
+                    pass
+            logger.debug(f"gateway: NSEPython filled {sum(1 for s in remaining if s in result)} / {len(remaining)}")
+        except Exception as e:
+            logger.debug(f"gateway: NSEPython batch quotes: {e}")
+
+    # ── 4. TrueData (when admin plan = nse_truedata) ─────────────────────────
     remaining = [s for s in symbols if s not in result]
     if remaining:
         plan_type, td_key, _td_secret = _get_admin_plan()
@@ -414,46 +441,7 @@ def get_quotes(symbols: List[str], user_id: Optional[int] = None) -> Dict:
                         result[sym] = {'price': px, 'change_percent': 0.0, 'source': SRC_TRUEDATA}
                 except Exception:
                     pass
-            logger.debug(f"gateway: TrueData LTP filled {sum(1 for s in remaining if s in result)} / {len(remaining)} remaining")
-
-    # ── 3. System Dhan batch for remainder ───────────────────────────────────
-    remaining = [s for s in symbols if s not in result]
-    if remaining:
-        try:
-            from services.dhan_service import get_security_id, get_nifty50_stock_quotes
-            sec_id_map = {s: sid for s in remaining if (sid := get_security_id(s))}
-            if sec_id_map:
-                raw = get_nifty50_stock_quotes(sec_id_map, timeout=5.0)
-                for sym, d in raw.items():
-                    ltp   = float(d.get('ltp', 0) or 0)
-                    close = float(d.get('close', 0) or ltp)
-                    pchg  = float(d.get('pct_change', 0) or 0)
-                    if not pchg and ltp and close:
-                        pchg = round((ltp - close) / close * 100, 2)
-                    if ltp > 0:
-                        result[sym] = {'price': ltp, 'change_percent': pchg, 'source': SRC_ADMIN}
-                logger.debug(f"gateway: system Dhan batch filled {len(raw)} symbols")
-        except Exception as e:
-            logger.debug(f"gateway: system Dhan batch quotes: {e}")
-
-    # ── 4. NSEPython (per-symbol, for remaining after TrueData) ──────────────
-    # NSEPython is per-symbol only — impractical for 50+ symbols but fills gaps.
-    remaining = [s for s in symbols if s not in result]
-    if remaining:
-        try:
-            from nsepython import nse_quote
-            for sym in remaining:
-                try:
-                    q = nse_quote(sym)
-                    if q:
-                        lp = float(q.get('lastPrice') or 0)
-                        if lp > 0:
-                            result[sym] = {'price': lp, 'change_percent': 0.0, 'source': SRC_NSE}
-                except Exception:
-                    pass
-            logger.debug(f"gateway: NSEPython filled {sum(1 for s in remaining if s in result)} / {len(remaining)} remaining")
-        except Exception as e:
-            logger.debug(f"gateway: NSEPython batch quotes: {e}")
+            logger.debug(f"gateway: TrueData filled {sum(1 for s in remaining if s in result)} / {len(remaining)}")
 
     # ── 5. yfinance batch — history(period='2d') for reliable closing data ──────
     # Works both during live market hours and after close when fast_info may return 0.
@@ -521,7 +509,7 @@ def get_index_prices(
     want = [s.upper().strip() for s in (symbols or _DEFAULT)]
     result: Dict = {}
 
-    # ── 1. Admin Broker Pool ──────────────────────────────────────────────────
+    # ── 1. Admin Dhan (primary) ───────────────────────────────────────────────
     try:
         from services.broker_factory import get_admin_data_brokers
         for _prio, btype, bname, broker in get_admin_data_brokers():
@@ -542,60 +530,68 @@ def get_index_prices(
                                     'pct_change': round(pct, 2), 'source': SRC_ADMIN,
                                 }
                         if result:
-                            logger.info(f"gateway: index prices {list(result.keys())} via admin:{bname}")
+                            logger.info(f"gateway: index prices {list(result.keys())} via admin:{bname} (Dhan)")
                             result['_source']  = SRC_ADMIN
                             result['_success'] = True
                             return result
                 except Exception as _e:
                     logger.debug(f"gateway: admin Dhan index prices: {_e}")
-            else:
-                # Non-Dhan admin broker — per-symbol get_price()
-                try:
-                    if broker.connect():
-                        for sym in want:
-                            if sym in result:
-                                continue
-                            px = float(broker.get_price(sym) or 0)
-                            if px > 0:
-                                result[sym] = {'ltp': px, 'change': 0.0, 'pct_change': 0.0, 'source': SRC_ADMIN}
-                except Exception as _e:
-                    logger.debug(f"gateway: admin broker {bname} index prices: {_e}")
-
+                break  # only first Dhan admin broker
     except Exception as e:
-        logger.debug(f"gateway: admin pool index prices: {e}")
+        logger.debug(f"gateway: admin pool index prices (Dhan): {e}")
 
-    # ── 2. TrueData (if configured) ───────────────────────────────────────────
-    plan_type, td_key, _td_secret = _get_admin_plan()
-    if plan_type == 'nse_truedata' and td_key:
-        for sym in want:
-            if sym in result:
-                continue
-            px = _truedata_ltp(sym, td_key)
-            if px > 0:
-                result[sym] = {'ltp': px, 'change': 0.0, 'pct_change': 0.0, 'source': SRC_TRUEDATA}
-
-    # ── 3. System Dhan ────────────────────────────────────────────────────────
+    # ── 2. Admin Zerodha (secondary) ─────────────────────────────────────────
     missing = [s for s in want if s not in result]
     if missing:
         try:
-            from services.dhan_service import get_index_quotes
-            dhan_data = get_index_quotes(user_id)
-            for sym in missing:
-                d = dhan_data.get(sym, {})
-                if d.get('ltp', 0) > 0:
-                    ltp   = float(d['ltp'])
-                    close = float(d.get('close', 0))
-                    chg   = float(d.get('change', (ltp - close) if close else 0))
-                    pct   = float(d.get('pct_change', (chg / close * 100) if close else 0))
-                    result[sym] = {
-                        'ltp': ltp, 'change': round(chg, 2),
-                        'pct_change': round(pct, 2), 'source': SRC_ADMIN,
-                        'source_detail': 'dhan:system',
-                    }
+            from services.broker_factory import get_admin_data_brokers
+            for _prio, btype, bname, broker in get_admin_data_brokers():
+                if btype.lower() == 'zerodha':
+                    try:
+                        if broker.connect():
+                            for sym in missing:
+                                px = float(broker.get_price(sym) or 0)
+                                if px > 0:
+                                    result[sym] = {'ltp': px, 'change': 0.0, 'pct_change': 0.0,
+                                                   'source': SRC_ADMIN}
+                            if any(s in result for s in missing):
+                                logger.info(f"gateway: index prices (Zerodha) filled "
+                                            f"{sum(1 for s in missing if s in result)}/{len(missing)} via admin:{bname}")
+                    except Exception as _e:
+                        logger.debug(f"gateway: admin Zerodha index prices: {_e}")
+                    break  # only first Zerodha admin broker
         except Exception as e:
-            logger.debug(f"gateway: system Dhan index prices: {e}")
+            logger.debug(f"gateway: admin pool index prices (Zerodha): {e}")
 
-    # ── 4. yfinance fast_info ─────────────────────────────────────────────────
+    # ── 3. NSEPython (5 s timeout) ────────────────────────────────────────────
+    missing = [s for s in want if s not in result]
+    if missing:
+        try:
+            from services.nse_service import _nsepy_call
+            from nsepython import nse_get_index_quote
+            for sym in missing:
+                try:
+                    q = _nsepy_call(nse_get_index_quote, sym, timeout=5)
+                    if q:
+                        ltp = float(q.get('last', q.get('lastPrice', 0)) or 0)
+                        if ltp > 0:
+                            result[sym] = {'ltp': ltp, 'change': 0.0, 'pct_change': 0.0, 'source': SRC_NSE}
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"gateway: NSEPython index prices: {e}")
+
+    # ── 4. TrueData (if configured) ───────────────────────────────────────────
+    missing = [s for s in want if s not in result]
+    if missing:
+        plan_type, td_key, _td_secret = _get_admin_plan()
+        if plan_type == 'nse_truedata' and td_key:
+            for sym in missing:
+                px = _truedata_ltp(sym, td_key)
+                if px > 0:
+                    result[sym] = {'ltp': px, 'change': 0.0, 'pct_change': 0.0, 'source': SRC_TRUEDATA}
+
+    # ── 5. yfinance fast_info ─────────────────────────────────────────────────
     # fast_info always supplies both last_price and previous_close so we never
     # get a pct_change of 0.0 due to history(period='2d') returning a single bar
     # when the market is open mid-session (confirmed bug with ^BSESN).

@@ -2,13 +2,14 @@ import csv
 import io
 import logging
 import requests
-from datetime import datetime, date
-from typing import Dict, List, Any, Optional
+from datetime import datetime, date, timedelta
+from typing import Dict, List, Any, Optional, Tuple
 from brokers.base import BrokerBase
 
 logger = logging.getLogger(__name__)
 
 _INSTRUMENT_CACHE: Dict[str, Dict] = {}
+_NSE_TOKEN_CACHE: Dict[str, Tuple[int, str]] = {}  # symbol → (instrument_token, cached_date)
 
 
 class ZerodhaBroker(BrokerBase):
@@ -228,6 +229,101 @@ class ZerodhaBroker(BrokerBase):
             return resp.json().get("data", []) if resp.status_code == 200 else []
         except Exception:
             return []
+
+    def get_batch_ltp(self, symbols: List[str]) -> Dict[str, float]:
+        """
+        Bulk LTP fetch via /quote/ltp for a list of NSE equity symbols.
+        Returns {symbol: ltp_float} for symbols where price > 0.
+        """
+        result: Dict[str, float] = {}
+        if not symbols:
+            return result
+        try:
+            params = [("i", f"NSE:{s.upper()}") for s in symbols]
+            resp = self.session.get(
+                f"{self.base_url}/quote/ltp",
+                params=params,
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                data = resp.json().get("data", {})
+                for sym in symbols:
+                    key = f"NSE:{sym.upper()}"
+                    ltp = float(data.get(key, {}).get("last_price", 0) or 0)
+                    if ltp > 0:
+                        result[sym.upper()] = ltp
+        except Exception as e:
+            logger.error(f"Zerodha get_batch_ltp error: {e}")
+        return result
+
+    def _get_equity_token(self, symbol: str) -> Optional[int]:
+        """
+        Look up the NSE instrument_token for an equity symbol.
+        Downloads the NSE instruments CSV (cached for the trading day).
+        """
+        sym = symbol.upper()
+        today_str = str(date.today())
+        cached = _NSE_TOKEN_CACHE.get(sym)
+        if cached and cached[1] == today_str:
+            return cached[0]
+        try:
+            resp = self.session.get(f"{self.base_url}/instruments/NSE", timeout=20)
+            if resp.status_code != 200:
+                return None
+            reader = csv.DictReader(io.StringIO(resp.text))
+            for row in reader:
+                if (row.get("tradingsymbol", "").upper() == sym and
+                        row.get("instrument_type", "") == "EQ"):
+                    token = int(row["instrument_token"])
+                    _NSE_TOKEN_CACHE[sym] = (token, today_str)
+                    return token
+        except Exception as e:
+            logger.error(f"Zerodha _get_equity_token({symbol}): {e}")
+        return None
+
+    def get_historical_ohlcv(self, symbol: str, days: int = 120):
+        """
+        Fetch daily OHLCV from Kite Historical API.
+        Returns a pandas DataFrame with columns [open, high, low, close, volume]
+        or None on failure.
+        """
+        try:
+            import pandas as pd
+
+            # For index symbols use the direct LTP only — Kite historical needs
+            # an instrument_token which for indices differs from equity lookup.
+            token = self._get_equity_token(symbol)
+            if not token:
+                return None
+
+            to_date   = date.today()
+            from_date = to_date - timedelta(days=days + 30)  # buffer for weekends
+
+            resp = self.session.get(
+                f"{self.base_url}/instruments/historical/{token}/day",
+                params={
+                    "from": str(from_date),
+                    "to":   str(to_date),
+                },
+                timeout=20,
+            )
+            if resp.status_code != 200:
+                logger.debug(f"Zerodha historical {symbol}: HTTP {resp.status_code}")
+                return None
+
+            candles = resp.json().get("data", {}).get("candles", [])
+            if not candles:
+                return None
+
+            df = pd.DataFrame(candles, columns=["date", "open", "high", "low", "close", "volume", "oi"])
+            df = df[["open", "high", "low", "close", "volume"]].copy()
+            df = df.dropna(subset=["close"]).tail(days).reset_index(drop=True)
+            if len(df) >= 5:
+                logger.info(f"Zerodha historical OHLCV({symbol}): {len(df)} rows")
+                return df
+        except Exception as e:
+            logger.error(f"Zerodha get_historical_ohlcv({symbol}): {e}")
+        return None
 
     def _map_symbol(self, symbol: str):
         """Return (exchange, trading_symbol) for LTP lookup."""
