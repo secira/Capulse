@@ -5,3 +5,4 @@
 - [ThreadPoolExecutor timeout pattern](threadpool-timeout-pattern.md) — never use "with ThreadPoolExecutor() as pool:" for broker SDK calls; __exit__ calls shutdown(wait=True) and blocks forever on hung thread even after TimeoutError.
 - [Google OAuth generic 403](google-oauth-403.md) — "you do not have access" 403 = consent screen User Type is Internal, not a redirect_uri/code bug; fix is Console-side (set External + publish).
 - [Scheduler fork + advisory locks](scheduler-fork-locks.md) — with gunicorn preload, schedulers must start in post_fork; advisory-lock connections must be detached+pinned; unique lock IDs; DB-persisted status.
+- [NSEPython blocked in Replit](nsepython-replit-blocked.md) — NSEPython DNS fails in Replit; use _nsepy_call() helper in nse_service.py; same no-`with`-ThreadPoolExecutor rule applies.
