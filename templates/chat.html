@@ -19,19 +19,29 @@
 .gate-btn-ghost{border:1px solid var(--line);color:var(--paper-dim)}
 .gate-btn-ghost:hover{border-color:var(--paper-faint);color:var(--paper)}
 /* mutual fund card */
-.mf-card{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:6px;max-width:480px}
+.mf-card{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:6px;max-width:520px}
 .mf-head{margin-bottom:12px}
 .mf-name{font-size:13.5px;color:var(--paper);font-weight:600;line-height:1.4;margin-bottom:4px}
 .mf-meta{font-family:var(--mono);font-size:10.5px;color:var(--paper-faint)}
+.mf-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.mf-badge{font-family:var(--mono);font-size:9.5px;padding:2px 7px;border-radius:100px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--paper-dim)}
+.mf-badge.direct{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.25);color:#4ade80}
+.mf-badge.regular{background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.2);color:#fbbf24}
+.mf-badge.open{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.25);color:#4ade80}
+.mf-badge.closed{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.2);color:#f87171}
 .mf-nav-row{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
 .mf-nav-val{font-family:var(--serif);font-size:26px;color:var(--amber)}
 .mf-nav-date{font-family:var(--mono);font-size:10.5px;color:var(--paper-faint)}
-.mf-returns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.mf-returns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}
 .mf-return-item{display:flex;flex-direction:column;gap:3px}
 .mf-return-label{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint)}
 .mf-return-val{font-family:var(--mono);font-size:13px;color:var(--paper)}
 .mf-return-val.pos{color:var(--good)}
 .mf-return-val.neg{color:var(--risk)}
+.mf-details{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding-top:12px;border-top:1px solid var(--line-soft)}
+.mf-detail-item{display:flex;flex-direction:column;gap:2px}
+.mf-detail-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint)}
+.mf-detail-val{font-family:var(--mono);font-size:11.5px;color:var(--paper-dim)}
 /* portfolio card */
 .port-card{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:6px;max-width:520px}
 .port-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
@@ -233,19 +243,33 @@
               <div class="mf-card">
                 <div class="mf-head">
                   <div class="mf-name">{{ d.scheme_name }}</div>
-                  <div class="mf-meta">{{ d.fund_house }} &middot; {{ d.scheme_category }}</div>
+                  <div class="mf-meta">{{ d.fund_house or d.amc }} &middot; {{ d.fund_category or d.scheme_category }}</div>
+                  <div class="mf-badges">
+                    {% if d.scheme_plan %}<span class="mf-badge {% if 'direct' in d.scheme_plan|lower %}direct{% else %}regular{% endif %}">{{ d.scheme_plan }}</span>{% endif %}
+                    {% if d.fund_type %}<span class="mf-badge">{{ d.fund_type }}</span>{% endif %}
+                    {% if d.purchase_allowed %}<span class="mf-badge {% if d.purchase_allowed == '1' or d.purchase_allowed|lower == 'true' %}open{% else %}closed{% endif %}">Purchase {% if d.purchase_allowed == '1' or d.purchase_allowed|lower == 'true' %}Open{% else %}Closed{% endif %}</span>{% endif %}
+                    {% if d.redemption_allowed %}<span class="mf-badge {% if d.redemption_allowed == '1' or d.redemption_allowed|lower == 'true' %}open{% else %}closed{% endif %}">Redemption {% if d.redemption_allowed == '1' or d.redemption_allowed|lower == 'true' %}Open{% else %}Closed{% endif %}</span>{% endif %}
+                  </div>
                 </div>
                 <div class="mf-nav-row">
-                  <span class="mf-nav-val">&#8377;{{ "%.4f"|format(d.current_nav) }}</span>
+                  <span class="mf-nav-val">&#8377;{{ "%.4f"|format(d.current_nav) if d.current_nav else '—' }}</span>
                   <span class="mf-nav-date">NAV as of {{ d.nav_date }}</span>
                 </div>
                 <div class="mf-returns">
-                  <div class="mf-return-item"><span class="mf-return-label">1Y Return</span><span class="mf-return-val {% if d.returns_1y and d.returns_1y > 0 %}pos{% elif d.returns_1y %}neg{% endif %}">{% if d.returns_1y %}{{ "%.1f"|format(d.returns_1y) }}%{% else %}—{% endif %}</span></div>
-                  <div class="mf-return-item"><span class="mf-return-label">3Y Return</span><span class="mf-return-val {% if d.returns_3y and d.returns_3y > 0 %}pos{% elif d.returns_3y %}neg{% endif %}">{% if d.returns_3y %}{{ "%.1f"|format(d.returns_3y) }}%{% else %}—{% endif %}</span></div>
-                  <div class="mf-return-item"><span class="mf-return-label">5Y Return</span><span class="mf-return-val {% if d.returns_5y and d.returns_5y > 0 %}pos{% elif d.returns_5y %}neg{% endif %}">{% if d.returns_5y %}{{ "%.1f"|format(d.returns_5y) }}%{% else %}—{% endif %}</span></div>
+                  <div class="mf-return-item"><span class="mf-return-label">1Y Return</span><span class="mf-return-val {% if d.returns_1y and d.returns_1y > 0 %}pos{% elif d.returns_1y %}neg{% endif %}">{% if d.returns_1y is not none %}{{ "%.1f"|format(d.returns_1y) }}%{% else %}—{% endif %}</span></div>
+                  <div class="mf-return-item"><span class="mf-return-label">3Y CAGR</span><span class="mf-return-val {% if d.cagr_3y and d.cagr_3y > 0 %}pos{% elif d.cagr_3y %}neg{% endif %}">{% if d.cagr_3y is not none %}{{ "%.1f"|format(d.cagr_3y) }}%{% else %}—{% endif %}</span></div>
+                  <div class="mf-return-item"><span class="mf-return-label">5Y Return</span><span class="mf-return-val {% if d.returns_5y and d.returns_5y > 0 %}pos{% elif d.returns_5y %}neg{% endif %}">{% if d.returns_5y is not none %}{{ "%.1f"|format(d.returns_5y) }}%{% else %}—{% endif %}</span></div>
                 </div>
+                {% if d.min_purchase_amount or d.settlement_type or d.volatility or d.sharpe_ratio %}
+                <div class="mf-details">
+                  {% if d.min_purchase_amount %}<div class="mf-detail-item"><span class="mf-detail-label">Min Purchase</span><span class="mf-detail-val">&#8377;{{ "{:,.0f}".format(d.min_purchase_amount) }}</span></div>{% endif %}
+                  {% if d.settlement_type %}<div class="mf-detail-item"><span class="mf-detail-label">Settlement</span><span class="mf-detail-val">{{ d.settlement_type }}</span></div>{% endif %}
+                  {% if d.volatility %}<div class="mf-detail-item"><span class="mf-detail-label">Volatility</span><span class="mf-detail-val">{{ "%.2f"|format(d.volatility) }}%</span></div>{% endif %}
+                  {% if d.sharpe_ratio %}<div class="mf-detail-item"><span class="mf-detail-label">Sharpe Ratio</span><span class="mf-detail-val">{{ "%.2f"|format(d.sharpe_ratio) }}</span></div>{% endif %}
+                </div>
+                {% endif %}
               </div>
-              <p class="disclaimer-inline">NAV data from MFApi.in. Past returns are not indicative of future performance.</p>
+              <p class="disclaimer-inline">{{ d.source_note or 'Data from MFApi.in' }}. Past returns are not indicative of future performance.</p>
             {% elif ctx.get('card_type') == 'portfolio' and ctx.get('card_data') %}
               {% set d = ctx.card_data %}
               {% set s = d.get('summary', {}) %}
@@ -727,24 +751,64 @@ function renderFnoCard(d) {
 }
 
 function renderMfCard(d) {
-  function retClass(v) { return v > 0 ? 'pos' : v < 0 ? 'neg' : ''; }
-  function retFmt(v)   { return v != null ? v.toFixed(1) + '%' : '—'; }
+  function rc(v)  { return v != null ? (v > 0 ? 'pos' : v < 0 ? 'neg' : '') : ''; }
+  function rf(v)  { return v != null ? Number(v).toFixed(1) + '%' : '—'; }
+  function boolOpen(v) { return v === '1' || v === 'true' || v === true; }
+
+  // ── badges row ──────────────────────────────────────────────────────────
+  let badges = '';
+  if (d.scheme_plan) {
+    const isDirect = d.scheme_plan.toLowerCase().includes('direct');
+    badges += `<span class="mf-badge ${isDirect ? 'direct' : 'regular'}">${d.scheme_plan}</span>`;
+  }
+  if (d.fund_type) badges += `<span class="mf-badge">${d.fund_type}</span>`;
+  if (d.purchase_allowed != null && d.purchase_allowed !== '') {
+    const open = boolOpen(d.purchase_allowed);
+    badges += `<span class="mf-badge ${open ? 'open' : 'closed'}">Purchase ${open ? 'Open' : 'Closed'}</span>`;
+  }
+  if (d.redemption_allowed != null && d.redemption_allowed !== '') {
+    const open = boolOpen(d.redemption_allowed);
+    badges += `<span class="mf-badge ${open ? 'open' : 'closed'}">Redemption ${open ? 'Open' : 'Closed'}</span>`;
+  }
+
+  // ── detail grid (Kite + risk metrics) ───────────────────────────────────
+  let details = '';
+  if (d.min_purchase_amount) {
+    const amt = Number(d.min_purchase_amount).toLocaleString('en-IN', {maximumFractionDigits: 0});
+    details += `<div class="mf-detail-item"><span class="mf-detail-label">Min Purchase</span><span class="mf-detail-val">&#8377;${amt}</span></div>`;
+  }
+  if (d.settlement_type) {
+    details += `<div class="mf-detail-item"><span class="mf-detail-label">Settlement</span><span class="mf-detail-val">${d.settlement_type}</span></div>`;
+  }
+  if (d.volatility != null) {
+    details += `<div class="mf-detail-item"><span class="mf-detail-label">Volatility</span><span class="mf-detail-val">${Number(d.volatility).toFixed(2)}%</span></div>`;
+  }
+  if (d.sharpe_ratio != null) {
+    details += `<div class="mf-detail-item"><span class="mf-detail-label">Sharpe Ratio</span><span class="mf-detail-val">${Number(d.sharpe_ratio).toFixed(2)}</span></div>`;
+  }
+
+  const sourceNote = d.source_note || 'Data from MFApi.in';
+  const category   = d.fund_category || d.scheme_category || '';
+  const house      = d.fund_house    || d.amc             || '';
+
   return `<div class="mf-card">
     <div class="mf-head">
       <div class="mf-name">${d.scheme_name || ''}</div>
-      <div class="mf-meta">${d.fund_house || ''} &middot; ${d.scheme_category || ''}</div>
+      <div class="mf-meta">${house}${house && category ? ' &middot; ' : ''}${category}</div>
+      ${badges ? `<div class="mf-badges">${badges}</div>` : ''}
     </div>
     <div class="mf-nav-row">
       <span class="mf-nav-val">&#8377;${d.current_nav ? Number(d.current_nav).toFixed(4) : '—'}</span>
       <span class="mf-nav-date">NAV as of ${d.nav_date || ''}</span>
     </div>
     <div class="mf-returns">
-      <div class="mf-return-item"><span class="mf-return-label">1Y Return</span><span class="mf-return-val ${retClass(d.returns_1y)}">${retFmt(d.returns_1y)}</span></div>
-      <div class="mf-return-item"><span class="mf-return-label">3Y Return</span><span class="mf-return-val ${retClass(d.returns_3y)}">${retFmt(d.returns_3y)}</span></div>
-      <div class="mf-return-item"><span class="mf-return-label">5Y Return</span><span class="mf-return-val ${retClass(d.returns_5y)}">${retFmt(d.returns_5y)}</span></div>
+      <div class="mf-return-item"><span class="mf-return-label">1Y Return</span><span class="mf-return-val ${rc(d.returns_1y)}">${rf(d.returns_1y)}</span></div>
+      <div class="mf-return-item"><span class="mf-return-label">3Y CAGR</span><span class="mf-return-val ${rc(d.cagr_3y)}">${rf(d.cagr_3y)}</span></div>
+      <div class="mf-return-item"><span class="mf-return-label">5Y Return</span><span class="mf-return-val ${rc(d.returns_5y)}">${rf(d.returns_5y)}</span></div>
     </div>
+    ${details ? `<div class="mf-details">${details}</div>` : ''}
   </div>
-  <p class="disclaimer-inline">NAV data from MFApi.in. Past returns are not indicative of future performance.</p>`;
+  <p class="disclaimer-inline">${sourceNote}. Past returns are not indicative of future performance.</p>`;
 }
 
 function renderPortfolioCard(d) {

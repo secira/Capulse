@@ -325,6 +325,96 @@ class ZerodhaBroker(BrokerBase):
             logger.error(f"Zerodha get_historical_ohlcv({symbol}): {e}")
         return None
 
+    # ── Mutual Fund Instruments ───────────────────────────────────────────────
+
+    # Class-level cache: list of dicts parsed from /mf/instruments CSV.
+    _mf_instruments_cache: List[Dict] = []
+    _mf_instruments_date: str = ""
+
+    def get_mf_instruments(self) -> List[Dict]:
+        """
+        Fetch the Zerodha MF instruments list from GET /mf/instruments.
+        Returns a list of dicts with keys:
+          tradingsymbol, amc, name, purchase_allowed, redemption_allowed,
+          minimum_purchase_amount, last_price, last_price_date, expired,
+          scheme_type, scheme_plan, scheme_code, fund_type, fund_category,
+          dividend_type, settlement_type
+        Cached for the trading day (refreshed once per calendar date).
+        """
+        today = str(date.today())
+        if ZerodhaBroker._mf_instruments_date == today and ZerodhaBroker._mf_instruments_cache:
+            return ZerodhaBroker._mf_instruments_cache
+        try:
+            resp = self.session.get(f"{self.base_url}/mf/instruments", timeout=20)
+            if resp.status_code != 200:
+                logger.warning(f"Zerodha /mf/instruments HTTP {resp.status_code}")
+                return ZerodhaBroker._mf_instruments_cache  # stale but better than nothing
+            reader = csv.DictReader(io.StringIO(resp.text))
+            instruments = []
+            for row in reader:
+                if row.get("expired", "").strip().lower() in ("true", "1", "yes"):
+                    continue
+                instruments.append({
+                    "tradingsymbol":             row.get("tradingsymbol", "").strip(),
+                    "amc":                       row.get("amc", "").strip(),
+                    "name":                      row.get("name", "").strip(),
+                    "purchase_allowed":          row.get("purchase_allowed", "").strip(),
+                    "redemption_allowed":        row.get("redemption_allowed", "").strip(),
+                    "minimum_purchase_amount":   row.get("minimum_purchase_amount", "").strip(),
+                    "last_price":                row.get("last_price", "").strip(),
+                    "last_price_date":           row.get("last_price_date", "").strip(),
+                    "scheme_type":               row.get("scheme_type", "").strip(),
+                    "scheme_plan":               row.get("scheme_plan", "").strip(),
+                    "scheme_code":               row.get("scheme_code", "").strip(),
+                    "fund_type":                 row.get("fund_type", "").strip(),
+                    "fund_category":             row.get("fund_category", "").strip(),
+                    "dividend_type":             row.get("dividend_type", "").strip(),
+                    "settlement_type":           row.get("settlement_type", "").strip(),
+                })
+            ZerodhaBroker._mf_instruments_cache = instruments
+            ZerodhaBroker._mf_instruments_date = today
+            logger.info(f"Zerodha MF instruments loaded: {len(instruments)} active schemes")
+            return instruments
+        except Exception as e:
+            logger.error(f"Zerodha get_mf_instruments error: {e}")
+            return ZerodhaBroker._mf_instruments_cache
+
+    def search_mf(self, query: str, max_results: int = 10) -> List[Dict]:
+        """
+        Fuzzy word-overlap search against the cached MF instruments list.
+        Prefers Direct Growth plans. Returns up to max_results matches.
+        """
+        instruments = self.get_mf_instruments()
+        if not instruments:
+            return []
+
+        stopwords = {"fund", "the", "of", "and", "-", "&", "plan", "option", "scheme"}
+        q_tokens = {t for t in query.lower().split() if t not in stopwords and len(t) > 1}
+        if not q_tokens:
+            return []
+
+        scored = []
+        for inst in instruments:
+            name_low = inst["name"].lower()
+            name_tokens = set(name_low.split())
+            matched = q_tokens & name_tokens
+            if not matched:
+                continue
+            score = len(matched) / max(len(q_tokens), 1)
+            if matched == q_tokens:
+                score += 0.5
+            # Strongly prefer Direct Growth
+            if "direct" in name_low and "growth" in inst.get("dividend_type", "").lower():
+                score += 0.3
+            elif "direct" in name_low:
+                score += 0.15
+            scored.append((score, inst))
+
+        scored.sort(key=lambda x: -x[0])
+        return [inst for _, inst in scored[:max_results]]
+
+    # ── Symbol mapping ────────────────────────────────────────────────────────
+
     def _map_symbol(self, symbol: str):
         """Return (exchange, trading_symbol) for LTP lookup."""
         mapping = {

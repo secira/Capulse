@@ -277,52 +277,75 @@ def _fno_fallback(index: str) -> Dict[str, Any]:
 
 
 def handle_mutual_fund(fund_query: str, message: str) -> Dict[str, Any]:
-    """Fetch mutual fund data using MFApi."""
+    """
+    Fetch mutual fund data.
+    Primary source: Zerodha Kite /mf/instruments (admin broker pool) for
+    current NAV, scheme metadata, purchase/redemption status, min amount.
+    Secondary source: mfapi.in for historical NAV and return calculations.
+    Falls back gracefully to mfapi-only when Kite is unavailable.
+    """
     try:
         query = fund_query or message
         if not query:
             return {'card_type': 'prose', 'content': "Which mutual fund would you like to analyse? Try: **Parag Parikh Flexi Cap**, **HDFC Mid Cap Opportunities**, or **SBI Small Cap Fund**."}
 
-        from services.mfapi_service import MFApiService
-        svc = MFApiService()
-        results = svc.search_fund(query)
+        from services.zerodha_mf_service import get_mf_data
+        data = get_mf_data(query)
 
-        if not results:
+        if not data:
             return {
                 'card_type': 'prose',
-                'content': f"I couldn't find a mutual fund matching **\"{query}\"**. Try a more specific name, e.g. \"HDFC Mid Cap Opportunities\" or \"Axis Bluechip Fund\"."
+                'content': (
+                    f"I couldn't find a mutual fund matching **\"{query}\"**. "
+                    "Try a more specific name, e.g. \"HDFC Mid Cap Opportunities\", "
+                    "\"Parag Parikh Flexi Cap\", or \"SBI Small Cap Fund\"."
+                )
             }
 
-        # Take the best match
-        top = results[0]
-        scheme_code = top.get('schemeCode')
-        if not scheme_code:
-            return {'card_type': 'prose', 'content': f"Found fund **{top.get('schemeName', query)}** but could not retrieve its details. Please try again."}
-
-        details = svc.get_fund_details(scheme_code)
-        if not details.get('success'):
-            return {'card_type': 'prose', 'content': f"Couldn't load data for **{top.get('schemeName', query)}** right now. MFApi may be temporarily unavailable."}
+        scheme_name = data.get('scheme_name', query)
+        source      = data.get('data_source', 'mfapi')
+        source_note = ("NAV & metadata from Zerodha Kite · Returns from MFApi.in"
+                       if source == 'kite+mfapi'
+                       else "Data from MFApi.in")
 
         return {
             'card_type': 'mutual_fund',
-            'content': f"Here's the fund snapshot for **{details.get('scheme_name', query)}**:",
+            'content':   f"Here's the fund snapshot for **{scheme_name}**:",
             'card_data': {
-                'scheme_name':    details.get('scheme_name', ''),
-                'fund_house':     details.get('fund_house', ''),
-                'scheme_category': details.get('scheme_category', ''),
-                'scheme_type':    details.get('scheme_type', ''),
-                'current_nav':    details.get('current_nav', 0),
-                'nav_date':       details.get('nav_date', ''),
-                # mfapi_service stores keys WITHOUT trailing 's' — return_1y not returns_1y
-                'return_1y':  details.get('return_1y'),
-                'return_3y':  details.get('return_3y'),
-                'return_5y':  details.get('return_5y'),
-                'cagr_1y':    details.get('cagr_1y'),
-                'cagr_3y':    details.get('cagr_3y'),
-                'cagr_5y':    details.get('cagr_5y'),
-                'volatility':       details.get('volatility'),
-                'sharpe_ratio':     details.get('sharpe_ratio'),
-                'annualized_return': details.get('annualized_return'),
+                # ── Identity ──────────────────────────────────────────────
+                'scheme_name':       data.get('scheme_name', ''),
+                'fund_house':        data.get('fund_house', ''),
+                'amc':               data.get('amc', ''),
+                'scheme_category':   data.get('scheme_category', ''),
+                'fund_category':     data.get('fund_category', ''),
+                'fund_type':         data.get('fund_type', ''),
+                'scheme_type':       data.get('scheme_type', ''),
+                'scheme_plan':       data.get('scheme_plan', ''),   # Direct / Regular
+
+                # ── NAV ───────────────────────────────────────────────────
+                'current_nav':       data.get('current_nav', 0),
+                'nav_date':          data.get('nav_date', ''),
+
+                # ── Returns (keys match what the card template reads) ─────
+                'returns_1y':        data.get('returns_1y'),
+                'returns_3y':        data.get('returns_3y'),
+                'returns_5y':        data.get('returns_5y'),
+                'cagr_1y':           data.get('cagr_1y'),
+                'cagr_3y':           data.get('cagr_3y'),
+                'cagr_5y':           data.get('cagr_5y'),
+                'volatility':        data.get('volatility'),
+                'sharpe_ratio':      data.get('sharpe_ratio'),
+                'annualized_return': data.get('annualized_return'),
+
+                # ── Kite-only metadata ────────────────────────────────────
+                'purchase_allowed':    data.get('purchase_allowed', ''),
+                'redemption_allowed':  data.get('redemption_allowed', ''),
+                'min_purchase_amount': data.get('min_purchase_amount'),
+                'settlement_type':     data.get('settlement_type', ''),
+
+                # ── Source tag (rendered in card disclaimer) ──────────────
+                'data_source':  source,
+                'source_note':  source_note,
             }
         }
 
@@ -330,7 +353,7 @@ def handle_mutual_fund(fund_query: str, message: str) -> Dict[str, Any]:
         logger.error(f"Mutual fund error: {e}")
         return {
             'card_type': 'prose',
-            'content': "I can look up NAV, returns, and category details for any Indian mutual fund. Try asking: **\"Parag Parikh Flexi Cap NAV\"** or **\"compare HDFC and ICICI mid cap funds\"**."
+            'content': "I can look up NAV, returns, and category details for any Indian mutual fund. Try asking: **\"Parag Parikh Flexi Cap NAV\"** or **\"HDFC Mid Cap Opportunities\"**."
         }
 
 
