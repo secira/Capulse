@@ -435,7 +435,15 @@ class LangGraphIScoreEngine:
             
             Return JSON with: sentiment_score, confidence (0-1), key_findings (list), reasoning (string), sources (list)"""
             
-            response = perplexity.research_indian_stock(symbol, 'news_sentiment')
+            import concurrent.futures as _cf_q
+            _qexec = _cf_q.ThreadPoolExecutor(max_workers=1)
+            _qfut = _qexec.submit(perplexity.research_indian_stock, symbol, 'news_sentiment')
+            try:
+                response = _qfut.result(timeout=12)
+            except Exception:
+                response = None
+            finally:
+                _qexec.shutdown(wait=False)
             
             if response and response.get('research_content'):
                 try:
@@ -588,13 +596,17 @@ class LangGraphIScoreEngine:
             perplexity = PerplexityService()
 
             import concurrent.futures as _cf
-            with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
-                _fut = _ex.submit(perplexity.research_indian_stock, symbol, 'news_sentiment')
-                try:
-                    response = _fut.result(timeout=8)
-                except _cf.TimeoutError:
-                    logger.warning(f"search_sentiment: Perplexity timed out for {symbol} — using fallback")
-                    response = None
+            # Use shutdown(wait=False) — never use `with ThreadPoolExecutor` for
+            # network calls; __exit__ blocks on shutdown(wait=True) after timeout.
+            _ex = _cf.ThreadPoolExecutor(max_workers=1)
+            _fut = _ex.submit(perplexity.research_indian_stock, symbol, 'news_sentiment')
+            try:
+                response = _fut.result(timeout=8)
+            except _cf.TimeoutError:
+                logger.warning(f"search_sentiment: Perplexity timed out for {symbol} — using fallback")
+                response = None
+            finally:
+                _ex.shutdown(wait=False)
             
             if response and response.get('research_content'):
                 try:

@@ -29,6 +29,27 @@ except ImportError:
     logging.error("NSEPython library not installed. Please install with: pip install nsepython")
     raise
 
+def _nsepy_call(fn, *args, timeout: float = 5.0):
+    """
+    Call an NSEPython function with a hard timeout.
+    Replit / cloud hosts cannot reach NSE India's servers (DNS fails), so bare
+    NSEPython calls block for minutes.  This wrapper caps the wait at `timeout`
+    seconds and returns None on timeout or error.
+    NOTE: uses shutdown(wait=False) — the thread may keep running in the
+    background, but at least the caller is unblocked immediately.
+    """
+    import concurrent.futures as _cf
+    executor = _cf.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(fn, *args)
+    try:
+        return future.result(timeout=timeout)
+    except Exception:
+        future.cancel()
+        return None
+    finally:
+        executor.shutdown(wait=False)
+
+
 class NSEService:
     """Service class for NSE India stock market data"""
     
@@ -122,7 +143,7 @@ class NSEService:
             # First check market status to decide if we should expect live prices
             market_status = self.get_market_status()
             
-            quote = nse_quote(symbol)
+            quote = _nsepy_call(nse_quote, symbol)
             if quote:
                 # Handle None or missing lastPrice - convert to 0
                 last_price_val = quote.get('lastPrice')
@@ -245,7 +266,11 @@ class NSEService:
         if remaining:
             from concurrent.futures import ThreadPoolExecutor, as_completed
             max_workers = min(10, len(remaining))
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Use shutdown(wait=False) — never use `with ThreadPoolExecutor` for
+            # network calls; __exit__ calls shutdown(wait=True) which blocks
+            # forever if any thread is stuck on a DNS failure.
+            executor = ThreadPoolExecutor(max_workers=max_workers)
+            try:
                 futures = {
                     executor.submit(
                         self.get_stock_quote,
@@ -254,13 +279,17 @@ class NSEService:
                     ): sym
                     for sym in remaining
                 }
-                for future in as_completed(futures):
+                for future in as_completed(futures, timeout=15):
                     try:
-                        result = future.result()
+                        result = future.result(timeout=10)
                         if result:
                             quotes.append(result)
                     except Exception:
                         pass
+            except Exception:
+                pass
+            finally:
+                executor.shutdown(wait=False)
 
         return quotes
     
@@ -273,8 +302,8 @@ class NSEService:
         try:
             result = {}
             # Get individual index quotes
-            nifty_data = nse_get_index_quote('NIFTY')
-            bank_nifty_data = nse_get_index_quote('BANKNIFTY')
+            nifty_data = _nsepy_call(nse_get_index_quote, 'NIFTY')
+            bank_nifty_data = _nsepy_call(nse_get_index_quote, 'BANKNIFTY')
             
             if nifty_data:
                 result['nifty_50'] = {
@@ -309,7 +338,7 @@ class NSEService:
             List of gainer data or fallback data
         """
         try:
-            gainers = nse_get_top_gainers()[:limit]
+            gainers = (_nsepy_call(nse_get_top_gainers) or [])[:limit]
             return [
                 {
                     'symbol': stock.get('symbol'),
@@ -334,7 +363,7 @@ class NSEService:
             List of loser data or fallback data
         """
         try:
-            losers = nse_get_top_losers()[:limit]
+            losers = (_nsepy_call(nse_get_top_losers) or [])[:limit]
             return [
                 {
                     'symbol': stock.get('symbol'),
@@ -359,7 +388,7 @@ class NSEService:
             List of most active stocks or fallback data
         """
         try:
-            active = nse_most_active()[:limit]
+            active = (_nsepy_call(nse_most_active) or [])[:limit]
             return [
                 {
                     'symbol': stock.get('symbol'),
@@ -554,7 +583,7 @@ class NSEService:
             Dictionary with VIX value and related data
         """
         try:
-            vix_data = indiavix()
+            vix_data = _nsepy_call(indiavix)
             
             if vix_data is not None:
                 if isinstance(vix_data, (int, float)):
@@ -593,7 +622,7 @@ class NSEService:
             Dictionary with PCR value and related data
         """
         try:
-            pcr_result = pcr(symbol)
+            pcr_result = _nsepy_call(pcr, symbol)
             
             if pcr_result is not None:
                 if isinstance(pcr_result, (int, float)):
@@ -648,7 +677,7 @@ class NSEService:
             Dictionary with OI data and analysis
         """
         try:
-            chain = option_chain(symbol)
+            chain = _nsepy_call(option_chain, symbol)
             
             if chain is not None and isinstance(chain, dict):
                 records = chain.get('records', {})
@@ -708,7 +737,7 @@ class NSEService:
             Dictionary with participant OI data
         """
         try:
-            fao_data = get_fao_participant_oi()
+            fao_data = _nsepy_call(get_fao_participant_oi)
             
             if fao_data is not None:
                 if isinstance(fao_data, pd.DataFrame) and not fao_data.empty:
