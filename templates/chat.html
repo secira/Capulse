@@ -220,22 +220,25 @@
                   </div>
                 {% endif %}
               </div>
-              {% for sig in fno.get('signals', []) %}
-                <div class="signal-card">
-                  <div class="signal-head">
-                    <span class="signal-name">{{ sig.get('strike','') }} {{ sig.get('option_type','') }}{% if sig.get('label') %} <span class="sig-label-tag">{{ sig.label }}</span>{% endif %}</span>
-                    <span class="signal-dir {{ sig.get('direction','BUY').lower() }}">{{ sig.get('direction','BUY').upper() }}</span>
+              {% set _no_trade = fno.get('is_blocked') or fno.get('final_decision','') in ('NO TRADE','WAIT','AVOID') %}
+              {% if not _no_trade %}
+                {% for sig in fno.get('signals', []) %}
+                  <div class="signal-card">
+                    <div class="signal-head">
+                      <span class="signal-name">{{ sig.get('strike','') }} {{ sig.get('option_type','') }}{% if sig.get('label') %} <span class="sig-label-tag">{{ sig.label }}</span>{% endif %}</span>
+                      <span class="signal-dir {{ sig.get('direction','BUY').lower() }}">{{ sig.get('direction','BUY').upper() }}</span>
+                    </div>
+                    <div class="signal-metrics">
+                      {% if sig.get('ltp') is not none %}<div class="signal-metric"><span class="signal-metric-label">LTP</span><span class="signal-metric-val">&#8377;{{ "%.2f"|format(sig.ltp) }}</span></div>{% endif %}
+                      <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">{% if sig.get('entry') is not none %}&#8377;{{ "%.2f"|format(sig.entry) }}{% else %}—{% endif %}</span></div>
+                      <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">{% if sig.get('stop_loss') is not none %}&#8377;{{ "%.2f"|format(sig.stop_loss) }}{% else %}—{% endif %}</span></div>
+                      <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">{% if sig.get('target') is not none %}&#8377;{{ "%.2f"|format(sig.target) }}{% else %}—{% endif %}</span></div>
+                      {% if sig.get('risk_reward') %}<div class="signal-metric"><span class="signal-metric-label">R:R</span><span class="signal-metric-val">{{ sig.risk_reward }}</span></div>{% endif %}
+                    </div>
+                    <div class="conf-bar-track"><div class="conf-bar-fill" style="width:{{ [sig.get('confidence',0), 100]|min }}%"></div></div>
                   </div>
-                  <div class="signal-metrics">
-                    {% if sig.get('ltp') is not none %}<div class="signal-metric"><span class="signal-metric-label">LTP</span><span class="signal-metric-val">&#8377;{{ "%.2f"|format(sig.ltp) }}</span></div>{% endif %}
-                    <div class="signal-metric"><span class="signal-metric-label">Entry</span><span class="signal-metric-val">{% if sig.get('entry') is not none %}&#8377;{{ "%.2f"|format(sig.entry) }}{% else %}—{% endif %}</span></div>
-                    <div class="signal-metric"><span class="signal-metric-label">SL</span><span class="signal-metric-val">{% if sig.get('stop_loss') is not none %}&#8377;{{ "%.2f"|format(sig.stop_loss) }}{% else %}—{% endif %}</span></div>
-                    <div class="signal-metric"><span class="signal-metric-label">Target</span><span class="signal-metric-val">{% if sig.get('target') is not none %}&#8377;{{ "%.2f"|format(sig.target) }}{% else %}—{% endif %}</span></div>
-                    {% if sig.get('risk_reward') %}<div class="signal-metric"><span class="signal-metric-label">R:R</span><span class="signal-metric-val">{{ sig.risk_reward }}</span></div>{% endif %}
-                  </div>
-                  <div class="conf-bar-track"><div class="conf-bar-fill" style="width:{{ [sig.get('confidence',0), 100]|min }}%"></div></div>
-                </div>
-              {% endfor %}
+                {% endfor %}
+              {% endif %}
               <p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters before trading.</p>
             {% elif ctx.get('card_type') == 'mutual_fund' and ctx.get('card_data') %}
               {% set d = ctx.card_data %}
@@ -728,7 +731,10 @@ function renderFnoCard(d) {
     </div>` : ''}
   </div>`;
 
-  const sigs = d.signals || [];
+  // Only render trade cards when there is an actionable signal —
+  // never show them alongside NO TRADE / WAIT / AVOID decisions.
+  const _noTrade = d.is_blocked || ['NO TRADE','WAIT','AVOID'].includes((dec || '').toUpperCase());
+  const sigs = (!_noTrade && d.signals) ? d.signals : [];
   if (sigs.length > 0) {
     html += sigs.map(sig => `<div class="signal-card">
       <div class="signal-head">

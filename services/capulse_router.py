@@ -238,6 +238,9 @@ def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[
         if time_caution and time_reason:
             content += f"\n\n⚠️ **Volatility note:** {time_reason} Trade based on your own risk tolerance."
 
+        # Never expose trade cards when the decision is negative —
+        # the signal cards must only appear when there is an actionable trade.
+        no_trade_decision = is_blocked or final_decision in ('NO TRADE', 'WAIT', 'AVOID')
         return {
             'card_type': 'fno_signals',
             'content': content,
@@ -250,7 +253,7 @@ def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[
                 'confidence':       confidence,
                 'confidence_grade': confidence_grade,
                 'is_blocked':       is_blocked,
-                'signals':          signals,
+                'signals':          [] if no_trade_decision else signals,
                 'data_source':      data_source,
                 'time_caution':     time_caution,
                 'time_reason':      time_reason,
