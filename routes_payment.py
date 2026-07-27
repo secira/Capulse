@@ -35,7 +35,7 @@ PLANS = {
         'duration_days': 30,
         'pricing_plan': PricingPlan.TARGET_PLUS,
         'features': [
-            '~150–200 AI questions per day',
+            '100 AI questions per day',
             'Portfolio upload & analysis',
             'Behavioural pattern analysis',
             'Persistent memory across sessions',
