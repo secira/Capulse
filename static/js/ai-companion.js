@@ -192,14 +192,14 @@ class AICompanion {
 
     checkFirstVisit() {
         // Only show if user specifically requests help - don't auto-trigger
-        const hasVisited = localStorage.getItem('tcapital_onboarding_completed');
-        const userRequestedHelp = sessionStorage.getItem('tcapital_request_help');
+        const hasVisited = localStorage.getItem('capulse_onboarding_completed');
+        const userRequestedHelp = sessionStorage.getItem('capulse_request_help');
         
         if (!hasVisited && userRequestedHelp === 'true') {
             setTimeout(() => {
                 this.show();
                 this.startOnboarding();
-                sessionStorage.removeItem('tcapital_request_help');
+                sessionStorage.removeItem('capulse_request_help');
             }, 1000);
         } else {
             // Hide completely by default - don't annoy users with popups
@@ -309,10 +309,10 @@ class AICompanion {
     }
 
     completeOnboarding() {
-        localStorage.setItem('tcapital_onboarding_completed', 'true');
+        localStorage.setItem('capulse_onboarding_completed', 'true');
         
         // Trigger completion event for progress tracking
-        document.dispatchEvent(new CustomEvent('tcapital:onboarding:completed'));
+        document.dispatchEvent(new CustomEvent('capulse:onboarding:completed'));
         
         this.speak("🎉 Great job! You're all set to start your trading journey. I'll be here whenever you need help!", {
             mood: 'excited',

@@ -2,10 +2,10 @@
   <!-- Background -->
   <rect width="450" height="350" fill="#f8f9fa"/>
   
-  <!-- Central hub (Target Capital) -->
+  <!-- Central hub (Capulse) -->
   <circle cx="225" cy="175" r="40" fill="#007bff"/>
-  <text x="225" y="170" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">t</text>
-  <text x="225" y="185" font-family="Arial, sans-serif" font-size="8" fill="#ffffff" text-anchor="middle">Capital</text>
+  <text x="225" y="170" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">C</text>
+  <text x="225" y="185" font-family="Arial, sans-serif" font-size="8" fill="#ffffff" text-anchor="middle">Capulse</text>
   
   <!-- Partner nodes -->
   <!-- Data Partner -->

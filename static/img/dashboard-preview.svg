@@ -4,7 +4,7 @@
   
   <!-- Header -->
   <rect x="0" y="0" width="600" height="70" fill="#1f2937" rx="16"/>
-  <text x="30" y="40" fill="white" font-family="Arial, sans-serif" font-size="22" font-weight="bold">Target Capital Dashboard</text>
+  <text x="30" y="40" fill="white" font-family="Arial, sans-serif" font-size="22" font-weight="bold">Capulse Dashboard</text>
   <circle cx="550" cy="35" r="12" fill="#10b981"/>
   <text x="544" y="40" fill="white" font-family="Arial, sans-serif" font-size="10">●</text>
   

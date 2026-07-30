@@ -38,7 +38,7 @@ db.init_app(admin_app)
 # Admin authentication
 ADMIN_CREDENTIALS = {
     'admin': os.environ.get('ADMIN_PASSWORD', 'admin123'),  # Change in production
-    'tcapital_admin': os.environ.get('ADMIN_PASSWORD', 'tcapital2025')
+    'capulse_admin': os.environ.get('ADMIN_PASSWORD', 'capulse2025')
 }
 
 def admin_required(f):

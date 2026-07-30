@@ -2,16 +2,10 @@
   <!-- Background circle -->
   <circle cx="20" cy="20" r="20" fill="#014171" stroke="#ffffff" stroke-width="2"/>
   
-  <!-- Letter "t" in modern style -->
-  <text x="20" y="28" font-family="Poppins, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff" text-anchor="middle">t</text>
-  
-  <!-- Chart arrow trending up -->
-  <g transform="translate(12, 8)">
-    <polyline points="4,16 8,12 12,14 16,8" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
-    <circle cx="16" cy="8" r="1.5" fill="#ffffff"/>
-  </g>
+  <!-- Letter "C" in modern style -->
+  <text x="20" y="28" font-family="Poppins, Arial, sans-serif" font-size="20" font-weight="700" fill="#ffffff" text-anchor="middle">C</text>
   
   <!-- Company name -->
-  <text x="45" y="20" font-family="Poppins, Arial, sans-serif" font-size="18" font-weight="600" fill="#1a365d">Target Capital</text>
-  <text x="45" y="35" font-family="Poppins, Arial, sans-serif" font-size="10" font-weight="400" fill="#4a5568" opacity="0.8">AI Investment Platform</text>
+  <text x="45" y="20" font-family="Poppins, Arial, sans-serif" font-size="18" font-weight="600" fill="#1a365d">Capulse</text>
+  <text x="45" y="35" font-family="Poppins, Arial, sans-serif" font-size="10" font-weight="400" fill="#4a5568" opacity="0.8">AI Trading Platform</text>
 </svg>
