@@ -96,12 +96,44 @@ class IScoreWorkflow:
 
         return pipeline
 
+    def _read_cache(self, symbol: str, asset_type: str) -> Optional[Dict[str, Any]]:
+        """Return a cached i-Score payload if a valid, unexpired entry exists for today."""
+        try:
+            import hashlib
+            from app import db as app_db
+            from models import ResearchCache
+
+            cache_key = hashlib.md5(
+                f"iscore:{asset_type}:{symbol}:{date.today().isoformat()}".encode()
+            ).hexdigest()
+            cached = ResearchCache.query.filter_by(cache_key=cache_key).first()
+            if cached and cached.expires_at:
+                # Make expires_at timezone-aware if it isn't
+                expires = cached.expires_at
+                if expires.tzinfo is None:
+                    expires = expires.replace(tzinfo=timezone.utc)
+                if expires > datetime.now(timezone.utc):
+                    payload = cached.result_payload or {}
+                    if payload.get("overall_score", 0) > 0:
+                        logger.info(
+                            f"I-Score cache hit for {symbol}: {payload.get('overall_score')}"
+                        )
+                        return payload
+        except Exception as exc:
+            logger.warning(f"I-Score cache read failed for {symbol}: {exc}")
+        return None
+
     def calculate_iscore(
         self,
         symbol: str,
         asset_type: str = "stocks",
         user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
+        # Serve from today's cache if available — avoids 4 redundant Claude API calls
+        cached_payload = self._read_cache(symbol, asset_type)
+        if cached_payload:
+            return {"results": cached_payload, "cache_hit": True}
+
         pipeline = self.build_pipeline()
         initial_data: Dict[str, Any] = {
             "symbol": symbol,
@@ -171,20 +203,13 @@ class IScoreWorkflow:
         previous_close = _safe_float(nse_quote.get("previous_close", market.get("previous_close", 0)))
         change_pct = _safe_float(nse_quote.get("change_percent", market.get("change_pct", 0)))
 
+        # Perplexity API is unavailable (401 / no credits).
+        # Qualitative and search nodes handle empty context gracefully — Claude uses
+        # its training knowledge at lower confidence.  Swap this block back in once
+        # a live Perplexity key is available.
         perplexity_news_context = ""
         perplexity_citations: List[str] = []
-        try:
-            from services.perplexity_service import PerplexityService
-            pplx = PerplexityService()
-            result = pplx.research_indian_stock(symbol, research_type="news_sentiment")
-            if result.get("success"):
-                perplexity_news_context = result.get("research_content", "")
-                perplexity_citations = result.get("citations", [])
-                logger.info(f"Perplexity news context fetched for {symbol} ({len(perplexity_news_context)} chars)")
-            else:
-                logger.info(f"Perplexity returned fallback for {symbol} — API key may be absent")
-        except Exception as exc:
-            logger.warning(f"Perplexity news fetch failed for {symbol}: {exc}")
+        logger.debug(f"Perplexity news skipped for {symbol} — API key inactive")
 
         return {
             "market_data_summary": {
