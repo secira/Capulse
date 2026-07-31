@@ -369,3 +369,241 @@ class TestNoCrossContamination:
         """Amazon India logistics discussion should still resolve to AMZN."""
         result = extract_tickers("Amazon delivery network in India")
         assert "AMZN" in result
+
+    def test_strategy_word_does_not_trigger_mstr(self):
+        """'strategy' is a common English word — must NOT resolve to MSTR."""
+        result = extract_tickers("What is the best trading strategy?")
+        assert "MSTR" not in result, f"MSTR falsely extracted in {result}"
+
+    def test_block_word_does_not_trigger_sq(self):
+        """'block' as a plain word must NOT resolve to SQ (Block Inc.)."""
+        result = extract_tickers("This is a block trade in the options market")
+        assert "SQ" not in result, f"SQ falsely extracted in {result}"
+
+    def test_link_word_does_not_trigger_chainlink(self):
+        """Bare 'link' in a sentence must NOT trigger LINK-USD."""
+        result = extract_tickers("Can you link me to the research report?")
+        assert "LINK-USD" not in result
+
+    def test_cosmos_word_does_not_trigger_atom(self):
+        """'cosmos' as a generic word must NOT trigger ATOM-USD."""
+        result = extract_tickers("In the cosmos of investment options")
+        assert "ATOM-USD" not in result
+
+    def test_ada_name_does_not_trigger_cardano(self):
+        """'ada' as a person name or abbreviation must NOT trigger ADA-USD."""
+        result = extract_tickers("Ada Lovelace was a pioneer")
+        assert "ADA-USD" not in result
+
+
+# ── _fetch_one routing integration tests ────────────────────────────────────
+
+class TestFetchOneRouting:
+    """Verify _fetch_one uses the correct yfinance symbol (with / without .NS)
+    and produces the correct market type and currency prefix in the context block.
+    """
+
+    def _make_fast_info(self, last_price=150.0, previous_close=148.0,
+                        year_high=200.0, year_low=100.0):
+        fi = type('FI', (), {
+            'last_price':     last_price,
+            'previous_close': previous_close,
+            'year_high':      year_high,
+            'year_low':       year_low,
+        })()
+        return fi
+
+    def test_us_equity_uses_raw_symbol_no_ns(self):
+        """For a symbol in _GLOBAL_SYMBOLS as us_equity, yfinance is called
+        with the raw symbol, NOT with .NS suffix."""
+        from services.financial_context_builder import _fetch_one, _load_alias_patterns, _GLOBAL_SYMBOLS
+        _load_alias_patterns()
+        assert 'AAPL' in _GLOBAL_SYMBOLS, "AAPL should be in _GLOBAL_SYMBOLS after load"
+
+        calls = []
+        fi = self._make_fast_info(last_price=185.0, previous_close=182.0)
+
+        import yfinance as yf_mod
+        original_ticker = yf_mod.Ticker
+
+        def mock_ticker(sym):
+            calls.append(sym)
+            t = type('T', (), {'fast_info': fi})()
+            return t
+
+        try:
+            yf_mod.Ticker = mock_ticker
+            sym, data = _fetch_one('AAPL', user_id=None)
+        finally:
+            yf_mod.Ticker = original_ticker
+
+        assert data['market'] == 'us_equity'
+        assert data['ltp'] == 185.0
+        # Must have been called with raw 'AAPL', never 'AAPL.NS'
+        assert 'AAPL' in calls, f"Expected AAPL in calls, got {calls}"
+        assert 'AAPL.NS' not in calls, f"Must not call AAPL.NS, got {calls}"
+
+    def test_global_index_uses_raw_symbol(self):
+        """For a global index like ^GSPC, yfinance is called with '^GSPC'."""
+        from services.financial_context_builder import _fetch_one, _load_alias_patterns
+        _load_alias_patterns()
+
+        calls = []
+        fi = self._make_fast_info(last_price=5500.0, previous_close=5480.0)
+
+        import yfinance as yf_mod
+        original_ticker = yf_mod.Ticker
+
+        def mock_ticker(sym):
+            calls.append(sym)
+            return type('T', (), {'fast_info': fi})()
+
+        try:
+            yf_mod.Ticker = mock_ticker
+            sym, data = _fetch_one('^GSPC', user_id=None)
+        finally:
+            yf_mod.Ticker = original_ticker
+
+        assert data['market'] == 'global_index'
+        assert data['ltp'] == 5500.0
+        assert '^GSPC' in calls
+        assert '^GSPC.NS' not in calls
+
+    def test_crypto_uses_raw_symbol(self):
+        """For BTC-USD, yfinance is called with 'BTC-USD', never 'BTC-USD.NS'."""
+        from services.financial_context_builder import _fetch_one, _load_alias_patterns
+        _load_alias_patterns()
+
+        calls = []
+        fi = self._make_fast_info(last_price=67000.0, previous_close=65000.0)
+
+        import yfinance as yf_mod
+        original_ticker = yf_mod.Ticker
+
+        def mock_ticker(sym):
+            calls.append(sym)
+            return type('T', (), {'fast_info': fi})()
+
+        try:
+            yf_mod.Ticker = mock_ticker
+            sym, data = _fetch_one('BTC-USD', user_id=None)
+        finally:
+            yf_mod.Ticker = original_ticker
+
+        assert data['market'] == 'crypto'
+        assert data['ltp'] == 67000.0
+        assert 'BTC-USD' in calls
+        assert 'BTC-USD.NS' not in calls
+
+    def test_unlisted_us_ticker_global_fallback(self):
+        """An ALL-CAPS ticker not in global_aliases (e.g. MELI) should:
+        1. Start as 'indian' classification
+        2. Fail the .NS path (mock returns 0)
+        3. Succeed the raw global fallback path (mock returns price)
+        4. Be reclassified as 'us_equity' with $ currency
+        """
+        from services.financial_context_builder import _fetch_one, _load_alias_patterns, _GLOBAL_SYMBOLS
+        _load_alias_patterns()
+        assert 'MELI' not in _GLOBAL_SYMBOLS, "MELI must not be pre-listed for this test"
+
+        ns_fi  = self._make_fast_info(last_price=0.0, previous_close=0.0,
+                                      year_high=0.0, year_low=0.0)
+        raw_fi = self._make_fast_info(last_price=1850.0, previous_close=1820.0,
+                                      year_high=2000.0, year_low=1500.0)
+
+        import yfinance as yf_mod
+        original_ticker = yf_mod.Ticker
+
+        def mock_ticker(sym):
+            if sym.endswith('.NS'):
+                return type('T', (), {'fast_info': ns_fi})()
+            return type('T', (), {'fast_info': raw_fi})()
+
+        try:
+            yf_mod.Ticker = mock_ticker
+            with __import__('unittest.mock', fromlist=['patch']).patch(
+                'services.market_data_gateway.get_price',
+                return_value={'success': False, 'value': 0}
+            ):
+                sym, data = _fetch_one('MELI', user_id=None)
+        finally:
+            yf_mod.Ticker = original_ticker
+
+        # Global fallback must have reclassified MELI as us_equity
+        assert data['market'] == 'us_equity', (
+            f"Expected us_equity after global fallback, got {data['market']}"
+        )
+        assert data['ltp'] == 1850.0
+
+
+# ── Context block currency formatting ────────────────────────────────────────
+
+class TestContextBlockFormatting:
+    """Verify build_context_block uses correct currency prefix per market."""
+
+    def _quote(self, symbol, ltp, market):
+        return {symbol: {'ltp': ltp, 'change_pct': 1.5, 'market': market,
+                         'week52_high': None, 'week52_low': None}}
+
+    def test_indian_stock_shows_rupee(self):
+        from services.financial_context_builder import build_context_block
+        block = build_context_block(self._quote('RELIANCE', 2800.0, 'indian'))
+        assert '₹2,800.00' in block, f"Expected ₹ prefix, got: {block}"
+        assert '$' not in block
+
+    def test_us_stock_shows_dollar(self):
+        from services.financial_context_builder import build_context_block
+        block = build_context_block(self._quote('AAPL', 185.0, 'us_equity'))
+        assert '$185.00' in block, f"Expected $ prefix, got: {block}"
+        assert '₹' not in block
+
+    def test_global_index_no_currency_prefix(self):
+        from services.financial_context_builder import build_context_block
+        block = build_context_block(self._quote('^GSPC', 5500.0, 'global_index'))
+        assert '5,500.00' in block
+        assert '₹' not in block
+        # No $ immediately before the number
+        assert '$5,500' not in block
+
+    def test_crypto_shows_dollar(self):
+        from services.financial_context_builder import build_context_block
+        block = build_context_block(self._quote('BTC-USD', 67000.0, 'crypto'))
+        assert '$67,000.00' in block, f"Expected $ prefix, got: {block}"
+
+    def test_market_flags_present(self):
+        from services.financial_context_builder import build_context_block
+        quotes = {
+            'RELIANCE': {'ltp': 2800.0, 'change_pct': 0.5, 'market': 'indian',
+                         'week52_high': None, 'week52_low': None},
+            'AAPL':     {'ltp': 185.0,  'change_pct': 1.2, 'market': 'us_equity',
+                         'week52_high': None, 'week52_low': None},
+            'BTC-USD':  {'ltp': 67000., 'change_pct': 2.1, 'market': 'crypto',
+                         'week52_high': None, 'week52_low': None},
+            '^GSPC':    {'ltp': 5500.,  'change_pct': 0.3, 'market': 'global_index',
+                         'week52_high': None, 'week52_low': None},
+        }
+        block = build_context_block(quotes)
+        assert '🇮🇳' in block
+        assert '🇺🇸' in block
+        assert '₿' in block
+        assert '🌍' in block
+
+    def test_empty_quotes_returns_empty_string(self):
+        from services.financial_context_builder import build_context_block
+        assert build_context_block({}) == ''
+
+    def test_all_zero_ltp_returns_empty_string(self):
+        from services.financial_context_builder import build_context_block
+        quotes = {'AAPL': {'ltp': 0, 'change_pct': 0, 'market': 'us_equity',
+                           'week52_high': None, 'week52_low': None}}
+        assert build_context_block(quotes) == ''
+
+    def test_no_quote_for_generic_prose(self):
+        """Generic prose must extract zero tickers — no quote call triggered."""
+        result = extract_tickers(
+            "What is the best strategy for long-term wealth creation?"
+        )
+        # 'strategy' removed from aliases; no valid ticker should be extracted
+        assert result == [] or all(t in ('WEALTH', 'CREATION') for t in result), (
+            f"Unexpected tickers from generic prose: {result}"
+        )

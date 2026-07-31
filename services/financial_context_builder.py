@@ -349,6 +349,32 @@ def _fetch_one(symbol: str, user_id: Optional[int]) -> Tuple[str, Dict]:
     except Exception as exc:
         logger.debug(f"ctx_builder: yfinance fast_info({symbol}.NS): {exc}")
 
+    # ── Global fallback: if NSE paths both failed, try raw symbol ──────────
+    # Handles valid US/global tickers typed directly (e.g. MELI, MRNA, SHOP)
+    # that are not yet in global_aliases.json.  If yfinance returns a price
+    # for the raw symbol, reclassify as us_equity and use $ currency.
+    if data['ltp'] <= 0:
+        try:
+            import yfinance as yf
+            fi_raw = yf.Ticker(symbol).fast_info
+            ltp_raw = float(getattr(fi_raw, 'last_price', 0) or 0)
+            if ltp_raw > 0:
+                prev_raw = float(getattr(fi_raw, 'previous_close', 0) or 0)
+                h52_raw  = float(getattr(fi_raw, 'year_high',      0) or 0)
+                l52_raw  = float(getattr(fi_raw, 'year_low',       0) or 0)
+                data['ltp']    = round(ltp_raw, 2)
+                data['source'] = 'yfinance_global'
+                data['market'] = 'us_equity'   # reclassify: dollar, US flag
+                if ltp_raw > 0 and prev_raw > 0:
+                    data['change_pct'] = round((ltp_raw - prev_raw) / prev_raw * 100, 2)
+                if h52_raw > 0:
+                    data['week52_high'] = round(h52_raw, 2)
+                if l52_raw > 0:
+                    data['week52_low']  = round(l52_raw, 2)
+                logger.debug(f"ctx_builder: global fallback hit for {symbol}")
+        except Exception as exc:
+            logger.debug(f"ctx_builder: global fallback({symbol}): {exc}")
+
     return symbol, data
 
 

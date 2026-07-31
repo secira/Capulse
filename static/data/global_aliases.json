@@ -240,7 +240,6 @@
     "workday":                 "WDAY",
     "shopify":                 "SHOP",
     "spotify":                 "SPOT",
-    "block":                   "SQ",
     "square":                  "SQ",
     "snapchat":                "SNAP",
     "pinterest":               "PINS",
@@ -261,7 +260,6 @@
     "toyota":                  "TM",
     "sony":                    "SONY",
     "microstrategy":           "MSTR",
-    "strategy":                "MSTR",
     "arm holdings":            "ARM",
     "spy":                     "SPY",
     "s&p etf":                 "SPY",
@@ -322,14 +320,12 @@
     "ripple":                  "XRP-USD",
     "xrp":                     "XRP-USD",
     "cardano":                 "ADA-USD",
-    "ada":                     "ADA-USD",
     "dogecoin":                "DOGE-USD",
     "doge":                    "DOGE-USD",
     "avalanche":               "AVAX-USD",
     "avax":                    "AVAX-USD",
     "polkadot":                "DOT-USD",
     "chainlink":               "LINK-USD",
-    "link":                    "LINK-USD",
     "polygon":                 "MATIC-USD",
     "matic":                   "MATIC-USD",
     "shiba inu":               "SHIB-USD",
@@ -339,9 +335,7 @@
     "bitcoin cash":            "BCH-USD",
     "bch":                     "BCH-USD",
     "uniswap":                 "UNI-USD",
-    "cosmos":                  "ATOM-USD",
     "filecoin":                "FIL-USD",
-    "aptos":                   "APT-USD",
-    "sui":                     "SUI-USD"
+    "aptos":                   "APT-USD"
   }
 }
