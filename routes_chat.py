@@ -238,6 +238,61 @@ def chat_message():
         return jsonify({'error': 'Something went wrong. Please try again.'}), 500
 
 
+def _import_holdings_from_chat(file_bytes, user):
+    """
+    Import a Zerodha or Dhan/Groww Holdings CSV uploaded via chat.
+    Returns a chat card dict on success or error.
+    """
+    import io
+    from services.dhan_csv_importer import (
+        is_zerodha_csv, parse_and_import_zerodha_csv,
+        is_dhan_csv,    parse_and_import_dhan_csv,
+    )
+    from services.portfolio_intelligence import PortfolioIntelligenceEngine
+
+    raw_text  = file_bytes.decode('utf-8-sig', errors='replace')
+    first_line = raw_text.split('\n')[0]
+    sample_headers = [c.strip().strip('"').lower() for c in first_line.split(',')]
+
+    if is_zerodha_csv(sample_headers):
+        broker_label = 'Zerodha'
+        result = parse_and_import_zerodha_csv(io.BytesIO(file_bytes), user_id=user.id)
+    else:
+        broker_label = 'Dhan / Groww'
+        result = parse_and_import_dhan_csv(io.BytesIO(file_bytes), user_id=user.id)
+
+    # Invalidate portfolio report cache so next visit reflects the new holdings
+    try:
+        PortfolioIntelligenceEngine.invalidate_cache(user.id)
+    except Exception:
+        pass
+
+    imported    = result['imported']
+    updated     = result['updated']
+    deactivated = result.get('deactivated', 0)
+    unresolved  = result.get('unresolved', [])
+
+    lines = [
+        f'✅ **{broker_label} Holdings imported** — '
+        f'{imported} new, {updated} updated'
+        + (f', {deactivated} removed position(s) hidden' if deactivated else '')
+        + '.',
+    ]
+    if unresolved:
+        names = ', '.join(r['name'] for r in unresolved[:5])
+        extra = f' (+{len(unresolved)-5} more)' if len(unresolved) > 5 else ''
+        lines.append(
+            f'\n⚠️ **{len(unresolved)} holding(s) could not be matched** to an NSE symbol: '
+            f'`{names}{extra}`. Run "i-Score" in chat for those names or fix them in the '
+            f'portfolio import page.'
+        )
+    lines.append(
+        '\nYou can now ask me to analyse your portfolio — try **"analyse my portfolio"** '
+        'or visit the Portfolio Analysis page.'
+    )
+    return {'card_type': 'prose', 'content': '\n'.join(lines)}
+
+
 def _run_psychology_analysis_inline(file_bytes, filename, message, user):
     """Parse a trade CSV, run full BehaviourEngine analysis, return a chat card payload."""
     from routes_behaviour import (
@@ -248,6 +303,20 @@ def _run_psychology_analysis_inline(file_bytes, filename, message, user):
     from services.behaviour_engine import BehaviourEngine
 
     tenant_id = (user.tenant_id or 'live')
+
+    # ── 0. Holdings CSV detection — must run before trade-history logic ────────
+    # Zerodha Holdings (Instrument, Qty., Avg. cost, LTP, Invested, Cur. val)
+    # and Dhan / Groww Holdings (Name, Quantity, Avg Price, Last Traded, …)
+    # share no columns with any trade-history format, so we can detect them
+    # from the header row alone without consuming the stream.
+    try:
+        from services.dhan_csv_importer import is_zerodha_csv, is_dhan_csv
+        raw_first = file_bytes.decode('utf-8-sig', errors='replace').split('\n')[0]
+        sample_hdr = [c.strip().strip('"').lower() for c in raw_first.split(',')]
+        if is_zerodha_csv(sample_hdr) or is_dhan_csv(sample_hdr):
+            return _import_holdings_from_chat(file_bytes, user)
+    except Exception:
+        pass   # if detection blows up, fall through to trade-history path
 
     # ── 1. Parse CSV ──────────────────────────────────────────────────────────
     try:
