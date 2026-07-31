@@ -304,20 +304,6 @@ def _run_psychology_analysis_inline(file_bytes, filename, message, user):
 
     tenant_id = (user.tenant_id or 'live')
 
-    # ── 0. Holdings CSV detection — must run before trade-history logic ────────
-    # Zerodha Holdings (Instrument, Qty., Avg. cost, LTP, Invested, Cur. val)
-    # and Dhan / Groww Holdings (Name, Quantity, Avg Price, Last Traded, …)
-    # share no columns with any trade-history format, so we can detect them
-    # from the header row alone without consuming the stream.
-    try:
-        from services.dhan_csv_importer import is_zerodha_csv, is_dhan_csv
-        raw_first = file_bytes.decode('utf-8-sig', errors='replace').split('\n')[0]
-        sample_hdr = [c.strip().strip('"').lower() for c in raw_first.split(',')]
-        if is_zerodha_csv(sample_hdr) or is_dhan_csv(sample_hdr):
-            return _import_holdings_from_chat(file_bytes, user)
-    except Exception:
-        pass   # if detection blows up, fall through to trade-history path
-
     # ── 1. Parse CSV ──────────────────────────────────────────────────────────
     try:
         text_content = file_bytes.decode('utf-8-sig', errors='replace')
@@ -688,14 +674,31 @@ def chat_upload():
         from services.anthropic_service import AnthropicService
         ai = AnthropicService()
 
-        # ── CSV — run full psychology analysis inline ─────────────────────
+        # ── CSV — detect format and route to the right handler ──────────────
         if filename.endswith('.csv'):
-            result = _run_psychology_analysis_inline(
-                file_bytes=file_bytes,
-                filename=file.filename,
-                message=message,
-                user=current_user,
-            )
+            from services.dhan_csv_importer import is_zerodha_csv, is_dhan_csv
+            raw_text   = file_bytes.decode('utf-8-sig', errors='replace')
+            first_line = raw_text.split('\n')[0]
+            sample_hdr = [c.strip().strip('"').lower() for c in first_line.split(',')]
+
+            if is_zerodha_csv(sample_hdr) or is_dhan_csv(sample_hdr):
+                # Holdings CSV (Zerodha / Dhan / Groww) → import into portfolio
+                try:
+                    result = _import_holdings_from_chat(file_bytes, current_user)
+                except Exception as exc:
+                    logger.error(f'chat holdings import error: {exc}', exc_info=True)
+                    result = {
+                        'card_type': 'prose',
+                        'content':   f'Holdings import failed: {exc}. Please try the Portfolio import page instead.',
+                    }
+            else:
+                # Trade-history CSV (Dhan P&L, Zerodha Trade Book, etc.) → psychology
+                result = _run_psychology_analysis_inline(
+                    file_bytes=file_bytes,
+                    filename=file.filename,
+                    message=message,
+                    user=current_user,
+                )
             return _save_and_return(f'📊 {file.filename}', result)
 
         # ── Images — Claude vision ────────────────────────────────────────
