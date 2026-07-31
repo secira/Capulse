@@ -240,8 +240,9 @@ def chat_message():
 
 def _import_holdings_from_chat(file_bytes, user):
     """
-    Import a Zerodha or Dhan/Groww Holdings CSV uploaded via chat.
-    Returns a chat card dict on success or error.
+    Import a Zerodha or Dhan/Groww Holdings CSV uploaded via chat, then
+    immediately run a full Portfolio Intelligence analysis and return a
+    rich portfolio card for the chat response.
     """
     import io
     from services.dhan_csv_importer import (
@@ -250,7 +251,8 @@ def _import_holdings_from_chat(file_bytes, user):
     )
     from services.portfolio_intelligence import PortfolioIntelligenceEngine
 
-    raw_text  = file_bytes.decode('utf-8-sig', errors='replace')
+    # ── 1. Detect broker and import ───────────────────────────────────────────
+    raw_text   = file_bytes.decode('utf-8-sig', errors='replace')
     first_line = raw_text.split('\n')[0]
     sample_headers = [c.strip().strip('"').lower() for c in first_line.split(',')]
 
@@ -261,17 +263,127 @@ def _import_holdings_from_chat(file_bytes, user):
         broker_label = 'Dhan / Groww'
         result = parse_and_import_dhan_csv(io.BytesIO(file_bytes), user_id=user.id)
 
-    # Invalidate portfolio report cache so next visit reflects the new holdings
-    try:
-        PortfolioIntelligenceEngine.invalidate_cache(user.id)
-    except Exception:
-        pass
-
     imported    = result['imported']
     updated     = result['updated']
     deactivated = result.get('deactivated', 0)
     unresolved  = result.get('unresolved', [])
+    total_rows  = result.get('total_rows', imported + updated)
 
+    # ── 2. Invalidate cache so PIE sees fresh data ────────────────────────────
+    PortfolioIntelligenceEngine.invalidate_cache(user.id)
+
+    # ── 3. Run Portfolio Intelligence Engine ─────────────────────────────────
+    engine = PortfolioIntelligenceEngine(user_id=user.id)
+    try:
+        pir = engine.generate_report()
+    except Exception as exc:
+        logger.error(f'chat holdings PIE error: {exc}', exc_info=True)
+        # Fall back to a plain import-confirmation card on PIE failure
+        return _holdings_import_prose(broker_label, imported, updated,
+                                      deactivated, unresolved)
+
+    if not pir.get('has_holdings'):
+        return _holdings_import_prose(broker_label, imported, updated,
+                                      deactivated, unresolved)
+
+    # ── 4. Map PIE report → chat 'portfolio' card ─────────────────────────────
+    total_val = pir.get('total_current_value', 0)
+    total_inv = pir.get('total_investment', 0)
+    total_pnl = pir.get('total_pnl', 0)
+    pnl_pct   = pir.get('pnl_pct', 0)
+    n_hold    = pir.get('total_holdings', 0)
+    pi_score  = pir.get('portfolio_intelligence_score', 50)
+    div_score = pir.get('diversification_score', 50)
+    sector_alloc = pir.get('sector_allocation', {})
+    sub_scores   = pir.get('sub_scores', {})
+
+    # Summary
+    summary = {
+        'total_value':          round(total_val, 0),
+        'total_investment':     round(total_inv, 0),
+        'total_pnl':            round(total_pnl, 0),
+        'total_pnl_percentage': round(pnl_pct, 1),
+        'holdings_count':       n_hold,
+    }
+
+    # Sectors: PIE gives {name: float_pct}; card wants [(name, pct_int), ...]
+    sectors_sorted = sorted(sector_alloc.items(), key=lambda x: x[1], reverse=True)
+    sectors = [(s, round(p, 1)) for s, p in sectors_sorted[:8]]
+
+    # Top holdings
+    top_holdings = []
+    for card in sorted(pir.get('holdings', []),
+                       key=lambda h: h.get('weight', 0), reverse=True)[:8]:
+        top_holdings.append({
+            'symbol':         card['symbol'],
+            'value':          round(total_val * card.get('weight', 0), 0),
+            'percentage':     round(card.get('weight', 0) * 100, 1),
+            'pnl_percentage': card.get('pnl_pct', 0),
+        })
+
+    # Risk flags derived from PIE data
+    flags = {
+        'concentration_risk':   div_score < 35,
+        'under_diversified':    len(pir.get('missing_sectors', [])) >= 4,
+        'high_volatility':      sub_scores.get('risk', 50) < 40,
+        'sector_concentration': any(v > 50 for v in sector_alloc.values()),
+    }
+
+    # AI assessment block (health_score = PI score)
+    risk_level = 'Low' if pi_score >= 70 else ('Medium' if pi_score >= 50 else 'High')
+    ai_assessment = {
+        'health_score':        round(pi_score, 0),
+        'risk_level':          risk_level,
+        'concentration_risk':  flags['concentration_risk'],
+        'under_diversified':   flags['under_diversified'],
+        'high_volatility':     flags['high_volatility'],
+        'sector_concentration': flags['sector_concentration'],
+        'suggestions':         [a.get('action', '') for a in
+                                pir.get('action_centre', [])[:3] if a.get('action')],
+        'rebalance_actions':   [],
+    }
+
+    # Narrative from PIE executive summary
+    narrative = pir.get('executive_summary', '').strip() or None
+
+    # ── 5. Build import-summary header ────────────────────────────────────────
+    import_note = (
+        f'**{broker_label} import** — {imported} new, {updated} updated'
+        + (f', {deactivated} removed' if deactivated else '')
+        + f' ({total_rows} holdings total).'
+    )
+    if unresolved:
+        names = ', '.join(r.get('name', '?') for r in unresolved[:4])
+        more  = f' +{len(unresolved)-4} more' if len(unresolved) > 4 else ''
+        import_note += (
+            f' ⚠ {len(unresolved)} could not be matched to an NSE symbol '
+            f'(`{names}{more}`) — run "i-Score \\<name>" in chat to resolve them.'
+        )
+
+    content = (
+        f'✅ {import_note}\n\n'
+        f"Here's your portfolio analysis across **{n_hold} holdings**:"
+    )
+
+    return {
+        'card_type': 'portfolio',
+        'content':   content,
+        'card_data': {
+            'summary':       summary,
+            'sectors':       sectors,
+            'top_holdings':  top_holdings,
+            'risk_metrics':  pir.get('risk_radar', {}),
+            'ai_assessment': ai_assessment,
+            'narrative':     narrative,
+            'flags':         flags,
+            'suggestions':   ai_assessment['suggestions'],
+            'rebalance':     [],
+        },
+    }
+
+
+def _holdings_import_prose(broker_label, imported, updated, deactivated, unresolved):
+    """Fallback plain-text card when PIE analysis cannot run after import."""
     lines = [
         f'✅ **{broker_label} Holdings imported** — '
         f'{imported} new, {updated} updated'
@@ -279,15 +391,14 @@ def _import_holdings_from_chat(file_bytes, user):
         + '.',
     ]
     if unresolved:
-        names = ', '.join(r['name'] for r in unresolved[:5])
+        names = ', '.join(r.get('name', '?') for r in unresolved[:5])
         extra = f' (+{len(unresolved)-5} more)' if len(unresolved) > 5 else ''
         lines.append(
-            f'\n⚠️ **{len(unresolved)} holding(s) could not be matched** to an NSE symbol: '
-            f'`{names}{extra}`. Run "i-Score" in chat for those names or fix them in the '
-            f'portfolio import page.'
+            f'\n⚠️ **{len(unresolved)} holding(s) could not be matched** to an NSE '
+            f'symbol: `{names}{extra}`. Run "i-Score \\<name>" in chat to resolve them.'
         )
     lines.append(
-        '\nYou can now ask me to analyse your portfolio — try **"analyse my portfolio"** '
+        '\nNow ask me to **"analyse my portfolio"** for a full breakdown, '
         'or visit the Portfolio Analysis page.'
     )
     return {'card_type': 'prose', 'content': '\n'.join(lines)}
