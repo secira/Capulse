@@ -342,13 +342,23 @@ def extract_and_update_memory(user_id: int, user_message: str, ai_response: str)
 
 def async_extract(user_id: int, user_message: str, ai_response: str) -> None:
     """Fire extract_and_update_memory in a daemon background thread.
-    Call this from the chat handler after returning the AI response — it
-    adds zero latency since it runs in a separate thread.
+
+    The thread wrapper acquires a Flask application context so that all
+    SQLAlchemy / Flask-Login calls inside the extraction path work correctly
+    outside the request cycle.  The app import is deferred to avoid circular
+    imports at module load time.
     """
+    def _target_with_ctx() -> None:
+        try:
+            from app import app as _flask_app          # deferred — avoids circular import
+            with _flask_app.app_context():
+                extract_and_update_memory(user_id, user_message, ai_response)
+        except Exception as exc:
+            logger.debug(f"async_extract thread({user_id}): {exc}")
+
     try:
         t = threading.Thread(
-            target=extract_and_update_memory,
-            args=(user_id, user_message, ai_response),
+            target=_target_with_ctx,
             daemon=True,
             name=f'mem_extract_{user_id}',
         )

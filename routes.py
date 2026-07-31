@@ -7828,6 +7828,14 @@ def account_profile():
 @login_required
 def reset_financial_memory():
     """Clear the user's stored financial memory so the AI starts fresh."""
+    # CSRF validation — consistent with other state-changing POST routes
+    try:
+        from flask_wtf.csrf import validate_csrf
+        validate_csrf(request.form.get('csrf_token'))
+    except Exception:
+        flash('Invalid request. Please try again.', 'error')
+        return redirect(url_for('account_profile'))
+
     try:
         from services.user_memory import reset_memory
         reset_memory(current_user.id)

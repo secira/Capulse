@@ -300,6 +300,7 @@
         {% if fin_memory and fin_memory.get('interaction_count', 0) > 0 %}
         <form method="POST" action="{{ url_for('reset_financial_memory') }}"
               onsubmit="return confirm('Reset your trading profile? The AI will start fresh and rebuild it from future chats.')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-sm"
                   style="background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3);font-size:11px;">
             <i class="fas fa-redo me-1"></i>Reset Profile
