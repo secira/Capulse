@@ -101,6 +101,11 @@ def send_whatsapp_message(message_text):
         logger.error(f"Error sending WhatsApp message: {e}")
         return False
 
+# ── Global Telegram kill-switch ───────────────────────────────────────────────
+# Set to True to re-enable group sends. While False, every outbound Telegram
+# message is silently dropped and logged at INFO level.
+TELEGRAM_SEND_ENABLED = False
+
 def send_telegram_message(message_text, parse_mode='Markdown', chat_id=None):
     """Send a message to a Telegram chat.
 
@@ -112,6 +117,9 @@ def send_telegram_message(message_text, parse_mode='Markdown', chat_id=None):
     by ``send_telegram_admin_message`` to route ops alerts to a different
     chat so they never leak into the public signals group.
     """
+    if not TELEGRAM_SEND_ENABLED:
+        logger.info("Telegram send suppressed (TELEGRAM_SEND_ENABLED=False): %s", str(message_text)[:120])
+        return False
     try:
         token, default_chat_id = _get_telegram_config()
         chat_id = chat_id or default_chat_id
