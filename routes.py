@@ -4390,7 +4390,8 @@ def import_holdings_upload():
                     io.BytesIO(raw_bytes),
                     user_id=current_user.id,
                 )
-                deactivated = result.get('deactivated', 0)
+                deactivated  = result.get('deactivated', 0)
+                recon_skip   = result.get('reconciliation_skipped', False)
                 msg_parts = [
                     f"{result['imported']} holding(s) imported",
                     f"{result['updated']} updated",
@@ -4399,15 +4400,20 @@ def import_holdings_upload():
                     msg_parts.append(f"{deactivated} removed position(s) hidden")
                 if result['unresolved']:
                     msg_parts.append(f"{len(result['unresolved'])} could not be matched")
+                if recon_skip:
+                    msg_parts.append(
+                        "reconciliation skipped — fix unmatched names and re-upload to hide sold positions"
+                    )
                 return jsonify({
-                    'success':     True,
-                    'broker':      'dhan',
-                    'imported':    result['imported'],
-                    'updated':     result['updated'],
-                    'deactivated': deactivated,
-                    'total_rows':  result['total_rows'],
-                    'unresolved':  result['unresolved'],
-                    'message':     ', '.join(msg_parts),
+                    'success':                True,
+                    'broker':                 'dhan',
+                    'imported':               result['imported'],
+                    'updated':                result['updated'],
+                    'deactivated':            deactivated,
+                    'total_rows':             result['total_rows'],
+                    'unresolved':             result['unresolved'],
+                    'reconciliation_skipped': recon_skip,
+                    'message':                ', '.join(msg_parts),
                     'redirect': url_for('dashboard_equities')
                         if asset_class == 'equities' else
                         url_for('import_holdings', asset_class=asset_class),

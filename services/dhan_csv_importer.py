@@ -333,9 +333,21 @@ def parse_and_import_dhan_csv(file_obj, user_id: int) -> dict:
     # upsert leaves DB session open (no commit yet inside upsert)
     inserted, updated = upsert_dhan_holdings(user_id, resolved)
 
-    # Deactivate symbols absent from the latest snapshot — same transaction
-    current_symbols = {r['symbol'] for r in resolved}
-    deactivated = deactivate_removed_holdings(user_id, current_symbols)
+    # Reconcile removed positions only when every row was resolved.
+    # If any names are unresolved the snapshot is incomplete — we cannot safely
+    # distinguish "sold" from "unmapped"; skipping deactivation preserves data
+    # integrity and the caller surfaces a warning to the user.
+    deactivated          = 0
+    reconciliation_skipped = False
+    if unresolved:
+        reconciliation_skipped = True
+        logger.info(
+            f"dhan_csv: skipping position reconciliation for user {user_id} — "
+            f"{len(unresolved)} unresolved row(s) mean the snapshot is incomplete"
+        )
+    else:
+        current_symbols = {r['symbol'] for r in resolved}
+        deactivated = deactivate_removed_holdings(user_id, current_symbols)
 
     # Commit once for both operations
     from models import db
@@ -346,9 +358,10 @@ def parse_and_import_dhan_csv(file_obj, user_id: int) -> dict:
         raise
 
     return {
-        'imported':    inserted,
-        'updated':     updated,
-        'deactivated': deactivated,
-        'unresolved':  unresolved,
-        'total_rows':  len(resolved) + len(unresolved),
+        'imported':               inserted,
+        'updated':                updated,
+        'deactivated':            deactivated,
+        'unresolved':             unresolved,
+        'total_rows':             len(resolved) + len(unresolved),
+        'reconciliation_skipped': reconciliation_skipped,
     }

@@ -405,6 +405,83 @@ class TestUpsertDhanHoldings:
         assert h1.is_active is True    # still in snapshot — untouched
         assert h2.is_active is False   # removed from snapshot — deactivated
 
+    def test_unresolved_rows_skip_reconciliation(self):
+        """
+        Critical data-integrity guard: if any CSV row can't be resolved to a
+        symbol, we cannot tell whether missing symbols were sold or just
+        unmapped. Reconciliation (deactivation) must be skipped entirely.
+        """
+        import io
+        from services.dhan_csv_importer import parse_and_import_dhan_csv
+        import models as models_module
+        import services.dhan_csv_importer as m
+        m._ALIAS_MAP = None
+
+        # One resolvable, one unresolvable
+        csv_bytes = _make_csv([
+            {'Name': 'Tata Steel',             'Qty': '10', 'Avg': '200', 'LTP': '190',
+             'Inv': '2000', 'CV': '1900'},
+            {'Name': 'Some Unknown Firm 2024', 'Qty': '5',  'Avg': '100', 'LTP': '90',
+             'Inv': '500',  'CV': '450'},
+        ])
+
+        mock_db  = MagicMock()
+        MockMEH  = MagicMock()
+        MockMEH.query.filter_by.return_value.first.return_value = None
+        MockMEH.query.filter_by.return_value.all.return_value  = []
+        MockMEH.return_value = self._mock_holding()
+
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
+             patch.object(models_module, 'db', mock_db):
+            result = parse_and_import_dhan_csv(csv_bytes, user_id=1)
+
+        # Import proceeds for resolved row
+        assert result['imported'] == 1
+        assert len(result['unresolved']) == 1
+        # Reconciliation must be skipped — no deactivations
+        assert result['deactivated'] == 0
+        assert result['reconciliation_skipped'] is True
+        # The deactivate query (.all()) must NOT have been called
+        # (filter_by is called by upsert; we check all() specifically)
+        MockMEH.query.filter_by.return_value.all.assert_not_called()
+
+    def test_full_resolution_triggers_reconciliation(self):
+        """
+        When every row is resolved, reconciliation runs and deactivates symbols
+        absent from the snapshot (sold positions).
+        """
+        import io
+        from services.dhan_csv_importer import parse_and_import_dhan_csv
+        import models as models_module
+        import services.dhan_csv_importer as m
+        m._ALIAS_MAP = None
+
+        csv_bytes = _make_csv([
+            {'Name': 'Tata Steel', 'Qty': '10', 'Avg': '200', 'LTP': '190',
+             'Inv': '2000', 'CV': '1900'},
+        ])
+
+        # One pre-existing Dhan Import holding not in the snapshot → sold
+        sold_holding = MagicMock()
+        sold_holding.symbol    = 'RELIANCE'
+        sold_holding.is_active = True
+
+        mock_db  = MagicMock()
+        MockMEH  = MagicMock()
+        # first() used by upsert (no existing for TATASTEEL)
+        MockMEH.query.filter_by.return_value.first.return_value = None
+        # all() used by deactivate — returns the RELIANCE holding
+        MockMEH.query.filter_by.return_value.all.return_value = [sold_holding]
+        MockMEH.return_value = self._mock_holding()
+
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
+             patch.object(models_module, 'db', mock_db):
+            result = parse_and_import_dhan_csv(csv_bytes, user_id=1)
+
+        assert result['deactivated'] == 1
+        assert result['reconciliation_skipped'] is False
+        assert sold_holding.is_active is False
+
     def test_deactivate_none_when_all_present(self):
         from services.dhan_csv_importer import deactivate_removed_holdings
         import models as models_module
