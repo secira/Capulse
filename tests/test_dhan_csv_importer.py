@@ -113,7 +113,7 @@ def _make_csv(rows, bom=True):
 
 class TestParseDhanCsv:
     def test_two_rows_resolved(self):
-        from services.dhan_csv_importer import parse_dhan_csv, _ALIAS_MAP
+        from services.dhan_csv_importer import parse_dhan_csv
         import services.dhan_csv_importer as m
         m._ALIAS_MAP = None  # reset
 
@@ -126,7 +126,7 @@ class TestParseDhanCsv:
         resolved, unresolved = parse_dhan_csv(csv_bytes)
         assert len(resolved) == 2
         assert len(unresolved) == 0
-        symbols = {r['ticker_symbol'] for r in resolved}
+        symbols = {r['symbol'] for r in resolved}
         assert 'TATASTEEL' in symbols
         assert 'CANARABANK' in symbols
 
@@ -140,7 +140,7 @@ class TestParseDhanCsv:
              'Inv': '200', 'CV': '190'},
         ], bom=True)
         resolved, _ = parse_dhan_csv(csv_bytes)
-        assert resolved[0]['ticker_symbol'] == 'TATASTEEL'
+        assert resolved[0]['symbol'] == 'TATASTEEL'
 
     def test_unresolved_name_reported(self):
         from services.dhan_csv_importer import parse_dhan_csv
@@ -178,11 +178,15 @@ class TestParseDhanCsv:
         ])
         resolved, _ = parse_dhan_csv(csv_bytes)
         r = resolved[0]
-        assert r['quantity']       == 10.0
-        assert r['purchase_price'] == 204.29
-        assert r['current_price']  == 189.85
-        assert r['purchased_value'] == 2042.90
-        assert r['current_value']   == 1898.50
+        assert r['quantity']          == 10.0
+        assert r['purchase_price']    == 204.29
+        assert r['current_price']     == 189.85
+        assert r['total_investment']  == 2042.90
+        assert r['current_value']     == 1898.50
+        # Field names must match ManualEquityHolding
+        assert 'symbol'       in r
+        assert 'company_name' in r
+        assert 'symbol'       == 'symbol'   # not 'ticker_symbol'
 
     def test_wrong_format_raises(self):
         import pytest
@@ -211,33 +215,45 @@ class TestParseDhanCsv:
 
 class TestUpsertDhanHoldings:
     """
-    upsert_dhan_holdings() imports Portfolio and db lazily inside the function
-    via `from models import Portfolio, db`.  We must therefore patch at the
-    source: `models.Portfolio` and `models.db`.
+    upsert_dhan_holdings() imports ManualEquityHolding and db lazily inside the
+    function via `from models import ManualEquityHolding, db`.  Patch at the source:
+    `models.ManualEquityHolding` and `models.db`.
+
+    ManualEquityHolding is the model consumed by dashboard_equities — verifying
+    that inserts go to this table ensures imported holdings are visible.
     """
 
     def _rows(self):
         return [{
-            'ticker_symbol':   'TATASTEEL',
-            'stock_name':      'Tata Steel',
-            'quantity':        10.0,
-            'purchase_price':  204.29,
-            'purchased_value': 2042.90,
-            'current_price':   189.85,
-            'current_value':   1898.50,
+            'symbol':           'TATASTEEL',
+            'company_name':     'Tata Steel',
+            'quantity':         10.0,
+            'purchase_price':   204.29,
+            'total_investment': 2042.90,
+            'current_price':    189.85,
+            'current_value':    1898.50,
         }]
+
+    def _mock_holding(self):
+        h = MagicMock()
+        h.quantity         = 0.0
+        h.purchase_price   = 0.0
+        h.total_investment = 0.0
+        h.current_price    = 0.0
+        h.calculate_totals = MagicMock()
+        return h
 
     def test_insert_new_holding(self):
         from services.dhan_csv_importer import upsert_dhan_holdings
         import models as models_module
 
-        mock_holding = MagicMock()
+        mock_holding = self._mock_holding()
         mock_db      = MagicMock()
-        MockPortfolio = MagicMock()
-        MockPortfolio.query.filter_by.return_value.first.return_value = None
-        MockPortfolio.return_value = mock_holding
+        MockMEH      = MagicMock()
+        MockMEH.query.filter_by.return_value.first.return_value = None
+        MockMEH.return_value = mock_holding
 
-        with patch.object(models_module, 'Portfolio', MockPortfolio), \
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
              patch.object(models_module, 'db', mock_db):
             inserted, updated = upsert_dhan_holdings(user_id=1, resolved_rows=self._rows())
 
@@ -245,29 +261,31 @@ class TestUpsertDhanHoldings:
         assert updated == 0
         mock_db.session.add.assert_called_once_with(mock_holding)
         mock_db.session.commit.assert_called_once()
+        # Verify it's going to ManualEquityHolding, not Portfolio
+        MockMEH.assert_called_once()
 
     def test_update_existing_holding(self):
         from services.dhan_csv_importer import upsert_dhan_holdings
         import models as models_module
 
-        existing = MagicMock()
-        existing.quantity        = 5.0
-        existing.purchase_price  = 200.0
-        existing.purchased_value = 1000.0
-        existing.current_price   = 190.0
-        existing.current_value   = 950.0
+        existing = self._mock_holding()
+        existing.quantity         = 5.0
+        existing.purchase_price   = 200.0
+        existing.total_investment = 1000.0
+        existing.current_price    = 190.0
 
         mock_db = MagicMock()
-        MockPortfolio = MagicMock()
-        MockPortfolio.query.filter_by.return_value.first.return_value = existing
+        MockMEH = MagicMock()
+        MockMEH.query.filter_by.return_value.first.return_value = existing
 
-        with patch.object(models_module, 'Portfolio', MockPortfolio), \
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
              patch.object(models_module, 'db', mock_db):
             inserted, updated = upsert_dhan_holdings(user_id=1, resolved_rows=self._rows())
 
         assert inserted == 0
         assert updated == 1
         assert existing.quantity == 15.0          # 5 + 10
+        existing.calculate_totals.assert_called_once()
         mock_db.session.commit.assert_called_once()
 
     def test_rollback_on_commit_failure(self):
@@ -277,13 +295,38 @@ class TestUpsertDhanHoldings:
 
         mock_db = MagicMock()
         mock_db.session.commit.side_effect = RuntimeError('db error')
-        MockPortfolio = MagicMock()
-        MockPortfolio.query.filter_by.return_value.first.return_value = None
-        MockPortfolio.return_value = MagicMock()
+        MockMEH = MagicMock()
+        MockMEH.query.filter_by.return_value.first.return_value = None
+        MockMEH.return_value = self._mock_holding()
 
-        with patch.object(models_module, 'Portfolio', MockPortfolio), \
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
              patch.object(models_module, 'db', mock_db):
             with pytest.raises(RuntimeError, match='db error'):
                 upsert_dhan_holdings(user_id=1, resolved_rows=self._rows())
 
         mock_db.session.rollback.assert_called_once()
+
+    def test_imported_holdings_use_manual_equity_model(self):
+        """
+        Critical: confirm that the upsert writes to ManualEquityHolding —
+        the model consumed by dashboard_equities — not Portfolio.
+        If this test passes, imported holdings will be visible in the equities view.
+        """
+        from services.dhan_csv_importer import upsert_dhan_holdings
+        import models as models_module
+
+        mock_db  = MagicMock()
+        MockMEH  = MagicMock()
+        MockMEH.query.filter_by.return_value.first.return_value = None
+        MockMEH.return_value = self._mock_holding()
+
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
+             patch.object(models_module, 'db', mock_db):
+            upsert_dhan_holdings(user_id=1, resolved_rows=self._rows())
+
+        # ManualEquityHolding constructor was called → record goes to the right table
+        MockMEH.assert_called_once()
+        call_kwargs = MockMEH.call_args[1]
+        assert call_kwargs.get('symbol') == 'TATASTEEL'
+        assert call_kwargs.get('transaction_type') == 'BUY'
+        assert call_kwargs.get('is_active') is True

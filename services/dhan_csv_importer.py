@@ -185,14 +185,15 @@ def parse_dhan_csv(file_obj) -> Tuple[List[dict], List[dict]]:
             f"(confidence={confidence}, row={row_num})"
         )
 
+        total_inv = purchased_value if purchased_value > 0 else round(quantity * purchase_price, 2)
         resolved.append({
-            'ticker_symbol':   symbol,
-            'stock_name':      name,          # keep original display name
-            'quantity':        quantity,
-            'purchase_price':  purchase_price,
-            'purchased_value': purchased_value if purchased_value > 0 else round(quantity * purchase_price, 2),
-            'current_price':   current_price,
-            'current_value':   current_value if current_value > 0 else round(quantity * current_price, 2),
+            'symbol':            symbol,
+            'company_name':      name,          # original Dhan display name
+            'quantity':          quantity,
+            'purchase_price':    purchase_price,
+            'total_investment':  total_inv,
+            'current_price':     current_price,
+            'current_value':     current_value if current_value > 0 else round(quantity * current_price, 2),
         })
 
     return resolved, unresolved
@@ -200,68 +201,64 @@ def parse_dhan_csv(file_obj) -> Tuple[List[dict], List[dict]]:
 
 def upsert_dhan_holdings(user_id: int, resolved_rows: List[dict]) -> Tuple[int, int]:
     """
-    Upsert resolved rows into the Portfolio table for the given user.
+    Upsert resolved rows into the ManualEquityHolding table for the given user.
+    This is the model consumed by dashboard_equities — ManualEquityHolding
+    (table: manual_equity_holdings).
 
-    Duplicate detection: same user_id + ticker_symbol + asset_type='equity'.
-    On match: recalculate weighted-average purchase price and update quantities.
-    On miss: insert new row.
+    Duplicate detection: same user_id + symbol + is_active=True.
+    On match: recalculate weighted-average purchase price, update totals.
+    On miss: insert a new BUY record.
 
     Returns (inserted_count, updated_count).
     """
-    from models import Portfolio, db
+    from models import ManualEquityHolding, db
 
-    today = date.today()
+    today    = date.today()
     inserted = 0
     updated  = 0
 
     for row in resolved_rows:
-        symbol = row['ticker_symbol']
+        symbol = row['symbol']
 
-        existing = Portfolio.query.filter_by(
+        existing = ManualEquityHolding.query.filter_by(
             user_id=user_id,
-            ticker_symbol=symbol,
-            asset_type='equity',
+            symbol=symbol,
+            is_active=True,
         ).first()
 
         if existing:
-            # Weighted-average purchase price: (old_val + new_val) / (old_qty + new_qty)
-            old_invested = existing.purchased_value or (existing.quantity * existing.purchase_price)
-            new_invested = row['purchased_value']
+            # Weighted-average purchase price: (old_inv + new_inv) / (old_qty + new_qty)
+            old_invested = existing.total_investment or (existing.quantity * existing.purchase_price)
+            new_invested = row['total_investment']
             new_qty      = existing.quantity + row['quantity']
             new_avg      = (old_invested + new_invested) / new_qty if new_qty > 0 else existing.purchase_price
 
-            existing.quantity        = new_qty
-            existing.purchase_price  = round(new_avg, 4)
-            existing.purchased_value = round(old_invested + new_invested, 2)
-            existing.current_price   = row['current_price'] or existing.current_price
-            existing.current_value   = round(
-                (existing.current_price or 0) * new_qty, 2
-            ) if row['current_price'] else existing.current_value
-            existing.data_source     = 'dhan_csv'
-            existing.last_sync_date  = db.func.now()
+            existing.quantity         = new_qty
+            existing.purchase_price   = round(new_avg, 4)
+            existing.total_investment = round(old_invested + new_invested, 2)
+            if row['current_price']:
+                existing.current_price = row['current_price']
+            existing.calculate_totals()   # recomputes current_value, unrealised P&L
             updated += 1
-            logger.info(f"dhan_csv: updated existing holding {symbol} for user {user_id}")
+            logger.info(f"dhan_csv: updated existing ManualEquityHolding {symbol} for user {user_id}")
         else:
-            holding = Portfolio(
-                user_id         = user_id,
-                ticker_symbol   = symbol,
-                stock_name      = row['stock_name'],
-                asset_type      = 'equity',
-                asset_category  = 'large_cap',   # sensible default; updated by nightly enrichment
-                quantity        = row['quantity'],
-                date_purchased  = today,          # Dhan snapshot has no purchase date
-                purchase_price  = row['purchase_price'],
-                purchased_value = row['purchased_value'],
-                current_price   = row['current_price'],
-                current_value   = row['current_value'],
-                exchange        = 'NSE',
-                trade_type      = 'long_term',
-                data_source     = 'dhan_csv',
-                broker_id       = 'dhan',
+            holding = ManualEquityHolding(
+                user_id          = user_id,
+                symbol           = symbol,
+                company_name     = row['company_name'],
+                transaction_type = 'BUY',
+                purchase_date    = today,        # Dhan snapshot has no purchase date
+                quantity         = row['quantity'],
+                purchase_price   = row['purchase_price'],
+                current_price    = row['current_price'],
+                portfolio_name   = 'Dhan Import',
+                notes            = 'Imported from Dhan Holdings CSV',
+                is_active        = True,
             )
+            holding.calculate_totals()
             db.session.add(holding)
             inserted += 1
-            logger.info(f"dhan_csv: inserted new holding {symbol} for user {user_id}")
+            logger.info(f"dhan_csv: inserted new ManualEquityHolding {symbol} for user {user_id}")
 
     try:
         db.session.commit()
