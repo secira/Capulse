@@ -99,8 +99,10 @@ def _get_pool() -> ThreadPoolExecutor:
     if _POOL is None:
         with _POOL_LOCK:
             if _POOL is None:
+                # 8 workers: up to 5 price futures + 5 news futures can run
+                # concurrently without queueing behind each other.
                 _POOL = ThreadPoolExecutor(
-                    max_workers=4,
+                    max_workers=8,
                     thread_name_prefix='ctx_builder_',
                 )
     return _POOL
@@ -378,6 +380,22 @@ def _fetch_one(symbol: str, user_id: Optional[int]) -> Tuple[str, Dict]:
     return symbol, data
 
 
+# ── News fetch helper ─────────────────────────────────────────────────────────
+
+def _fetch_news_safe(symbol: str) -> Tuple[str, List[Dict]]:
+    """Fetch news headlines for one symbol via news_service. Always returns a
+    (symbol, list) tuple — never raises."""
+    try:
+        _load_alias_patterns()          # ensure _GLOBAL_SYMBOLS is populated
+        market = _classify_symbol(symbol)
+        from services.news_service import get_stock_news
+        items = get_stock_news(symbol, market=market, max_items=3)
+        return symbol, items
+    except Exception as exc:
+        logger.debug(f"ctx_builder: _fetch_news_safe({symbol}): {exc}")
+        return symbol, []
+
+
 # ── Parallel fetch via shared bounded pool ────────────────────────────────────
 
 def fetch_live_context(
@@ -385,44 +403,61 @@ def fetch_live_context(
     user_id: Optional[int] = None,
     timeout: float = 2.5,
 ) -> Dict[str, Dict]:
-    """Fetch live quotes for ≤5 symbols using the shared bounded executor.
+    """Fetch live quotes + recent news for ≤5 symbols using the shared executor.
 
-    Submits futures to the module-level pool (max 4 workers).  After `timeout`
-    seconds, we stop waiting and cancel any futures that are still only queued
-    (running futures cannot be interrupted in CPython, but the pool cap prevents
-    unlimited thread accumulation).
+    Submits one price future and one news future per symbol simultaneously.
+    The pool (8 workers) handles both concurrently within the total `timeout`
+    budget.  Running futures cannot be interrupted; queued ones are cancelled
+    after the deadline to prevent backlog accumulation.
     """
     if not symbols:
         return {}
 
     pool = _get_pool()
-    future_to_sym: Dict[Future, str] = {
-        pool.submit(_fetch_one, sym, user_id): sym
-        for sym in symbols
+    # Tag each future with its kind so we can route results correctly
+    price_futures: Dict[Future, str] = {
+        pool.submit(_fetch_one, sym, user_id): sym for sym in symbols
+    }
+    news_futures: Dict[Future, str] = {
+        pool.submit(_fetch_news_safe, sym): sym for sym in symbols
+    }
+    all_futures: Dict[Future, Tuple[str, str]] = {
+        **{f: ('price', sym) for f, sym in price_futures.items()},
+        **{f: ('news',  sym) for f, sym in news_futures.items()},
     }
 
-    results: Dict[str, Dict] = {}
+    results: Dict[str, Dict] = {}         # sym → price data
+    news_map: Dict[str, List[Dict]] = {}  # sym → headline list
     deadline = time.monotonic() + timeout
 
     try:
-        for fut in as_completed(future_to_sym, timeout=timeout):
+        for fut in as_completed(all_futures, timeout=timeout):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
+            kind, sym = all_futures[fut]
             try:
-                sym, data = fut.result(timeout=min(remaining, 0.3))
-                if float(data.get('ltp', 0) or 0) > 0:
-                    results[sym] = data
+                value = fut.result(timeout=min(remaining, 0.3))
+                if kind == 'price':
+                    _, data = value
+                    if float(data.get('ltp', 0) or 0) > 0:
+                        results[sym] = data
+                else:
+                    _, items = value
+                    if items:
+                        news_map[sym] = items
             except Exception as exc:
-                logger.debug(f"ctx_builder: future result error: {exc}")
+                logger.debug(f"ctx_builder: future result error ({kind}, {sym}): {exc}")
     except Exception as exc:
         logger.debug(f"ctx_builder: as_completed timeout: {exc}")
     finally:
-        # Cancel any futures still waiting in the queue (no effect on running ones,
-        # but prevents queued work from executing if the pool is backlogged)
-        for fut in future_to_sym:
+        for fut in all_futures:
             if not fut.done():
                 fut.cancel()
+
+    # Attach news to price results (news for symbols without a price is dropped)
+    for sym in results:
+        results[sym]['news'] = news_map.get(sym, [])
 
     return results
 
@@ -443,19 +478,23 @@ def _market_display(market: str) -> Tuple[str, str]:
 
 
 def build_context_block(quotes: Dict[str, Dict]) -> str:
-    """Format fetched quotes into a compact [LIVE MARKET DATA] block.
+    """Format fetched quotes + news into a compact [LIVE MARKET DATA] block.
 
     Prices are shown with the correct currency symbol and a market flag:
       🇮🇳 Indian equity / index  →  ₹
       🇺🇸 US equity / ETF        →  $
       ₿  Crypto                  →  $
       🌍 Global index             →  (no currency — point value)
+
+    When news headlines are present for a symbol, up to 3 are appended
+    beneath the price line as compact bullet points with source and age.
     """
     if not quotes:
         return ''
 
     now_ist = datetime.now(_IST).strftime('%H:%M IST, %d %b %Y')
     lines = [f'[LIVE MARKET DATA — as of {now_ist}]']
+    has_news = False
 
     for sym, d in quotes.items():
         ltp     = float(d.get('ltp', 0) or 0)
@@ -463,6 +502,7 @@ def build_context_block(quotes: Dict[str, Dict]) -> str:
         h52     = d.get('week52_high')
         l52     = d.get('week52_low')
         market  = d.get('market', 'indian')
+        news    = d.get('news') or []
 
         if ltp <= 0:
             continue
@@ -480,14 +520,40 @@ def build_context_block(quotes: Dict[str, Dict]) -> str:
             line += f"  |  52w: {ccy}{l52:,.2f} – {ccy}{h52:,.2f}"
         lines.append(line)
 
+        # ── News headlines (compact, indented under the price line) ───────
+        if news:
+            has_news = True
+            lines.append(f"    📰 Recent news:")
+            for item in news[:3]:
+                title = item.get('title', '').strip()
+                if not title:
+                    continue
+                pub = item.get('publisher', '').strip()
+                age = item.get('age_str', '').strip()
+                meta = ''
+                if pub and age:
+                    meta = f" [{pub} · {age}]"
+                elif pub:
+                    meta = f" [{pub}]"
+                elif age:
+                    meta = f" [{age}]"
+                lines.append(f"       – {title}{meta}")
+
     if len(lines) <= 1:
         return ''
 
-    lines.append(
-        '[Use these live figures in your response. '
-        'Do not reference training-data prices. '
-        'Always note that figures are live/delayed market data.]'
-    )
+    # Footer instruction — tell Claude to use news for narrative context
+    footer_parts = [
+        'Use these live figures in your response.',
+        'Do not reference training-data prices.',
+    ]
+    if has_news:
+        footer_parts.append(
+            'Use the news headlines to explain recent price moves when relevant. '
+            'Do not fabricate events not listed here.'
+        )
+    footer_parts.append('Always note that figures are live/delayed market data.')
+    lines.append('[' + ' '.join(footer_parts) + ']')
     return '\n'.join(lines)
 
 
