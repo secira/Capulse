@@ -111,6 +111,34 @@ def _queue_iscore_symbol(symbol: str) -> None:
         logger.warning(f"Could not queue i-Score symbol {symbol}: {exc}")
 
 
+def _iscore_holding_note(user_id: Optional[int]) -> Optional[str]:
+    """Return a trading-style-aware framing note for the i-Score card, or None."""
+    if not user_id:
+        return None
+    try:
+        from services.user_memory import get_memory
+        mem   = get_memory(user_id)
+        style = (mem.get('trading_style') or '').lower()
+        if style == 'intraday':
+            return (
+                "This i-Score reflects fundamental & trend quality over weeks to months. "
+                "It works best as a stock-quality filter, not an intraday entry signal."
+            )
+        if style == 'swing':
+            return (
+                "For your swing-trading horizon: weight the **Trend** and **Sentiment** "
+                "components most — they capture the most recent momentum shifts."
+            )
+        if style == 'long_term':
+            return (
+                "For long-term investing: the **Qualitative** and **Quantitative** "
+                "components carry the most weight — they reflect business fundamentals."
+            )
+    except Exception as exc:
+        logger.debug(f"_iscore_holding_note({user_id}): {exc}")
+    return None
+
+
 def handle_iscore(symbol: str, user_id: int) -> Dict[str, Any]:
     """Serve i-Score from DB — never runs analysis inline.
 
@@ -174,6 +202,7 @@ def handle_iscore(symbol: str, user_id: int) -> Dict[str, Any]:
                 except Exception:
                     db.session.rollback()
 
+                holding_note = _iscore_holding_note(user_id)
                 return {
                     'card_type': 'iscore',
                     'content': (
@@ -187,6 +216,7 @@ def handle_iscore(symbol: str, user_id: int) -> Dict[str, Any]:
                         'recommendation': recommendation,
                         'summary':        summary,
                         'as_of':          as_of,
+                        'holding_note':   holding_note,
                     }
                 }
 
@@ -208,6 +238,7 @@ def handle_iscore(symbol: str, user_id: int) -> Dict[str, Any]:
                 if val is not None:
                     components[label] = round(float(val))
 
+            holding_note = _iscore_holding_note(user_id)
             return {
                 'card_type': 'iscore',
                 'content': (
@@ -221,6 +252,7 @@ def handle_iscore(symbol: str, user_id: int) -> Dict[str, Any]:
                     'recommendation': rl.recommendation or 'HOLD',
                     'summary':        rl.recommendation_summary or '',
                     'as_of':          as_of,
+                    'holding_note':   holding_note,
                 }
             }
 
@@ -345,29 +377,70 @@ def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[
         # Never expose trade cards when the decision is negative —
         # the signal cards must only appear when there is an actionable trade.
         no_trade_decision = is_blocked or final_decision in ('NO TRADE', 'WAIT', 'AVOID')
+
+        # ── Personalise based on user's risk profile and trading style ────────
+        personalisation_note = None
+        if user_id and not no_trade_decision:
+            try:
+                from services.user_memory import get_memory
+                mem           = get_memory(user_id)
+                risk_level    = (mem.get('risk_level')    or '').lower()
+                trading_style = (mem.get('trading_style') or '').lower()
+
+                note_parts = []
+                if risk_level == 'conservative':
+                    note_parts.append(
+                        "⚠️ Your profile shows a **conservative** risk level. "
+                        "F&O options can lose 100% of premium — consider paper-trading "
+                        "this signal first or limiting each position to < 1% of capital."
+                    )
+                elif risk_level == 'moderate':
+                    note_parts.append(
+                        "Your **moderate** risk profile suggests capping each position "
+                        "at 2–3% of capital and placing a stop-loss before entry."
+                    )
+
+                if trading_style == 'intraday':
+                    note_parts.append(
+                        "⏱ **Intraday tip:** Exit before 3:00 PM IST to avoid expiry-day "
+                        "premium crush. Theta decay accelerates sharply in the final 30 minutes."
+                    )
+                elif trading_style in ('long_term', 'positional'):
+                    note_parts.append(
+                        "Your profile shows a **positional/long-term** style. "
+                        "These are short-duration F&O signals — confirm this timeframe "
+                        "fits your strategy before sizing in."
+                    )
+
+                if note_parts:
+                    personalisation_note = '  \n'.join(note_parts)
+            except Exception as _pe:
+                logger.debug(f"handle_fno_signal: personalisation error: {_pe}")
+
         return {
             'card_type': 'fno_signals',
             'content': content,
             'card_data': {
-                'index':            idx,
-                'spot':             spot,
-                'atm':              atm,
-                'trade_direction':  trade_direction,
-                'final_decision':   final_decision,
-                'confidence':       confidence,
-                'confidence_grade': confidence_grade,
-                'is_blocked':       is_blocked,
-                'signals':          [] if no_trade_decision else signals,
-                'data_source':      data_source,
-                'time_caution':     time_caution,
-                'time_reason':      time_reason,
+                'index':               idx,
+                'spot':                spot,
+                'atm':                 atm,
+                'trade_direction':     trade_direction,
+                'final_decision':      final_decision,
+                'confidence':          confidence,
+                'confidence_grade':    confidence_grade,
+                'is_blocked':          is_blocked,
+                'signals':             [] if no_trade_decision else signals,
+                'data_source':         data_source,
+                'time_caution':        time_caution,
+                'time_reason':         time_reason,
+                'personalisation_note': personalisation_note,
                 # ── Technical sub-analyses for the details panel ──────────
-                'direction_data':   direction_data,
-                'strength_data':    strength_data,
-                'oi_data':          oi_data,
-                'momentum_data':    momentum_data,
-                'halftrend_data':   halftrend_data,
-                'layer_status':     layer_status,
+                'direction_data':      direction_data,
+                'strength_data':       strength_data,
+                'oi_data':             oi_data,
+                'momentum_data':       momentum_data,
+                'halftrend_data':      halftrend_data,
+                'layer_status':        layer_status,
             }
         }
 

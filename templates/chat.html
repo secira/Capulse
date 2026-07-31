@@ -157,6 +157,11 @@ details[open] .fno-tech-summary::before{content:'▾ '}
 .fund-rec-target{font-family:var(--mono);font-size:11px;color:var(--paper-dim)}
 .fund-rec-upside{font-family:var(--mono);font-size:10.5px}
 .fund-rec-upside.pos{color:var(--good)}.fund-rec-upside.neg{color:var(--risk)}
+/* personalisation note (F&O + i-Score) */
+.personal-note{background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:6px;padding:9px 12px;font-size:12px;color:var(--paper-dim);line-height:1.6;margin-bottom:10px;max-width:480px}
+.personal-note b,.personal-note strong{color:var(--amber)}
+.iscore-holding-note{background:var(--ink-3);border-left:2px solid var(--amber);border-radius:0 5px 5px 0;padding:8px 12px;font-size:12px;color:var(--paper-dim);line-height:1.55;margin-top:8px;max-width:480px}
+.iscore-holding-note b,.iscore-holding-note strong{color:var(--amber)}
 /* sector peer comparison row */
 .fund-peer-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:var(--ink-3);border-radius:6px}
 .fund-peer-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint);flex-shrink:0}
@@ -248,6 +253,9 @@ details[open] .fno-tech-summary::before{content:'▾ '}
                 </div>
                 {% if d.summary %}<div class="score-foot"><b>Summary:</b> {{ d.summary }}</div>{% endif %}
               </div>
+              {% if d.get('holding_note') %}
+                <div class="iscore-holding-note">{{ d.holding_note }}</div>
+              {% endif %}
               {% if d.get('as_of') %}<p class="disclaimer-inline" style="margin-top:4px">Score as of {{ d.as_of }} · Refreshed nightly</p>{% endif %}
               <p class="disclaimer-inline">Research output only · Not a recommendation.</p>
             {% elif ctx.get('card_type') == 'fno_signals' and ctx.get('card_data') %}
@@ -291,6 +299,10 @@ details[open] .fno-tech-summary::before{content:'▾ '}
                     <div class="conf-bar-track"><div class="conf-bar-fill" style="width:{{ [sig.get('confidence',0), 100]|min }}%"></div></div>
                   </div>
                 {% endfor %}
+              {% endif %}
+              {# ── Personalisation note ────────────────────────────────── #}
+              {% if fno.get('personalisation_note') and not _no_trade %}
+                <div class="personal-note">{{ fno.personalisation_note }}</div>
               {% endif %}
               {# ── Technical details panel ─────────────────────────────── #}
               {% set _dd = fno.get('direction_data', {}) or {} %}
@@ -873,6 +885,9 @@ function renderIScoreCard(d) {
   const rec = d.recommendation || '';
   const recCls = rec === 'BUY' ? 'pos' : rec === 'SELL' ? 'neg' : '';
   const recBadge = rec ? `<span class="iscore-rec-badge ${recCls}">${rec}</span>` : '';
+  const holdingNote = d.holding_note
+    ? `<div class="iscore-holding-note">${renderMarkdown(d.holding_note)}</div>`
+    : '';
   return `<div class="score-card">
     <div class="score-head">
       <span class="score-name">${d.symbol} &middot; I-SCORE</span>
@@ -884,6 +899,7 @@ function renderIScoreCard(d) {
     <div class="score-bars">${bars}</div>
     ${d.summary ? `<div class="score-foot"><b>Summary:</b> ${d.summary}</div>` : ''}
   </div>
+  ${holdingNote}
   ${d.as_of ? `<p class="disclaimer-inline" style="margin-top:4px">Score as of ${d.as_of} · Refreshed nightly</p>` : ''}
   <p class="disclaimer-inline">Research output only · Not a recommendation.</p>`;
 }
@@ -975,6 +991,11 @@ function renderFnoCard(d) {
       </div>
       ${oiHtml ? `<div class="fno-oi-row">${oiHtml}</div>` : ''}
     </details>`;
+  }
+
+  // ── Personalisation note ────────────────────────────────────────────────
+  if (d.personalisation_note && !_noTrade) {
+    html += `<div class="personal-note">${renderMarkdown(d.personalisation_note)}</div>`;
   }
 
   html += `<p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters before trading.</p>`;
