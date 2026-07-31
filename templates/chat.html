@@ -98,6 +98,21 @@
 .fno-decision.blocked{background:var(--ink-3);color:var(--paper-faint)}
 .fno-decision.active{background:rgba(var(--good-rgb,34,197,94),.1);color:var(--good)}
 .fno-grade{font-size:10px;opacity:.75}
+.fno-tech-details{max-width:480px;margin-bottom:8px}
+.fno-tech-summary{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint);cursor:pointer;padding:6px 0 4px;list-style:none;user-select:none}
+.fno-tech-summary::-webkit-details-marker{display:none}
+.fno-tech-summary::before{content:'▸ ';font-size:9px}
+details[open] .fno-tech-summary::before{content:'▾ '}
+.fno-tech-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.fno-tech-section{background:var(--ink-2);border:1px solid var(--line);border-radius:7px;padding:10px 12px}
+.fno-tech-head{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--paper-faint);margin-bottom:6px;opacity:.7}
+.fno-tech-row{display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.fno-tech-row:last-child{border-bottom:none}
+.fno-tech-label{font-family:var(--mono);font-size:10px;color:var(--paper-faint)}
+.fno-tech-val{font-family:var(--mono);font-size:11px;color:var(--paper);text-align:right}
+.fno-tech-val.pos{color:var(--good)}.fno-tech-val.neg{color:var(--risk)}.fno-tech-val.warn{color:var(--amber)}
+.fno-oi-row{display:flex;flex-wrap:wrap;gap:6px 20px;background:var(--ink-2);border:1px solid var(--line);border-radius:7px;padding:8px 12px;margin-top:6px}
+.fno-oi-item{display:flex;gap:5px;align-items:center}
 /* i-Score card */
 .iscore-card{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:6px;max-width:480px}
 .iscore-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
@@ -239,6 +254,48 @@
                     <div class="conf-bar-track"><div class="conf-bar-fill" style="width:{{ [sig.get('confidence',0), 100]|min }}%"></div></div>
                   </div>
                 {% endfor %}
+              {% endif %}
+              {# ── Technical details panel ─────────────────────────────── #}
+              {% set _dd = fno.get('direction_data', {}) or {} %}
+              {% set _sd = fno.get('strength_data',  {}) or {} %}
+              {% set _oi = fno.get('oi_data',         {}) or {} %}
+              {% if _dd or _sd %}
+              <details class="fno-tech-details">
+                <summary class="fno-tech-summary">Technical Analysis</summary>
+                <div class="fno-tech-grid">
+                  <div class="fno-tech-section">
+                    <div class="fno-tech-head">Direction</div>
+                    {% if _dd.get('direction') %}<div class="fno-tech-row"><span class="fno-tech-label">Bias</span><span class="fno-tech-val {% if 'BULL' in _dd.direction %}pos{% elif 'BEAR' in _dd.direction %}neg{% endif %}">{{ _dd.direction }}</span></div>{% endif %}
+                    {% if _dd.get('spot_vs_vwap') %}<div class="fno-tech-row"><span class="fno-tech-label">vs VWAP</span><span class="fno-tech-val {% if _dd.spot_vs_vwap == 'ABOVE' %}pos{% else %}neg{% endif %}">{{ _dd.spot_vs_vwap }}</span></div>{% endif %}
+                    {% if _dd.get('supertrend') %}<div class="fno-tech-row"><span class="fno-tech-label">Supertrend</span><span class="fno-tech-val {% if _dd.supertrend == 'UP' %}pos{% else %}neg{% endif %}">{{ _dd.supertrend }}</span></div>{% endif %}
+                    {% if _dd.get('rsi') is not none %}<div class="fno-tech-row"><span class="fno-tech-label">RSI</span><span class="fno-tech-val {% if _dd.rsi > 60 %}pos{% elif _dd.rsi < 40 %}neg{% endif %}">{{ "%.1f"|format(_dd.rsi) }}</span></div>{% endif %}
+                    {% if _dd.get('ema_trend') %}<div class="fno-tech-row"><span class="fno-tech-label">EMA Trend</span><span class="fno-tech-val {% if 'BULL' in (_dd.ema_trend|upper) %}pos{% elif 'BEAR' in (_dd.ema_trend|upper) %}neg{% endif %}">{{ _dd.ema_trend | replace('_',' ') }}</span></div>{% endif %}
+                    {% if _dd.get('bull_score') is not none and _dd.get('score_max') %}<div class="fno-tech-row"><span class="fno-tech-label">Bull / Bear</span><span class="fno-tech-val"><span class="pos">{{ _dd.bull_score }}</span> / <span class="neg">{{ _dd.bear_score }}</span> of {{ _dd.score_max }}</span></div>{% endif %}
+                    {% if _dd.get('volume_above_avg') is not none %}<div class="fno-tech-row"><span class="fno-tech-label">Volume</span><span class="fno-tech-val {{ 'pos' if _dd.volume_above_avg else '' }}">{{ 'Above Avg' if _dd.volume_above_avg else 'Below Avg' }}{% if _dd.get('vol_ratio') %} ({{ "%.1f"|format(_dd.vol_ratio) }}x){% endif %}</span></div>{% endif %}
+                    {% if _dd.get('dmi_plus') is not none %}<div class="fno-tech-row"><span class="fno-tech-label">DMI +/−</span><span class="fno-tech-val">{{ "%.1f"|format(_dd.dmi_plus) }} / {{ "%.1f"|format(_dd.dmi_minus) }}</span></div>{% endif %}
+                  </div>
+                  <div class="fno-tech-section">
+                    <div class="fno-tech-head">Strength</div>
+                    {% if _sd.get('strength') %}<div class="fno-tech-row"><span class="fno-tech-label">Strength</span><span class="fno-tech-val {% if 'STRONG' in (_sd.strength|upper) %}pos{% elif 'WEAK' in (_sd.strength|upper) %}neg{% endif %}">{{ _sd.strength | replace('_',' ') }}</span></div>{% endif %}
+                    {% if _sd.get('ema9') is not none and _sd.get('ema21') is not none %}<div class="fno-tech-row"><span class="fno-tech-label">EMA 9 / 21</span><span class="fno-tech-val">{{ "%.1f"|format(_sd.ema9) }} / {{ "%.1f"|format(_sd.ema21) }}</span></div>{% endif %}
+                    {% if _sd.get('ema_trend') %}<div class="fno-tech-row"><span class="fno-tech-label">EMA Status</span><span class="fno-tech-val {% if 'BULL' in (_sd.ema_trend|upper) %}pos{% elif 'BEAR' in (_sd.ema_trend|upper) %}neg{% endif %}">{{ _sd.ema_trend | replace('_',' ') }}</span></div>{% endif %}
+                    {% if _sd.get('ema_distance_pct') is not none %}<div class="fno-tech-row"><span class="fno-tech-label">EMA Gap</span><span class="fno-tech-val">{{ "%.3f"|format(_sd.ema_distance_pct) }}%{% if _sd.get('ema_distance_increasing') %} ▲{% endif %}</span></div>{% endif %}
+                    {% if _sd.get('adx') is not none %}<div class="fno-tech-row"><span class="fno-tech-label">ADX</span><span class="fno-tech-val {{ 'pos' if _sd.adx > 25 else '' }}">{{ "%.1f"|format(_sd.adx) }}{% if _sd.get('adx_rising') %} ▲{% elif _sd.get('adx_falling') %} ▼{% endif %}</span></div>{% endif %}
+                    {% if _sd.get('atr') is not none %}<div class="fno-tech-row"><span class="fno-tech-label">ATR</span><span class="fno-tech-val">{{ "%.1f"|format(_sd.atr) }}{% if _sd.get('atr_rising') %} ▲{% endif %}</span></div>{% endif %}
+                    {% if _sd.get('no_trade_zone') %}<div class="fno-tech-row"><span class="fno-tech-label">Zone</span><span class="fno-tech-val warn">⚠ No-Trade Zone</span></div>{% endif %}
+                    {% if _sd.get('tier') %}<div class="fno-tech-row"><span class="fno-tech-label">Tier</span><span class="fno-tech-val">{{ _sd.tier }}</span></div>{% endif %}
+                  </div>
+                </div>
+                {% if _oi and (_oi.get('pcr') is not none or _oi.get('oi_signal') or _oi.get('max_pain')) %}
+                <div class="fno-oi-row">
+                  {% if _oi.get('pcr') is not none %}<span class="fno-oi-item"><span class="fno-tech-label">PCR</span><span class="fno-tech-val {% if _oi.pcr > 1 %}pos{% elif _oi.pcr < 0.8 %}neg{% endif %}">{{ "%.2f"|format(_oi.pcr) }}</span></span>{% endif %}
+                  {% if _oi.get('atm_pcr') is not none %}<span class="fno-oi-item"><span class="fno-tech-label">ATM PCR</span><span class="fno-tech-val">{{ "%.2f"|format(_oi.atm_pcr) }}</span></span>{% endif %}
+                  {% if _oi.get('oi_signal') %}<span class="fno-oi-item"><span class="fno-tech-label">OI Signal</span><span class="fno-tech-val {% if 'BULL' in (_oi.oi_signal|upper) %}pos{% elif 'BEAR' in (_oi.oi_signal|upper) %}neg{% endif %}">{{ _oi.oi_signal }}</span></span>{% endif %}
+                  {% if _oi.get('max_pain') %}<span class="fno-oi-item"><span class="fno-tech-label">Max Pain</span><span class="fno-tech-val">{{ _oi.max_pain }}</span></span>{% endif %}
+                  {% if _oi.get('total_call_oi') and _oi.get('total_put_oi') %}<span class="fno-oi-item"><span class="fno-tech-label">Call / Put OI</span><span class="fno-tech-val">{{ "{:,.0f}".format(_oi.total_call_oi / 1000) }}K / {{ "{:,.0f}".format(_oi.total_put_oi / 1000) }}K</span></span>{% endif %}
+                </div>
+                {% endif %}
+              </details>
               {% endif %}
               <p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters before trading.</p>
             {% elif ctx.get('card_type') == 'mutual_fund' and ctx.get('card_data') %}
@@ -752,6 +809,53 @@ function renderFnoCard(d) {
       </div>
       <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${Math.min(sig.confidence || 0, 100)}%"></div></div>
     </div>`).join('');
+  }
+
+  // ── Technical details panel ─────────────────────────────────────────────
+  const dd = d.direction_data || {};
+  const sd = d.strength_data  || {};
+  const oi = d.oi_data        || {};
+
+  function techVal(v, cls='') { return `<span class="fno-tech-val${cls?' '+cls:''}">${v}</span>`; }
+  function techRow(label, val) { return `<div class="fno-tech-row"><span class="fno-tech-label">${label}</span>${val}</div>`; }
+  function dirCls2(v) { return /BULL/i.test(v||'') ? 'pos' : /BEAR/i.test(v||'') ? 'neg' : ''; }
+
+  let dirRows = '';
+  if (dd.direction)       dirRows += techRow('Bias',       techVal(dd.direction, dirCls2(dd.direction)));
+  if (dd.spot_vs_vwap)    dirRows += techRow('vs VWAP',    techVal(dd.spot_vs_vwap, dd.spot_vs_vwap==='ABOVE'?'pos':'neg'));
+  if (dd.supertrend)      dirRows += techRow('Supertrend', techVal(dd.supertrend, dd.supertrend==='UP'?'pos':'neg'));
+  if (dd.rsi != null)     dirRows += techRow('RSI',        techVal(Number(dd.rsi).toFixed(1), dd.rsi>60?'pos':dd.rsi<40?'neg':''));
+  if (dd.ema_trend)       dirRows += techRow('EMA Trend',  techVal((dd.ema_trend||'').replace(/_/g,' '), dirCls2(dd.ema_trend)));
+  if (dd.bull_score != null && dd.score_max) dirRows += techRow('Bull / Bear', `<span class="fno-tech-val"><span class="pos">${dd.bull_score}</span> / <span class="neg">${dd.bear_score}</span> of ${dd.score_max}</span>`);
+  if (dd.volume_above_avg != null) dirRows += techRow('Volume', techVal((dd.volume_above_avg ? 'Above Avg' : 'Below Avg') + (dd.vol_ratio ? ` (${Number(dd.vol_ratio).toFixed(1)}x)` : ''), dd.volume_above_avg?'pos':''));
+  if (dd.dmi_plus != null) dirRows += techRow('DMI +/−', techVal(`${Number(dd.dmi_plus).toFixed(1)} / ${Number(dd.dmi_minus).toFixed(1)}`));
+
+  let strRows = '';
+  if (sd.strength)              strRows += techRow('Strength',   techVal((sd.strength||'').replace(/_/g,' '), /STRONG/i.test(sd.strength)?'pos':/WEAK/i.test(sd.strength)?'neg':''));
+  if (sd.ema9 != null && sd.ema21 != null) strRows += techRow('EMA 9 / 21', techVal(`${Number(sd.ema9).toFixed(1)} / ${Number(sd.ema21).toFixed(1)}`));
+  if (sd.ema_trend)             strRows += techRow('EMA Status', techVal((sd.ema_trend||'').replace(/_/g,' '), dirCls2(sd.ema_trend)));
+  if (sd.ema_distance_pct != null) strRows += techRow('EMA Gap', techVal(`${Number(sd.ema_distance_pct).toFixed(3)}%${sd.ema_distance_increasing?' ▲':''}`));
+  if (sd.adx != null)           strRows += techRow('ADX',        techVal(`${Number(sd.adx).toFixed(1)}${sd.adx_rising?' ▲':sd.adx_falling?' ▼':''}`, sd.adx>25?'pos':''));
+  if (sd.atr != null)           strRows += techRow('ATR',        techVal(`${Number(sd.atr).toFixed(1)}${sd.atr_rising?' ▲':''}`));
+  if (sd.no_trade_zone)         strRows += techRow('Zone',       techVal('⚠ No-Trade Zone', 'warn'));
+  if (sd.tier)                  strRows += techRow('Tier',       techVal(sd.tier));
+
+  let oiHtml = '';
+  if (oi.pcr != null)   oiHtml += `<span class="fno-oi-item"><span class="fno-tech-label">PCR</span>${techVal(Number(oi.pcr).toFixed(2), oi.pcr>1?'pos':oi.pcr<0.8?'neg':'')}</span>`;
+  if (oi.atm_pcr != null) oiHtml += `<span class="fno-oi-item"><span class="fno-tech-label">ATM PCR</span>${techVal(Number(oi.atm_pcr).toFixed(2))}</span>`;
+  if (oi.oi_signal)     oiHtml += `<span class="fno-oi-item"><span class="fno-tech-label">OI Signal</span>${techVal(oi.oi_signal, dirCls2(oi.oi_signal))}</span>`;
+  if (oi.max_pain)      oiHtml += `<span class="fno-oi-item"><span class="fno-tech-label">Max Pain</span>${techVal(oi.max_pain)}</span>`;
+  if (oi.total_call_oi && oi.total_put_oi) oiHtml += `<span class="fno-oi-item"><span class="fno-tech-label">Call / Put OI</span>${techVal(`${Math.round(oi.total_call_oi/1000)}K / ${Math.round(oi.total_put_oi/1000)}K`)}</span>`;
+
+  if (dirRows || strRows) {
+    html += `<details class="fno-tech-details">
+      <summary class="fno-tech-summary">Technical Analysis</summary>
+      <div class="fno-tech-grid">
+        <div class="fno-tech-section"><div class="fno-tech-head">Direction</div>${dirRows}</div>
+        <div class="fno-tech-section"><div class="fno-tech-head">Strength</div>${strRows}</div>
+      </div>
+      ${oiHtml ? `<div class="fno-oi-row">${oiHtml}</div>` : ''}
+    </details>`;
   }
 
   html += `<p class="disclaimer-inline">Statistical signals, not recommendations. Set your own risk parameters before trading.</p>`;

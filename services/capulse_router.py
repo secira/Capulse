@@ -274,6 +274,14 @@ def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[
 
         spot_str = f"₹{spot:,.2f}" if spot else "—"
 
+        # ── Sub-analysis objects for the technical details panel ─────────────
+        direction_data  = analysis.get('direction',    {}) or {}
+        strength_data   = analysis.get('strength',     {}) or {}
+        oi_data         = analysis.get('oi_analysis',  {}) or {}
+        momentum_data   = analysis.get('momentum',     {}) or {}
+        halftrend_data  = analysis.get('halftrend',    {}) or {}
+        layer_status    = analysis.get('layer_status', {}) or {}
+
         # Time-window caution from the engine (never a block — just a warning)
         time_check     = analysis.get('time_filter', {})
         time_caution   = time_check.get('caution', False)
@@ -351,6 +359,13 @@ def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[
                 'data_source':      data_source,
                 'time_caution':     time_caution,
                 'time_reason':      time_reason,
+                # ── Technical sub-analyses for the details panel ──────────
+                'direction_data':   direction_data,
+                'strength_data':    strength_data,
+                'oi_data':          oi_data,
+                'momentum_data':    momentum_data,
+                'halftrend_data':   halftrend_data,
+                'layer_status':     layer_status,
             }
         }
 
