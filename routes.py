@@ -7824,6 +7824,76 @@ def account_profile():
                          INSTRUMENT_LABELS=INSTRUMENT_LABELS,
                          GOAL_LABELS=GOAL_LABELS)
 
+@app.route('/account/profile/memory/update', methods=['POST'])
+@login_required
+def update_financial_memory():
+    """Manually patch the user's financial memory from the profile edit form.
+
+    Only fields included in the submitted form are written; other AI-learned
+    fields remain untouched.  List fields are *replaced* (not union-merged)
+    with whatever the user checked, so they can remove stale entries too.
+    """
+    try:
+        from flask_wtf.csrf import validate_csrf
+        validate_csrf(request.form.get('csrf_token'))
+    except Exception:
+        flash('Invalid request. Please try again.', 'error')
+        return redirect(url_for('account_profile'))
+
+    try:
+        from models import UserFinancialMemory
+        from services.user_memory import STYLE_LABELS, RISK_LABELS, CAPITAL_LABELS
+        from datetime import datetime as _dt
+
+        mem = UserFinancialMemory.query.filter_by(user_id=current_user.id).first()
+        if mem is None:
+            mem = UserFinancialMemory(user_id=current_user.id)
+            db.session.add(mem)
+
+        # ── Scalar fields: only write if a non-empty value was submitted ──
+        trading_style = request.form.get('trading_style', '').strip()
+        if trading_style and trading_style in STYLE_LABELS:
+            mem.trading_style = trading_style
+
+        risk_level = request.form.get('risk_level', '').strip()
+        if risk_level and risk_level in RISK_LABELS:
+            mem.risk_level = risk_level
+
+        capital_bracket = request.form.get('capital_bracket', '').strip()
+        if capital_bracket and capital_bracket in CAPITAL_LABELS:
+            mem.capital_bracket = capital_bracket
+
+        # ── List fields: replace with checked values (allows removal) ──
+        # Only update when the hidden sentinel is present (form was shown)
+        VALID_INSTRUMENTS = {'equity', 'fno', 'mf', 'etf'}
+        if 'instruments_submitted' in request.form:
+            chosen = [v for v in request.form.getlist('instruments') if v in VALID_INSTRUMENTS]
+            mem.preferred_instruments = ', '.join(sorted(chosen)) if chosen else None
+
+        VALID_SECTORS = {'banking', 'it', 'pharma', 'auto', 'energy', 'fmcg',
+                         'realty', 'metal', 'infra'}
+        if 'sectors_submitted' in request.form:
+            chosen = [v for v in request.form.getlist('sectors') if v in VALID_SECTORS]
+            mem.sectors = ', '.join(sorted(chosen)) if chosen else None
+
+        VALID_GOALS = {'wealth_creation', 'income', 'hedging', 'speculation', 'preservation'}
+        if 'goals_submitted' in request.form:
+            chosen = [v for v in request.form.getlist('goals') if v in VALID_GOALS]
+            mem.goals = ', '.join(sorted(chosen)) if chosen else None
+
+        mem.updated_at = _dt.utcnow()
+        db.session.commit()
+        logging.info(f"User {current_user.id} manually updated trading profile")
+        flash('Trading profile updated successfully!', 'success')
+
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"update_financial_memory error for user {current_user.id}: {e}")
+        flash('Could not save profile changes. Please try again.', 'error')
+
+    return redirect(url_for('account_profile'))
+
+
 @app.route('/account/profile/memory/reset', methods=['POST'])
 @login_required
 def reset_financial_memory():
