@@ -445,6 +445,77 @@ class TestUpsertDhanHoldings:
         # (filter_by is called by upsert; we check all() specifically)
         MockMEH.query.filter_by.return_value.all.assert_not_called()
 
+    def test_empty_snapshot_deactivates_all_prior_holdings(self):
+        """
+        A valid Dhan CSV with zero position rows (e.g. header-only, or all rows
+        have zero quantity) is an authoritative empty snapshot — the user sold
+        everything.  All prior Dhan Import holdings must be deactivated.
+        Manual holdings must remain untouched (scoped to portfolio_name='Dhan Import').
+        """
+        import io
+        from services.dhan_csv_importer import parse_and_import_dhan_csv
+        import models as models_module
+        import services.dhan_csv_importer as m
+        m._ALIAS_MAP = None
+
+        # Header-only CSV — no position rows
+        header_only = io.BytesIO(
+            b'\xef\xbb\xbf"Name","Quantity","Avg Price","Last Traded",'
+            b'"Investment","Current Value","P&L","P&L %"\n'
+        )
+
+        h1 = MagicMock(); h1.symbol = 'TATASTEEL'; h1.is_active = True
+        h2 = MagicMock(); h2.symbol = 'RELIANCE';  h2.is_active = True
+
+        mock_db  = MagicMock()
+        MockMEH  = MagicMock()
+        MockMEH.query.filter_by.return_value.first.return_value = None
+        MockMEH.query.filter_by.return_value.all.return_value   = [h1, h2]
+        MockMEH.return_value = self._mock_holding()
+
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
+             patch.object(models_module, 'db', mock_db):
+            result = parse_and_import_dhan_csv(header_only, user_id=1)
+
+        assert result['imported']    == 0
+        assert result['updated']     == 0
+        assert result['deactivated'] == 2
+        assert result['reconciliation_skipped'] is False
+        assert h1.is_active is False
+        assert h2.is_active is False
+        mock_db.session.commit.assert_called_once()
+
+    def test_zero_quantity_rows_treated_as_empty_snapshot(self):
+        """
+        A CSV where every row has zero quantity (all skipped during parsing)
+        must also deactivate prior holdings — it's the same as a header-only export.
+        """
+        import io
+        from services.dhan_csv_importer import parse_and_import_dhan_csv
+        import models as models_module
+        import services.dhan_csv_importer as m
+        m._ALIAS_MAP = None
+
+        csv_bytes = _make_csv([
+            {'Name': 'Tata Steel', 'Qty': '0', 'Avg': '200', 'LTP': '190',
+             'Inv': '0', 'CV': '0'},
+        ])
+
+        h1 = MagicMock(); h1.symbol = 'TATASTEEL'; h1.is_active = True
+
+        mock_db  = MagicMock()
+        MockMEH  = MagicMock()
+        MockMEH.query.filter_by.return_value.first.return_value = None
+        MockMEH.query.filter_by.return_value.all.return_value   = [h1]
+        MockMEH.return_value = self._mock_holding()
+
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
+             patch.object(models_module, 'db', mock_db):
+            result = parse_and_import_dhan_csv(csv_bytes, user_id=1)
+
+        assert result['deactivated'] == 1
+        assert h1.is_active is False
+
     def test_full_resolution_triggers_reconciliation(self):
         """
         When every row is resolved, reconciliation runs and deactivates symbols

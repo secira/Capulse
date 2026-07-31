@@ -327,8 +327,11 @@ def parse_and_import_dhan_csv(file_obj, user_id: int) -> dict:
     """
     resolved, unresolved = parse_dhan_csv(file_obj)
 
-    if not resolved and not unresolved:
-        raise ValueError("No data rows found in the uploaded file.")
+    # An empty resolved+unresolved list means the Dhan export contained no
+    # position rows (header-only or every row had zero quantity).  This is a
+    # valid authoritative empty snapshot — the user has sold everything.
+    # We do NOT raise here; we fall through to reconciliation which will
+    # deactivate all prior Dhan Import holdings.
 
     # upsert leaves DB session open (no commit yet inside upsert)
     inserted, updated = upsert_dhan_holdings(user_id, resolved)
