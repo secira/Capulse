@@ -4356,32 +4356,83 @@ def import_from_bank(bank_id, asset_class):
 @app.route('/api/import/upload', methods=['POST'])
 @login_required
 def import_holdings_upload():
-    """Upload and import holdings from Excel or PDF file"""
+    """Upload and import holdings from a broker CSV export (Dhan supported) or Excel/PDF."""
+    asset_class = request.form.get('asset_class', 'equities')
+
     try:
-        asset_class = request.form.get('asset_class')
-        file_type = request.form.get('file_type')
-        
         if 'file' not in request.files:
-            flash('No file uploaded', 'error')
-            return redirect(url_for('import_holdings', asset_class=asset_class))
-        
+            return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+
         file = request.files['file']
-        
-        if file.filename == '':
-            flash('No file selected', 'error')
-            return redirect(url_for('import_holdings', asset_class=asset_class))
-        
-        # TODO: Implement file parsing logic
-        # - For Excel: Use pandas to read and parse
-        # - For PDF: Use AI/OCR to extract data
-        
-        flash(f'File upload and import for {asset_class} will be implemented soon', 'info')
-        return redirect(url_for('import_holdings', asset_class=asset_class))
-        
+
+        if not file or file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+        filename = (file.filename or '').lower()
+
+        # ── Dhan Holdings CSV ─────────────────────────────────────────────────
+        if filename.endswith('.csv'):
+            from services.dhan_csv_importer import (
+                is_dhan_csv, parse_and_import_dhan_csv
+            )
+            import csv, io
+
+            # Peek at the first line to check headers without consuming the stream
+            raw_bytes = file.read()
+            raw_text  = raw_bytes.decode('utf-8-sig').lstrip('\ufeff')
+            first_line = raw_text.split('\n')[0]
+            sample_headers = [c.strip().strip('"').lower()
+                              for c in first_line.split(',')]
+
+            if is_dhan_csv(sample_headers):
+                # Wrap as file-like for the importer
+                result = parse_and_import_dhan_csv(
+                    io.BytesIO(raw_bytes),
+                    user_id=current_user.id,
+                )
+                return jsonify({
+                    'success':    True,
+                    'broker':     'dhan',
+                    'imported':   result['imported'],
+                    'updated':    result['updated'],
+                    'total_rows': result['total_rows'],
+                    'unresolved': result['unresolved'],
+                    'message': (
+                        f"{result['imported']} holding(s) imported, "
+                        f"{result['updated']} updated"
+                        + (f", {len(result['unresolved'])} could not be matched"
+                           if result['unresolved'] else '')
+                    ),
+                    'redirect': url_for('dashboard_equities')
+                        if asset_class == 'equities' else
+                        url_for('import_holdings', asset_class=asset_class),
+                })
+            else:
+                # Generic CSV — not yet supported
+                return jsonify({
+                    'success': False,
+                    'error':   (
+                        'Unrecognised CSV format. '
+                        'Please upload a Dhan Holdings export, or use the Excel template.'
+                    ),
+                }), 422
+
+        # ── Excel / PDF — not yet implemented ─────────────────────────────────
+        else:
+            return jsonify({
+                'success': False,
+                'error':   (
+                    f'Excel and PDF import for {asset_class} is coming soon. '
+                    'For now, please upload a Dhan Holdings CSV.'
+                ),
+            }), 422
+
+    except ValueError as ve:
+        logger.warning(f"import_holdings_upload: validation error: {ve}")
+        return jsonify({'success': False, 'error': str(ve)}), 422
     except Exception as e:
-        logger.error(f"Error uploading file: {str(e)}")
-        flash(f'Error uploading file: {str(e)}', 'error')
-        return redirect(url_for('import_holdings', asset_class=asset_class))
+        logger.error(f"import_holdings_upload: unexpected error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': f'Import failed: {str(e)}'}), 500
 
 @app.route('/api/import/template/<asset_class>/<format>')
 @login_required

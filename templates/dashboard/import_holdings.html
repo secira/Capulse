@@ -76,39 +76,50 @@
         </div>
     </div>
     
-    <!-- Upload Excel File -->
+    <!-- Upload CSV / Excel File -->
     <div class="col-md-6 mb-4">
         <div class="card h-100">
             <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="fas fa-file-excel me-2"></i>Upload Excel File</h5>
+                <h5 class="mb-0"><i class="fas fa-file-csv me-2"></i>Upload Broker CSV / Excel</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted">Upload an Excel file (.xlsx, .xls, .csv) with your holdings data.</p>
-                
-                <form method="POST" action="{{ url_for('import_holdings_upload') }}" enctype="multipart/form-data" id="excelUploadForm">
+                <p class="text-muted">
+                    Upload your holdings file from Dhan or another broker.
+                    <strong>Dhan Holdings CSV</strong> is auto-detected and imported instantly.
+                </p>
+
+                <!-- Result banner (shown after upload) -->
+                <div id="uploadResultBanner" class="d-none mb-3"></div>
+
+                <form id="csvUploadForm" enctype="multipart/form-data">
                     <input type="hidden" name="asset_class" value="{{ asset_class }}">
-                    <input type="hidden" name="file_type" value="excel">
-                    
+                    <input type="hidden" name="file_type" value="csv">
+
                     <div class="mb-3">
-                        <label for="excelFile" class="form-label">Choose Excel File</label>
-                        <input type="file" class="form-control" id="excelFile" name="file" accept=".xlsx,.xls,.csv" required>
-                        <small class="text-muted">Supported formats: .xlsx, .xls, .csv</small>
+                        <label for="csvFile" class="form-label">Choose file</label>
+                        <input type="file" class="form-control" id="csvFile" name="file"
+                               accept=".csv,.xlsx,.xls" required>
+                        <small class="text-muted">
+                            Dhan: <em>Dhan app → Portfolio → Download (CSV)</em><br>
+                            Other formats: use the Excel template below.
+                        </small>
                     </div>
-                    
+
                     <div class="mb-3">
-                        <a href="{{ url_for('download_import_template', asset_class=asset_class, format='excel') }}" class="btn btn-sm btn-outline-info">
-                            <i class="fas fa-download me-1"></i>Download Template
+                        <a href="{{ url_for('download_import_template', asset_class=asset_class, format='excel') }}"
+                           class="btn btn-sm btn-outline-info">
+                            <i class="fas fa-download me-1"></i>Download Excel Template
                         </a>
                     </div>
-                    
-                    <button type="submit" class="btn btn-info">
-                        <i class="fas fa-upload me-2"></i>Upload & Import
+
+                    <button type="submit" class="btn btn-info" id="csvUploadBtn">
+                        <i class="fas fa-upload me-2"></i>Upload &amp; Import
                     </button>
                 </form>
             </div>
         </div>
     </div>
-    
+
     <!-- Upload PDF File -->
     <div class="col-md-6 mb-4">
         <div class="card h-100">
@@ -117,24 +128,26 @@
             </div>
             <div class="card-body">
                 <p class="text-muted">Upload a PDF statement from your broker or depository (CDSL/NSDL).</p>
-                
-                <form method="POST" action="{{ url_for('import_holdings_upload') }}" enctype="multipart/form-data" id="pdfUploadForm">
+
+                <div id="pdfResultBanner" class="d-none mb-3"></div>
+
+                <form id="pdfUploadForm" enctype="multipart/form-data">
                     <input type="hidden" name="asset_class" value="{{ asset_class }}">
                     <input type="hidden" name="file_type" value="pdf">
-                    
+
                     <div class="mb-3">
                         <label for="pdfFile" class="form-label">Choose PDF File</label>
                         <input type="file" class="form-control" id="pdfFile" name="file" accept=".pdf" required>
                         <small class="text-muted">Supported format: .pdf</small>
                     </div>
-                    
+
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>Note:</strong> PDF parsing uses AI to extract data. Please review imported data carefully.
+                        <strong>Note:</strong> PDF import is coming soon.
                     </div>
-                    
-                    <button type="submit" class="btn btn-warning">
-                        <i class="fas fa-upload me-2"></i>Upload & Parse PDF
+
+                    <button type="submit" class="btn btn-warning" id="pdfUploadBtn">
+                        <i class="fas fa-upload me-2"></i>Upload &amp; Parse PDF
                     </button>
                 </form>
             </div>
@@ -206,12 +219,11 @@
 </div>
 
 <script>
+/* ── Broker / Bank import (unchanged) ─────────────────────────────────────── */
 function importFromBroker(brokerId, assetClass) {
     if (confirm('Import holdings from this broker? This will fetch the latest data.')) {
-        fetch(`/api/import/broker/${brokerId}/${assetClass}`, {
-            method: 'POST'
-        })
-        .then(response => response.json())
+        fetch(`/api/import/broker/${brokerId}/${assetClass}`, { method: 'POST' })
+        .then(r => r.json())
         .then(data => {
             if (data.success) {
                 alert(`Successfully imported ${data.count} holdings from broker!`);
@@ -220,18 +232,14 @@ function importFromBroker(brokerId, assetClass) {
                 alert('Error importing from broker: ' + data.error);
             }
         })
-        .catch(error => {
-            alert('Error: ' + error);
-        });
+        .catch(err => alert('Error: ' + err));
     }
 }
 
 function importFromBank(bankId, assetClass) {
     if (confirm('Import holdings from this bank? This will fetch the latest data.')) {
-        fetch(`/api/import/bank/${bankId}/${assetClass}`, {
-            method: 'POST'
-        })
-        .then(response => response.json())
+        fetch(`/api/import/bank/${bankId}/${assetClass}`, { method: 'POST' })
+        .then(r => r.json())
         .then(data => {
             if (data.success) {
                 alert(`Successfully imported ${data.count} holdings from bank!`);
@@ -240,10 +248,87 @@ function importFromBank(bankId, assetClass) {
                 alert('Error importing from bank: ' + data.error);
             }
         })
-        .catch(error => {
-            alert('Error: ' + error);
-        });
+        .catch(err => alert('Error: ' + err));
     }
 }
+
+/* ── CSV upload (AJAX) ────────────────────────────────────────────────────── */
+function showBanner(bannerId, type, html) {
+    const el = document.getElementById(bannerId);
+    if (!el) return;
+    el.className = `alert alert-${type}`;
+    el.innerHTML = html;
+    el.classList.remove('d-none');
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+document.getElementById('csvUploadForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const btn  = document.getElementById('csvUploadBtn');
+    const form = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Importing…';
+
+    fetch('{{ url_for("import_holdings_upload") }}', {
+        method: 'POST',
+        body: new FormData(form),
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload &amp; Import';
+
+        if (data.success) {
+            let html = `<strong><i class="fas fa-check-circle me-2"></i>${data.message}</strong>`;
+
+            if (data.unresolved && data.unresolved.length > 0) {
+                const names = data.unresolved.map(u =>
+                    `<li><code>${u.name}</code> (row ${u.row})</li>`
+                ).join('');
+                html += `<hr class="my-2">
+                  <strong>Could not match ${data.unresolved.length} name(s) to NSE symbols:</strong>
+                  <ul class="mb-1 mt-1">${names}</ul>
+                  <small>Add these symbols manually or ask in chat — "add SYMBOL to my portfolio".</small>`;
+                showBanner('uploadResultBanner', 'warning', html);
+            } else {
+                showBanner('uploadResultBanner', 'success', html);
+            }
+
+            // Redirect to portfolio after a short delay if all rows imported
+            if (!data.unresolved || data.unresolved.length === 0) {
+                setTimeout(() => { window.location.href = data.redirect; }, 1800);
+            }
+        } else {
+            showBanner('uploadResultBanner', 'danger',
+                `<strong><i class="fas fa-times-circle me-2"></i>Import failed:</strong> ${data.error}`);
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload &amp; Import';
+        showBanner('uploadResultBanner', 'danger',
+            `<strong>Network error:</strong> ${err}`);
+    });
+});
+
+document.getElementById('pdfUploadForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('pdfUploadBtn');
+    btn.disabled = true;
+    fetch('{{ url_for("import_holdings_upload") }}', {
+        method: 'POST',
+        body: new FormData(this),
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        showBanner('pdfResultBanner', data.success ? 'success' : 'danger',
+            data.success ? data.message : `<strong>Error:</strong> ${data.error}`);
+    })
+    .catch(err => {
+        btn.disabled = false;
+        showBanner('pdfResultBanner', 'danger', `<strong>Network error:</strong> ${err}`);
+    });
+});
 </script>
 {% endblock %}
