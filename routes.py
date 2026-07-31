@@ -341,9 +341,25 @@ def dashboard_stock_research():
                          top_research=top_research)
 
 @app.route('/portfolio-analysis')
+@login_required
 def portfolio_analysis():
-    """Portfolio Analysis service page route"""
+    """Portfolio Intelligence Report — per-user institutional-grade analysis."""
     return render_template('portfolio_analysis.html')
+
+
+@app.route('/api/portfolio/report-data')
+@login_required
+def portfolio_report_data():
+    """AJAX: returns the Portfolio Intelligence Report JSON for the current user."""
+    from services.portfolio_intelligence import PortfolioIntelligenceEngine
+    engine = PortfolioIntelligenceEngine(current_user.id)
+    try:
+        report = engine.generate_report()
+        return jsonify({'success': True, 'report': report})
+    except Exception as exc:
+        logger.error(f"portfolio_report_data: {exc}", exc_info=True)
+        return jsonify({'success': False,
+                        'error': 'Could not generate report. Please try again.'}), 500
 
 @app.route('/algo-trading-service')
 def algo_trading_service():

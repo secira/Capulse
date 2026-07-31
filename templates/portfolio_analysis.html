@@ -1,176 +1,869 @@
 {% extends "base.html" %}
 
-{% block title %}Multi-Broker Portfolio Management & AI Risk Analysis | Capulse{% endblock %}
-{% block description %}Consolidate portfolios from Dhan, Zerodha, Angel One, Upstox & 4 more brokers. Get Portfolio Health Pulse, Risk Heat Map by sector, and AI rebalancing recommendations across 11 asset classes.{% endblock %}
-{% block keywords %}multi-broker portfolio tracker India, portfolio management software, portfolio risk analysis, risk heat map, portfolio rebalancing AI, demat account tracker, sector exposure analysis, portfolio health score{% endblock %}
-{% block og_title %}Multi-Broker Portfolio Hub & AI Risk Analysis | Capulse{% endblock %}
-{% block og_description %}8 brokers, 11 asset classes, one unified portfolio view with AI risk scoring and rebalancing signals.{% endblock %}
+{% block title %}Portfolio Intelligence Report | Capulse{% endblock %}
+{% block description %}Your personalised institutional-grade portfolio analysis — scores, risk radar, diversification, stress test and AI recommendations.{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── Report shell ─────────────────────────────────────────────────────── */
+.pir-page { background:#f0f4f8; min-height:100vh; padding-top:80px; padding-bottom:60px; }
+
+/* ── Hero banner ──────────────────────────────────────────────────────── */
+.pir-hero {
+  background: linear-gradient(135deg,#0d1b2a 0%,#1a2e45 60%,#0d2340 100%);
+  color:#fff; padding:48px 0 40px; margin-bottom:32px;
+}
+.pir-hero-score {
+  font-size:5rem; font-weight:800; line-height:1;
+  background:linear-gradient(135deg,#f59e0b,#fbbf24);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.pir-hero-label { font-size:.95rem; letter-spacing:.08em; color:#94a3b8; text-transform:uppercase; }
+.pir-hero-status { font-size:1.1rem; color:#fbbf24; font-weight:600; }
+.pir-hero-sub { font-size:.8rem; color:#64748b; margin-top:4px; }
+
+.sub-score-pill {
+  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.1);
+  border-radius:12px; padding:10px 14px; text-align:center; min-width:110px;
+}
+.sub-score-pill .ss-val { font-size:1.4rem; font-weight:700; }
+.sub-score-pill .ss-lbl { font-size:.7rem; color:#94a3b8; text-transform:uppercase;
+  letter-spacing:.05em; margin-top:2px; }
+
+/* ── Section cards ────────────────────────────────────────────────────── */
+.pir-card {
+  background:#fff; border-radius:16px; box-shadow:0 1px 4px rgba(0,0,0,.07);
+  padding:24px 28px; margin-bottom:20px;
+}
+.pir-card-title {
+  font-size:.75rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:#64748b; border-bottom:2px solid #f1f5f9; padding-bottom:10px; margin-bottom:18px;
+}
+
+/* ── Executive summary ────────────────────────────────────────────────── */
+.exec-summary {
+  border-left:4px solid #f59e0b; background:#fffbeb;
+  border-radius:8px; padding:16px 20px; font-size:.97rem; color:#1e293b; line-height:1.7;
+}
+
+/* ── Generic score bar ────────────────────────────────────────────────── */
+.score-bar-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.score-bar-label { font-size:.82rem; color:#334155; width:170px; flex-shrink:0; }
+.score-bar-track { flex:1; background:#f1f5f9; border-radius:99px; height:10px; overflow:hidden; }
+.score-bar-fill  { height:100%; border-radius:99px; transition:width .8s ease; }
+.score-bar-value { font-size:.82rem; font-weight:700; color:#334155; width:36px; text-align:right; }
+
+/* ── Risk radar bar colours ───────────────────────────────────────────── */
+.risk-low    { background:#22c55e; }
+.risk-medium { background:#f59e0b; }
+.risk-high   { background:#ef4444; }
+
+/* ── Holding cards ────────────────────────────────────────────────────── */
+.holding-card {
+  border:1px solid #e2e8f0; border-radius:12px; padding:16px;
+  transition:box-shadow .15s;
+}
+.holding-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.1); }
+.holding-symbol { font-size:1.1rem; font-weight:800; color:#0d1b2a; }
+.holding-sector { font-size:.72rem; background:#f1f5f9; color:#475569;
+  border-radius:6px; padding:2px 8px; display:inline-block; margin-top:2px; }
+.ai-rating-badge {
+  font-size:1.3rem; font-weight:800; width:56px; height:56px;
+  border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.rec-badge { font-size:.72rem; font-weight:700; border-radius:6px; padding:3px 10px; }
+.rec-buy         { background:#d1fae5; color:#065f46; }
+.rec-hold        { background:#fef3c7; color:#92400e; }
+.rec-sell        { background:#fee2e2; color:#991b1b; }
+.opinion-item    { font-size:.83rem; color:#334155; padding:3px 0; }
+
+/* ── Sector tags ──────────────────────────────────────────────────────── */
+.sector-tag {
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:.82rem; padding:5px 12px; border-radius:20px; margin:4px;
+}
+.sector-present { background:#d1fae5; color:#065f46; }
+.sector-missing { background:#fee2e2; color:#991b1b; }
+
+/* ── Action centre ────────────────────────────────────────────────────── */
+.action-row { display:flex; align-items:center; gap:12px;
+  padding:10px 0; border-bottom:1px solid #f1f5f9; }
+.action-row:last-child { border-bottom:none; }
+.priority-badge { font-size:.7rem; font-weight:700; padding:3px 9px; border-radius:99px; flex-shrink:0; }
+.priority-High   { background:#fee2e2; color:#991b1b; }
+.priority-Medium { background:#fef3c7; color:#92400e; }
+.priority-Low    { background:#f1f5f9; color:#475569; }
+.impact-stars { color:#f59e0b; font-size:.85rem; flex-shrink:0; margin-left:auto; }
+
+/* ── Forecast ─────────────────────────────────────────────────────────── */
+.forecast-cell { text-align:center; padding:14px 0; }
+.forecast-val  { font-size:1.4rem; font-weight:800; }
+
+/* ── Skeleton loader ──────────────────────────────────────────────────── */
+.skeleton { background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);
+  background-size:200% 100%; animation:shimmer 1.5s infinite; border-radius:8px; }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* ── Chart donut ──────────────────────────────────────────────────────── */
+.chart-donut-wrap { position:relative; width:220px; height:220px; margin:0 auto; }
+</style>
+{% endblock %}
 
 {% block content %}
-<!-- Hero Section -->
-<section class="bg-white" style="padding-top: 140px; padding-bottom: 80px;">
-    <div class="container">
+<div class="pir-page" id="pirPage">
+
+  <!-- ── Skeleton (visible while loading) ──────────────────────────────── -->
+  <div id="pirSkeleton">
+    <div class="pir-hero">
+      <div class="container">
         <div class="row align-items-center">
-            <div class="col-lg-6">
-                <div class="d-inline-flex align-items-center gap-2 mb-4">
-                    <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-semibold">
-                        <i class="fas fa-robot me-1"></i>Agentic AI Powered
-                    </span>
-                </div>
-                <h1 class="display-4 fw-bold text-dark mb-4">
-                    Autonomous Portfolio Intelligence
-                </h1>
-                <p class="lead text-muted mb-5" style="font-size: 1.2rem;">
-                    AI that learns your investment style, reasons through market complexities, and adapts to deliver smarter portfolio outcomes.
-                </p>
-                <div class="d-flex flex-wrap gap-3">
-                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-4 py-3 rounded-pill">
-                        Start Analysis
-                    </a>
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary btn-lg px-4 py-3 rounded-pill">
-                        View Capabilities
-                    </a>
-                </div>
-                <p class="small text-muted mt-3">
-                    <i class="fas fa-brain me-2 text-primary"></i>Learns & Adapts • 
-                    <i class="fas fa-shield-alt me-2 text-success"></i>Risk-Aware • 
-                    <i class="fas fa-chart-line me-2 text-info"></i>Performance Optimized
-                </p>
-            </div>
-            <div class="col-lg-6">
-                <div class="text-center">
-                    <img src="{{ url_for('static', filename='images/portfolio_analysis_hero.jpg') }}" 
-                         alt="Agentic AI Portfolio Analysis" class="img-fluid shadow-lg rounded-4" style="max-width: 500px;" loading="lazy">
-                </div>
-            </div>
+          <div class="col-auto"><div class="skeleton" style="width:120px;height:80px;"></div></div>
+          <div class="col">
+            <div class="skeleton mb-2" style="width:260px;height:20px;"></div>
+            <div class="skeleton" style="width:180px;height:14px;"></div>
+          </div>
         </div>
+        <div class="d-flex flex-wrap gap-2 mt-4">
+          {% for _ in range(8) %}
+          <div class="skeleton" style="width:110px;height:62px;border-radius:12px;"></div>
+          {% endfor %}
+        </div>
+      </div>
     </div>
-</section>
-
-<!-- Core Capabilities -->
-<section class="bg-light" style="padding: 80px 0;">
     <div class="container">
-        <div class="row mb-5">
-            <div class="col-lg-10 mx-auto text-center">
-                <h2 class="fw-bold text-dark mb-4">How Agentic AI Works</h2>
-                <p class="text-muted mb-4">True autonomous intelligence that learns, reasons, acts, and adapts</p>
-                <div class="row g-4">
-                    <div class="col-md-3 col-6">
-                        <div class="text-center">
-                            <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                                <i class="fas fa-brain text-primary fa-2x"></i>
-                            </div>
-                            <h6 class="fw-bold">LEARNS</h6>
-                            <small class="text-muted">From your preferences & market patterns</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <div class="text-center">
-                            <div class="bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                                <i class="fas fa-lightbulb text-success fa-2x"></i>
-                            </div>
-                            <h6 class="fw-bold">REASONS</h6>
-                            <small class="text-muted">Through market scenarios</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <div class="text-center">
-                            <div class="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                                <i class="fas fa-bolt text-warning fa-2x"></i>
-                            </div>
-                            <h6 class="fw-bold">ACTS</h6>
-                            <small class="text-muted">On opportunities</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <div class="text-center">
-                            <div class="bg-info bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                                <i class="fas fa-sync text-info fa-2x"></i>
-                            </div>
-                            <h6 class="fw-bold">ADAPTS</h6>
-                            <small class="text-muted">To market conditions</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row g-4">
-            <div class="col-lg-4 col-md-6">
-                <div class="card border-0 h-100 shadow-sm" style="border-radius: 16px;">
-                    <div class="card-body p-4 text-center">
-                        <div class="mb-3">
-                            <i class="fas fa-brain text-primary" style="font-size: 3rem;"></i>
-                        </div>
-                        <h4 class="fw-bold mb-3">Autonomous Learning</h4>
-                        <p class="text-muted">
-                            AI learns from your behavior, risk profile, and preferences to deliver increasingly personalized portfolio recommendations.
-                        </p>
-                        <div class="text-start mt-3">
-                            <small class="text-muted d-block"><i class="fas fa-check text-success me-2"></i>Pattern recognition</small>
-                            <small class="text-muted d-block"><i class="fas fa-check text-success me-2"></i>Trend analysis</small>
-                            <small class="text-muted d-block"><i class="fas fa-check text-success me-2"></i>Risk adaptation</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-4 col-md-6">
-                <div class="card border-0 h-100 shadow-sm" style="border-radius: 16px;">
-                    <div class="card-body p-4 text-center">
-                        <div class="mb-3">
-                            <i class="fas fa-heartbeat text-danger" style="font-size: 3rem;"></i>
-                        </div>
-                        <h4 class="fw-bold mb-3">Scentric Risk Engine</h4>
-                        <p class="text-muted">
-                            Portfolio Health Pulse scoring, Risk Heat Map by asset class, and Goal-Based Monitoring with progress tracking against your financial targets.
-                        </p>
-                        <div class="text-start mt-3">
-                            <small class="text-muted d-block"><i class="fas fa-check text-success me-2"></i>Portfolio Health Pulse</small>
-                            <small class="text-muted d-block"><i class="fas fa-check text-success me-2"></i>Risk Heat Map</small>
-                            <small class="text-muted d-block"><i class="fas fa-check text-success me-2"></i>Goal-Based Monitoring</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-4 col-md-6">
-                <div class="card border-0 h-100 shadow-sm" style="border-radius: 16px;">
-                    <div class="card-body p-4 text-center">
-                        <div class="mb-3">
-                            <i class="fas fa-layer-group text-success" style="font-size: 3rem;"></i>
-                        </div>
-                        <h4 class="fw-bold mb-3">Unified Portfolio View</h4>
-                        <p class="text-muted">
-                            Connect multiple brokers and manage your complete financial picture in one place. 3+ asset classes, real-time sync.
-                        </p>
-                        <div class="text-start mt-3">
-                            <small class="text-muted d-block"><i class="fas fa-check text-success me-2"></i>10+ broker support</small>
-                            <small class="text-muted d-block"><i class="fas fa-check text-success me-2"></i>Automatic sync</small>
-                            <small class="text-muted d-block"><i class="fas fa-check text-success me-2"></i>Real-time updates</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+      {% for _ in range(4) %}
+      <div class="pir-card mb-3">
+        <div class="skeleton mb-3" style="height:16px;width:160px;"></div>
+        <div class="skeleton mb-2" style="height:14px;width:100%;"></div>
+        <div class="skeleton mb-2" style="height:14px;width:85%;"></div>
+        <div class="skeleton" style="height:14px;width:70%;"></div>
+      </div>
+      {% endfor %}
     </div>
-</section>
+  </div>
 
-<!-- CTA Section -->
-<section class="py-5 bg-primary text-white">
-    <div class="container text-center">
-        <h2 class="display-6 fw-bold mb-4">Start Smarter Portfolio Management</h2>
-        <p class="lead text-white mb-4">
-            Let AI optimize your investments in real-time with personalized recommendations
+  <!-- ── Actual report ──────────────────────────────────────────────────── -->
+  <div id="pirReport" style="display:none;">
+
+    <!-- Hero -->
+    <div class="pir-hero">
+      <div class="container">
+        <div class="row align-items-center mb-4">
+          <div class="col-auto">
+            <div class="pir-hero-score" id="heroScore"></div>
+            <div class="pir-hero-label mt-1">Portfolio Intelligence Score</div>
+          </div>
+          <div class="col-md ps-4">
+            <div class="pir-hero-status" id="heroStatus"></div>
+            <div class="pir-hero-sub" id="heroMeta"></div>
+          </div>
+          <div class="col-auto">
+            <small class="text-secondary" id="generatedAt"></small>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2" id="subScorePills"></div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-8">
+
+          <!-- AI Executive Summary -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-robot me-2 text-warning"></i>AI Executive Summary</div>
+            <div class="exec-summary" id="execSummary"></div>
+          </div>
+
+          <!-- Portfolio Snapshot -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-table me-2 text-primary"></i>Portfolio Snapshot</div>
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <tbody id="snapshotTbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Diversification Analysis -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-chart-pie me-2 text-info"></i>Diversification Analysis</div>
+            <div class="row align-items-center">
+              <div class="col-md-5 text-center mb-3 mb-md-0">
+                <div class="chart-donut-wrap"><canvas id="sectorChart"></canvas></div>
+              </div>
+              <div class="col-md-7">
+                <div id="sectorBarsContainer"></div>
+                <div class="mt-3 p-3 rounded" style="background:#f8fafc;font-size:.82rem;">
+                  <strong>Ideal Allocation</strong>
+                  <div id="idealAllocationList" class="mt-2" style="columns:2;"></div>
+                </div>
+                <div class="mt-2">
+                  <span class="fw-semibold" style="font-size:.85rem;">Diversification Score: </span>
+                  <span id="divScore" class="fw-bold" style="font-size:1.1rem;"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Holdings Intelligence -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-microscope me-2 text-success"></i>Holdings Intelligence</div>
+            <div id="holdingsContainer" class="row g-3"></div>
+          </div>
+
+          <!-- Diversification Suggestions -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-compass me-2 text-warning"></i>AI Diversification Suggestions</div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="fw-semibold mb-2" style="font-size:.82rem;color:#64748b;">Current Exposure</div>
+                <div id="currentSectors"></div>
+              </div>
+              <div class="col-md-6">
+                <div class="fw-semibold mb-2" style="font-size:.82rem;color:#64748b;">Missing Exposure</div>
+                <div id="missingSectors"></div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /col-lg-8 -->
+
+        <div class="col-lg-4">
+
+          <!-- Risk Radar -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-radar me-2 text-danger"></i>Risk Radar</div>
+            <div id="riskRadarContainer"></div>
+          </div>
+
+          <!-- Stress Test -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-bolt me-2 text-warning"></i>Portfolio Stress Test</div>
+            <div class="text-center mb-3 p-3 rounded" style="background:#fff7ed;">
+              <div class="text-muted" style="font-size:.78rem;">If Nifty Falls 10%</div>
+              <div id="stressDrawdown" style="font-size:2rem;font-weight:800;color:#dc2626;"></div>
+              <div class="text-muted" style="font-size:.75rem;">Expected Portfolio Drawdown</div>
+            </div>
+            <table class="table table-sm mb-0">
+              <thead><tr><th>Period</th><th class="text-end">Recovery Probability</th></tr></thead>
+              <tbody id="recoveryTbody"></tbody>
+            </table>
+          </div>
+
+          <!-- Behavioural -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-brain me-2" style="color:#8b5cf6;"></i>Behavioural Analysis</div>
+            <div class="text-center mb-3">
+              <span id="investorStyle" class="badge"
+                style="background:#f5f3ff;color:#5b21b6;font-size:.9rem;padding:8px 16px;"></span>
+            </div>
+            <div id="behaviorTraits" class="mb-3"></div>
+            <div id="behaviorImprovement" class="p-3 rounded" style="background:#fafafa;font-size:.82rem;color:#475569;"></div>
+          </div>
+
+          <!-- AI Watchlist -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-binoculars me-2 text-info"></i>AI Watchlist</div>
+            <p class="text-muted" style="font-size:.8rem;">Target sectors for next investment:</p>
+            <div id="watchlistContainer"></div>
+          </div>
+
+          <!-- Action Centre -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-tasks me-2 text-success"></i>Action Centre</div>
+            <div id="actionCentreContainer"></div>
+          </div>
+
+          <!-- Forecast -->
+          <div class="pir-card">
+            <div class="pir-card-title"><i class="fas fa-chart-line me-2" style="color:#8b5cf6;"></i>Portfolio Forecast (12 Months)</div>
+            <div class="row text-center g-0" id="forecastRow"></div>
+            <div class="text-center mt-2 text-muted" id="forecastConf" style="font-size:.78rem;"></div>
+          </div>
+
+        </div><!-- /col-lg-4 -->
+      </div><!-- /row -->
+
+      <!-- Overall Verdict -->
+      <div class="pir-card">
+        <div class="pir-card-title"><i class="fas fa-gavel me-2 text-primary"></i>Overall Verdict</div>
+        <div class="row">
+          <div class="col-md-2 text-center">
+            <div id="verdictScore" style="font-size:3.5rem;font-weight:800;line-height:1;"></div>
+            <div class="text-muted" style="font-size:.75rem;">/ 100</div>
+          </div>
+          <div class="col-md-5">
+            <div class="fw-semibold mb-2" style="font-size:.82rem;color:#16a34a;">Strengths</div>
+            <ul id="strengthsList" class="mb-0 ps-3" style="font-size:.85rem;"></ul>
+          </div>
+          <div class="col-md-5">
+            <div class="fw-semibold mb-2" style="font-size:.82rem;color:#dc2626;">Weaknesses</div>
+            <ul id="weaknessesList" class="mb-0 ps-3" style="font-size:.85rem;"></ul>
+          </div>
+        </div>
+        <div class="mt-4 p-3 rounded" style="background:#f0f9ff;border-left:4px solid #3b82f6;">
+          <div class="fw-semibold mb-1" style="font-size:.82rem;color:#1e40af;">AI Recommendation</div>
+          <div id="verdictRec" style="font-size:.9rem;color:#1e293b;"></div>
+        </div>
+      </div>
+
+    </div><!-- /container -->
+  </div><!-- /pirReport -->
+
+  <!-- ── Empty state ─────────────────────────────────────────────────────── -->
+  <div id="pirEmpty" style="display:none;">
+    <div class="container">
+      <div class="text-center py-5">
+        <i class="fas fa-chart-bar fa-4x text-muted mb-4"></i>
+        <h3 class="fw-bold mb-3">Your Portfolio Intelligence Report</h3>
+        <p class="text-muted mb-4" style="max-width:460px;margin:0 auto;">
+          Import your equity holdings to unlock your personalised institutional-grade
+          analysis — Portfolio Intelligence Score, Risk Radar, Diversification insights,
+          Stress Test, and AI recommendations.
         </p>
-        <div class="d-flex justify-content-center gap-3 flex-wrap">
-            <a href="{{ url_for('register') }}" class="btn btn-light btn-lg px-4 py-3 rounded-pill">
-                <i class="fas fa-rocket me-2"></i>Get Started Free
-            </a>
-            <a href="{{ url_for('pricing') }}" class="btn btn-outline-light btn-lg px-4 py-3 rounded-pill">
-                View Pricing
-            </a>
-        </div>
+        <a href="{{ url_for('import_holdings', asset_class='equities') }}"
+           class="btn btn-primary btn-lg px-5 rounded-pill me-2">
+          <i class="fas fa-file-import me-2"></i>Import Holdings
+        </a>
+        <a href="{{ url_for('dashboard_equities') }}"
+           class="btn btn-outline-secondary btn-lg px-5 rounded-pill">
+          <i class="fas fa-plus me-2"></i>Add Manually
+        </a>
+      </div>
     </div>
-</section>
+  </div>
+
+  <!-- ── Error state ─────────────────────────────────────────────────────── -->
+  <div id="pirError" style="display:none;" class="container mt-5">
+    <div class="alert alert-danger d-flex align-items-center gap-3">
+      <i class="fas fa-exclamation-triangle fa-2x"></i>
+      <div>
+        <strong>Could not generate report.</strong>
+        <div id="pirErrorMsg" class="text-muted mt-1"></div>
+        <button class="btn btn-sm btn-danger mt-2" onclick="loadReport()">
+          <i class="fas fa-redo me-1"></i>Retry
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /pir-page -->
+
+<script>
+// ── Helpers ───────────────────────────────────────────────────────────────
+function scoreColor(v) {
+  if (v >= 75) return '#16a34a';
+  if (v >= 55) return '#f59e0b';
+  return '#dc2626';
+}
+
+// Map recommendation to a CSS class name from a fixed allow-list.
+// Never interpolates the raw rec string into HTML.
+function recCssClass(rec) {
+  const r = (rec || '').toUpperCase();
+  if (r === 'STRONG BUY' || r === 'BUY') return 'rec-buy';
+  if (r === 'SELL' || r === 'STRONG SELL') return 'rec-sell';
+  return 'rec-hold';
+}
+
+function stars(n) { return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 - n)); }
+
+// setText — safe shorthand: always uses textContent
+function setText(el, val) { if (el) el.textContent = val; }
+
+let sectorChartInstance = null;
+
+// ── Main load ─────────────────────────────────────────────────────────────
+async function loadReport() {
+  document.getElementById('pirSkeleton').style.display = '';
+  document.getElementById('pirReport').style.display   = 'none';
+  document.getElementById('pirEmpty').style.display    = 'none';
+  document.getElementById('pirError').style.display    = 'none';
+
+  try {
+    const resp = await fetch('{{ url_for("portfolio_report_data") }}');
+    const json = await resp.json();
+    if (!json.success) throw new Error(json.error || 'Unknown error');
+    const r = json.report;
+
+    if (!r.has_holdings) {
+      document.getElementById('pirSkeleton').style.display = 'none';
+      document.getElementById('pirEmpty').style.display    = '';
+      return;
+    }
+
+    renderReport(r);
+    document.getElementById('pirSkeleton').style.display = 'none';
+    document.getElementById('pirReport').style.display   = '';
+  } catch(e) {
+    document.getElementById('pirSkeleton').style.display = 'none';
+    document.getElementById('pirError').style.display    = '';
+    // Only set error message via textContent — never innerHTML
+    setText(document.getElementById('pirErrorMsg'), e.message);
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function renderReport(r) {
+  const snap = r.snapshot || {};
+
+  // ── Hero ─────────────────────────────────────────────────────────────
+  setText(document.getElementById('heroScore'),  r.portfolio_intelligence_score);
+  setText(document.getElementById('heroStatus'), r.score_status);
+  setText(document.getElementById('generatedAt'),
+    'Generated ' + r.generated_at);
+  setText(document.getElementById('heroMeta'),
+    (snap.holdings_count || 0) + ' Holdings  •  ' +
+    (snap.sectors_count || 0)  + ' Sectors  •  ' +
+    (snap.overall_return_pct >= 0 ? '+' : '') + snap.overall_return_pct + '% Return');
+
+  // Sub-score pills — labels are hard-coded strings (safe)
+  const SS_LABELS = [
+    ['fundamental_strength', 'Fundamentals'],
+    ['technical_strength',   'Technicals'],
+    ['diversification',      'Diversification'],
+    ['risk_score',           'Risk'],
+    ['quality_score',        'Quality'],
+    ['valuation_score',      'Valuation'],
+    ['momentum_score',       'Momentum'],
+    ['stability',            'Stability'],
+  ];
+  const pillWrap = document.getElementById('subScorePills');
+  pillWrap.innerHTML = '';     // clears static skeleton; no dynamic data
+  const ss = r.sub_scores || {};
+  SS_LABELS.forEach(([k, lbl]) => {
+    const v    = ss[k] || 0;
+    const pill = document.createElement('div');
+    pill.className = 'sub-score-pill';
+
+    const valEl = document.createElement('div');
+    valEl.className = 'ss-val';
+    valEl.style.color = scoreColor(v);
+    valEl.textContent = v;       // number — textContent
+
+    const lblEl = document.createElement('div');
+    lblEl.className = 'ss-lbl';
+    lblEl.textContent = lbl;     // hardcoded constant — textContent
+
+    pill.appendChild(valEl);
+    pill.appendChild(lblEl);
+    pillWrap.appendChild(pill);
+  });
+
+  // ── Executive summary ─────────────────────────────────────────────────
+  setText(document.getElementById('execSummary'), r.executive_summary || '');
+
+  // ── Snapshot table ─────────────────────────────────────────────────────
+  // All label strings are hard-coded; value strings come from the server.
+  // Both are set via textContent — never innerHTML.
+  const snRows = [
+    ['Holdings',        snap.holdings_count],
+    ['Sectors',         snap.sectors_count],
+    ['Winners',         snap.winners],
+    ['Losers',          snap.losers],
+    ['Overall Return',  (snap.overall_return_pct >= 0 ? '+' : '') +
+                        snap.overall_return_pct + '%'],
+    ['Portfolio Beta',  snap.beta_label],
+    ['Risk Level',      snap.risk_level],
+    ['Cash Allocation', snap.cash_allocation_pct + '%'],
+  ];
+  const snBody = document.getElementById('snapshotTbody');
+  snBody.innerHTML = '';
+  snRows.forEach(([m, v]) => {
+    const tr   = document.createElement('tr');
+    const tdM  = document.createElement('td');
+    const tdV  = document.createElement('td');
+    tdM.className = 'text-muted';
+    tdM.style.fontSize = '.85rem';
+    tdV.className = 'fw-semibold text-end';
+    tdV.style.fontSize = '.85rem';
+    tdM.textContent = m;                  // hard-coded label
+    tdV.textContent = (v === null || v === undefined) ? '—' : v;  // server value
+    tr.appendChild(tdM);
+    tr.appendChild(tdV);
+    snBody.appendChild(tr);
+  });
+
+  // ── Diversification ───────────────────────────────────────────────────
+  const alloc  = r.sector_allocation || {};
+  const ideal  = r.ideal_allocation  || {};
+  const colors = ['#3b82f6','#22c55e','#f59e0b','#8b5cf6','#ef4444',
+                  '#06b6d4','#ec4899','#84cc16','#f97316','#14b8a6'];
+
+  if (sectorChartInstance) sectorChartInstance.destroy();
+  sectorChartInstance = new Chart(document.getElementById('sectorChart'), {
+    type: 'doughnut',
+    data: {
+      // Chart.js labels render in tooltips — use textContent path via API
+      labels:   Object.keys(alloc),
+      datasets: [{
+        data:            Object.values(alloc),
+        backgroundColor: colors,
+        borderWidth:     2,
+        borderColor:     '#fff',
+      }],
+    },
+    options: {
+      cutout: '65%', responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: c => ' ' + c.label + ': ' + c.raw + '%' }
+      }},
+    },
+  });
+
+  // Sector bars — sector name (from DB/Claude) set via textContent only
+  const sbWrap = document.getElementById('sectorBarsContainer');
+  sbWrap.innerHTML = '';
+  Object.entries(alloc).forEach(([s, pct], i) => {
+    const row   = document.createElement('div');
+    row.className = 'score-bar-row';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'score-bar-label';
+    labelEl.style.fontSize = '.8rem';
+    labelEl.textContent = s;           // DB value → textContent (never innerHTML)
+
+    const track = document.createElement('div');
+    track.className = 'score-bar-track';
+    const fill  = document.createElement('div');
+    fill.className = 'score-bar-fill';
+    fill.style.width      = pct + '%';
+    fill.style.background = colors[i % colors.length];
+    track.appendChild(fill);
+
+    const valEl = document.createElement('div');
+    valEl.className   = 'score-bar-value';
+    valEl.textContent = pct + '%';
+
+    row.appendChild(labelEl);
+    row.appendChild(track);
+    row.appendChild(valEl);
+    sbWrap.appendChild(row);
+  });
+
+  // Ideal allocation — keys are server-sent strings → textContent
+  const idealList = document.getElementById('idealAllocationList');
+  idealList.innerHTML = '';
+  Object.entries(ideal).forEach(([s, pct]) => {
+    const d = document.createElement('div');
+    d.style.fontSize = '.78rem';
+    d.style.color    = '#475569';
+    d.textContent    = '• ' + s + ': ' + pct + '%';   // textContent
+    idealList.appendChild(d);
+  });
+
+  const div = r.diversification_score || 0;
+  const divEl = document.getElementById('divScore');
+  divEl.textContent = div + '/100';
+  divEl.style.color = scoreColor(div);
+
+  // ── Risk radar ─────────────────────────────────────────────────────────
+  const RR_LABELS = [
+    ['market_risk',          'Market Risk'],
+    ['sector_concentration', 'Sector Concentration'],
+    ['liquidity_risk',       'Liquidity Risk'],
+    ['fundamental_risk',     'Fundamental Risk'],
+    ['valuation_risk',       'Valuation Risk'],
+  ];
+  const rrWrap = document.getElementById('riskRadarContainer');
+  rrWrap.innerHTML = '';
+  const rr = r.risk_radar || {};
+  RR_LABELS.forEach(([k, lbl]) => {
+    const v   = rr[k] || 0;
+    const cls = v > 65 ? 'risk-high' : v > 40 ? 'risk-medium' : 'risk-low';
+
+    const row     = document.createElement('div');
+    row.className = 'score-bar-row';
+
+    const labelEl = document.createElement('div');
+    labelEl.className     = 'score-bar-label';
+    labelEl.style.fontSize = '.78rem';
+    labelEl.textContent   = lbl;     // hard-coded constant
+
+    const track = document.createElement('div');
+    track.className = 'score-bar-track';
+    const fill  = document.createElement('div');
+    fill.className    = 'score-bar-fill ' + cls;
+    fill.style.width  = v + '%';
+    track.appendChild(fill);
+
+    const valEl = document.createElement('div');
+    valEl.className     = 'score-bar-value';
+    valEl.style.fontSize = '.78rem';
+    valEl.textContent   = v + '%';
+
+    row.appendChild(labelEl);
+    row.appendChild(track);
+    row.appendChild(valEl);
+    rrWrap.appendChild(row);
+  });
+
+  // ── Holdings intelligence ─────────────────────────────────────────────
+  // ALL dynamic values (symbol, company, sector, recommendation, AI opinion
+  // icon, AI opinion text, scores, pnl, weight, confidence) are set via
+  // textContent — never interpolated into innerHTML.
+  const hCon = document.getElementById('holdingsContainer');
+  hCon.innerHTML = '';
+  (r.holdings || []).forEach(h => {
+    const colDiv      = document.createElement('div');
+    colDiv.className  = 'col-md-6';
+
+    const card        = document.createElement('div');
+    card.className    = 'holding-card h-100';
+
+    // ── Header row ─────────────────────────────────────────────────────
+    const headerRow   = document.createElement('div');
+    headerRow.className = 'd-flex align-items-start gap-3 mb-2';
+
+    const ratingColor = scoreColor(h.ai_rating || 50);
+    const ratingBadge = document.createElement('div');
+    ratingBadge.className = 'ai-rating-badge';
+    ratingBadge.style.background = ratingColor + '22';
+    ratingBadge.style.color      = ratingColor;
+    ratingBadge.textContent      = h.ai_rating || '—';  // number
+
+    const infoCol = document.createElement('div');
+    infoCol.className = 'flex-grow-1';
+    const symEl   = document.createElement('div');
+    symEl.className   = 'holding-symbol';
+    symEl.textContent = h.symbol;               // DB string → textContent
+    const compEl  = document.createElement('div');
+    compEl.className = 'text-muted';
+    compEl.style.fontSize = '.78rem';
+    compEl.textContent = h.company_name;         // DB string → textContent
+    const secEl   = document.createElement('div');
+    secEl.className   = 'holding-sector';
+    secEl.textContent = h.sector;               // DB/normalised → textContent
+    infoCol.appendChild(symEl);
+    infoCol.appendChild(compEl);
+    infoCol.appendChild(secEl);
+
+    const rightCol = document.createElement('div');
+    rightCol.className = 'text-end';
+    const recBadge = document.createElement('div');
+    recBadge.className   = 'rec-badge ' + recCssClass(h.recommendation);
+    recBadge.textContent = h.recommendation || 'HOLD';  // DB string → textContent
+    const pnlDiv = document.createElement('div');
+    pnlDiv.style.fontSize  = '.72rem';
+    pnlDiv.style.marginTop = '4px';
+    pnlDiv.style.color     = h.pnl_pct >= 0 ? '#16a34a' : '#dc2626';
+    pnlDiv.textContent     = (h.pnl_pct >= 0 ? '+' : '') + h.pnl_pct + '%';
+    rightCol.appendChild(recBadge);
+    rightCol.appendChild(pnlDiv);
+
+    headerRow.appendChild(ratingBadge);
+    headerRow.appendChild(infoCol);
+    headerRow.appendChild(rightCol);
+    card.appendChild(headerRow);
+
+    // ── Scores mini-table ──────────────────────────────────────────────
+    const scTbl = document.createElement('table');
+    scTbl.className = 'table table-sm mb-2';
+    scTbl.style.border = 'none';
+    [['Fundamentals', h.scores.fundamentals],
+     ['Technicals',   h.scores.technicals],
+     ['Momentum',     h.scores.momentum],
+     ['Valuation',    h.scores.valuation],
+     ['Risk',         h.scores.risk]].forEach(([lbl, v]) => {
+      const tr  = document.createElement('tr');
+      const tdL = document.createElement('td');
+      const tdV = document.createElement('td');
+      tdL.style.fontSize = '.78rem';
+      tdL.style.color    = '#64748b';
+      tdL.style.padding  = '2px 0';
+      tdV.style.fontSize  = '.78rem';
+      tdV.style.fontWeight = '700';
+      tdV.style.color     = scoreColor(v || 0);
+      tdV.className       = 'text-end';
+      tdL.textContent     = lbl;               // hard-coded constant
+      tdV.textContent     = v || '—';          // number
+      tr.appendChild(tdL);
+      tr.appendChild(tdV);
+      scTbl.appendChild(tr);
+    });
+    card.appendChild(scTbl);
+
+    // ── AI opinion bullets ─────────────────────────────────────────────
+    // icon  (e.g. "✅" or "⚠") comes from Claude → textContent only
+    // text  (Claude-generated sentence)             → textContent only
+    const opinionsWrap = document.createElement('div');
+    (h.ai_opinion || []).forEach(op => {
+      const item     = document.createElement('div');
+      item.className = 'opinion-item';
+
+      const iconSpan = document.createElement('span');
+      iconSpan.textContent = op.icon || '';    // Claude value → textContent
+
+      const textSpan = document.createElement('span');
+      textSpan.textContent = ' ' + (op.text || '');  // Claude value → textContent
+
+      item.appendChild(iconSpan);
+      item.appendChild(textSpan);
+      opinionsWrap.appendChild(item);
+    });
+    card.appendChild(opinionsWrap);
+
+    // ── Meta line ──────────────────────────────────────────────────────
+    const metaEl = document.createElement('div');
+    metaEl.style.fontSize  = '.72rem';
+    metaEl.style.color     = '#94a3b8';
+    metaEl.style.marginTop = '6px';
+    metaEl.textContent     = 'Confidence: ' + h.confidence +
+                             '%  •  Weight: ' + h.weight + '%';
+    card.appendChild(metaEl);
+
+    colDiv.appendChild(card);
+    hCon.appendChild(colDiv);
+  });
+
+  // ── Diversification suggestions ───────────────────────────────────────
+  const curSec = document.getElementById('currentSectors');
+  curSec.innerHTML = '';
+  (r.current_sectors || []).forEach(s => {
+    const t = document.createElement('span');
+    t.className   = 'sector-tag sector-present';
+    t.textContent = '✔ ' + s;  // textContent
+    curSec.appendChild(t);
+  });
+  const missSec = document.getElementById('missingSectors');
+  missSec.innerHTML = '';
+  (r.missing_sectors || []).forEach(s => {
+    const t = document.createElement('span');
+    t.className   = 'sector-tag sector-missing';
+    t.textContent = '✗ ' + s;  // textContent
+    missSec.appendChild(t);
+  });
+
+  // ── Stress test ───────────────────────────────────────────────────────
+  const st = r.stress_test || {};
+  setText(document.getElementById('stressDrawdown'), (st.drawdown_pct || 0) + '%');
+  const recTbody = document.getElementById('recoveryTbody');
+  recTbody.innerHTML = '';
+  (st.recovery || []).forEach(rv => {
+    const tr   = document.createElement('tr');
+    const tdP  = document.createElement('td');
+    const tdPr = document.createElement('td');
+    tdP.style.fontSize  = '.83rem';
+    tdPr.style.fontSize = '.83rem';
+    tdPr.className      = 'text-end fw-semibold';
+    tdP.textContent     = rv.period;         // hard-coded constant
+    tdPr.textContent    = rv.probability + '%';  // number
+    tr.appendChild(tdP);
+    tr.appendChild(tdPr);
+    recTbody.appendChild(tr);
+  });
+
+  // ── Behavioural ───────────────────────────────────────────────────────
+  const beh = r.behavioral || {};
+  setText(document.getElementById('investorStyle'), beh.investor_style || '');
+  const traitsEl = document.getElementById('behaviorTraits');
+  traitsEl.innerHTML = '';
+  (beh.traits || []).forEach(t => {
+    const d = document.createElement('div');
+    d.style.fontSize = '.82rem';
+    d.style.color    = '#475569';
+    d.style.padding  = '2px 0';
+    d.textContent    = '• ' + t;   // textContent
+    traitsEl.appendChild(d);
+  });
+  setText(document.getElementById('behaviorImprovement'), beh.improvement || '');
+
+  // ── Watchlist ─────────────────────────────────────────────────────────
+  const wlCon = document.getElementById('watchlistContainer');
+  wlCon.innerHTML = '';
+  (r.watchlist_suggestions || []).forEach(s => {
+    const d = document.createElement('div');
+    d.style.fontSize     = '.85rem';
+    d.style.color        = '#1e293b';
+    d.style.padding      = '5px 0';
+    d.style.borderBottom = '1px solid #f1f5f9';
+    d.textContent        = '→ ' + s;   // textContent
+    wlCon.appendChild(d);
+  });
+
+  // ── Action centre ─────────────────────────────────────────────────────
+  const acCon = document.getElementById('actionCentreContainer');
+  acCon.innerHTML = '';
+  (r.action_centre || []).forEach(a => {
+    const row   = document.createElement('div');
+    row.className = 'action-row';
+
+    const badge = document.createElement('span');
+    // Only allow-listed priority strings → className; display via textContent
+    const safeP = ['High', 'Medium', 'Low'].includes(a.priority) ? a.priority : 'Low';
+    badge.className   = 'priority-badge priority-' + safeP;
+    badge.textContent = safeP;    // textContent
+
+    const text = document.createElement('span');
+    text.style.fontSize = '.83rem';
+    text.style.color    = '#334155';
+    text.textContent    = a.action;    // textContent
+
+    const starsEl = document.createElement('span');
+    starsEl.className   = 'impact-stars';
+    starsEl.textContent = stars(Math.min(5, Math.max(0, a.impact || 3)));
+
+    row.appendChild(badge);
+    row.appendChild(text);
+    row.appendChild(starsEl);
+    acCon.appendChild(row);
+  });
+
+  // ── Forecast ─────────────────────────────────────────────────────────
+  const fc   = r.forecast || {};
+  const fRow = document.getElementById('forecastRow');
+  fRow.innerHTML = '';
+  [['Bear Case', fc.bear, '#dc2626'],
+   ['Base Case', fc.base, '#2563eb'],
+   ['Bull Case', fc.bull, '#16a34a']].forEach(([lbl, val, clr]) => {
+    const c = document.createElement('div');
+    c.className = 'col-4 forecast-cell';
+
+    const lblEl = document.createElement('div');
+    lblEl.className   = 'text-muted';
+    lblEl.style.fontSize = '.72rem';
+    lblEl.textContent = lbl;        // hard-coded constant
+
+    const valEl = document.createElement('div');
+    valEl.className   = 'forecast-val';
+    valEl.style.color = clr;        // hard-coded constant
+    valEl.textContent = (val >= 0 ? '+' : '') + val + '%';  // number
+
+    c.appendChild(lblEl);
+    c.appendChild(valEl);
+    fRow.appendChild(c);
+  });
+  setText(document.getElementById('forecastConf'), 'Confidence: ' + (fc.confidence || '') + '%');
+
+  // ── Overall verdict ───────────────────────────────────────────────────
+  const v       = r.overall_verdict || {};
+  const vscore  = document.getElementById('verdictScore');
+  vscore.textContent = v.score || r.portfolio_intelligence_score;
+  vscore.style.color = scoreColor(v.score || 50);
+
+  const sl = document.getElementById('strengthsList');
+  sl.innerHTML = '';
+  (v.strengths || []).forEach(s => {
+    const li = document.createElement('li');
+    li.style.marginBottom = '4px';
+    li.textContent = s;   // textContent
+    sl.appendChild(li);
+  });
+
+  const wl = document.getElementById('weaknessesList');
+  wl.innerHTML = '';
+  (v.weaknesses || []).forEach(w => {
+    const li = document.createElement('li');
+    li.style.marginBottom = '4px';
+    li.textContent = w;   // textContent
+    wl.appendChild(li);
+  });
+
+  setText(document.getElementById('verdictRec'), v.recommendation || '');
+}
+
+document.addEventListener('DOMContentLoaded', loadReport);
+</script>
 {% endblock %}

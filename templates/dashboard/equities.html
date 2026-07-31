@@ -15,6 +15,9 @@
     <a href="{{ url_for('download_import_template', asset_class='equities', format='excel') }}" class="btn btn-sm btn-outline-secondary" title="Download a sample Excel template to fill and import">
         <i class="fas fa-file-download me-1"></i>Sample Template
     </a>
+    <a href="{{ url_for('portfolio_analysis') }}" class="btn btn-sm btn-warning" title="View your Portfolio Intelligence Report">
+        <i class="fas fa-chart-bar me-1"></i>Full Report
+    </a>
     <button type="button" class="btn btn-sm btn-outline-info" onclick="refreshAllPrices(this)" title="Update current market prices for all holdings">
         <i class="fas fa-chart-line me-1"></i>Refresh Prices
     </button>
