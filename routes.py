@@ -350,8 +350,16 @@ def portfolio_analysis():
 @app.route('/api/portfolio/report-data')
 @login_required
 def portfolio_report_data():
-    """AJAX: returns the Portfolio Intelligence Report JSON for the current user."""
+    """AJAX: returns the Portfolio Intelligence Report JSON for the current user.
+
+    Query params:
+      ?refresh=1  — invalidate the 15-min cache before generating, forcing a
+                    fresh run (live prices, latest holdings, current I-Scores).
+    """
     from services.portfolio_intelligence import PortfolioIntelligenceEngine
+    if request.args.get('refresh') == '1':
+        PortfolioIntelligenceEngine.invalidate_cache(current_user.id)
+        logger.info(f"portfolio_report_data: cache invalidated for user {current_user.id}")
     engine = PortfolioIntelligenceEngine(current_user.id)
     try:
         report = engine.generate_report()
@@ -4427,6 +4435,14 @@ def import_holdings_upload():
                     msg_parts.append(
                         "reconciliation skipped — fix unmatched names and re-upload to hide sold positions"
                     )
+                # Invalidate the portfolio report cache so the next visit to
+                # /portfolio-analysis reflects the freshly-imported holdings.
+                try:
+                    from services.portfolio_intelligence import PortfolioIntelligenceEngine
+                    PortfolioIntelligenceEngine.invalidate_cache(current_user.id)
+                except Exception:
+                    pass   # non-critical; report will self-refresh after TTL
+
                 return jsonify({
                     'success':                True,
                     'broker':                 'dhan',
