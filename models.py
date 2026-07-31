@@ -3620,3 +3620,42 @@ class TraderProgression(db.Model):
     overall_score  = db.Column(db.Float,    nullable=True)
     xp_earned      = db.Column(db.Integer,  nullable=False, default=0)
     date_achieved  = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class UserFinancialMemory(db.Model):
+    """One row per user — trading profile built automatically from chat interactions.
+
+    Profile signals are extracted by Claude from each conversation and injected
+    back into every system prompt so answers are personalised to the user's
+    trading style, risk level, and preferences.
+
+    List fields (preferred_instruments, sectors, watchlist, goals) are stored as
+    comma-separated text so they union-merge incrementally across sessions.
+    """
+    __tablename__ = 'user_financial_memory'
+
+    id      = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'),
+                        nullable=False, unique=True, index=True)
+
+    # ── Scalar profile fields ──────────────────────────────────────────────
+    trading_style   = db.Column(db.String(30), nullable=True)  # intraday|swing|positional|long_term
+    risk_level      = db.Column(db.String(20), nullable=True)  # conservative|moderate|aggressive
+    capital_bracket = db.Column(db.String(20), nullable=True)  # small|medium|large
+
+    # ── List fields (comma-separated, union-merged) ───────────────────────
+    preferred_instruments = db.Column(db.Text, nullable=True)  # equity, fno, mf, etf
+    sectors               = db.Column(db.Text, nullable=True)  # banking, it, pharma, …
+    watchlist             = db.Column(db.Text, nullable=True)  # NSE symbols
+    goals                 = db.Column(db.Text, nullable=True)  # wealth_creation, income, …
+
+    # ── Free-text psychology / preference notes ────────────────────────────
+    psychology_notes = db.Column(db.Text, nullable=True)
+
+    # ── Metadata ───────────────────────────────────────────────────────────
+    interaction_count = db.Column(db.Integer, default=0, nullable=False)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at        = db.Column(db.DateTime, default=datetime.utcnow,
+                                  onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('financial_memory', uselist=False))

@@ -7803,12 +7803,40 @@ def account_profile():
     except Exception:
         pass
 
+    # Financial memory for the Trading Profile card
+    fin_memory = {}
+    try:
+        from services.user_memory import get_memory, STYLE_LABELS, RISK_LABELS, CAPITAL_LABELS, INSTRUMENT_LABELS, GOAL_LABELS
+        fin_memory = get_memory(current_user.id)
+    except Exception:
+        pass
+
     return render_template('account/profile.html',
                          active_section='profile',
                          trading_signals_count=trading_signals_count,
                          PricingPlan=PricingPlan,
                          now=_dt.utcnow(),
-                         partner_ref=partner_ref)
+                         partner_ref=partner_ref,
+                         fin_memory=fin_memory,
+                         STYLE_LABELS=STYLE_LABELS,
+                         RISK_LABELS=RISK_LABELS,
+                         CAPITAL_LABELS=CAPITAL_LABELS,
+                         INSTRUMENT_LABELS=INSTRUMENT_LABELS,
+                         GOAL_LABELS=GOAL_LABELS)
+
+@app.route('/account/profile/memory/reset', methods=['POST'])
+@login_required
+def reset_financial_memory():
+    """Clear the user's stored financial memory so the AI starts fresh."""
+    try:
+        from services.user_memory import reset_memory
+        reset_memory(current_user.id)
+        flash('Your trading profile has been reset. It will rebuild as you chat.', 'success')
+    except Exception as e:
+        logging.warning(f"reset_financial_memory error for user {current_user.id}: {e}")
+        flash('Could not reset profile. Please try again.', 'error')
+    return redirect(url_for('account_profile'))
+
 
 @app.route('/account/profile', methods=['POST'])
 @login_required

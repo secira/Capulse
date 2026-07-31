@@ -283,6 +283,208 @@
     </div>
 </div>
 
+{# ── My Trading Profile (AI Financial Memory) ──────────────────────────── #}
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card" style="border-radius:14px;overflow:hidden;">
+      <div class="card-header d-flex justify-content-between align-items-center py-3"
+           style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:#fff;border-bottom:none;">
+        <div>
+          <h6 class="mb-0 fw-bold">
+            <i class="fas fa-brain me-2" style="color:#60a5fa;"></i>My Trading Profile
+          </h6>
+          <div style="font-size:11px;opacity:.7;margin-top:2px;">
+            Built automatically from your conversations · Used to personalise AI answers
+          </div>
+        </div>
+        {% if fin_memory and fin_memory.get('interaction_count', 0) > 0 %}
+        <form method="POST" action="{{ url_for('reset_financial_memory') }}"
+              onsubmit="return confirm('Reset your trading profile? The AI will start fresh and rebuild it from future chats.')">
+          <button type="submit" class="btn btn-sm"
+                  style="background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3);font-size:11px;">
+            <i class="fas fa-redo me-1"></i>Reset Profile
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      <div class="card-body p-4" style="background:#0f172a;">
+        {% set has_any = fin_memory and (
+            fin_memory.get('trading_style') or fin_memory.get('risk_level') or
+            fin_memory.get('preferred_instruments') or fin_memory.get('sectors') or
+            fin_memory.get('watchlist') or fin_memory.get('goals') or
+            fin_memory.get('capital_bracket') or fin_memory.get('psychology_notes')
+          ) %}
+        {% if not has_any %}
+          {# ── Empty state ── #}
+          <div class="text-center py-4" style="color:rgba(255,255,255,.4);">
+            <i class="fas fa-comments fa-2x mb-3 d-block" style="color:rgba(96,165,250,.4);"></i>
+            <div style="font-size:14px;font-weight:500;color:rgba(255,255,255,.6);">
+              Your trading profile will build automatically as you chat
+            </div>
+            <div style="font-size:12px;margin-top:6px;">
+              Ask about stocks, F&O, mutual funds, or your investment goals — the AI learns your style over time.
+            </div>
+            <a href="{{ url_for('chat') }}" class="btn btn-sm mt-3"
+               style="background:rgba(59,130,246,.2);color:#93c5fd;border:1px solid rgba(59,130,246,.3);font-size:12px;">
+              <i class="fas fa-comments me-1"></i>Start Chatting
+            </a>
+          </div>
+        {% else %}
+          {# ── Profile grid ── #}
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
+
+            {% macro mem_chip(icon, label, value, color='#60a5fa') %}
+            {% if value %}
+            <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+                        border-radius:10px;padding:12px 14px;">
+              <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;
+                          color:rgba(255,255,255,.4);margin-bottom:4px;">
+                <i class="{{ icon }} me-1" style="color:{{ color }};"></i>{{ label }}
+              </div>
+              <div style="font-size:13px;color:#e2e8f0;font-weight:500;">{{ value }}</div>
+            </div>
+            {% endif %}
+            {% endmacro %}
+
+            {% if fin_memory.get('trading_style') %}
+              {{ mem_chip('fas fa-chart-line', 'Trading Style',
+                  STYLE_LABELS.get(fin_memory.trading_style,
+                    fin_memory.trading_style.replace('_',' ')|title), '#34d399') }}
+            {% endif %}
+
+            {% if fin_memory.get('risk_level') %}
+              {% set risk_color = '#34d399' if fin_memory.risk_level == 'conservative' else '#fbbf24' if fin_memory.risk_level == 'moderate' else '#f87171' %}
+              {{ mem_chip('fas fa-shield-alt', 'Risk Appetite',
+                  RISK_LABELS.get(fin_memory.risk_level, fin_memory.risk_level|title),
+                  risk_color) }}
+            {% endif %}
+
+            {% if fin_memory.get('capital_bracket') %}
+              {{ mem_chip('fas fa-rupee-sign', 'Capital Range',
+                  CAPITAL_LABELS.get(fin_memory.capital_bracket, fin_memory.capital_bracket),
+                  '#a78bfa') }}
+            {% endif %}
+
+            {% if fin_memory.get('preferred_instruments') %}
+              {% set instr_parts = fin_memory.preferred_instruments.split(',') %}
+              {% set instr_labels = instr_parts | map('trim') | map('lower') |
+                  map('replace', 'equity', 'Equity') | list %}
+              {% set instr_display = fin_memory.preferred_instruments.split(',') |
+                  map('trim') | list %}
+              <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+                          border-radius:10px;padding:12px 14px;">
+                <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;
+                            color:rgba(255,255,255,.4);margin-bottom:6px;">
+                  <i class="fas fa-layer-group me-1" style="color:#60a5fa;"></i>Instruments
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                  {% for i in instr_display %}
+                    {% if i.strip() %}
+                    <span style="background:rgba(96,165,250,.15);color:#93c5fd;
+                                 border:1px solid rgba(96,165,250,.25);
+                                 border-radius:5px;padding:2px 8px;font-size:11px;">
+                      {{ INSTRUMENT_LABELS.get(i.strip(), i.strip()|upper) }}
+                    </span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
+            {% if fin_memory.get('sectors') %}
+              <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+                          border-radius:10px;padding:12px 14px;">
+                <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;
+                            color:rgba(255,255,255,.4);margin-bottom:6px;">
+                  <i class="fas fa-industry me-1" style="color:#f59e0b;"></i>Sectors
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                  {% for s in fin_memory.sectors.split(',')[:6] %}
+                    {% if s.strip() %}
+                    <span style="background:rgba(245,158,11,.1);color:#fcd34d;
+                                 border:1px solid rgba(245,158,11,.2);
+                                 border-radius:5px;padding:2px 8px;font-size:11px;">
+                      {{ s.strip()|title }}
+                    </span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
+            {% if fin_memory.get('watchlist') %}
+              <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+                          border-radius:10px;padding:12px 14px;">
+                <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;
+                            color:rgba(255,255,255,.4);margin-bottom:6px;">
+                  <i class="fas fa-star me-1" style="color:#fb923c;"></i>Stocks Discussed
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                  {% for sym in fin_memory.watchlist.split(',')[:10] %}
+                    {% if sym.strip() %}
+                    <span style="background:rgba(251,146,60,.1);color:#fdba74;
+                                 border:1px solid rgba(251,146,60,.2);
+                                 border-radius:5px;padding:2px 8px;font-size:11px;
+                                 font-family:monospace;">
+                      {{ sym.strip()|upper }}
+                    </span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
+            {% if fin_memory.get('goals') %}
+              <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+                          border-radius:10px;padding:12px 14px;">
+                <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;
+                            color:rgba(255,255,255,.4);margin-bottom:6px;">
+                  <i class="fas fa-bullseye me-1" style="color:#a78bfa;"></i>Goals
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                  {% for g in fin_memory.goals.split(',') %}
+                    {% if g.strip() %}
+                    <span style="background:rgba(167,139,250,.1);color:#c4b5fd;
+                                 border:1px solid rgba(167,139,250,.2);
+                                 border-radius:5px;padding:2px 8px;font-size:11px;">
+                      {{ GOAL_LABELS.get(g.strip(), g.strip().replace('_',' ')|title) }}
+                    </span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
+          </div>{# /grid #}
+
+          {% if fin_memory.get('psychology_notes') %}
+          <div style="margin-top:12px;background:rgba(255,255,255,.04);
+                      border:1px solid rgba(255,255,255,.08);border-radius:10px;
+                      padding:12px 14px;">
+            <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;
+                        color:rgba(255,255,255,.4);margin-bottom:4px;">
+              <i class="fas fa-lightbulb me-1" style="color:#fbbf24;"></i>AI Observations
+            </div>
+            <div style="font-size:12.5px;color:rgba(226,232,240,.75);line-height:1.5;">
+              {{ fin_memory.psychology_notes }}
+            </div>
+          </div>
+          {% endif %}
+
+          <div style="margin-top:12px;font-size:11px;color:rgba(255,255,255,.3);text-align:right;">
+            {% if fin_memory.get('interaction_count') %}
+              Built from {{ fin_memory.interaction_count }} chat interaction{{ 's' if fin_memory.interaction_count != 1 else '' }}
+            {% endif %}
+            {% if fin_memory.get('updated_at') %}
+              · Last updated {{ fin_memory.updated_at.strftime('%d %b %Y') }}
+            {% endif %}
+          </div>
+        {% endif %}{# /has_any #}
+      </div>
+    </div>
+  </div>
+</div>
+
 {# ── 3-day expiry banner at page top (injected after main content renders) ── #}
 {% if current_user.is_plan_expiring_soon(3) %}
 <script>

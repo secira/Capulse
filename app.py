@@ -532,6 +532,24 @@ with app.app_context():
             date_achieved TIMESTAMP DEFAULT NOW()
         )''',
         'CREATE INDEX IF NOT EXISTS ix_trader_progression_user ON trader_progression (user_id)',
+        # ── Persistent User Financial Memory ─────────────────────────────────
+        # Profile is extracted from chat by Claude, injected into system prompts.
+        '''CREATE TABLE IF NOT EXISTS user_financial_memory (
+            id                    SERIAL PRIMARY KEY,
+            user_id               INTEGER NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE CASCADE,
+            trading_style         VARCHAR(30),
+            risk_level            VARCHAR(20),
+            capital_bracket       VARCHAR(20),
+            preferred_instruments TEXT,
+            sectors               TEXT,
+            watchlist             TEXT,
+            goals                 TEXT,
+            psychology_notes      TEXT,
+            interaction_count     INTEGER NOT NULL DEFAULT 0,
+            created_at            TIMESTAMP DEFAULT NOW(),
+            updated_at            TIMESTAMP DEFAULT NOW()
+        )''',
+        'CREATE INDEX IF NOT EXISTS ix_user_fin_memory_user ON user_financial_memory (user_id)',
     ]
     try:
         with db.engine.begin() as _conn:

@@ -805,6 +805,15 @@ def handle_general(
         except Exception as _ctx_err:
             logger.debug(f"handle_general: live context fetch error: {_ctx_err}")
 
+        # ── Fetch user trading profile memory (personalisation) ─────────────
+        memory_block = ''
+        try:
+            if user_id:
+                from services.user_memory import build_memory_block
+                memory_block = build_memory_block(user_id)
+        except Exception as _mem_err:
+            logger.debug(f"handle_general: memory block error: {_mem_err}")
+
         base_system = (
             "You are Capulse, an AI research assistant for Indian retail traders and investors.\n"
             "You provide clear, factual information about Indian stocks (NSE/BSE), F&O markets, "
@@ -814,7 +823,9 @@ def handle_general(
             "- bullet lists for multiple points, short paragraphs.\n"
             "Always note when something is research/education, not advice."
         )
-        system = f"{live_block}\n\n{base_system}" if live_block else base_system
+        # Order: user profile → live market data → base instructions
+        system_parts = [p for p in [memory_block, live_block, base_system] if p]
+        system = '\n\n'.join(system_parts)
 
         messages = []
         if conversation_history:
@@ -829,9 +840,19 @@ def handle_general(
             system=system,
             messages=messages
         )
+        ai_text = response.content[0].text
+
+        # ── Fire async profile extraction (background thread, zero latency) ──
+        if user_id:
+            try:
+                from services.user_memory import async_extract
+                async_extract(user_id, message, ai_text)
+            except Exception as _ext_err:
+                logger.debug(f"handle_general: async_extract error: {_ext_err}")
+
         return {
             'card_type': 'prose',
-            'content': response.content[0].text
+            'content': ai_text
         }
 
     except Exception as e:
