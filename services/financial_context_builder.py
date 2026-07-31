@@ -557,6 +557,167 @@ def build_context_block(quotes: Dict[str, Dict]) -> str:
     return '\n'.join(lines)
 
 
+# ── Fundamentals fetch ────────────────────────────────────────────────────────
+
+def _rec_label(rec_mean: Optional[float], rec_key: str = '') -> Optional[str]:
+    """Map yfinance recommendationMean (1=Strong Buy … 5=Sell) to a display label."""
+    if rec_mean is not None:
+        if rec_mean <= 1.5:  return 'Strong Buy'
+        if rec_mean <= 2.5:  return 'Buy'
+        if rec_mean <= 3.5:  return 'Hold'
+        if rec_mean <= 4.5:  return 'Underperform'
+        return 'Sell'
+    return rec_key.replace('_', ' ').title() or None
+
+
+def _fmt_market_cap(mc: float, market: str) -> str:
+    """Format raw market-cap bytes → human-readable string (₹ Cr for India, $B for US)."""
+    if market == 'indian':
+        cr = mc / 1e7
+        if cr >= 1e5:
+            return f"₹{cr/1e5:.2f}L Cr"
+        if cr >= 1e3:
+            return f"₹{cr/1e3:.1f}K Cr"
+        return f"₹{cr:,.0f} Cr"
+    # US / global / crypto
+    b = mc / 1e9
+    if b >= 1e3:
+        return f"${b/1e3:.2f}T"
+    return f"${b:,.1f}B"
+
+
+def _fetch_fundamentals(symbol: str, market: str) -> Tuple[str, Dict]:
+    """Fetch key fundamentals for one symbol via yfinance.Ticker.info.
+
+    Returns (symbol, dict) — dict is {} on any error.
+    Fields: market_cap, trailing_pe, forward_pe, trailing_eps, dividend_yield,
+    week52_high, week52_low, target_price, recommendation, recommendation_mean,
+    analyst_count, company_name, sector, industry.
+    """
+    try:
+        import yfinance as yf
+        yf_sym = f"{symbol}.NS" if market == 'indian' else symbol
+        info = yf.Ticker(yf_sym).info
+        if not info:
+            return symbol, {}
+
+        rec_mean = info.get('recommendationMean')
+        rec_label = _rec_label(rec_mean, info.get('recommendationKey', ''))
+
+        div_raw = info.get('dividendYield')
+        div_pct = round(div_raw * 100, 2) if div_raw else None
+
+        mc_raw = info.get('marketCap')
+        mc_str = _fmt_market_cap(mc_raw, market) if mc_raw else None
+
+        result = {
+            'symbol':             symbol,
+            'market':             market,
+            'company_name':       info.get('longName') or info.get('shortName', ''),
+            'sector':             info.get('sector', ''),
+            'industry':           info.get('industry', ''),
+            'market_cap':         mc_raw,
+            'market_cap_str':     mc_str,
+            'trailing_pe':        info.get('trailingPE'),
+            'forward_pe':         info.get('forwardPE'),
+            'trailing_eps':       info.get('trailingEps'),
+            'dividend_yield':     div_pct,
+            'week52_high':        info.get('fiftyTwoWeekHigh'),
+            'week52_low':         info.get('fiftyTwoWeekLow'),
+            'target_price':       info.get('targetMeanPrice'),
+            'recommendation':     rec_label,
+            'recommendation_mean': rec_mean,
+            'analyst_count':      info.get('numberOfAnalystOpinions'),
+        }
+        return symbol, result
+    except Exception as exc:
+        logger.debug(f"ctx_builder: _fetch_fundamentals({symbol}): {exc}")
+        return symbol, {}
+
+
+def fetch_fundamentals(
+    symbol: str,
+    user_id: Optional[int] = None,
+    timeout: float = 3.5,
+) -> Dict:
+    """Fetch fundamentals for a single symbol using the shared bounded pool.
+
+    Returns {} on timeout or error — never raises.
+    """
+    _load_alias_patterns()
+    market = _classify_symbol(symbol)
+    pool   = _get_pool()
+    fut    = pool.submit(_fetch_fundamentals, symbol, market)
+    try:
+        _, data = fut.result(timeout=timeout)
+        return data
+    except Exception as exc:
+        logger.debug(f"ctx_builder: fetch_fundamentals({symbol}) error: {exc}")
+        if not fut.done():
+            fut.cancel()
+        return {}
+
+
+def build_fundamentals_context_block(symbol: str, quote: Dict, fundamentals: Dict) -> str:
+    """Format live price + fundamentals into a compact [FUNDAMENTALS] LLM context block."""
+    if not fundamentals:
+        return ''
+
+    market  = fundamentals.get('market') or quote.get('market', 'indian')
+    ccy, flag = _market_display(market)
+    ltp     = float(quote.get('ltp', 0) or 0)
+    chg_pct = float(quote.get('change_pct', 0) or 0)
+
+    now_ist = datetime.now(_IST).strftime('%H:%M IST, %d %b %Y')
+    lines   = [f'[FUNDAMENTALS — {flag} {symbol} as of {now_ist}]']
+
+    if ltp > 0:
+        arrow = '▲' if chg_pct > 0 else ('▼' if chg_pct < 0 else '—')
+        price_str = f"{ccy}{ltp:.6f}" if (market == 'crypto' and ltp < 1) else f"{ccy}{ltp:,.2f}"
+        lines.append(f"  Current price: {price_str}  {arrow} {abs(chg_pct):.2f}%")
+
+    if fundamentals.get('market_cap_str'):
+        lines.append(f"  Market Cap: {fundamentals['market_cap_str']}")
+
+    pe_parts = []
+    if fundamentals.get('trailing_pe') is not None:
+        pe_parts.append(f"P/E (TTM): {fundamentals['trailing_pe']:.1f}x")
+    if fundamentals.get('forward_pe') is not None:
+        pe_parts.append(f"Fwd P/E: {fundamentals['forward_pe']:.1f}x")
+    if fundamentals.get('trailing_eps') is not None:
+        pe_parts.append(f"EPS: {ccy}{fundamentals['trailing_eps']:.2f}")
+    if pe_parts:
+        lines.append(f"  {' | '.join(pe_parts)}")
+
+    if fundamentals.get('dividend_yield'):
+        lines.append(f"  Dividend Yield: {fundamentals['dividend_yield']:.2f}%")
+
+    h52, l52 = fundamentals.get('week52_high'), fundamentals.get('week52_low')
+    if h52 and l52:
+        lines.append(f"  52w Range: {ccy}{l52:,.2f} – {ccy}{h52:,.2f}")
+
+    rec, n_an = fundamentals.get('recommendation'), fundamentals.get('analyst_count')
+    target    = fundamentals.get('target_price')
+    ap = []
+    if rec:
+        ap.append(f"Consensus: {rec}" + (f" ({n_an} analysts)" if n_an else ""))
+    if target and ltp > 0:
+        upside = (target - ltp) / ltp * 100
+        sign   = '↑' if upside > 0 else '↓'
+        ap.append(f"Target: {ccy}{target:,.2f} ({sign}{abs(upside):.1f}%)")
+    if ap:
+        lines.append(f"  {' | '.join(ap)}")
+
+    if len(lines) <= 1:
+        return ''
+
+    lines.append(
+        '[Use these fundamentals in your commentary. '
+        'Data from Yahoo Finance — treat as indicative, not audited financials.]'
+    )
+    return '\n'.join(lines)
+
+
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def get_live_context_for_message(

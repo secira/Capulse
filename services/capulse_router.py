@@ -11,12 +11,13 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 INTENTS = {
-    'ISCORE':      'i-Score lookup for a specific stock or company',
-    'FNO_SIGNAL':  'F&O signals, NIFTY/BANKNIFTY/FINNIFTY levels, options probability, futures analysis',
-    'MUTUAL_FUND': 'Mutual fund analysis, NAV, fund comparison, scheme lookup',
-    'PORTFOLIO':   'Portfolio analysis, holdings review, sector concentration, rebalancing, my stocks',
-    'BEHAVIOUR':   'Behavioural analysis, trading psychology, discipline score, emotional patterns, biases, revenge trading, overtrading',
-    'GENERAL':     'General market questions, concepts, education, anything else',
+    'ISCORE':        'i-Score lookup for a specific stock or company',
+    'FNO_SIGNAL':    'F&O signals, NIFTY/BANKNIFTY/FINNIFTY levels, options probability, futures analysis',
+    'MUTUAL_FUND':   'Mutual fund analysis, NAV, fund comparison, scheme lookup',
+    'PORTFOLIO':     'Portfolio analysis, holdings review, sector concentration, rebalancing, my stocks',
+    'BEHAVIOUR':     'Behavioural analysis, trading psychology, discipline score, emotional patterns, biases, revenge trading, overtrading',
+    'STOCK_PROFILE': 'Key financials, valuation, P/E ratio, market cap, analyst rating, EPS, dividend for a specific stock',
+    'GENERAL':       'General market questions, concepts, education, anything else',
 }
 
 INTENT_CLASSIFIER_PROMPT = """You are an intent classifier for Capulse, an AI stock research chat for Indian markets.
@@ -27,10 +28,11 @@ Classify the user's message into exactly ONE of these intents:
 - MUTUAL_FUND: User wants mutual fund info, NAV, fund comparison, SIP analysis (e.g. "Parag Parikh fund NAV", "best mid cap fund", "HDFC flexi cap returns")
 - PORTFOLIO: User wants analysis of THEIR OWN portfolio/holdings, sector concentration, rebalancing, portfolio health (e.g. "my portfolio", "my holdings", "how is my portfolio", "sector concentration", "rebalance")
 - BEHAVIOUR: User wants analysis of THEIR OWN trading behaviour, psychology, bias detection, discipline score, pattern analysis (e.g. "my behaviour score", "am I overtrading", "trading psychology", "my biases", "revenge trading", "trading patterns", "my trading discipline", "analyse my trades")
+- STOCK_PROFILE: User wants key financial metrics or valuation data for a SPECIFIC stock — P/E ratio, market cap, EPS, dividend yield, analyst rating/target, "is it cheap/expensive/overvalued". Examples: "TCS PE ratio", "AAPL market cap", "tell me about Reliance", "is Infosys overvalued", "what are HDFC Bank financials", "analyst rating for TCS", "Tesla valuation", "TSLA fundamentals"
 - GENERAL: Everything else — market education, concepts, news, how things work, strategy questions
 
 Also extract:
-- symbol: NSE ticker if a specific stock was mentioned (e.g. "RELIANCE", "TCS", "HDFCBANK") — null otherwise
+- symbol: NSE/global ticker if a specific stock was mentioned (e.g. "RELIANCE", "TCS", "HDFCBANK", "AAPL") — null otherwise
 - fund_query: Fund name/keyword if a mutual fund was mentioned — null otherwise
 - index: "NIFTY", "BANKNIFTY", "FINNIFTY", or "SENSEX" if mentioned (default "NIFTY" for FNO_SIGNAL)
 - level: Numeric price level mentioned for F&O (e.g. 24000) — null otherwise
@@ -776,6 +778,147 @@ def handle_behaviour(user_id: int) -> Dict[str, Any]:
         }
 
 
+def handle_stock_profile(
+    symbol: str,
+    message: str,
+    conversation_history: list = None,
+    user_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Fetch live price + key fundamentals for a single stock and return a
+    `fundamental` card alongside a short Claude valuation commentary.
+
+    Price and fundamentals are fetched in parallel (two daemon threads) within
+    a shared 4-second budget.  If fundamentals are unavailable the response
+    falls back to a prose answer from handle_general().
+    """
+    if not symbol:
+        return {
+            'card_type': 'prose',
+            'content': (
+                "Which stock would you like the financials for? "
+                "Try: **\"TCS PE ratio\"**, **\"AAPL market cap\"**, or **\"Reliance valuation\"**."
+            )
+        }
+
+    sym = symbol.upper()
+
+    # ── 1. Parallel fetch: live price (with news) + fundamentals ──────────────
+    import threading
+    from services.financial_context_builder import (
+        extract_tickers, fetch_live_context, fetch_fundamentals,
+        build_fundamentals_context_block, _classify_symbol, _load_alias_patterns,
+        _market_display,
+    )
+
+    _load_alias_patterns()
+    market = _classify_symbol(sym)
+
+    quotes:       Dict = {}
+    fundamentals: Dict = {}
+
+    def _get_quote():
+        nonlocal quotes
+        try:
+            quotes = fetch_live_context([sym], user_id=user_id, timeout=2.5)
+        except Exception as exc:
+            logger.debug(f"handle_stock_profile: quote fetch error: {exc}")
+
+    def _get_fund():
+        nonlocal fundamentals
+        try:
+            fundamentals = fetch_fundamentals(sym, user_id=user_id, timeout=3.5)
+        except Exception as exc:
+            logger.debug(f"handle_stock_profile: fund fetch error: {exc}")
+
+    t1 = threading.Thread(target=_get_quote,  daemon=True)
+    t2 = threading.Thread(target=_get_fund,   daemon=True)
+    t1.start(); t2.start()
+    t1.join(timeout=4.0)
+    t2.join(timeout=4.0)
+
+    # If fundamentals completely failed, fall back to general handler
+    if not fundamentals:
+        logger.info(f"handle_stock_profile: no fundamentals for {sym}, falling back to GENERAL")
+        return handle_general(message, conversation_history, user_id=user_id)
+
+    quote = quotes.get(sym, {})
+
+    # ── 2. Build LLM context block ────────────────────────────────────────────
+    fund_block = build_fundamentals_context_block(sym, quote, fundamentals)
+
+    # ── 3. Claude commentary (150–200 words, valuation-focused) ───────────────
+    commentary = ''
+    try:
+        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+        if api_key:
+            import anthropic
+            client = anthropic.Anthropic(api_key=api_key)
+
+            ccy, flag = _market_display(market)
+            ltp       = float(quote.get('ltp', 0) or 0)
+
+            system_prompt = (
+                "You are Capulse, an AI research assistant for retail investors. "
+                "Provide a concise, factual valuation commentary on the requested stock. "
+                "Use the fundamentals block provided. Be direct, data-driven. "
+                "Never give buy/sell recommendations. Max 180 words. Use markdown: "
+                "**bold** for key numbers, short paragraphs."
+            )
+            if fund_block:
+                system_prompt = fund_block + '\n\n' + system_prompt
+
+            response = client.messages.create(
+                model='claude-haiku-4-5',
+                max_tokens=400,
+                system=system_prompt,
+                messages=[{'role': 'user', 'content': message}]
+            )
+            commentary = response.content[0].text.strip()
+    except Exception as exc:
+        logger.error(f"handle_stock_profile: Claude commentary error: {exc}")
+        commentary = f"Here are the key financials for **{sym}**:"
+
+    # ── 4. Build card_data ────────────────────────────────────────────────────
+    ccy, flag = _market_display(market)
+    ltp       = float(quote.get('ltp', 0) or 0)
+    chg_pct   = float(quote.get('change_pct', 0) or 0)
+
+    # Upside calculation for UI
+    target = fundamentals.get('target_price')
+    upside_pct = None
+    if target and ltp > 0:
+        upside_pct = round((target - ltp) / ltp * 100, 1)
+
+    return {
+        'card_type': 'fundamental',
+        'content':   commentary or f"Here are the key financials for **{sym}**:",
+        'card_data': {
+            'symbol':             sym,
+            'company_name':       fundamentals.get('company_name', sym),
+            'market':             market,
+            'currency':           ccy,
+            'flag':               flag,
+            'price':              ltp if ltp > 0 else None,
+            'change_pct':         chg_pct if ltp > 0 else None,
+            'market_cap':         fundamentals.get('market_cap'),
+            'market_cap_str':     fundamentals.get('market_cap_str'),
+            'trailing_pe':        fundamentals.get('trailing_pe'),
+            'forward_pe':         fundamentals.get('forward_pe'),
+            'trailing_eps':       fundamentals.get('trailing_eps'),
+            'dividend_yield':     fundamentals.get('dividend_yield'),
+            'week52_high':        fundamentals.get('week52_high'),
+            'week52_low':         fundamentals.get('week52_low'),
+            'target_price':       target,
+            'upside_pct':         upside_pct,
+            'recommendation':     fundamentals.get('recommendation'),
+            'recommendation_mean': fundamentals.get('recommendation_mean'),
+            'analyst_count':      fundamentals.get('analyst_count'),
+            'sector':             fundamentals.get('sector', ''),
+            'industry':           fundamentals.get('industry', ''),
+        }
+    }
+
+
 def handle_general(
     message: str,
     conversation_history: list = None,
@@ -999,6 +1142,8 @@ def route_message(message: str, user_id: int, conversation_history: list = None)
             result = handle_portfolio(user_id)
         elif intent == 'BEHAVIOUR':
             result = handle_behaviour(user_id)
+        elif intent == 'STOCK_PROFILE':
+            result = handle_stock_profile(symbol, message, conversation_history, user_id=user_id)
         else:
             result = handle_general(message, conversation_history, user_id=user_id)
     except Exception as e:

@@ -134,6 +134,35 @@ details[open] .fno-tech-summary::before{content:'▾ '}
 .iscore-comp-val{font-family:var(--mono);font-size:11px;color:var(--paper-dim);text-align:right}
 .iscore-summary{font-size:12.5px;color:var(--paper-dim);line-height:1.55;border-top:1px solid var(--line-soft);padding-top:10px}
 .disclaimer-inline{font-family:var(--mono);font-size:10px;color:var(--paper-faint);margin-top:8px;line-height:1.5}
+/* fundamental card */
+.fund-card{background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:6px;max-width:520px}
+.fund-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+.fund-name{font-size:13px;color:var(--paper);font-weight:600;line-height:1.4;max-width:270px}
+.fund-ticker{font-family:var(--mono);font-size:10px;color:var(--paper-faint);margin-top:2px}
+.fund-price-wrap{text-align:right;flex-shrink:0}
+.fund-price-val{font-family:var(--serif);font-size:22px;color:var(--amber)}
+.fund-price-chg{font-family:var(--mono);font-size:10.5px;margin-top:2px}
+.fund-price-chg.pos{color:var(--good)}.fund-price-chg.neg{color:var(--risk)}.fund-price-chg.flat{color:var(--paper-faint)}
+.fund-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.fund-metric{display:flex;flex-direction:column;gap:2px;background:var(--ink-3);border-radius:6px;padding:8px 10px}
+.fund-metric-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint)}
+.fund-metric-val{font-family:var(--mono);font-size:12.5px;color:var(--paper)}
+.fund-rec-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:var(--ink-3);border-radius:6px}
+.fund-rec-badge{font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 10px;border-radius:5px;white-space:nowrap}
+.fund-rec-badge.buy,.fund-rec-badge.strongbuy{background:rgba(34,197,94,.15);color:var(--good)}
+.fund-rec-badge.sell,.fund-rec-badge.strongsell{background:rgba(239,68,68,.15);color:var(--risk)}
+.fund-rec-badge.hold{background:rgba(245,158,11,.1);color:var(--amber)}
+.fund-rec-badge.underperform{background:rgba(239,68,68,.07);color:#f87171}
+.fund-rec-badge.neutral{background:var(--ink-2);color:var(--paper-faint)}
+.fund-rec-target{font-family:var(--mono);font-size:11px;color:var(--paper-dim)}
+.fund-rec-upside{font-family:var(--mono);font-size:10.5px}
+.fund-rec-upside.pos{color:var(--good)}.fund-rec-upside.neg{color:var(--risk)}
+.fund-52w{margin-bottom:4px}
+.fund-52w-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint);margin-bottom:5px}
+.fund-52w-track{height:5px;background:var(--ink-3);border-radius:3px;position:relative;overflow:visible;margin-bottom:4px}
+.fund-52w-fill{height:100%;background:var(--amber);opacity:.55;border-radius:3px;position:absolute;left:0}
+.fund-52w-dot{width:9px;height:9px;border-radius:50%;background:var(--amber);position:absolute;top:50%;transform:translate(-50%,-50%)}
+.fund-52w-labels{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--paper-faint)}
 /* prose markdown */
 .bubble-bot ul{margin:6px 0 10px 18px;display:flex;flex-direction:column;gap:4px}
 .bubble-bot li{font-size:14px;color:var(--paper-dim);line-height:1.55}
@@ -371,6 +400,80 @@ details[open] .fno-tech-summary::before{content:'▾ '}
                 {% endif %}
                 <p class="disclaimer-inline">Based on entered holdings · Research only · Not financial advice</p>
               </div>
+            {% elif ctx.get('card_type') == 'fundamental' and ctx.get('card_data') %}
+              {% set d = ctx.card_data %}
+              <p>{{ ctx.get('content','') }}</p>
+              <div class="fund-card">
+                {# ── Header: name + price ───────────────────────────────────── #}
+                <div class="fund-head">
+                  <div>
+                    <div class="fund-name">{{ d.get('company_name') or d.get('symbol','') }}</div>
+                    <div class="fund-ticker">{{ d.get('flag','') }} {{ d.get('symbol','') }} {% if d.get('sector') %}&middot; {{ d.sector }}{% endif %}</div>
+                  </div>
+                  {% if d.get('price') %}
+                    {% set chg = d.get('change_pct',0)|float %}
+                    <div class="fund-price-wrap">
+                      <div class="fund-price-val">{{ d.get('currency','₹') }}{{ "{:,.2f}".format(d.price|float) }}</div>
+                      <div class="fund-price-chg {% if chg > 0 %}pos{% elif chg < 0 %}neg{% else %}flat{% endif %}">
+                        {{ '▲' if chg > 0 else ('▼' if chg < 0 else '—') }} {{ "{:.2f}".format(chg|abs) }}%
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+                {# ── Metrics grid ───────────────────────────────────────────── #}
+                <div class="fund-grid">
+                  {% if d.get('market_cap_str') %}
+                    <div class="fund-metric"><span class="fund-metric-label">Market Cap</span><span class="fund-metric-val">{{ d.market_cap_str }}</span></div>
+                  {% endif %}
+                  {% if d.get('trailing_pe') is not none %}
+                    <div class="fund-metric"><span class="fund-metric-label">P/E (TTM)</span><span class="fund-metric-val">{{ "%.1f"|format(d.trailing_pe|float) }}x</span></div>
+                  {% endif %}
+                  {% if d.get('forward_pe') is not none %}
+                    <div class="fund-metric"><span class="fund-metric-label">Fwd P/E</span><span class="fund-metric-val">{{ "%.1f"|format(d.forward_pe|float) }}x</span></div>
+                  {% endif %}
+                  {% if d.get('trailing_eps') is not none %}
+                    <div class="fund-metric"><span class="fund-metric-label">EPS (TTM)</span><span class="fund-metric-val">{{ d.get('currency','₹') }}{{ "%.2f"|format(d.trailing_eps|float) }}</span></div>
+                  {% endif %}
+                  {% if d.get('dividend_yield') %}
+                    <div class="fund-metric"><span class="fund-metric-label">Div Yield</span><span class="fund-metric-val">{{ "%.2f"|format(d.dividend_yield|float) }}%</span></div>
+                  {% endif %}
+                  {% if d.get('analyst_count') %}
+                    <div class="fund-metric"><span class="fund-metric-label">Analysts</span><span class="fund-metric-val">{{ d.analyst_count }}</span></div>
+                  {% endif %}
+                </div>
+                {# ── Analyst consensus ──────────────────────────────────────── #}
+                {% if d.get('recommendation') %}
+                  {% set rec_cls = d.recommendation|lower|replace(' ','') %}
+                  <div class="fund-rec-row">
+                    <span class="fund-rec-badge {{ rec_cls }}">{{ d.recommendation }}</span>
+                    {% if d.get('target_price') %}
+                      <span class="fund-rec-target">Target: {{ d.get('currency','₹') }}{{ "{:,.2f}".format(d.target_price|float) }}</span>
+                      {% if d.get('upside_pct') is not none %}
+                        <span class="fund-rec-upside {% if d.upside_pct|float >= 0 %}pos{% else %}neg{% endif %}">
+                          {{ '↑' if d.upside_pct|float >= 0 else '↓' }}{{ "{:.1f}".format(d.upside_pct|float|abs) }}%
+                        </span>
+                      {% endif %}
+                    {% endif %}
+                  </div>
+                {% endif %}
+                {# ── 52-week range bar ──────────────────────────────────────── #}
+                {% if d.get('week52_high') and d.get('week52_low') and d.get('price') %}
+                  {% set rng = d.week52_high|float - d.week52_low|float %}
+                  {% set pos_pct = [[(d.price|float - d.week52_low|float) / rng * 100, 0]|max, 100]|min if rng > 0 else 50 %}
+                  <div class="fund-52w">
+                    <div class="fund-52w-label">52-Week Range</div>
+                    <div class="fund-52w-track">
+                      <div class="fund-52w-fill" style="width:{{ pos_pct }}%"></div>
+                      <div class="fund-52w-dot" style="left:{{ pos_pct }}%"></div>
+                    </div>
+                    <div class="fund-52w-labels">
+                      <span>{{ d.get('currency','₹') }}{{ "{:,.2f}".format(d.week52_low|float) }}</span>
+                      <span>{{ d.get('currency','₹') }}{{ "{:,.2f}".format(d.week52_high|float) }}</span>
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+              <p class="disclaimer-inline">Data from Yahoo Finance · Research only · Not financial advice</p>
             {% elif ctx.get('card_type') == 'behaviour' and ctx.get('card_data') %}
               {# Legacy behaviour card — show minimal summary #}
               {% set d = ctx.card_data %}
@@ -1254,6 +1357,91 @@ function renderPsychologyCard(d) {
   </div>`;
 }
 
+function renderFundamentalCard(d) {
+  if (!d) return '';
+  const ccy = d.currency || '₹';
+
+  // ── Header ───────────────────────────────────────────────────────────────
+  let priceHtml = '';
+  if (d.price != null) {
+    const chg    = d.change_pct || 0;
+    const chgCls = chg > 0 ? 'pos' : chg < 0 ? 'neg' : 'flat';
+    const arrow  = chg > 0 ? '▲' : chg < 0 ? '▼' : '—';
+    priceHtml = `
+    <div class="fund-price-wrap">
+      <div class="fund-price-val">${ccy}${Number(d.price).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+      <div class="fund-price-chg ${chgCls}">${arrow} ${Math.abs(chg).toFixed(2)}%</div>
+    </div>`;
+  }
+
+  const sector = d.sector ? `&middot; ${d.sector}` : '';
+  const header = `
+  <div class="fund-head">
+    <div>
+      <div class="fund-name">${d.company_name || d.symbol}</div>
+      <div class="fund-ticker">${d.flag || ''} ${d.symbol} ${sector}</div>
+    </div>
+    ${priceHtml}
+  </div>`;
+
+  // ── Metrics grid ─────────────────────────────────────────────────────────
+  const metrics = [];
+  function m(label, val) { if (val != null) metrics.push(`<div class="fund-metric"><span class="fund-metric-label">${label}</span><span class="fund-metric-val">${val}</span></div>`); }
+  m('Market Cap',   d.market_cap_str);
+  m('P/E (TTM)',    d.trailing_pe  != null ? Number(d.trailing_pe).toFixed(1)  + 'x' : null);
+  m('Fwd P/E',      d.forward_pe   != null ? Number(d.forward_pe).toFixed(1)   + 'x' : null);
+  m('EPS (TTM)',    d.trailing_eps != null ? ccy + Number(d.trailing_eps).toFixed(2) : null);
+  m('Div Yield',    d.dividend_yield != null && d.dividend_yield > 0 ? Number(d.dividend_yield).toFixed(2) + '%' : null);
+  m('Analysts',     d.analyst_count != null ? d.analyst_count : null);
+  const gridHtml = metrics.length ? `<div class="fund-grid">${metrics.join('')}</div>` : '';
+
+  // ── Analyst consensus + target ────────────────────────────────────────────
+  let recHtml = '';
+  if (d.recommendation) {
+    const recCls = d.recommendation.toLowerCase().replace(/\s+/g, '');
+    let targetStr = '';
+    if (d.target_price != null) {
+      targetStr += `<span class="fund-rec-target">Target: ${ccy}${Number(d.target_price).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`;
+      if (d.upside_pct != null) {
+        const uCls  = d.upside_pct >= 0 ? 'pos' : 'neg';
+        const uSign = d.upside_pct >= 0 ? '↑' : '↓';
+        targetStr += `<span class="fund-rec-upside ${uCls}">${uSign}${Math.abs(d.upside_pct).toFixed(1)}%</span>`;
+      }
+    }
+    recHtml = `<div class="fund-rec-row">
+      <span class="fund-rec-badge ${recCls}">${d.recommendation}</span>
+      ${targetStr}
+    </div>`;
+  }
+
+  // ── 52-week range bar ─────────────────────────────────────────────────────
+  let rangeHtml = '';
+  if (d.week52_low != null && d.week52_high != null && d.price != null) {
+    const lo = d.week52_low, hi = d.week52_high, cur = d.price;
+    const rng = hi - lo;
+    const pct = rng > 0 ? Math.min(Math.max((cur - lo) / rng * 100, 0), 100) : 50;
+    const fmtLo = Number(lo).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const fmtHi = Number(hi).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+    rangeHtml = `
+    <div class="fund-52w">
+      <div class="fund-52w-label">52-Week Range</div>
+      <div class="fund-52w-track">
+        <div class="fund-52w-fill" style="width:${pct}%"></div>
+        <div class="fund-52w-dot" style="left:${pct}%"></div>
+      </div>
+      <div class="fund-52w-labels"><span>${ccy}${fmtLo}</span><span>${ccy}${fmtHi}</span></div>
+    </div>`;
+  }
+
+  return `<div class="fund-card">
+    ${header}
+    ${gridHtml}
+    ${recHtml}
+    ${rangeHtml}
+  </div>
+  <p class="disclaimer-inline">Data from Yahoo Finance · Research only · Not financial advice</p>`;
+}
+
 function renderCard(data) {
   const cardType = data.card_type || 'prose';
   let html = '';
@@ -1275,6 +1463,8 @@ function renderCard(data) {
   } else if (cardType === 'behaviour' && data.card_data) {
     // Older stored messages used 'behaviour'; route to same rich card
     html += renderBehaviourCard(data.card_data);
+  } else if (cardType === 'fundamental' && data.card_data) {
+    html += renderFundamentalCard(data.card_data);
   }
 
   if (!html) html = `<p>I'm here to help with i-Scores, F&O signals, mutual funds, portfolio analysis, and market education.</p>`;
