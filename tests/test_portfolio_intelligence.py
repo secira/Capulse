@@ -47,10 +47,20 @@ def _holding(symbol='TATASTEEL', qty=10, buy=200, cur=190, inv=2000, val=1900,
 
 
 def _research(i_score=70, qual=75, quant=65, search=60, trend=70,
-              risk=40, mctx=65, rec='BUY', conf=80, sector='Banking'):
+              risk=40, mctx=65, rec='BUY', conf=80, sector='Banking',
+              is_stale=False, has_valid_score=None):
+    """Build a research dict that mirrors what _load_research() returns.
+
+    has_valid_score defaults to (i_score > 0 and not is_stale) when omitted.
+    """
+    if has_valid_score is None:
+        has_valid_score = (i_score is not None and i_score > 0 and not is_stale)
     return {
         'sector':               sector,
         'i_score':              i_score,
+        'is_stale':             is_stale,
+        'has_valid_score':      has_valid_score,
+        'last_computed_at':     None,
         'recommendation':       rec,
         'confidence':           conf,
         'qualitative_score':    qual,
@@ -208,6 +218,171 @@ class TestLivePriceRefresh:
         mock_gw.assert_not_called()
         assert prices == {}
         assert src == 'unavailable'
+
+
+# ── Data quality (I-Score coverage) ──────────────────────────────────────────
+
+class TestDataQuality:
+    """
+    Verifies that the report correctly identifies holdings with missing
+    ResearchList rows and surfaces them via data_quality and has_iscore.
+    """
+
+    def _run(self, holdings, research, uid=None):
+        from services.portfolio_intelligence import _REPORT_CACHE
+        _uid = uid or (id(self) + len(holdings) + len(research))
+        _REPORT_CACHE.pop(_uid, None)
+        engine = _make_engine(_uid)
+        with patch.object(engine, '_load_holdings', return_value=holdings), \
+             patch.object(engine, '_load_research', return_value=research), \
+             patch.object(engine, '_load_behavioral', return_value={}), \
+             patch.object(engine, '_fetch_live_prices',
+                          return_value=({}, 'unavailable')), \
+             patch.object(engine, '_generate_ai_narrative',
+                          return_value={'executive_summary': '',
+                                        'holdings_opinion': {},
+                                        'watchlist_suggestions': [],
+                                        'strengths': [], 'weaknesses': [],
+                                        'overall_recommendation': ''}):
+            return engine.generate_report()
+
+    # ── data_quality field structure ──────────────────────────────────────────
+
+    def test_data_quality_present_in_report(self):
+        r = self._run([_holding('TATASTEEL')], {'TATASTEEL': _research()})
+        assert 'data_quality' in r
+
+    def test_full_coverage(self):
+        holdings = [_holding('TATASTEEL'), _holding('HDFCBANK')]
+        research = {'TATASTEEL': _research(), 'HDFCBANK': _research(sector='Banking')}
+        r = self._run(holdings, research, uid=8801)
+        dq = r['data_quality']
+        assert dq['covered'] == 2
+        assert dq['total']   == 2
+        assert dq['missing_symbols'] == []
+
+    def test_partial_coverage_missing_symbols(self):
+        """SMALLCAP has no ResearchList row."""
+        holdings = [_holding('TATASTEEL'), _holding('SMALLCAP')]
+        research = {'TATASTEEL': _research()}   # SMALLCAP intentionally absent
+        r = self._run(holdings, research, uid=8802)
+        dq = r['data_quality']
+        assert dq['covered'] == 1
+        assert dq['total']   == 2
+        assert 'SMALLCAP' in dq['missing_symbols']
+
+    def test_zero_coverage(self):
+        holdings = [_holding('UNKNOWN')]
+        research = {}   # no ResearchList data at all
+        r = self._run(holdings, research, uid=8803)
+        dq = r['data_quality']
+        assert dq['covered'] == 0
+        assert dq['total']   == 1
+        assert 'UNKNOWN' in dq['missing_symbols']
+
+    # ── has_iscore flag on holding cards ─────────────────────────────────────
+
+    def test_has_iscore_true_when_research_present(self):
+        r = self._run([_holding('TATASTEEL')], {'TATASTEEL': _research()}, uid=8804)
+        card = next(h for h in r['holdings'] if h['symbol'] == 'TATASTEEL')
+        assert card['has_iscore'] is True
+
+    def test_has_iscore_false_when_research_missing(self):
+        r = self._run([_holding('UNKNOWN')], {}, uid=8805)
+        card = next(h for h in r['holdings'] if h['symbol'] == 'UNKNOWN')
+        assert card['has_iscore'] is False
+
+    def test_ai_rating_none_when_no_iscore(self):
+        r = self._run([_holding('UNKNOWN')], {}, uid=8806)
+        card = next(h for h in r['holdings'] if h['symbol'] == 'UNKNOWN')
+        assert card['ai_rating'] is None
+
+    def test_ai_rating_set_when_iscore_present(self):
+        r = self._run([_holding('TATASTEEL')], {'TATASTEEL': _research(i_score=72)}, uid=8807)
+        card = next(h for h in r['holdings'] if h['symbol'] == 'TATASTEEL')
+        assert card['ai_rating'] == pytest.approx(72.0, abs=0.5)
+
+    def test_mixed_cards_correct_has_iscore_flags(self):
+        holdings = [_holding('TATASTEEL'), _holding('SMALLCAP')]
+        research = {'TATASTEEL': _research()}
+        r = self._run(holdings, research, uid=8808)
+        cards = {h['symbol']: h for h in r['holdings']}
+        assert cards['TATASTEEL']['has_iscore'] is True
+        assert cards['SMALLCAP']['has_iscore']  is False
+
+    # ── PI score excludes missing-data holdings from weighted avg ─────────────
+
+    def test_pi_score_only_averages_covered_holdings(self):
+        """Holdings with no I-Score row should not drag the PI score to 50."""
+        # TATASTEEL has i_score=80; UNKNOWN has none → should not be counted
+        holdings = [_holding('TATASTEEL', inv=1000, val=1000),
+                    _holding('UNKNOWN',   inv=1000, val=1000)]
+        research = {'TATASTEEL': _research(i_score=80)}
+        r = self._run(holdings, research, uid=8809)
+        # PI score should be ~80 (only TATASTEEL counted), not ~65 (50+80/2)
+        assert r['portfolio_intelligence_score'] >= 70.0
+
+    # ── Stale I-Score handling ────────────────────────────────────────────────
+
+    def test_stale_symbol_in_stale_symbols_list(self):
+        """A symbol with is_stale=True must appear in data_quality.stale_symbols."""
+        holdings = [_holding('TATASTEEL')]
+        research = {'TATASTEEL': _research(i_score=70, is_stale=True)}
+        r = self._run(holdings, research, uid=8810)
+        dq = r['data_quality']
+        assert 'TATASTEEL' in dq['stale_symbols']
+        assert dq['covered'] == 0
+        assert dq['total']   == 1
+
+    def test_stale_symbol_has_iscore_false(self):
+        holdings = [_holding('TATASTEEL')]
+        research = {'TATASTEEL': _research(i_score=70, is_stale=True)}
+        r = self._run(holdings, research, uid=8811)
+        card = next(h for h in r['holdings'] if h['symbol'] == 'TATASTEEL')
+        assert card['has_iscore'] is False
+        assert card['is_stale']   is True
+        assert card['ai_rating']  is None
+
+    def test_stale_symbol_excluded_from_pi_score(self):
+        """Stale I-Score must not contribute to the PI score weighted average."""
+        # TATASTEEL: fresh i_score=80; HDFCBANK: stale i_score=30
+        # PI score should be ~80 (only TATASTEEL counted), not ~55 (avg)
+        holdings = [_holding('TATASTEEL', inv=1000, val=1000),
+                    _holding('HDFCBANK',  inv=1000, val=1000)]
+        research = {
+            'TATASTEEL': _research(i_score=80, is_stale=False),
+            'HDFCBANK':  _research(i_score=30, is_stale=True),
+        }
+        r = self._run(holdings, research, uid=8812)
+        assert r['portfolio_intelligence_score'] >= 70.0
+
+    def test_fresh_symbol_not_in_stale_list(self):
+        holdings = [_holding('TATASTEEL')]
+        research = {'TATASTEEL': _research(i_score=70, is_stale=False)}
+        r = self._run(holdings, research, uid=8813)
+        dq = r['data_quality']
+        assert 'TATASTEEL' not in dq['stale_symbols']
+        assert dq['covered'] == 1
+        assert dq['total']   == 1
+
+    def test_unscored_symbol_in_unscored_list(self):
+        """A ResearchList row with i_score=0/None counts as unscored, not stale."""
+        holdings = [_holding('TATASTEEL')]
+        research = {'TATASTEEL': _research(i_score=0, is_stale=False,
+                                            has_valid_score=False)}
+        r = self._run(holdings, research, uid=8814)
+        dq = r['data_quality']
+        assert 'TATASTEEL' in dq['unscored_symbols']
+        assert 'TATASTEEL' not in dq['stale_symbols']
+        assert 'TATASTEEL' not in dq['missing_symbols']
+        assert dq['covered'] == 0
+
+    def test_data_quality_has_all_three_buckets(self):
+        """data_quality must always expose all three symbol lists."""
+        r = self._run([_holding('TATASTEEL')], {'TATASTEEL': _research()}, uid=8815)
+        dq = r['data_quality']
+        for key in ('missing_symbols', 'stale_symbols', 'unscored_symbols'):
+            assert key in dq, f"data_quality missing '{key}'"
 
 
 # ── Single holding ─────────────────────────────────────────────────────────────

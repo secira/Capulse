@@ -251,14 +251,30 @@ class PortfolioIntelligenceEngine:
         return rows
 
     def _load_research(self, holdings: List[Dict]) -> Dict[str, Dict]:
-        """Fetch ResearchList rows for all holding symbols. Returns symbol → data dict."""
+        """Fetch ResearchList rows for all holding symbols. Returns symbol → data dict.
+
+        Each returned dict includes two quality flags:
+          • is_stale       — True when last_computed_at > 24 h ago (model.is_stale)
+          • has_valid_score — True when i_score > 0 AND NOT stale
+                              Only these holdings contribute to the PI score.
+        """
         from models import ResearchList
         symbols = {h['symbol'] for h in holdings}
         rows = ResearchList.query.filter(ResearchList.symbol.in_(symbols)).all()
-        return {
-            r.symbol: {
+        result: Dict[str, Dict] = {}
+        for r in rows:
+            stale       = bool(r.is_stale)
+            score       = float(r.i_score or 0)
+            has_valid   = score > 0 and not stale
+            result[r.symbol] = {
                 'sector':               r.sector,
-                'i_score':              float(r.i_score or 0),
+                'i_score':              score,
+                'is_stale':             stale,
+                'has_valid_score':      has_valid,
+                'last_computed_at':     (
+                    r.last_computed_at.strftime('%d %b %Y, %H:%M UTC')
+                    if r.last_computed_at else None
+                ),
                 'recommendation':       r.recommendation or 'HOLD',
                 'confidence':           float(r.confidence or 50),
                 'qualitative_score':    float(r.qualitative_score or 0),
@@ -268,8 +284,7 @@ class PortfolioIntelligenceEngine:
                 'risk_score':           float(r.risk_score or 0),
                 'market_context_score': float(r.market_context_score or 0),
             }
-            for r in rows
-        }
+        return result
 
     def _load_behavioral(self) -> Dict:
         result: Dict = {}
@@ -304,6 +319,34 @@ class PortfolioIntelligenceEngine:
         total_val  = sum(h['current_value'] for h in holdings)
         total_pnl  = total_val - total_inv
         pnl_pct    = (total_pnl / total_inv * 100) if total_inv > 0 else 0
+
+        # ── Data-quality audit ────────────────────────────────────────────────
+        # Three reasons a holding's I-Score may not be trustworthy:
+        #   • missing   — no ResearchList row at all (small-cap, new listing)
+        #   • unscored  — row exists but i_score is null/0 (scheduler not run yet)
+        #   • stale     — row exists, score computed, but last_computed_at > 24 h
+        # Holdings in any of these buckets are excluded from the PI score
+        # weighted average and flagged with has_iscore=False on their cards.
+        all_symbols     = {h['symbol'] for h in holdings}
+        missing_symbols = all_symbols - set(research.keys())
+
+        stale_symbols:    set = set()
+        unscored_symbols: set = set()
+        for sym, d in research.items():
+            if d.get('is_stale'):
+                stale_symbols.add(sym)
+            elif not d.get('has_valid_score'):
+                unscored_symbols.add(sym)
+
+        not_covered     = missing_symbols | stale_symbols | unscored_symbols
+        covered_count   = len(all_symbols) - len(not_covered)
+        data_quality = {
+            'covered':          covered_count,
+            'total':            len(all_symbols),
+            'missing_symbols':  sorted(missing_symbols),
+            'stale_symbols':    sorted(stale_symbols),
+            'unscored_symbols': sorted(unscored_symbols),
+        }
 
         # Enrich each holding with sector + research scores + portfolio weight
         enriched: List[Dict] = []
@@ -346,11 +389,20 @@ class PortfolioIntelligenceEngine:
         max_single = max(sector_alloc.values()) if sector_alloc else 0
         stability_score = (risk_display + max(0, 100 - max_single * 1.5)) / 2
 
-        # Portfolio Intelligence Score = weighted average of per-holding i_score
-        total_w = sum(h['weight'] for h in enriched if h['research'].get('i_score', 0) > 0)
+        # Portfolio Intelligence Score = weighted average of per-holding i_score.
+        # Only holdings with a fresh, non-zero score contribute; stale, unscored,
+        # and missing symbols are excluded so they don't distort the result.
+        def _has_valid(r: Dict) -> bool:
+            """Return True when the research dict has a trustworthy I-Score."""
+            if 'has_valid_score' in r:
+                return bool(r['has_valid_score'])
+            # Backward-compat fallback for test mocks that omit the key:
+            return r.get('i_score', 0) > 0 and not r.get('is_stale', False)
+
+        total_w = sum(h['weight'] for h in enriched if _has_valid(h['research']))
         if total_w > 0:
             pi_score = sum(h['research'].get('i_score', 0) * h['weight']
-                          for h in enriched) / total_w
+                          for h in enriched if _has_valid(h['research'])) / total_w
         else:
             pi_score = 50.0
 
@@ -396,15 +448,25 @@ class PortfolioIntelligenceEngine:
         # ── Per-holding cards ─────────────────────────────────────────────────
         holding_cards: List[Dict] = []
         for h in enriched:
-            r = h['research']
-            rec = (r.get('recommendation') or 'HOLD').replace('_', ' ').upper()
+            r   = h['research']
+            sym = h['symbol']
+            # Determine data quality for this card:
+            #   has_iscore=True  → fresh, non-zero I-Score (contributes to PI score)
+            #   has_iscore=False → missing / stale / unscored (shows warning badge)
+            valid     = _has_valid(r)
+            is_stale  = sym in stale_symbols
+            rec       = (r.get('recommendation') or 'HOLD').replace('_', ' ').upper()
             holding_cards.append({
-                'symbol':           h['symbol'],
+                'symbol':           sym,
                 'company_name':     h['company_name'],
                 'sector':           h['sector'],
                 'weight':           h['weight'],
                 'pnl_pct':          round(h['pnl_pct'], 2),
-                'ai_rating':        round(r.get('i_score', 50), 1),
+                'has_iscore':       valid,
+                'is_stale':         is_stale,
+                # ai_rating is None when the score is missing/stale/unscored so
+                # the template can display a "No I-Score data" badge instead.
+                'ai_rating':        round(float(r['i_score']), 1) if valid else None,
                 'scores': {
                     'fundamentals': round(r.get('qualitative_score', 0), 1),
                     'technicals':   round(r.get('quantitative_score', 0), 1),
@@ -482,6 +544,7 @@ class PortfolioIntelligenceEngine:
             'watchlist_suggestions':      ai.get('watchlist_suggestions', []),
             'action_centre':              action_centre,
             'forecast':                   forecast,
+            'data_quality':               data_quality,
             'overall_verdict': {
                 'score':          pi_score,
                 'strengths':      ai.get('strengths', []),

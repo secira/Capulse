@@ -107,6 +107,18 @@
 
 /* ── Chart donut ──────────────────────────────────────────────────────── */
 .chart-donut-wrap { position:relative; width:220px; height:220px; margin:0 auto; }
+
+/* ── I-Score coverage ─────────────────────────────────────────────────── */
+.no-iscore-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  background:#fef3c7; color:#92400e; border:1px solid #fde68a;
+  border-radius:8px; padding:4px 10px; font-size:.72rem; font-weight:600;
+}
+.pir-hero-estimated {
+  font-size:.72rem; color:#f59e0b; font-weight:600;
+  background:rgba(245,158,11,.15); border-radius:6px;
+  padding:2px 8px; display:inline-block; margin-left:8px; vertical-align:middle;
+}
 </style>
 {% endblock %}
 
@@ -171,6 +183,17 @@
           </div>
         </div>
         <div class="d-flex flex-wrap gap-2" id="subScorePills"></div>
+      </div>
+    </div>
+
+    <!-- ── I-Score coverage warning banner ───────────────────────────────── -->
+    <div id="pirCoverageBanner" style="display:none;" class="container mt-0 mb-n2" style="margin-bottom:-4px;">
+      <div class="alert alert-warning d-flex align-items-start gap-3 mb-3 py-3" style="border-radius:12px;">
+        <i class="fas fa-exclamation-triangle fa-lg mt-1 flex-shrink-0" style="color:#92400e;"></i>
+        <div>
+          <strong id="coverageBannerTitle"></strong>
+          <div id="coverageBannerDetail" class="mt-1" style="font-size:.84rem;color:#78350f;"></div>
+        </div>
       </div>
     </div>
 
@@ -450,6 +473,63 @@ async function loadReport(forceRefresh) {
 function renderReport(r) {
   const snap = r.snapshot || {};
 
+  // ── I-Score coverage banner & hero label ─────────────────────────────
+  // data_quality has three buckets:
+  //   missing_symbols  — no ResearchList row at all
+  //   stale_symbols    — row exists but last_computed_at > 24 h
+  //   unscored_symbols — row exists but i_score is null / 0
+  const dq = r.data_quality || {
+    covered: 0, total: 0,
+    missing_symbols: [], stale_symbols: [], unscored_symbols: []
+  };
+  const coverageBanner = document.getElementById('pirCoverageBanner');
+  const heroLabel = document.querySelector('.pir-hero-label');
+  const hasGap = dq.total > 0 && dq.covered < dq.total;
+
+  if (hasGap) {
+    // Build summary title and detail lines — all textContent, never innerHTML
+    const missingCount  = (dq.missing_symbols  || []).length;
+    const staleCount    = (dq.stale_symbols    || []).length;
+    const unscoredCount = (dq.unscored_symbols || []).length;
+    const notCovered    = dq.total - dq.covered;
+    const plural        = notCovered !== 1 ? 's' : '';
+
+    setText(document.getElementById('coverageBannerTitle'),
+      notCovered + ' holding' + plural +
+      ' lack a current I-Score — Portfolio Intelligence Score is estimated.');
+
+    // Build readable detail line(s) from each bucket
+    const details = [];
+    if (staleCount > 0) {
+      details.push((dq.stale_symbols || []).join(', ') +
+        ' — I-Score is over 24 h old. Run "i-Score" in chat to refresh.');
+    }
+    if (missingCount > 0) {
+      details.push((dq.missing_symbols || []).join(', ') +
+        ' — not yet scored. Run "i-Score" in chat to add them.');
+    }
+    if (unscoredCount > 0) {
+      details.push((dq.unscored_symbols || []).join(', ') +
+        ' — score computation pending.');
+    }
+    setText(document.getElementById('coverageBannerDetail'), details.join('  |  '));
+    if (coverageBanner) coverageBanner.style.display = '';
+
+    // Hero label: add "Estimated" badge
+    if (heroLabel) {
+      heroLabel.textContent = '';  // clear first
+      const baseText = document.createTextNode('Portfolio Intelligence Score');
+      const estBadge = document.createElement('span');
+      estBadge.className = 'pir-hero-estimated';
+      estBadge.textContent = 'Estimated';
+      heroLabel.appendChild(baseText);
+      heroLabel.appendChild(estBadge);
+    }
+  } else {
+    if (coverageBanner) coverageBanner.style.display = 'none';
+    if (heroLabel) heroLabel.textContent = 'Portfolio Intelligence Score';
+  }
+
   // ── Hero ─────────────────────────────────────────────────────────────
   setText(document.getElementById('heroScore'),  r.portfolio_intelligence_score);
   setText(document.getElementById('heroStatus'), r.score_status);
@@ -696,12 +776,14 @@ function renderReport(r) {
     const headerRow   = document.createElement('div');
     headerRow.className = 'd-flex align-items-start gap-3 mb-2';
 
-    const ratingColor = scoreColor(h.ai_rating || 50);
+    // ai_rating is null when no I-Score row exists (has_iscore === false)
+    const ratingColor = h.has_iscore ? scoreColor(h.ai_rating || 50) : '#94a3b8';
     const ratingBadge = document.createElement('div');
     ratingBadge.className = 'ai-rating-badge';
     ratingBadge.style.background = ratingColor + '22';
     ratingBadge.style.color      = ratingColor;
-    ratingBadge.textContent      = h.ai_rating || '—';  // number
+    ratingBadge.textContent      = h.ai_rating !== null && h.ai_rating !== undefined
+      ? h.ai_rating : '?';  // null → '?' when no I-Score data
 
     const infoCol = document.createElement('div');
     infoCol.className = 'flex-grow-1';
@@ -737,32 +819,54 @@ function renderReport(r) {
     headerRow.appendChild(rightCol);
     card.appendChild(headerRow);
 
-    // ── Scores mini-table ──────────────────────────────────────────────
-    const scTbl = document.createElement('table');
-    scTbl.className = 'table table-sm mb-2';
-    scTbl.style.border = 'none';
-    [['Fundamentals', h.scores.fundamentals],
-     ['Technicals',   h.scores.technicals],
-     ['Momentum',     h.scores.momentum],
-     ['Valuation',    h.scores.valuation],
-     ['Risk',         h.scores.risk]].forEach(([lbl, v]) => {
-      const tr  = document.createElement('tr');
-      const tdL = document.createElement('td');
-      const tdV = document.createElement('td');
-      tdL.style.fontSize = '.78rem';
-      tdL.style.color    = '#64748b';
-      tdL.style.padding  = '2px 0';
-      tdV.style.fontSize  = '.78rem';
-      tdV.style.fontWeight = '700';
-      tdV.style.color     = scoreColor(v || 0);
-      tdV.className       = 'text-end';
-      tdL.textContent     = lbl;               // hard-coded constant
-      tdV.textContent     = v || '—';          // number
-      tr.appendChild(tdL);
-      tr.appendChild(tdV);
-      scTbl.appendChild(tr);
-    });
-    card.appendChild(scTbl);
+    // ── Scores mini-table (or "No I-Score" badge) ──────────────────────
+    if (!h.has_iscore) {
+      // No ResearchList row for this symbol — show a badge instead of scores
+      const noScoreWrap = document.createElement('div');
+      noScoreWrap.className = 'mb-2 py-2';
+      const noScoreBadge = document.createElement('span');
+      noScoreBadge.className = 'no-iscore-badge';
+      // Icon + label are static markup; all text is hard-coded (safe)
+      const icon = document.createElement('i');
+      icon.className = 'fas fa-question-circle';
+      const txt = document.createTextNode(' No I-Score data');
+      noScoreBadge.appendChild(icon);
+      noScoreBadge.appendChild(txt);
+      const hint = document.createElement('div');
+      hint.style.fontSize = '.72rem';
+      hint.style.color    = '#94a3b8';
+      hint.style.marginTop = '4px';
+      hint.textContent = 'Run i-Score in chat to get scores for this stock.';
+      noScoreWrap.appendChild(noScoreBadge);
+      noScoreWrap.appendChild(hint);
+      card.appendChild(noScoreWrap);
+    } else {
+      const scTbl = document.createElement('table');
+      scTbl.className = 'table table-sm mb-2';
+      scTbl.style.border = 'none';
+      [['Fundamentals', h.scores.fundamentals],
+       ['Technicals',   h.scores.technicals],
+       ['Momentum',     h.scores.momentum],
+       ['Valuation',    h.scores.valuation],
+       ['Risk',         h.scores.risk]].forEach(([lbl, v]) => {
+        const tr  = document.createElement('tr');
+        const tdL = document.createElement('td');
+        const tdV = document.createElement('td');
+        tdL.style.fontSize = '.78rem';
+        tdL.style.color    = '#64748b';
+        tdL.style.padding  = '2px 0';
+        tdV.style.fontSize  = '.78rem';
+        tdV.style.fontWeight = '700';
+        tdV.style.color     = scoreColor(v || 0);
+        tdV.className       = 'text-end';
+        tdL.textContent     = lbl;               // hard-coded constant
+        tdV.textContent     = v || '—';          // number
+        tr.appendChild(tdL);
+        tr.appendChild(tdV);
+        scTbl.appendChild(tr);
+      });
+      card.appendChild(scTbl);
+    }
 
     // ── AI opinion bullets ─────────────────────────────────────────────
     // icon  (e.g. "✅" or "⚠") comes from Claude → textContent only
