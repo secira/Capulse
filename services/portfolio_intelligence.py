@@ -120,15 +120,76 @@ class PortfolioIntelligenceEngine:
             _REPORT_CACHE[self.user_id] = {**report, '_ts': time.time()}
             return report
 
+        # ── Refresh live prices via Market Data Gateway ───────────────────────
+        # Prices are applied in-place before any P&L or weight calculations.
+        # The result is cached inside the 15-min report TTL so the gateway
+        # isn't hammered on every page view.
+        live_prices, price_source = self._fetch_live_prices(
+            [h['symbol'] for h in holdings]
+        )
+        prices_ts = datetime.utcnow().strftime('%d %b %Y, %H:%M UTC')
+        prices_covered = 0
+        for h in holdings:
+            lp = live_prices.get(h['symbol'])
+            if lp and lp > 0:
+                qty = h['quantity']
+                inv = h['total_investment']
+                h['current_price'] = lp
+                h['current_value'] = round(qty * lp, 2)
+                h['pnl_pct'] = round(
+                    ((h['current_value'] - inv) / inv * 100) if inv > 0 else 0, 2
+                )
+                prices_covered += 1
+
         research  = self._load_research(holdings)
         memory    = self._load_behavioral()
         report    = self._build_report(holdings, research, memory)
+
+        report['prices_updated_at'] = prices_ts
+        report['price_source']      = price_source
+        report['prices_covered']    = prices_covered
+        report['prices_total']      = len(holdings)
+
         _REPORT_CACHE[self.user_id] = {**report, '_ts': time.time()}
         return report
 
     @classmethod
     def invalidate_cache(cls, user_id: int) -> None:
         _REPORT_CACHE.pop(user_id, None)
+
+    # ── Live price refresh ─────────────────────────────────────────────────────
+
+    def _fetch_live_prices(self, symbols: List[str]) -> tuple:
+        """Batch-fetch live LTPs via the Market Data Gateway fallback chain.
+
+        Returns:
+            (prices_dict, source_string)
+            prices_dict: symbol → float (only symbols with price > 0)
+            source_string: dominant source label from the gateway
+              (one of 'admin_broker', 'truedata', 'nse', 'yfinance', 'estimated',
+               or 'unavailable' when the entire call fails)
+        """
+        if not symbols:
+            return {}, 'unavailable'
+        try:
+            from services.market_data_gateway import get_quotes
+            result  = get_quotes(list(symbols), user_id=self.user_id)
+            quotes  = result.get('quotes', {})
+            prices  = {
+                sym: float(q['price'])
+                for sym, q in quotes.items()
+                if float(q.get('price') or 0) > 0
+            }
+            source  = result.get('source', 'estimated')
+            covered = len(prices)
+            logger.info(
+                f"portfolio_intelligence: live prices fetched "
+                f"{covered}/{len(symbols)} symbols via {source}"
+            )
+            return prices, source
+        except Exception as exc:
+            logger.warning(f"portfolio_intelligence: live price fetch failed: {exc}")
+            return {}, 'unavailable'
 
     # ── Data loaders ──────────────────────────────────────────────────────────
 

@@ -178,7 +178,16 @@
 
           <!-- Portfolio Snapshot -->
           <div class="pir-card">
-            <div class="pir-card-title"><i class="fas fa-table me-2 text-primary"></i>Portfolio Snapshot</div>
+            <div class="d-flex align-items-center justify-content-between mb-0">
+              <div class="pir-card-title mb-0" style="border-bottom:none;">
+                <i class="fas fa-table me-2 text-primary"></i>Portfolio Snapshot
+              </div>
+              <div id="priceUpdateBadge" class="d-flex align-items-center gap-2" style="font-size:.72rem;color:#64748b;margin-bottom:2px;">
+                <span id="priceSourceDot" style="width:8px;height:8px;border-radius:50%;background:#e2e8f0;display:inline-block;flex-shrink:0;"></span>
+                <span id="priceUpdateText">Loading prices…</span>
+              </div>
+            </div>
+            <hr style="margin:8px 0 14px;border-color:#f1f5f9;">
             <div class="table-responsive">
               <table class="table table-sm mb-0">
                 <tbody id="snapshotTbody"></tbody>
@@ -485,6 +494,44 @@ function renderReport(r) {
     tr.appendChild(tdV);
     snBody.appendChild(tr);
   });
+
+  // ── Price update badge ────────────────────────────────────────────────
+  // source and timestamp come from the Market Data Gateway; all set via
+  // textContent — never innerHTML.
+  (function () {
+    const SRC_COLORS = {
+      admin_broker: '#16a34a',
+      truedata:     '#16a34a',
+      nse:          '#2563eb',
+      yfinance:     '#f59e0b',
+      estimated:    '#94a3b8',
+      unavailable:  '#94a3b8',
+    };
+    const SRC_LABELS = {
+      admin_broker: 'Live via broker',
+      truedata:     'Live via TrueData',
+      nse:          'Live via NSE',
+      yfinance:     'Delayed (yfinance)',
+      estimated:    'Stored prices',
+      unavailable:  'Stored prices',
+    };
+    const src     = r.price_source || 'unavailable';
+    const dot     = document.getElementById('priceSourceDot');
+    const txtEl   = document.getElementById('priceUpdateText');
+    const covered = r.prices_covered || 0;
+    const total   = r.prices_total   || 0;
+    const ts      = r.prices_updated_at || '';
+
+    if (dot)   dot.style.background = SRC_COLORS[src] || '#94a3b8';
+
+    // Build label safely with textContent
+    let label = (SRC_LABELS[src] || src);
+    if (covered > 0 && total > 0 && covered < total) {
+      label += ' (' + covered + '/' + total + ')';
+    }
+    if (ts) label += ' · ' + ts;
+    if (txtEl) txtEl.textContent = label;
+  })();
 
   // ── Diversification ───────────────────────────────────────────────────
   const alloc  = r.sector_allocation || {};

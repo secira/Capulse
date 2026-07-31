@@ -83,6 +83,133 @@ class TestEmptyHoldings:
         assert 'portfolio_intelligence_score' not in report
 
 
+# ── Live price refresh ────────────────────────────────────────────────────────
+
+class TestLivePriceRefresh:
+    """
+    Verifies that _fetch_live_prices() is called during generate_report(),
+    live prices are applied to holdings, P&L is recalculated, and report
+    metadata fields (prices_updated_at, price_source, prices_covered,
+    prices_total) are present in the returned report.
+    """
+
+    def _run_with_live(self, live_price_map, source='admin_broker', fetch_fails=False):
+        """Run generate_report() with a mocked _fetch_live_prices()."""
+        from services.portfolio_intelligence import _REPORT_CACHE
+        uid = id(self) + (1 if fetch_fails else 2) + len(live_price_map)
+        _REPORT_CACHE.pop(uid, None)
+
+        holdings = [_holding('TATASTEEL', qty=10, buy=200, cur=200,
+                              inv=2000, val=2000, pnl=0.0)]
+        research = {'TATASTEEL': _research()}
+        engine   = _make_engine(uid)
+
+        fetch_return = ({}, 'unavailable') if fetch_fails else (live_price_map, source)
+
+        with patch.object(engine, '_load_holdings', return_value=holdings), \
+             patch.object(engine, '_load_research', return_value=research), \
+             patch.object(engine, '_load_behavioral', return_value={}), \
+             patch.object(engine, '_generate_ai_narrative',
+                          return_value={'executive_summary': '',
+                                        'holdings_opinion': {},
+                                        'watchlist_suggestions': [],
+                                        'strengths': [], 'weaknesses': [],
+                                        'overall_recommendation': ''}), \
+             patch.object(engine, '_fetch_live_prices', return_value=fetch_return):
+            return engine.generate_report()
+
+    # ── metadata fields present ───────────────────────────────────────────────
+
+    def test_report_has_prices_updated_at(self):
+        r = self._run_with_live({'TATASTEEL': 220.0})
+        assert 'prices_updated_at' in r
+        assert r['prices_updated_at']  # non-empty
+
+    def test_report_has_price_source(self):
+        r = self._run_with_live({'TATASTEEL': 220.0}, source='yfinance')
+        assert r['price_source'] == 'yfinance'
+
+    def test_report_has_prices_covered_and_total(self):
+        r = self._run_with_live({'TATASTEEL': 220.0})
+        assert r['prices_covered'] == 1
+        assert r['prices_total']   == 1
+
+    def test_prices_covered_zero_when_fetch_fails(self):
+        r = self._run_with_live({}, fetch_fails=True)
+        assert r['prices_covered'] == 0
+        assert r['price_source']   == 'unavailable'
+
+    # ── P&L recalculation ────────────────────────────────────────────────────
+
+    def test_pnl_recalculated_with_live_price(self):
+        """buy=200, qty=10, live=220 → P&L = +10%."""
+        r = self._run_with_live({'TATASTEEL': 220.0})
+        card = next(h for h in r['holdings'] if h['symbol'] == 'TATASTEEL')
+        assert card['pnl_pct'] == pytest.approx(10.0, abs=0.5)
+
+    def test_pnl_negative_when_price_drops(self):
+        """buy=200, qty=10, live=180 → P&L = -10%."""
+        r = self._run_with_live({'TATASTEEL': 180.0})
+        card = next(h for h in r['holdings'] if h['symbol'] == 'TATASTEEL')
+        assert card['pnl_pct'] == pytest.approx(-10.0, abs=0.5)
+
+    def test_overall_return_updated_with_live_price(self):
+        """Portfolio overall return should reflect the live price."""
+        r = self._run_with_live({'TATASTEEL': 220.0})
+        assert r['snapshot']['overall_return_pct'] == pytest.approx(10.0, abs=0.5)
+
+    def test_db_price_kept_when_symbol_not_in_live_map(self):
+        """If gateway returns no price for a symbol, DB price is preserved."""
+        r = self._run_with_live({})   # empty live map
+        card = next(h for h in r['holdings'] if h['symbol'] == 'TATASTEEL')
+        # DB price: cur=200, buy=200 → 0% P&L
+        assert card['pnl_pct'] == pytest.approx(0.0, abs=1.0)
+
+    # ── _fetch_live_prices unit tests ─────────────────────────────────────────
+
+    def test_fetch_live_prices_returns_empty_on_exception(self):
+        engine = _make_engine(9999)
+        with patch('services.portfolio_intelligence.PortfolioIntelligenceEngine'
+                   '._fetch_live_prices', side_effect=Exception('timeout')):
+            # ensure it doesn't propagate
+            pass  # the patched exception is in _fetch_live_prices itself
+
+        # Test the actual method with a mocked gateway that raises
+        with patch('services.market_data_gateway.get_quotes',
+                   side_effect=Exception('network error')):
+            prices, src = engine._fetch_live_prices(['TATASTEEL'])
+        assert prices == {}
+        assert src == 'unavailable'
+
+    def test_fetch_live_prices_filters_zero_prices(self):
+        """Symbols with price=0 from gateway are excluded from the result."""
+        engine = _make_engine(9998)
+        mock_result = {
+            'quotes': {
+                'TATASTEEL': {'price': 220.0, 'source': 'admin_broker'},
+                'HDFCBANK':  {'price': 0.0,   'source': 'estimated'},
+            },
+            'source': 'admin_broker',
+            'success': True,
+        }
+        with patch('services.market_data_gateway.get_quotes',
+                   return_value=mock_result):
+            prices, src = engine._fetch_live_prices(['TATASTEEL', 'HDFCBANK'])
+        assert 'TATASTEEL' in prices
+        assert 'HDFCBANK'  not in prices
+        assert prices['TATASTEEL'] == pytest.approx(220.0)
+        assert src == 'admin_broker'
+
+    def test_fetch_live_prices_empty_symbols(self):
+        """Empty symbol list returns immediately without calling gateway."""
+        engine = _make_engine(9997)
+        with patch('services.market_data_gateway.get_quotes') as mock_gw:
+            prices, src = engine._fetch_live_prices([])
+        mock_gw.assert_not_called()
+        assert prices == {}
+        assert src == 'unavailable'
+
+
 # ── Single holding ─────────────────────────────────────────────────────────────
 
 class TestSingleHolding:
@@ -95,6 +222,8 @@ class TestSingleHolding:
         with patch.object(engine, '_load_holdings', return_value=holdings), \
              patch.object(engine, '_load_research', return_value=research), \
              patch.object(engine, '_load_behavioral', return_value=memory or {}), \
+             patch.object(engine, '_fetch_live_prices',
+                          return_value=({}, 'unavailable')), \
              patch.object(engine, '_generate_ai_narrative',
                           return_value={'executive_summary': 'Test',
                                         'holdings_opinion': {},
@@ -154,6 +283,8 @@ class TestTwoHoldings:
         with patch.object(engine, '_load_holdings', return_value=holdings), \
              patch.object(engine, '_load_research', return_value=research), \
              patch.object(engine, '_load_behavioral', return_value={}), \
+             patch.object(engine, '_fetch_live_prices',
+                          return_value=({}, 'unavailable')), \
              patch.object(engine, '_generate_ai_narrative',
                           return_value={'executive_summary': '', 'holdings_opinion': {},
                                         'watchlist_suggestions': [], 'strengths': [],
