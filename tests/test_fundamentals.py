@@ -295,3 +295,164 @@ class TestBuildFundamentalsContextBlock:
         fund = self._fund(dividend_yield=None)
         block = build_fundamentals_context_block('TCS', self._quote(), fund)
         assert 'Dividend' not in block
+
+
+# ── _valuation_vs_sector ──────────────────────────────────────────────────────
+
+from services.financial_context_builder import _valuation_vs_sector, _SECTOR_PE_BENCHMARKS
+
+class TestValuationVsSector:
+    def test_cheap_below_80pct(self):
+        # Technology benchmark = 28; 20 / 28 = 0.71 → Cheap
+        _, label = _valuation_vs_sector(20.0, 'Technology')
+        assert label == 'Cheap'
+
+    def test_fair_between_80_and_125(self):
+        # Technology benchmark = 28; 28 / 28 = 1.0 → Fair
+        _, label = _valuation_vs_sector(28.0, 'Technology')
+        assert label == 'Fair'
+
+    def test_expensive_above_125(self):
+        # Technology benchmark = 28; 40 / 28 = 1.43 → Expensive
+        _, label = _valuation_vs_sector(40.0, 'Technology')
+        assert label == 'Expensive'
+
+    def test_returns_sector_pe_value(self):
+        sector_pe, _ = _valuation_vs_sector(28.0, 'Technology')
+        assert sector_pe == _SECTOR_PE_BENCHMARKS['Technology']
+
+    def test_none_when_pe_is_zero(self):
+        sector_pe, label = _valuation_vs_sector(0.0, 'Technology')
+        assert sector_pe is None
+        assert label is None
+
+    def test_none_when_pe_is_none(self):
+        sector_pe, label = _valuation_vs_sector(None, 'Technology')
+        assert sector_pe is None
+        assert label is None
+
+    def test_none_when_sector_unknown(self):
+        sector_pe, label = _valuation_vs_sector(25.0, 'Junk Sector XYZ')
+        assert sector_pe is None
+        assert label is None
+
+    def test_none_when_sector_empty(self):
+        sector_pe, label = _valuation_vs_sector(25.0, '')
+        assert sector_pe is None
+        assert label is None
+
+    def test_fuzzy_match_partial_sector_name(self):
+        # "Financial" should fuzzy-match "Financial Services"
+        sector_pe, label = _valuation_vs_sector(18.0, 'Financial')
+        assert sector_pe is not None
+        assert label is not None
+
+    def test_boundary_exactly_80pct_is_cheap(self):
+        # 28 * 0.80 = 22.4 → Cheap
+        sector_pe, label = _valuation_vs_sector(22.4, 'Technology')
+        assert label == 'Cheap'
+
+    def test_boundary_exactly_125pct_is_fair(self):
+        # 28 * 1.25 = 35 → Fair
+        sector_pe, label = _valuation_vs_sector(35.0, 'Technology')
+        assert label == 'Fair'
+
+    def test_all_known_sectors_covered(self):
+        # Every sector in the table should return a valid result for a mid-range PE
+        for sector, benchmark_pe in _SECTOR_PE_BENCHMARKS.items():
+            sp, lbl = _valuation_vs_sector(benchmark_pe, sector)
+            assert sp == benchmark_pe, f"sector {sector}: expected {benchmark_pe}, got {sp}"
+            assert lbl == 'Fair', f"sector {sector}: PE at median should be Fair, got {lbl}"
+
+
+# ── _fetch_fundamentals: sector_pe + valuation_label fields ──────────────────
+
+class TestFetchFundamentalsWithSectorPE:
+    def _full_info(self):
+        return {
+            'longName':               'Tata Consultancy Services Limited',
+            'sector':                 'Technology',
+            'industry':               'IT Services',
+            'marketCap':              1_38_000_00_00_000,
+            'trailingPE':             20.0,   # < 80% of 28 → Cheap
+            'forwardPE':              18.0,
+            'trailingEps':            133.5,
+            'dividendYield':          0.018,
+            'fiftyTwoWeekHigh':       4200.0,
+            'fiftyTwoWeekLow':        3200.0,
+            'targetMeanPrice':        4100.0,
+            'recommendationMean':     2.0,
+            'recommendationKey':      'buy',
+            'numberOfAnalystOpinions': 32,
+        }
+
+    def _mock_ticker(self, info):
+        t = MagicMock()
+        t.info = info
+        return t
+
+    def test_sector_pe_field_populated(self):
+        with patch('yfinance.Ticker', return_value=self._mock_ticker(self._full_info())):
+            _, data = _fetch_fundamentals('TCS', 'indian')
+        assert data.get('sector_pe') == _SECTOR_PE_BENCHMARKS['Technology']
+
+    def test_valuation_label_cheap(self):
+        # PE 20 vs Technology 28 → Cheap
+        with patch('yfinance.Ticker', return_value=self._mock_ticker(self._full_info())):
+            _, data = _fetch_fundamentals('TCS', 'indian')
+        assert data.get('valuation_label') == 'Cheap'
+
+    def test_valuation_label_expensive(self):
+        info = self._full_info()
+        info['trailingPE'] = 55.0   # > 1.25 × 28 = 35
+        with patch('yfinance.Ticker', return_value=self._mock_ticker(info)):
+            _, data = _fetch_fundamentals('TCS', 'indian')
+        assert data.get('valuation_label') == 'Expensive'
+
+    def test_valuation_label_none_when_sector_unknown(self):
+        info = self._full_info()
+        info['sector'] = ''
+        with patch('yfinance.Ticker', return_value=self._mock_ticker(info)):
+            _, data = _fetch_fundamentals('TCS', 'indian')
+        assert data.get('sector_pe') is None
+        assert data.get('valuation_label') is None
+
+
+# ── build_fundamentals_context_block: sector comparison line ─────────────────
+
+class TestContextBlockWithSectorPE:
+    def _fund(self, **overrides):
+        base = {
+            'market':             'indian',
+            'company_name':       'TCS',
+            'market_cap':         1_38_000_00_00_000,
+            'market_cap_str':     '₹1,38,000 Cr',
+            'trailing_pe':        20.0,
+            'sector':             'Technology',
+            'sector_pe':          28.0,
+            'valuation_label':    'Cheap',
+        }
+        base.update(overrides)
+        return base
+
+    def _quote(self, ltp=3800.0):
+        return {'ltp': ltp, 'change_pct': 1.2, 'market': 'indian'}
+
+    def test_sector_comparison_line_present(self):
+        block = build_fundamentals_context_block('TCS', self._quote(), self._fund())
+        assert 'vs Sector' in block
+        assert '28.0x' in block
+
+    def test_cheap_label_in_block(self):
+        block = build_fundamentals_context_block('TCS', self._quote(), self._fund())
+        assert 'Cheap' in block
+
+    def test_expensive_label_in_block(self):
+        fund = self._fund(trailing_pe=55.0, sector_pe=28.0, valuation_label='Expensive')
+        block = build_fundamentals_context_block('TCS', self._quote(), fund)
+        assert 'Expensive' in block
+
+    def test_no_sector_line_when_sector_pe_missing(self):
+        fund = self._fund(sector_pe=None, valuation_label=None)
+        block = build_fundamentals_context_block('TCS', self._quote(), fund)
+        assert 'vs Sector' not in block

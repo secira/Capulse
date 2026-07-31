@@ -915,6 +915,8 @@ def handle_stock_profile(
             'analyst_count':      fundamentals.get('analyst_count'),
             'sector':             fundamentals.get('sector', ''),
             'industry':           fundamentals.get('industry', ''),
+            'sector_pe':          fundamentals.get('sector_pe'),
+            'valuation_label':    fundamentals.get('valuation_label'),
         }
     }
 

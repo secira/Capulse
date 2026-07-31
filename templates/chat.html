@@ -157,6 +157,14 @@ details[open] .fno-tech-summary::before{content:'▾ '}
 .fund-rec-target{font-family:var(--mono);font-size:11px;color:var(--paper-dim)}
 .fund-rec-upside{font-family:var(--mono);font-size:10.5px}
 .fund-rec-upside.pos{color:var(--good)}.fund-rec-upside.neg{color:var(--risk)}
+/* sector peer comparison row */
+.fund-peer-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:var(--ink-3);border-radius:6px}
+.fund-peer-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint);flex-shrink:0}
+.fund-peer-vals{font-family:var(--mono);font-size:11px;color:var(--paper-dim)}
+.fund-peer-badge{font-family:var(--mono);font-size:11px;font-weight:700;padding:2px 9px;border-radius:5px;white-space:nowrap;margin-left:auto}
+.fund-peer-badge.cheap{background:rgba(34,197,94,.15);color:var(--good)}
+.fund-peer-badge.fair{background:rgba(245,158,11,.1);color:var(--amber)}
+.fund-peer-badge.expensive{background:rgba(239,68,68,.12);color:var(--risk)}
 .fund-52w{margin-bottom:4px}
 .fund-52w-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-faint);margin-bottom:5px}
 .fund-52w-track{height:5px;background:var(--ink-3);border-radius:3px;position:relative;overflow:visible;margin-bottom:4px}
@@ -441,6 +449,14 @@ details[open] .fno-tech-summary::before{content:'▾ '}
                     <div class="fund-metric"><span class="fund-metric-label">Analysts</span><span class="fund-metric-val">{{ d.analyst_count }}</span></div>
                   {% endif %}
                 </div>
+                {# ── Sector PE comparison ───────────────────────────────────── #}
+                {% if d.get('sector_pe') and d.get('trailing_pe') is not none and d.get('valuation_label') %}
+                  <div class="fund-peer-row">
+                    <span class="fund-peer-label">vs Sector</span>
+                    <span class="fund-peer-vals">{{ "%.1f"|format(d.trailing_pe|float) }}x stock &middot; {{ "%.1f"|format(d.sector_pe|float) }}x sector median</span>
+                    <span class="fund-peer-badge {{ d.valuation_label|lower }}">{{ d.valuation_label }}</span>
+                  </div>
+                {% endif %}
                 {# ── Analyst consensus ──────────────────────────────────────── #}
                 {% if d.get('recommendation') %}
                   {% set rec_cls = d.recommendation|lower|replace(' ','') %}
@@ -1395,6 +1411,17 @@ function renderFundamentalCard(d) {
   m('Analysts',     d.analyst_count != null ? d.analyst_count : null);
   const gridHtml = metrics.length ? `<div class="fund-grid">${metrics.join('')}</div>` : '';
 
+  // ── Sector PE comparison ──────────────────────────────────────────────────
+  let peerHtml = '';
+  if (d.sector_pe != null && d.trailing_pe != null && d.valuation_label) {
+    const peerCls = d.valuation_label.toLowerCase();
+    peerHtml = `<div class="fund-peer-row">
+      <span class="fund-peer-label">vs Sector</span>
+      <span class="fund-peer-vals">${Number(d.trailing_pe).toFixed(1)}x stock &middot; ${Number(d.sector_pe).toFixed(1)}x sector median</span>
+      <span class="fund-peer-badge ${peerCls}">${d.valuation_label}</span>
+    </div>`;
+  }
+
   // ── Analyst consensus + target ────────────────────────────────────────────
   let recHtml = '';
   if (d.recommendation) {
@@ -1436,10 +1463,11 @@ function renderFundamentalCard(d) {
   return `<div class="fund-card">
     ${header}
     ${gridHtml}
+    ${peerHtml}
     ${recHtml}
     ${rangeHtml}
   </div>
-  <p class="disclaimer-inline">Data from Yahoo Finance · Research only · Not financial advice</p>`;
+  <p class="disclaimer-inline">Data from Yahoo Finance · Sector benchmarks are long-run medians · Research only · Not financial advice</p>`;
 }
 
 function renderCard(data) {

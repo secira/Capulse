@@ -559,6 +559,79 @@ def build_context_block(quotes: Dict[str, Dict]) -> str:
 
 # ── Fundamentals fetch ────────────────────────────────────────────────────────
 
+# Static sector trailing-PE benchmarks (approximate long-run medians).
+# Keyed by yfinance `.info['sector']` values (same names returned for both
+# NSE Indian stocks and US equities).  Used for cheap/fair/expensive labelling
+# — no extra network calls required.
+_SECTOR_PE_BENCHMARKS: Dict[str, float] = {
+    'Technology':              28.0,
+    'Information Technology':  25.0,
+    'Financial Services':      18.0,
+    'Consumer Cyclical':       28.0,
+    'Consumer Defensive':      24.0,
+    'Healthcare':              28.0,
+    'Energy':                  13.0,
+    'Basic Materials':         17.0,
+    'Industrials':             22.0,
+    'Real Estate':             25.0,
+    'Communication Services':  22.0,
+    'Utilities':               18.0,
+    # Indian-specific sector names yfinance sometimes returns
+    'Automobiles':             20.0,
+    'Pharma':                  28.0,
+    'FMCG':                    45.0,
+    'Banking':                 14.0,
+    'Insurance':               20.0,
+    'Metals & Mining':         14.0,
+    'Oil & Gas':               12.0,
+    'Infrastructure':          22.0,
+    'Cement':                  30.0,
+    'Power':                   20.0,
+    'Textiles':                18.0,
+}
+
+
+def _valuation_vs_sector(
+    stock_pe: Optional[float],
+    sector:   str,
+) -> Tuple[Optional[float], Optional[str]]:
+    """Compare a stock's trailing P/E to a static sector median benchmark.
+
+    Returns ``(sector_pe, label)`` where label is ``'Cheap'`` | ``'Fair'`` |
+    ``'Expensive'``, or ``(None, None)`` when no benchmark is available or
+    the stock P/E is invalid.
+
+    Thresholds:
+      stock_pe / sector_pe ≤ 0.80  → Cheap
+      stock_pe / sector_pe ≤ 1.25  → Fair
+      otherwise                    → Expensive
+    """
+    if not stock_pe or stock_pe <= 0 or not sector:
+        return None, None
+
+    sector_pe = _SECTOR_PE_BENCHMARKS.get(sector)
+    if not sector_pe:
+        # Soft fuzzy fallback — handles slight name variants
+        sl = sector.lower()
+        for key, val in _SECTOR_PE_BENCHMARKS.items():
+            if key.lower() in sl or sl in key.lower():
+                sector_pe = val
+                break
+
+    if not sector_pe:
+        return None, None
+
+    ratio = stock_pe / sector_pe
+    if ratio <= 0.80:
+        label = 'Cheap'
+    elif ratio <= 1.25:
+        label = 'Fair'
+    else:
+        label = 'Expensive'
+
+    return sector_pe, label
+
+
 def _rec_label(rec_mean: Optional[float], rec_key: str = '') -> Optional[str]:
     """Map yfinance recommendationMean (1=Strong Buy … 5=Sell) to a display label."""
     if rec_mean is not None:
@@ -610,15 +683,19 @@ def _fetch_fundamentals(symbol: str, market: str) -> Tuple[str, Dict]:
         mc_raw = info.get('marketCap')
         mc_str = _fmt_market_cap(mc_raw, market) if mc_raw else None
 
+        sector = info.get('sector', '')
+        trailing_pe = info.get('trailingPE')
+        sector_pe, valuation_label = _valuation_vs_sector(trailing_pe, sector)
+
         result = {
             'symbol':             symbol,
             'market':             market,
             'company_name':       info.get('longName') or info.get('shortName', ''),
-            'sector':             info.get('sector', ''),
+            'sector':             sector,
             'industry':           info.get('industry', ''),
             'market_cap':         mc_raw,
             'market_cap_str':     mc_str,
-            'trailing_pe':        info.get('trailingPE'),
+            'trailing_pe':        trailing_pe,
             'forward_pe':         info.get('forwardPE'),
             'trailing_eps':       info.get('trailingEps'),
             'dividend_yield':     div_pct,
@@ -628,6 +705,8 @@ def _fetch_fundamentals(symbol: str, market: str) -> Tuple[str, Dict]:
             'recommendation':     rec_label,
             'recommendation_mean': rec_mean,
             'analyst_count':      info.get('numberOfAnalystOpinions'),
+            'sector_pe':          sector_pe,
+            'valuation_label':    valuation_label,
         }
         return symbol, result
     except Exception as exc:
@@ -695,6 +774,15 @@ def build_fundamentals_context_block(symbol: str, quote: Dict, fundamentals: Dic
     h52, l52 = fundamentals.get('week52_high'), fundamentals.get('week52_low')
     if h52 and l52:
         lines.append(f"  52w Range: {ccy}{l52:,.2f} – {ccy}{h52:,.2f}")
+
+    # Sector PE comparison
+    sector_pe = fundamentals.get('sector_pe')
+    v_label   = fundamentals.get('valuation_label')
+    tpe       = fundamentals.get('trailing_pe')
+    if sector_pe and v_label and tpe:
+        lines.append(
+            f"  vs Sector P/E: {tpe:.1f}x stock vs {sector_pe:.1f}x sector median → {v_label}"
+        )
 
     rec, n_an = fundamentals.get('recommendation'), fundamentals.get('analyst_count')
     target    = fundamentals.get('target_price')
