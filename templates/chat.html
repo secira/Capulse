@@ -379,6 +379,9 @@ details[open] .fno-tech-summary::before{content:'▾ '}
                 </div>
                 {% endif %}
               </div>
+              {% if d.get('personalisation_note') %}
+                <div class="personal-note">{{ d.personalisation_note }}</div>
+              {% endif %}
               <p class="disclaimer-inline">{{ d.source_note or 'Data from MFApi.in' }}. Past returns are not indicative of future performance.</p>
             {% elif ctx.get('card_type') == 'portfolio' and ctx.get('card_data') %}
               {% set d = ctx.card_data %}
@@ -1042,6 +1045,9 @@ function renderMfCard(d) {
   const sourceNote = d.source_note || 'Data from MFApi.in';
   const category   = d.fund_category || d.scheme_category || '';
   const house      = d.fund_house    || d.amc             || '';
+  const personalNote = d.personalisation_note
+    ? `<div class="personal-note">${renderMarkdown(d.personalisation_note)}</div>`
+    : '';
 
   return `<div class="mf-card">
     <div class="mf-head">
@@ -1060,6 +1066,7 @@ function renderMfCard(d) {
     </div>
     ${details ? `<div class="mf-details">${details}</div>` : ''}
   </div>
+  ${personalNote}
   <p class="disclaimer-inline">${sourceNote}. Past returns are not indicative of future performance.</p>`;
 }
 

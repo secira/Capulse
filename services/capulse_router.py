@@ -463,7 +463,57 @@ def _fno_fallback(index: str) -> Dict[str, Any]:
     }
 
 
-def handle_mutual_fund(fund_query: str, message: str) -> Dict[str, Any]:
+def _mf_personalisation_note(user_id: Optional[int], fund_category: str) -> Optional[str]:
+    """Return a personalisation note for the MF card, or None."""
+    if not user_id:
+        return None
+    try:
+        from services.user_memory import get_memory
+        mem           = get_memory(user_id)
+        risk_level    = (mem.get('risk_level')    or '').lower()
+        trading_style = (mem.get('trading_style') or '').lower()
+
+        cat_lower = fund_category.lower()
+        # Categories that carry elevated risk
+        HIGH_RISK_KEYWORDS = ('small cap', 'smallcap', 'sectoral', 'thematic',
+                              'credit risk', 'international', 'global', 'focused')
+        is_high_risk_fund = any(kw in cat_lower for kw in HIGH_RISK_KEYWORDS)
+
+        notes = []
+
+        # Risk mismatch: conservative investor, high-risk fund
+        if risk_level == 'conservative' and is_high_risk_fund:
+            notes.append(
+                "⚠️ **Heads up:** Your profile shows a **conservative** risk level, "
+                "but this is a higher-risk fund category. Volatility and drawdowns "
+                "can be significant. Consider a large-cap or hybrid fund for better "
+                "alignment with your risk appetite."
+            )
+        elif risk_level == 'aggressive' and cat_lower and any(
+                kw in cat_lower for kw in ('liquid', 'overnight', 'ultra short', 'money market')):
+            notes.append(
+                "Your **aggressive** profile may find this low-risk debt/liquid fund "
+                "conservative relative to your stated risk appetite — returns will "
+                "be modest compared to equity funds."
+            )
+
+        # Style mismatch: intraday or short-term trader asking about an MF
+        if trading_style in ('intraday', 'swing'):
+            notes.append(
+                "📅 **Duration note:** Mutual funds are longer-horizon instruments "
+                "— NAV changes once a day and returns typically compound over years. "
+                "They work best as a parallel, buy-and-hold allocation rather than "
+                "a short-term trading vehicle."
+            )
+
+        if notes:
+            return '  \n'.join(notes)
+    except Exception as exc:
+        logger.debug(f"_mf_personalisation_note({user_id}): {exc}")
+    return None
+
+
+def handle_mutual_fund(fund_query: str, message: str, user_id: Optional[int] = None) -> Dict[str, Any]:
     """
     Fetch mutual fund data.
     Primary source: Zerodha Kite /mf/instruments (admin broker pool) for
@@ -489,11 +539,14 @@ def handle_mutual_fund(fund_query: str, message: str) -> Dict[str, Any]:
                 )
             }
 
-        scheme_name = data.get('scheme_name', query)
-        source      = data.get('data_source', 'mfapi')
-        source_note = ("NAV & metadata from Zerodha Kite · Returns from MFApi.in"
-                       if source == 'kite+mfapi'
-                       else "Data from MFApi.in")
+        scheme_name   = data.get('scheme_name', query)
+        source        = data.get('data_source', 'mfapi')
+        source_note   = ("NAV & metadata from Zerodha Kite · Returns from MFApi.in"
+                         if source == 'kite+mfapi'
+                         else "Data from MFApi.in")
+        fund_category = data.get('fund_category') or data.get('scheme_category') or ''
+
+        personalisation_note = _mf_personalisation_note(user_id, fund_category)
 
         return {
             'card_type': 'mutual_fund',
@@ -533,6 +586,9 @@ def handle_mutual_fund(fund_query: str, message: str) -> Dict[str, Any]:
                 # ── Source tag (rendered in card disclaimer) ──────────────
                 'data_source':  source,
                 'source_note':  source_note,
+
+                # ── Personalisation ───────────────────────────────────────
+                'personalisation_note': personalisation_note,
             }
         }
 
@@ -1212,7 +1268,7 @@ def route_message(message: str, user_id: int, conversation_history: list = None)
         elif intent == 'FNO_SIGNAL':
             result = handle_fno_signal(index, level, user_id)
         elif intent == 'MUTUAL_FUND':
-            result = handle_mutual_fund(fund_query, message)
+            result = handle_mutual_fund(fund_query, message, user_id=user_id)
         elif intent == 'PORTFOLIO':
             result = handle_portfolio(user_id)
         elif intent == 'BEHAVIOUR':
