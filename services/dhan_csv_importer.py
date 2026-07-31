@@ -1,15 +1,21 @@
 """
 services/dhan_csv_importer.py
 ─────────────────────────────
-Parse and import Dhan Holdings CSV exports into the Portfolio model.
+Parse and import broker Holdings CSV exports into the Portfolio model.
 
-Dhan CSV format (BOM-prefixed, all fields quoted):
+Supported formats
+-----------------
+Dhan / Groww (same schema, BOM-prefixed, all fields quoted):
   "Name","Quantity","Avg Price","Last Traded","Investment","Current Value","P&L","P&L %"
 
+Zerodha (symbol already in CSV, no name resolution required):
+  "Instrument","Qty.","Avg. cost","LTP","Invested","Cur. val","P&L","Net chg.","Day chg.",""
+
 Usage:
-  from services.dhan_csv_importer import parse_and_import_dhan_csv
-  result = parse_and_import_dhan_csv(file_obj, user_id)
-  # result = {'imported': int, 'updated': int, 'unresolved': [{'name': str, 'row': int}]}
+  from services.dhan_csv_importer import (
+      is_dhan_csv, parse_and_import_dhan_csv,
+      is_zerodha_csv, parse_and_import_zerodha_csv,
+  )
 """
 
 import csv
@@ -33,8 +39,11 @@ _SUFFIX_NOISE = re.compile(
     re.IGNORECASE,
 )
 
-# ── Expected Dhan CSV headers (lowercase, stripped) ──────────────────────────
-_DHAN_HEADERS = {'name', 'quantity', 'avg price', 'last traded', 'investment', 'current value'}
+# ── Expected CSV headers (lowercase, stripped) ───────────────────────────────
+# Dhan and Groww share the same schema
+_DHAN_HEADERS     = {'name', 'quantity', 'avg price', 'last traded', 'investment', 'current value'}
+# Zerodha uses ticker symbols directly — no name resolution required
+_ZERODHA_HEADERS  = {'instrument', 'qty.', 'avg. cost', 'ltp', 'invested', 'cur. val'}
 
 
 def _load_alias_map() -> Dict[str, str]:
@@ -104,9 +113,15 @@ def resolve_name_to_symbol(name: str) -> Tuple[Optional[str], int]:
 
 
 def is_dhan_csv(header_row: List[str]) -> bool:
-    """Return True if the header row matches the Dhan Holdings export format."""
+    """Return True if the header row matches the Dhan / Groww Holdings export format."""
     seen = {h.strip().lower() for h in header_row}
     return _DHAN_HEADERS.issubset(seen)
+
+
+def is_zerodha_csv(header_row: List[str]) -> bool:
+    """Return True if the header row matches the Zerodha Holdings export format."""
+    seen = {h.strip().lower() for h in header_row}
+    return _ZERODHA_HEADERS.issubset(seen)
 
 
 def parse_dhan_csv(file_obj) -> Tuple[List[dict], List[dict]]:
@@ -199,14 +214,90 @@ def parse_dhan_csv(file_obj) -> Tuple[List[dict], List[dict]]:
     return resolved, unresolved
 
 
-DHAN_PORTFOLIO_NAME = 'Dhan Import'
-
-
-def deactivate_removed_holdings(user_id: int, current_symbols: set) -> int:
+def parse_zerodha_csv(file_obj) -> List[dict]:
     """
-    Deactivate any active 'Dhan Import' holdings whose symbols are absent from
-    the latest snapshot (i.e. the user has sold those positions since the last
-    import).
+    Parse a Zerodha Holdings CSV file object.
+
+    Zerodha exports the NSE ticker symbol directly in the 'Instrument' column,
+    so no name-resolution step is needed.
+
+    Returns a list of dicts ready for Portfolio upsert:
+      {symbol, company_name, quantity, purchase_price, total_investment,
+       current_price, current_value}
+    """
+    raw = file_obj.read()
+    if isinstance(raw, bytes):
+        raw = raw.decode('utf-8-sig')
+    else:
+        raw = raw.lstrip('\ufeff')
+
+    reader = csv.DictReader(io.StringIO(raw))
+    fieldnames = [f.strip().strip('"').lower() for f in (reader.fieldnames or [])]
+
+    if not _ZERODHA_HEADERS.issubset(set(fieldnames)):
+        raise ValueError(
+            f"File does not look like a Zerodha Holdings CSV. "
+            f"Expected headers: {sorted(_ZERODHA_HEADERS)}. "
+            f"Got: {sorted(fieldnames)}"
+        )
+
+    resolved: List[dict] = []
+
+    for row_num, raw_row in enumerate(reader, start=2):
+        row = {k.strip().strip('"').lower(): (v or '').strip().strip('"')
+               for k, v in raw_row.items() if k}
+
+        instrument = row.get('instrument', '').strip()
+        if not instrument:
+            continue
+        # Skip repeated header rows embedded in the file
+        if instrument.lower() == 'instrument':
+            continue
+
+        def _float(key: str, default: float = 0.0) -> float:
+            try:
+                return float(row.get(key, '').replace(',', '').replace('%', ''))
+            except (ValueError, TypeError):
+                return default
+
+        quantity = _float('qty.')
+        if quantity <= 0:
+            logger.debug(f"zerodha_csv: skipping row {row_num} — zero quantity")
+            continue
+
+        purchase_price  = _float('avg. cost')
+        current_price   = _float('ltp')
+        invested        = _float('invested')
+        cur_val         = _float('cur. val')
+        symbol          = instrument.upper()
+
+        logger.info(f"zerodha_csv: importing {symbol} qty={quantity} (row {row_num})")
+
+        resolved.append({
+            'symbol':           symbol,
+            'company_name':     symbol,   # Zerodha gives ticker only; name lookup not needed
+            'quantity':         quantity,
+            'purchase_price':   purchase_price,
+            'total_investment': invested if invested > 0 else round(quantity * purchase_price, 2),
+            'current_price':    current_price,
+            'current_value':    cur_val if cur_val > 0 else round(quantity * current_price, 2),
+        })
+
+    return resolved
+
+
+DHAN_PORTFOLIO_NAME    = 'Dhan Import'
+ZERODHA_PORTFOLIO_NAME = 'Zerodha Import'
+
+
+def deactivate_removed_holdings(
+    user_id: int,
+    current_symbols: set,
+    portfolio_name: str = DHAN_PORTFOLIO_NAME,
+) -> int:
+    """
+    Deactivate any active holdings (scoped by portfolio_name) whose symbols are
+    absent from the latest snapshot — i.e. the user has sold those positions.
 
     Must be called within the same DB session as upsert_dhan_holdings so both
     operations commit atomically.
@@ -215,42 +306,47 @@ def deactivate_removed_holdings(user_id: int, current_symbols: set) -> int:
     """
     from models import ManualEquityHolding
 
-    active_dhan = ManualEquityHolding.query.filter_by(
-        user_id       = user_id,
-        portfolio_name= DHAN_PORTFOLIO_NAME,
-        is_active     = True,
+    active = ManualEquityHolding.query.filter_by(
+        user_id        = user_id,
+        portfolio_name = portfolio_name,
+        is_active      = True,
     ).all()
 
     deactivated = 0
-    for holding in active_dhan:
+    for holding in active:
         if holding.symbol not in current_symbols:
             holding.is_active = False
             deactivated += 1
             logger.info(
-                f"dhan_csv: deactivated removed holding {holding.symbol} for user {user_id}"
+                f"csv_import: deactivated removed holding {holding.symbol} "
+                f"(portfolio={portfolio_name}) for user {user_id}"
             )
     return deactivated
 
 
-def upsert_dhan_holdings(user_id: int, resolved_rows: List[dict]) -> Tuple[int, int]:
+def upsert_dhan_holdings(
+    user_id: int,
+    resolved_rows: List[dict],
+    portfolio_name: str = DHAN_PORTFOLIO_NAME,
+) -> Tuple[int, int]:
     """
     Upsert resolved rows into the ManualEquityHolding table for the given user.
     This is the model consumed by dashboard_equities — ManualEquityHolding
     (table: manual_equity_holdings).
 
     Snapshot semantics (idempotent):
-      A Dhan Holdings export represents the broker's *current aggregate position*,
+      A broker Holdings export represents the broker's *current aggregate position*,
       not an incremental transaction.  Re-uploading the same file (or an updated
       snapshot) must produce the same result — it must NOT accumulate quantities.
 
     Duplicate detection:
-      Same user_id + symbol + portfolio_name='Dhan Import' + is_active=True.
-      Scoping to portfolio_name avoids touching manually-entered holdings for the
-      same symbol.
+      Same user_id + symbol + portfolio_name + is_active=True.
+      Scoping to portfolio_name avoids touching manually-entered holdings or
+      holdings from a different broker for the same symbol.
 
     On match:  overwrite quantity, purchase_price, total_investment, current_price
                with the CSV values and recompute totals.
-    On miss:   insert a new BUY record tagged portfolio_name='Dhan Import'.
+    On miss:   insert a new BUY record tagged with portfolio_name.
 
     Returns (inserted_count, updated_count).
     """
@@ -259,20 +355,19 @@ def upsert_dhan_holdings(user_id: int, resolved_rows: List[dict]) -> Tuple[int, 
     today    = date.today()
     inserted = 0
     updated  = 0
+    label    = portfolio_name   # used in log messages and notes
 
     for row in resolved_rows:
         symbol = row['symbol']
 
-        # Scope match to Dhan-imported records only — never touch manual holdings
         existing = ManualEquityHolding.query.filter_by(
-            user_id       = user_id,
-            symbol        = symbol,
-            portfolio_name= DHAN_PORTFOLIO_NAME,
-            is_active     = True,
+            user_id        = user_id,
+            symbol         = symbol,
+            portfolio_name = portfolio_name,
+            is_active      = True,
         ).first()
 
         if existing:
-            # Snapshot replace — set to CSV values, do NOT add
             existing.quantity         = row['quantity']
             existing.purchase_price   = row['purchase_price']
             existing.total_investment = row['total_investment']
@@ -280,28 +375,27 @@ def upsert_dhan_holdings(user_id: int, resolved_rows: List[dict]) -> Tuple[int, 
             existing.company_name     = row['company_name']
             existing.calculate_totals()
             updated += 1
-            logger.info(f"dhan_csv: snapshot-updated ManualEquityHolding {symbol} for user {user_id}")
+            logger.info(f"csv_import: snapshot-updated {symbol} ({label}) for user {user_id}")
         else:
             holding = ManualEquityHolding(
                 user_id          = user_id,
                 symbol           = symbol,
                 company_name     = row['company_name'],
                 transaction_type = 'BUY',
-                purchase_date    = today,        # Dhan snapshot has no purchase date
+                purchase_date    = today,
                 quantity         = row['quantity'],
                 purchase_price   = row['purchase_price'],
                 current_price    = row['current_price'],
-                portfolio_name   = DHAN_PORTFOLIO_NAME,
-                notes            = 'Imported from Dhan Holdings CSV',
+                portfolio_name   = portfolio_name,
+                notes            = f'Imported from {label} CSV',
                 is_active        = True,
             )
             holding.calculate_totals()
             db.session.add(holding)
             inserted += 1
-            logger.info(f"dhan_csv: inserted new ManualEquityHolding {symbol} for user {user_id}")
+            logger.info(f"csv_import: inserted {symbol} ({label}) for user {user_id}")
 
-    # NOTE: caller (parse_and_import_dhan_csv) owns the commit so that
-    # upsert + deactivate are a single atomic transaction.
+    # NOTE: caller owns the commit so upsert + deactivate are one atomic transaction.
     return inserted, updated
 
 
@@ -350,7 +444,7 @@ def parse_and_import_dhan_csv(file_obj, user_id: int) -> dict:
         )
     else:
         current_symbols = {r['symbol'] for r in resolved}
-        deactivated = deactivate_removed_holdings(user_id, current_symbols)
+        deactivated = deactivate_removed_holdings(user_id, current_symbols, DHAN_PORTFOLIO_NAME)
 
     # Commit once for both operations
     from models import db
@@ -367,4 +461,48 @@ def parse_and_import_dhan_csv(file_obj, user_id: int) -> dict:
         'unresolved':             unresolved,
         'total_rows':             len(resolved) + len(unresolved),
         'reconciliation_skipped': reconciliation_skipped,
+    }
+
+
+def parse_and_import_zerodha_csv(file_obj, user_id: int) -> dict:
+    """
+    High-level entry point: parse a Zerodha Holdings CSV and sync into the DB.
+
+    Zerodha exports include the NSE ticker directly, so there are no unresolved
+    rows — every position row is imported.  Full snapshot semantics apply:
+      1. Upsert (insert / snapshot-replace) all rows.
+      2. Deactivate any previously-imported Zerodha holding absent from this
+         snapshot (i.e. the user has sold that position).
+
+    Returns:
+      {
+        'imported':    int,
+        'updated':     int,
+        'deactivated': int,
+        'unresolved':  [],        # always empty for Zerodha (symbols are direct)
+        'total_rows':  int,
+        'reconciliation_skipped': False,
+      }
+    """
+    resolved = parse_zerodha_csv(file_obj)
+
+    inserted, updated = upsert_dhan_holdings(user_id, resolved, ZERODHA_PORTFOLIO_NAME)
+
+    current_symbols = {r['symbol'] for r in resolved}
+    deactivated = deactivate_removed_holdings(user_id, current_symbols, ZERODHA_PORTFOLIO_NAME)
+
+    from models import db
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    return {
+        'imported':               inserted,
+        'updated':                updated,
+        'deactivated':            deactivated,
+        'unresolved':             [],
+        'total_rows':             len(resolved),
+        'reconciliation_skipped': False,
     }

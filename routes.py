@@ -4401,71 +4401,78 @@ def import_holdings_upload():
 
         filename = (file.filename or '').lower()
 
-        # ── Dhan Holdings CSV ─────────────────────────────────────────────────
+        # ── Broker Holdings CSV (Zerodha / Dhan / Groww) ─────────────────────
         if filename.endswith('.csv'):
             from services.dhan_csv_importer import (
-                is_dhan_csv, parse_and_import_dhan_csv
+                is_dhan_csv,     parse_and_import_dhan_csv,
+                is_zerodha_csv,  parse_and_import_zerodha_csv,
             )
             import csv, io
 
-            # Peek at the first line to check headers without consuming the stream
+            # Peek at the first line to detect the broker format
             raw_bytes = file.read()
             raw_text  = raw_bytes.decode('utf-8-sig').lstrip('\ufeff')
             first_line = raw_text.split('\n')[0]
             sample_headers = [c.strip().strip('"').lower()
                               for c in first_line.split(',')]
 
-            if is_dhan_csv(sample_headers):
-                # Wrap as file-like for the importer
+            if is_zerodha_csv(sample_headers):
+                broker_label = 'zerodha'
+                result = parse_and_import_zerodha_csv(
+                    io.BytesIO(raw_bytes),
+                    user_id=current_user.id,
+                )
+            elif is_dhan_csv(sample_headers):
+                broker_label = 'dhan_groww'
                 result = parse_and_import_dhan_csv(
                     io.BytesIO(raw_bytes),
                     user_id=current_user.id,
                 )
-                deactivated  = result.get('deactivated', 0)
-                recon_skip   = result.get('reconciliation_skipped', False)
-                msg_parts = [
-                    f"{result['imported']} holding(s) imported",
-                    f"{result['updated']} updated",
-                ]
-                if deactivated:
-                    msg_parts.append(f"{deactivated} removed position(s) hidden")
-                if result['unresolved']:
-                    msg_parts.append(f"{len(result['unresolved'])} could not be matched")
-                if recon_skip:
-                    msg_parts.append(
-                        "reconciliation skipped — fix unmatched names and re-upload to hide sold positions"
-                    )
-                # Invalidate the portfolio report cache so the next visit to
-                # /portfolio-analysis reflects the freshly-imported holdings.
-                try:
-                    from services.portfolio_intelligence import PortfolioIntelligenceEngine
-                    PortfolioIntelligenceEngine.invalidate_cache(current_user.id)
-                except Exception:
-                    pass   # non-critical; report will self-refresh after TTL
-
-                return jsonify({
-                    'success':                True,
-                    'broker':                 'dhan',
-                    'imported':               result['imported'],
-                    'updated':                result['updated'],
-                    'deactivated':            deactivated,
-                    'total_rows':             result['total_rows'],
-                    'unresolved':             result['unresolved'],
-                    'reconciliation_skipped': recon_skip,
-                    'message':                ', '.join(msg_parts),
-                    'redirect': url_for('dashboard_equities')
-                        if asset_class == 'equities' else
-                        url_for('import_holdings', asset_class=asset_class),
-                })
             else:
-                # Generic CSV — not yet supported
                 return jsonify({
                     'success': False,
                     'error':   (
                         'Unrecognised CSV format. '
-                        'Please upload a Dhan Holdings export, or use the Excel template.'
+                        'Supported exports: Zerodha Holdings, Dhan Holdings, Groww Portfolio.'
                     ),
                 }), 422
+
+            deactivated = result.get('deactivated', 0)
+            recon_skip  = result.get('reconciliation_skipped', False)
+            msg_parts = [
+                f"{result['imported']} holding(s) imported",
+                f"{result['updated']} updated",
+            ]
+            if deactivated:
+                msg_parts.append(f"{deactivated} removed position(s) hidden")
+            if result['unresolved']:
+                msg_parts.append(f"{len(result['unresolved'])} could not be matched")
+            if recon_skip:
+                msg_parts.append(
+                    "reconciliation skipped — fix unmatched names and re-upload to hide sold positions"
+                )
+            # Invalidate the portfolio report cache so the next visit to
+            # /portfolio-analysis reflects the freshly-imported holdings.
+            try:
+                from services.portfolio_intelligence import PortfolioIntelligenceEngine
+                PortfolioIntelligenceEngine.invalidate_cache(current_user.id)
+            except Exception:
+                pass   # non-critical; report will self-refresh after TTL
+
+            return jsonify({
+                'success':                True,
+                'broker':                 broker_label,
+                'imported':               result['imported'],
+                'updated':                result['updated'],
+                'deactivated':            deactivated,
+                'total_rows':             result['total_rows'],
+                'unresolved':             result['unresolved'],
+                'reconciliation_skipped': recon_skip,
+                'message':                ', '.join(msg_parts),
+                'redirect': url_for('dashboard_equities')
+                    if asset_class == 'equities' else
+                    url_for('import_holdings', asset_class=asset_class),
+            })
 
         # ── Excel / PDF — not yet implemented ─────────────────────────────────
         else:
