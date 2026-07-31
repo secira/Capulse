@@ -1,8 +1,8 @@
 """
-Financial Context Builder — Phase 1 (Live Data for LLM)
+Financial Context Builder — Global Market Data for LLM
 
-Extracts NSE tickers / index names from a user's message, fetches live quotes
-via the existing market_data_gateway, and formats the result into a
+Extracts tickers / index names from a user's message (Indian NSE + US equities
++ global indices + crypto), fetches live quotes, and formats the result into a
 [LIVE MARKET DATA] block that is prepended to Claude's system prompt.
 
 Design constraints (enforced):
@@ -11,6 +11,9 @@ Design constraints (enforced):
   (e.g. "BANK NIFTY" consumes the text; "NIFTY" is not also extracted).
 - A module-level bounded ThreadPoolExecutor (max 4 workers) is shared across
   requests, preventing thread accumulation under load.
+- Indian stocks are fetched via the market_data_gateway (NSE/Dhan/TrueData) with
+  yfinance .NS fallback; US/global/crypto symbols use yfinance directly with no
+  .NS suffix, routed via _classify_symbol().
 """
 
 import re
@@ -32,6 +35,11 @@ _IST = ZoneInfo('Asia/Kolkata')
 _ALIAS_MAP: Optional[Dict[str, str]] = None          # lowercase phrase → SYMBOL
 _ALIAS_PATTERNS: Optional[List[Tuple[re.Pattern, str]]] = None  # compiled once
 _ALIAS_LOCK = threading.Lock()
+
+# Global symbol → market type, populated when global_aliases.json is loaded.
+# Keys are yfinance symbols (e.g. "AAPL", "^GSPC", "BTC-USD").
+# Values: "us_equity" | "global_index" | "crypto"
+_GLOBAL_SYMBOLS: Dict[str, str] = {}
 
 # Index keywords → gateway symbol.
 # Sorted longest-first at load time so "BANK NIFTY" is matched before "NIFTY".
@@ -101,35 +109,83 @@ def _get_pool() -> ThreadPoolExecutor:
 # ── Alias map loader ──────────────────────────────────────────────────────────
 
 def _load_alias_patterns() -> List[Tuple[re.Pattern, str]]:
-    """Load and compile word-boundary patterns for nse_aliases.json (once)."""
-    global _ALIAS_MAP, _ALIAS_PATTERNS
+    """Load and compile word-boundary patterns from nse_aliases.json and
+    global_aliases.json (once, lazily, under a lock).
+
+    Global aliases are merged *after* NSE aliases so Indian names always win
+    when there is a conflict.  _GLOBAL_SYMBOLS is populated from the
+    market_types section of global_aliases.json.
+    """
+    global _ALIAS_MAP, _ALIAS_PATTERNS, _GLOBAL_SYMBOLS
     if _ALIAS_PATTERNS is not None:
         return _ALIAS_PATTERNS
     with _ALIAS_LOCK:
         if _ALIAS_PATTERNS is not None:
             return _ALIAS_PATTERNS
+        base = os.path.join(os.path.dirname(__file__), '..', 'static', 'data')
+
+        # ── 1. NSE aliases ────────────────────────────────────────────────
+        raw: Dict[str, str] = {}
         try:
-            path = os.path.join(
-                os.path.dirname(__file__), '..', 'static', 'data', 'nse_aliases.json'
-            )
-            with open(path, 'r', encoding='utf-8') as fh:
-                data = json.load(fh)
-            # Build lowercase phrase → symbol, then compile patterns
-            raw = {k.lower().strip(): v.upper() for k, v in data.items()}
-            _ALIAS_MAP = raw
-            # Sort longest phrase first so multi-word names match before parts
-            _ALIAS_PATTERNS = [
-                (re.compile(r'\b' + re.escape(phrase) + r'\b', re.IGNORECASE), sym)
-                for phrase, sym in sorted(raw.items(), key=lambda x: len(x[0]), reverse=True)
-            ]
-            logger.info(
-                f"financial_context_builder: compiled {len(_ALIAS_PATTERNS)} alias patterns"
-            )
+            with open(os.path.join(base, 'nse_aliases.json'), 'r', encoding='utf-8') as fh:
+                nse_data = json.load(fh)
+            raw.update({k.lower().strip(): v.upper() for k, v in nse_data.items()})
+            logger.info(f"financial_context_builder: loaded {len(raw)} NSE aliases")
         except Exception as exc:
             logger.warning(f"financial_context_builder: could not load nse_aliases.json: {exc}")
-            _ALIAS_MAP = {}
-            _ALIAS_PATTERNS = []
+
+        # ── 2. Global aliases (US equities, indices, crypto) ──────────────
+        try:
+            with open(os.path.join(base, 'global_aliases.json'), 'r', encoding='utf-8') as fh:
+                global_data = json.load(fh)
+            # Populate _GLOBAL_SYMBOLS from market_types section
+            for sym, mtype in global_data.get('market_types', {}).items():
+                _GLOBAL_SYMBOLS[sym] = mtype
+            # Merge aliases — NSE names take precedence if already present
+            for phrase, sym in global_data.get('aliases', {}).items():
+                key = phrase.lower().strip()
+                if key not in raw:          # NSE alias wins on conflict
+                    raw[key] = sym          # keep symbol as-is (may contain ^, -)
+            logger.info(
+                f"financial_context_builder: loaded {len(_GLOBAL_SYMBOLS)} global symbols"
+            )
+        except Exception as exc:
+            logger.warning(f"financial_context_builder: could not load global_aliases.json: {exc}")
+
+        _ALIAS_MAP = raw
+        # Sort longest phrase first so multi-word names match before parts
+        _ALIAS_PATTERNS = [
+            (re.compile(r'\b' + re.escape(phrase) + r'\b', re.IGNORECASE), sym)
+            for phrase, sym in sorted(raw.items(), key=lambda x: len(x[0]), reverse=True)
+        ]
+        logger.info(
+            f"financial_context_builder: compiled {len(_ALIAS_PATTERNS)} total alias patterns"
+        )
     return _ALIAS_PATTERNS
+
+
+def _classify_symbol(symbol: str) -> str:
+    """Return the market type for a symbol to determine fetch routing.
+
+    Returns one of:
+      'indian_index'  — handled by get_index_prices() (NSE indices)
+      'us_equity'     — yfinance raw symbol, no .NS suffix
+      'crypto'        — yfinance raw symbol (e.g. BTC-USD)
+      'global_index'  — yfinance raw symbol (e.g. ^GSPC, ^N225)
+      'indian'        — get_price() + yfinance with .NS suffix (default)
+    """
+    if symbol in _INDEX_SYMBOLS:
+        return 'indian_index'
+    # Check global symbol registry (populated from global_aliases.json)
+    market = _GLOBAL_SYMBOLS.get(symbol)
+    if market:
+        return market
+    # Heuristic fallbacks for symbols typed directly (e.g. bare "^GSPC" or "BTC-USD")
+    if symbol.startswith('^'):
+        return 'global_index'
+    if symbol.endswith('-USD') or symbol.endswith('-USDT'):
+        return 'crypto'
+    return 'indian'
 
 
 # ── Ticker extractor ──────────────────────────────────────────────────────────
@@ -203,7 +259,17 @@ def extract_tickers(text: str) -> List[str]:
 # ── Per-symbol quote fetcher ──────────────────────────────────────────────────
 
 def _fetch_one(symbol: str, user_id: Optional[int]) -> Tuple[str, Dict]:
-    """Fetch LTP + change% + 52w range for one symbol. Silent on failure."""
+    """Fetch LTP + change% + 52w range for one symbol. Silent on failure.
+
+    Routing:
+      - Indian NSE indices  → get_index_prices()
+      - Indian equities     → get_price() then yfinance with .NS suffix
+      - US/global/crypto    → yfinance directly (no .NS suffix)
+    """
+    # Ensure alias patterns (and _GLOBAL_SYMBOLS) are loaded before classifying
+    _load_alias_patterns()
+    market = _classify_symbol(symbol)
+
     data: Dict = {
         'symbol':      symbol,
         'ltp':         0.0,
@@ -211,10 +277,11 @@ def _fetch_one(symbol: str, user_id: Optional[int]) -> Tuple[str, Dict]:
         'week52_high': None,
         'week52_low':  None,
         'source':      'unknown',
+        'market':      market,
     }
 
-    # ── Index symbols ──────────────────────────────────────────────────────
-    if symbol in _INDEX_SYMBOLS:
+    # ── Indian NSE indices ─────────────────────────────────────────────────
+    if market == 'indian_index':
         try:
             from services.market_data_gateway import get_index_prices
             result = get_index_prices([symbol], user_id=user_id)
@@ -227,7 +294,30 @@ def _fetch_one(symbol: str, user_id: Optional[int]) -> Tuple[str, Dict]:
             logger.debug(f"ctx_builder: index {symbol}: {exc}")
         return symbol, data
 
-    # ── Equity symbol — LTP via gateway ───────────────────────────────────
+    # ── US equities / global indices / crypto → yfinance direct ───────────
+    if market in ('us_equity', 'global_index', 'crypto'):
+        try:
+            import yfinance as yf
+            fi     = yf.Ticker(symbol).fast_info
+            ltp_yf = float(getattr(fi, 'last_price',     0) or 0)
+            prev   = float(getattr(fi, 'previous_close', 0) or 0)
+            h52    = float(getattr(fi, 'year_high',      0) or 0)
+            l52    = float(getattr(fi, 'year_low',       0) or 0)
+
+            if ltp_yf > 0:
+                data['ltp']    = round(ltp_yf, 2)
+                data['source'] = 'yfinance'
+            if ltp_yf > 0 and prev > 0:
+                data['change_pct'] = round((ltp_yf - prev) / prev * 100, 2)
+            if h52 > 0:
+                data['week52_high'] = round(h52, 2)
+            if l52 > 0:
+                data['week52_low']  = round(l52, 2)
+        except Exception as exc:
+            logger.debug(f"ctx_builder: yfinance({symbol}): {exc}")
+        return symbol, data
+
+    # ── Indian equities — LTP via gateway, enriched by yfinance .NS ───────
     try:
         from services.market_data_gateway import get_price
         pr = get_price(symbol, user_id=user_id)
@@ -237,10 +327,9 @@ def _fetch_one(symbol: str, user_id: Optional[int]) -> Tuple[str, Dict]:
     except Exception as exc:
         logger.debug(f"ctx_builder: get_price({symbol}): {exc}")
 
-    # ── Enrich with yfinance fast_info (change%, 52w range) ───────────────
     try:
         import yfinance as yf
-        fi = yf.Ticker(f"{symbol}.NS").fast_info
+        fi     = yf.Ticker(f"{symbol}.NS").fast_info
         ltp_yf = float(getattr(fi, 'last_price',     0) or 0)
         prev   = float(getattr(fi, 'previous_close', 0) or 0)
         h52    = float(getattr(fi, 'year_high',      0) or 0)
@@ -253,14 +342,12 @@ def _fetch_one(symbol: str, user_id: Optional[int]) -> Tuple[str, Dict]:
         ltp = data['ltp']
         if ltp > 0 and prev > 0 and data['change_pct'] == 0.0:
             data['change_pct'] = round((ltp - prev) / prev * 100, 2)
-
         if h52 > 0:
             data['week52_high'] = round(h52, 2)
         if l52 > 0:
-            data['week52_low'] = round(l52, 2)
-
+            data['week52_low']  = round(l52, 2)
     except Exception as exc:
-        logger.debug(f"ctx_builder: yfinance fast_info({symbol}): {exc}")
+        logger.debug(f"ctx_builder: yfinance fast_info({symbol}.NS): {exc}")
 
     return symbol, data
 
@@ -316,8 +403,28 @@ def fetch_live_context(
 
 # ── Prompt block formatter ────────────────────────────────────────────────────
 
+def _market_display(market: str) -> Tuple[str, str]:
+    """Return (currency_prefix, flag_emoji) for a market type."""
+    if market in ('indian', 'indian_index'):
+        return '₹', '🇮🇳'
+    if market == 'us_equity':
+        return '$', '🇺🇸'
+    if market == 'crypto':
+        return '$', '₿'
+    if market == 'global_index':
+        return '',  '🌍'
+    return '₹', '🇮🇳'   # safe default
+
+
 def build_context_block(quotes: Dict[str, Dict]) -> str:
-    """Format fetched quotes into a compact [LIVE MARKET DATA] block."""
+    """Format fetched quotes into a compact [LIVE MARKET DATA] block.
+
+    Prices are shown with the correct currency symbol and a market flag:
+      🇮🇳 Indian equity / index  →  ₹
+      🇺🇸 US equity / ETF        →  $
+      ₿  Crypto                  →  $
+      🌍 Global index             →  (no currency — point value)
+    """
     if not quotes:
         return ''
 
@@ -329,15 +436,22 @@ def build_context_block(quotes: Dict[str, Dict]) -> str:
         chg_pct = float(d.get('change_pct', 0) or 0)
         h52     = d.get('week52_high')
         l52     = d.get('week52_low')
+        market  = d.get('market', 'indian')
 
         if ltp <= 0:
             continue
 
-        arrow   = '▲' if chg_pct > 0 else ('▼' if chg_pct < 0 else '—')
-        chg_str = f"{arrow} {abs(chg_pct):.2f}%"
-        line    = f"  • {sym}: ₹{ltp:,.2f}  {chg_str}"
+        ccy, flag = _market_display(market)
+        arrow     = '▲' if chg_pct > 0 else ('▼' if chg_pct < 0 else '—')
+        chg_str   = f"{arrow} {abs(chg_pct):.2f}%"
+        # Use comma-formatted with 2 dp; for crypto show up to 6 dp if < $1
+        if market == 'crypto' and ltp < 1:
+            price_str = f"{ccy}{ltp:.6f}"
+        else:
+            price_str = f"{ccy}{ltp:,.2f}"
+        line = f"  • {flag} {sym}: {price_str}  {chg_str}"
         if h52 and l52:
-            line += f"  |  52w: ₹{l52:,.2f} – ₹{h52:,.2f}"
+            line += f"  |  52w: {ccy}{l52:,.2f} – {ccy}{h52:,.2f}"
         lines.append(line)
 
     if len(lines) <= 1:
