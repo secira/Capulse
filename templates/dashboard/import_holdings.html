@@ -277,37 +277,80 @@ document.getElementById('csvUploadForm').addEventListener('submit', function(e) 
     .then(data => {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload &amp; Import';
+        const banner = document.getElementById('uploadResultBanner');
 
         if (data.success) {
-            let html = `<strong><i class="fas fa-check-circle me-2"></i>${data.message}</strong>`;
+            banner.className = (data.unresolved && data.unresolved.length > 0)
+                ? 'alert alert-warning' : 'alert alert-success';
+            banner.innerHTML = '';
 
-            if (data.unresolved && data.unresolved.length > 0) {
-                const names = data.unresolved.map(u =>
-                    `<li><code>${u.name}</code> (row ${u.row})</li>`
-                ).join('');
-                html += `<hr class="my-2">
-                  <strong>Could not match ${data.unresolved.length} name(s) to NSE symbols:</strong>
-                  <ul class="mb-1 mt-1">${names}</ul>
-                  <small>Add these symbols manually or ask in chat — "add SYMBOL to my portfolio".</small>`;
-                showBanner('uploadResultBanner', 'warning', html);
-            } else {
-                showBanner('uploadResultBanner', 'success', html);
+            // Safe summary line (no user-data in innerHTML)
+            const summary = document.createElement('strong');
+            summary.appendChild(document.createTextNode(
+                '\u2714\ufe0f ' + (data.message || 'Import complete')
+            ));
+            banner.appendChild(summary);
+
+            if (data.deactivated > 0) {
+                const note = document.createElement('p');
+                note.className = 'mb-0 mt-1';
+                note.textContent =
+                    data.deactivated + ' position(s) no longer in the snapshot were hidden from your portfolio.';
+                banner.appendChild(note);
             }
 
-            // Redirect to portfolio after a short delay if all rows imported
+            if (data.unresolved && data.unresolved.length > 0) {
+                const hr = document.createElement('hr');
+                hr.className = 'my-2';
+                banner.appendChild(hr);
+
+                const label = document.createElement('strong');
+                label.textContent =
+                    'Could not match ' + data.unresolved.length + ' name(s) to NSE symbols:';
+                banner.appendChild(label);
+
+                const ul = document.createElement('ul');
+                ul.className = 'mb-1 mt-1';
+                data.unresolved.forEach(u => {
+                    const li = document.createElement('li');
+                    const code = document.createElement('code');
+                    code.textContent = u.name;   // textContent — safe against XSS
+                    li.appendChild(code);
+                    li.appendChild(document.createTextNode(' (row ' + u.row + ')'));
+                    ul.appendChild(li);
+                });
+                banner.appendChild(ul);
+
+                const hint = document.createElement('small');
+                hint.textContent = 'Add these symbols manually or ask in chat — "add SYMBOL to my portfolio".';
+                banner.appendChild(hint);
+            }
+
+            banner.classList.remove('d-none');
+            banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
             if (!data.unresolved || data.unresolved.length === 0) {
                 setTimeout(() => { window.location.href = data.redirect; }, 1800);
             }
         } else {
-            showBanner('uploadResultBanner', 'danger',
-                `<strong><i class="fas fa-times-circle me-2"></i>Import failed:</strong> ${data.error}`);
+            banner.className = 'alert alert-danger';
+            banner.innerHTML = '';
+            const msg = document.createElement('span');
+            msg.textContent = 'Import failed: ' + (data.error || 'Unknown error');
+            banner.appendChild(msg);
+            banner.classList.remove('d-none');
         }
     })
     .catch(err => {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload &amp; Import';
-        showBanner('uploadResultBanner', 'danger',
-            `<strong>Network error:</strong> ${err}`);
+        const banner = document.getElementById('uploadResultBanner');
+        banner.className = 'alert alert-danger';
+        banner.innerHTML = '';
+        const msg = document.createElement('span');
+        msg.textContent = 'Network error: ' + err;
+        banner.appendChild(msg);
+        banner.classList.remove('d-none');
     });
 });
 

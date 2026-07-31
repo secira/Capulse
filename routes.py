@@ -4390,19 +4390,24 @@ def import_holdings_upload():
                     io.BytesIO(raw_bytes),
                     user_id=current_user.id,
                 )
+                deactivated = result.get('deactivated', 0)
+                msg_parts = [
+                    f"{result['imported']} holding(s) imported",
+                    f"{result['updated']} updated",
+                ]
+                if deactivated:
+                    msg_parts.append(f"{deactivated} removed position(s) hidden")
+                if result['unresolved']:
+                    msg_parts.append(f"{len(result['unresolved'])} could not be matched")
                 return jsonify({
-                    'success':    True,
-                    'broker':     'dhan',
-                    'imported':   result['imported'],
-                    'updated':    result['updated'],
-                    'total_rows': result['total_rows'],
-                    'unresolved': result['unresolved'],
-                    'message': (
-                        f"{result['imported']} holding(s) imported, "
-                        f"{result['updated']} updated"
-                        + (f", {len(result['unresolved'])} could not be matched"
-                           if result['unresolved'] else '')
-                    ),
+                    'success':     True,
+                    'broker':      'dhan',
+                    'imported':    result['imported'],
+                    'updated':     result['updated'],
+                    'deactivated': deactivated,
+                    'total_rows':  result['total_rows'],
+                    'unresolved':  result['unresolved'],
+                    'message':     ', '.join(msg_parts),
                     'redirect': url_for('dashboard_equities')
                         if asset_class == 'equities' else
                         url_for('import_holdings', asset_class=asset_class),

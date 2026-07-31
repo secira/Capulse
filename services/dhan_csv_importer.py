@@ -202,6 +202,36 @@ def parse_dhan_csv(file_obj) -> Tuple[List[dict], List[dict]]:
 DHAN_PORTFOLIO_NAME = 'Dhan Import'
 
 
+def deactivate_removed_holdings(user_id: int, current_symbols: set) -> int:
+    """
+    Deactivate any active 'Dhan Import' holdings whose symbols are absent from
+    the latest snapshot (i.e. the user has sold those positions since the last
+    import).
+
+    Must be called within the same DB session as upsert_dhan_holdings so both
+    operations commit atomically.
+
+    Returns the number of records deactivated.
+    """
+    from models import ManualEquityHolding
+
+    active_dhan = ManualEquityHolding.query.filter_by(
+        user_id       = user_id,
+        portfolio_name= DHAN_PORTFOLIO_NAME,
+        is_active     = True,
+    ).all()
+
+    deactivated = 0
+    for holding in active_dhan:
+        if holding.symbol not in current_symbols:
+            holding.is_active = False
+            deactivated += 1
+            logger.info(
+                f"dhan_csv: deactivated removed holding {holding.symbol} for user {user_id}"
+            )
+    return deactivated
+
+
 def upsert_dhan_holdings(user_id: int, resolved_rows: List[dict]) -> Tuple[int, int]:
     """
     Upsert resolved rows into the ManualEquityHolding table for the given user.
@@ -270,26 +300,29 @@ def upsert_dhan_holdings(user_id: int, resolved_rows: List[dict]) -> Tuple[int, 
             inserted += 1
             logger.info(f"dhan_csv: inserted new ManualEquityHolding {symbol} for user {user_id}")
 
-    try:
-        db.session.commit()
-    except Exception as exc:
-        db.session.rollback()
-        logger.error(f"dhan_csv: DB commit failed: {exc}")
-        raise
-
+    # NOTE: caller (parse_and_import_dhan_csv) owns the commit so that
+    # upsert + deactivate are a single atomic transaction.
     return inserted, updated
 
 
 def parse_and_import_dhan_csv(file_obj, user_id: int) -> dict:
     """
-    High-level entry point: parse a Dhan Holdings CSV and upsert into the DB.
+    High-level entry point: parse a Dhan Holdings CSV and sync into the DB.
+
+    Implements full snapshot semantics within a single transaction:
+      1. Upsert (insert / snapshot-replace) all resolved symbols.
+      2. Deactivate any previously-imported Dhan holding whose symbol is absent
+         from this snapshot — i.e. the user has sold that position.
+    The deactivation runs inside the same DB session so both steps commit or
+    roll back atomically.
 
     Returns:
       {
-        'imported':   int,             # new rows inserted
-        'updated':    int,             # existing rows updated
-        'unresolved': [{'name', 'row'}],  # names that couldn't be mapped
-        'total_rows': int,
+        'imported':    int,              # new rows inserted
+        'updated':     int,              # existing rows snapshot-replaced
+        'deactivated': int,              # removed positions deactivated
+        'unresolved':  [{'name', 'row'}],# names that couldn't be mapped
+        'total_rows':  int,
       }
     """
     resolved, unresolved = parse_dhan_csv(file_obj)
@@ -297,11 +330,25 @@ def parse_and_import_dhan_csv(file_obj, user_id: int) -> dict:
     if not resolved and not unresolved:
         raise ValueError("No data rows found in the uploaded file.")
 
+    # upsert leaves DB session open (no commit yet inside upsert)
     inserted, updated = upsert_dhan_holdings(user_id, resolved)
 
+    # Deactivate symbols absent from the latest snapshot — same transaction
+    current_symbols = {r['symbol'] for r in resolved}
+    deactivated = deactivate_removed_holdings(user_id, current_symbols)
+
+    # Commit once for both operations
+    from models import db
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        raise
+
     return {
-        'imported':   inserted,
-        'updated':    updated,
-        'unresolved': unresolved,
-        'total_rows': len(resolved) + len(unresolved),
+        'imported':    inserted,
+        'updated':     updated,
+        'deactivated': deactivated,
+        'unresolved':  unresolved,
+        'total_rows':  len(resolved) + len(unresolved),
     }

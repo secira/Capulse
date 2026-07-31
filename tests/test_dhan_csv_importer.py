@@ -260,7 +260,8 @@ class TestUpsertDhanHoldings:
         assert inserted == 1
         assert updated == 0
         mock_db.session.add.assert_called_once_with(mock_holding)
-        mock_db.session.commit.assert_called_once()
+        # commit is owned by parse_and_import_dhan_csv, not upsert_dhan_holdings
+        mock_db.session.commit.assert_not_called()
         # Verify it's going to ManualEquityHolding, not Portfolio
         MockMEH.assert_called_once()
 
@@ -294,7 +295,7 @@ class TestUpsertDhanHoldings:
         assert existing.purchase_price == 204.29
         assert existing.total_investment == 2042.90
         existing.calculate_totals.assert_called_once()
-        mock_db.session.commit.assert_called_once()
+        mock_db.session.commit.assert_not_called()  # commit owned by parse_and_import_dhan_csv
 
     def test_update_changed_snapshot_takes_latest_values(self):
         """
@@ -326,20 +327,30 @@ class TestUpsertDhanHoldings:
         assert existing.current_price    == 189.85
 
     def test_rollback_on_commit_failure(self):
-        import pytest
-        from services.dhan_csv_importer import upsert_dhan_holdings
+        """Rollback test at parse_and_import_dhan_csv level (commit lives there)."""
+        import pytest, io
+        from services.dhan_csv_importer import parse_and_import_dhan_csv
         import models as models_module
+        import services.dhan_csv_importer as m
+        m._ALIAS_MAP = None
 
         mock_db = MagicMock()
         mock_db.session.commit.side_effect = RuntimeError('db error')
+
         MockMEH = MagicMock()
         MockMEH.query.filter_by.return_value.first.return_value = None
+        MockMEH.query.filter_by.return_value.all.return_value = []
         MockMEH.return_value = self._mock_holding()
+
+        csv_bytes = _make_csv([
+            {'Name': 'Tata Steel', 'Qty': '10', 'Avg': '204.29', 'LTP': '189.85',
+             'Inv': '2042.90', 'CV': '1898.50'},
+        ])
 
         with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
              patch.object(models_module, 'db', mock_db):
             with pytest.raises(RuntimeError, match='db error'):
-                upsert_dhan_holdings(user_id=1, resolved_rows=self._rows())
+                parse_and_import_dhan_csv(csv_bytes, user_id=1)
 
         mock_db.session.rollback.assert_called_once()
 
@@ -368,6 +379,45 @@ class TestUpsertDhanHoldings:
         assert call_kwargs.get('transaction_type') == 'BUY'
         assert call_kwargs.get('portfolio_name') == 'Dhan Import'
         assert call_kwargs.get('is_active') is True
+
+    def test_deactivate_removed_holding(self):
+        """
+        Full snapshot reconciliation: a symbol present in the previous import
+        but absent from the new CSV must be deactivated — not left showing.
+        Manual holdings for the same symbol must not be touched.
+        """
+        from services.dhan_csv_importer import deactivate_removed_holdings, DHAN_PORTFOLIO_NAME
+        import models as models_module
+
+        # Two active Dhan Import holdings: TATASTEEL (still in snapshot), RELIANCE (sold)
+        h1 = MagicMock(); h1.symbol = 'TATASTEEL'; h1.is_active = True
+        h2 = MagicMock(); h2.symbol = 'RELIANCE';  h2.is_active = True
+
+        MockMEH = MagicMock()
+        MockMEH.query.filter_by.return_value.all.return_value = [h1, h2]
+
+        current_symbols = {'TATASTEEL'}   # RELIANCE is gone from new snapshot
+
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH):
+            count = deactivate_removed_holdings(user_id=1, current_symbols=current_symbols)
+
+        assert count == 1
+        assert h1.is_active is True    # still in snapshot — untouched
+        assert h2.is_active is False   # removed from snapshot — deactivated
+
+    def test_deactivate_none_when_all_present(self):
+        from services.dhan_csv_importer import deactivate_removed_holdings
+        import models as models_module
+
+        h1 = MagicMock(); h1.symbol = 'TATASTEEL'; h1.is_active = True
+        MockMEH = MagicMock()
+        MockMEH.query.filter_by.return_value.all.return_value = [h1]
+
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH):
+            count = deactivate_removed_holdings(user_id=1, current_symbols={'TATASTEEL'})
+
+        assert count == 0
+        assert h1.is_active is True
 
     def test_dhan_import_scoped_to_dhan_portfolio_name(self):
         """
