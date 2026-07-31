@@ -94,6 +94,7 @@
                 <form id="csvUploadForm" enctype="multipart/form-data">
                     <input type="hidden" name="asset_class" value="{{ asset_class }}">
                     <input type="hidden" name="file_type" value="csv">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
                     <div class="mb-3">
                         <label for="csvFile" class="form-label">Choose file</label>
@@ -134,6 +135,7 @@
                 <form id="pdfUploadForm" enctype="multipart/form-data">
                     <input type="hidden" name="asset_class" value="{{ asset_class }}">
                     <input type="hidden" name="file_type" value="pdf">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
                     <div class="mb-3">
                         <label for="pdfFile" class="form-label">Choose PDF File</label>

@@ -4360,6 +4360,13 @@ def import_holdings_upload():
     asset_class = request.form.get('asset_class', 'equities')
 
     try:
+        # CSRF check — WTF_CSRF_CHECK_DEFAULT is False so we validate manually
+        from flask_wtf.csrf import validate_csrf, ValidationError as CSRFValidationError
+        try:
+            validate_csrf(request.form.get('csrf_token'))
+        except CSRFValidationError:
+            return jsonify({'success': False, 'error': 'Invalid or missing CSRF token.'}), 403
+
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'No file uploaded'}), 400
 
