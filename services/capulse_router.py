@@ -761,8 +761,12 @@ def handle_behaviour(user_id: int) -> Dict[str, Any]:
         }
 
 
-def handle_general(message: str, conversation_history: list = None) -> Dict[str, Any]:
-    """Handle general questions using Claude for prose answers."""
+def handle_general(
+    message: str,
+    conversation_history: list = None,
+    user_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Handle general questions using Claude, grounded with live market data."""
     try:
         api_key = os.environ.get('ANTHROPIC_API_KEY', '')
         if not api_key:
@@ -778,11 +782,24 @@ def handle_general(message: str, conversation_history: list = None) -> Dict[str,
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
 
-        system = """You are Capulse, an AI research assistant for Indian retail traders and investors.
-You provide clear, factual information about Indian stocks (NSE/BSE), F&O markets, mutual funds, and trading concepts.
-You do NOT give buy/sell recommendations or tips. You explain, analyse, and educate.
-Keep answers concise and practical. Use markdown: **bold** for key terms, - bullet lists for multiple points, short paragraphs.
-Always note when something is research/education, not advice."""
+        # ── Fetch live market data for any tickers/indices in the message ────
+        live_block = ''
+        try:
+            from services.financial_context_builder import get_live_context_for_message
+            live_block = get_live_context_for_message(message, user_id=user_id)
+        except Exception as _ctx_err:
+            logger.debug(f"handle_general: live context fetch error: {_ctx_err}")
+
+        base_system = (
+            "You are Capulse, an AI research assistant for Indian retail traders and investors.\n"
+            "You provide clear, factual information about Indian stocks (NSE/BSE), F&O markets, "
+            "mutual funds, and trading concepts.\n"
+            "You do NOT give buy/sell recommendations or tips. You explain, analyse, and educate.\n"
+            "Keep answers concise and practical. Use markdown: **bold** for key terms, "
+            "- bullet lists for multiple points, short paragraphs.\n"
+            "Always note when something is research/education, not advice."
+        )
+        system = f"{live_block}\n\n{base_system}" if live_block else base_system
 
         messages = []
         if conversation_history:
@@ -947,7 +964,7 @@ def route_message(message: str, user_id: int, conversation_history: list = None)
         elif intent == 'BEHAVIOUR':
             result = handle_behaviour(user_id)
         else:
-            result = handle_general(message, conversation_history)
+            result = handle_general(message, conversation_history, user_id=user_id)
     except Exception as e:
         logger.error(f"Router dispatch error: {e}")
         result = handle_general(message, conversation_history)
