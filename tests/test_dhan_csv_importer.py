@@ -264,15 +264,20 @@ class TestUpsertDhanHoldings:
         # Verify it's going to ManualEquityHolding, not Portfolio
         MockMEH.assert_called_once()
 
-    def test_update_existing_holding(self):
+    def test_update_existing_holding_snapshot_replaces_not_accumulates(self):
+        """
+        Key idempotency test: re-importing the same CSV must overwrite existing
+        values, NOT add them. A snapshot import uploaded twice must not double
+        the quantity or investment.
+        """
         from services.dhan_csv_importer import upsert_dhan_holdings
         import models as models_module
 
         existing = self._mock_holding()
-        existing.quantity         = 5.0
-        existing.purchase_price   = 200.0
-        existing.total_investment = 1000.0
-        existing.current_price    = 190.0
+        existing.quantity         = 10.0   # same values as the CSV row
+        existing.purchase_price   = 204.29
+        existing.total_investment = 2042.90
+        existing.current_price    = 189.85
 
         mock_db = MagicMock()
         MockMEH = MagicMock()
@@ -284,9 +289,41 @@ class TestUpsertDhanHoldings:
 
         assert inserted == 0
         assert updated == 1
-        assert existing.quantity == 15.0          # 5 + 10
+        # Quantity must equal the CSV value — NOT doubled
+        assert existing.quantity == 10.0
+        assert existing.purchase_price == 204.29
+        assert existing.total_investment == 2042.90
         existing.calculate_totals.assert_called_once()
         mock_db.session.commit.assert_called_once()
+
+    def test_update_changed_snapshot_takes_latest_values(self):
+        """
+        When the broker updates the position (e.g. price changed, more shares bought),
+        the re-import should take the new CSV values — not average them in.
+        """
+        from services.dhan_csv_importer import upsert_dhan_holdings
+        import models as models_module
+
+        existing = self._mock_holding()
+        existing.quantity         = 8.0     # old value, different from CSV row (10)
+        existing.purchase_price   = 210.0
+        existing.total_investment = 1680.0
+        existing.current_price    = 195.0
+
+        mock_db = MagicMock()
+        MockMEH = MagicMock()
+        MockMEH.query.filter_by.return_value.first.return_value = existing
+
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
+             patch.object(models_module, 'db', mock_db):
+            inserted, updated = upsert_dhan_holdings(user_id=1, resolved_rows=self._rows())
+
+        assert updated == 1
+        # Should take CSV values, not old or combined
+        assert existing.quantity         == 10.0
+        assert existing.purchase_price   == 204.29
+        assert existing.total_investment == 2042.90
+        assert existing.current_price    == 189.85
 
     def test_rollback_on_commit_failure(self):
         import pytest
@@ -329,4 +366,29 @@ class TestUpsertDhanHoldings:
         call_kwargs = MockMEH.call_args[1]
         assert call_kwargs.get('symbol') == 'TATASTEEL'
         assert call_kwargs.get('transaction_type') == 'BUY'
+        assert call_kwargs.get('portfolio_name') == 'Dhan Import'
         assert call_kwargs.get('is_active') is True
+
+    def test_dhan_import_scoped_to_dhan_portfolio_name(self):
+        """
+        Duplicate detection must scope to portfolio_name='Dhan Import' only —
+        a manually-entered holding for the same symbol must not be touched.
+        """
+        from services.dhan_csv_importer import upsert_dhan_holdings, DHAN_PORTFOLIO_NAME
+        import models as models_module
+
+        # Simulate: no Dhan Import record found (manual record exists but won't match)
+        mock_db  = MagicMock()
+        MockMEH  = MagicMock()
+        MockMEH.query.filter_by.return_value.first.return_value = None
+        new_holding = self._mock_holding()
+        MockMEH.return_value = new_holding
+
+        with patch.object(models_module, 'ManualEquityHolding', MockMEH), \
+             patch.object(models_module, 'db', mock_db):
+            inserted, updated = upsert_dhan_holdings(user_id=1, resolved_rows=self._rows())
+
+        # The filter_by call must include portfolio_name scoping
+        filter_call_kwargs = MockMEH.query.filter_by.call_args[1]
+        assert filter_call_kwargs.get('portfolio_name') == DHAN_PORTFOLIO_NAME
+        assert inserted == 1

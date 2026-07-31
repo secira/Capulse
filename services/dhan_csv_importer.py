@@ -199,15 +199,28 @@ def parse_dhan_csv(file_obj) -> Tuple[List[dict], List[dict]]:
     return resolved, unresolved
 
 
+DHAN_PORTFOLIO_NAME = 'Dhan Import'
+
+
 def upsert_dhan_holdings(user_id: int, resolved_rows: List[dict]) -> Tuple[int, int]:
     """
     Upsert resolved rows into the ManualEquityHolding table for the given user.
     This is the model consumed by dashboard_equities — ManualEquityHolding
     (table: manual_equity_holdings).
 
-    Duplicate detection: same user_id + symbol + is_active=True.
-    On match: recalculate weighted-average purchase price, update totals.
-    On miss: insert a new BUY record.
+    Snapshot semantics (idempotent):
+      A Dhan Holdings export represents the broker's *current aggregate position*,
+      not an incremental transaction.  Re-uploading the same file (or an updated
+      snapshot) must produce the same result — it must NOT accumulate quantities.
+
+    Duplicate detection:
+      Same user_id + symbol + portfolio_name='Dhan Import' + is_active=True.
+      Scoping to portfolio_name avoids touching manually-entered holdings for the
+      same symbol.
+
+    On match:  overwrite quantity, purchase_price, total_investment, current_price
+               with the CSV values and recompute totals.
+    On miss:   insert a new BUY record tagged portfolio_name='Dhan Import'.
 
     Returns (inserted_count, updated_count).
     """
@@ -220,27 +233,24 @@ def upsert_dhan_holdings(user_id: int, resolved_rows: List[dict]) -> Tuple[int, 
     for row in resolved_rows:
         symbol = row['symbol']
 
+        # Scope match to Dhan-imported records only — never touch manual holdings
         existing = ManualEquityHolding.query.filter_by(
-            user_id=user_id,
-            symbol=symbol,
-            is_active=True,
+            user_id       = user_id,
+            symbol        = symbol,
+            portfolio_name= DHAN_PORTFOLIO_NAME,
+            is_active     = True,
         ).first()
 
         if existing:
-            # Weighted-average purchase price: (old_inv + new_inv) / (old_qty + new_qty)
-            old_invested = existing.total_investment or (existing.quantity * existing.purchase_price)
-            new_invested = row['total_investment']
-            new_qty      = existing.quantity + row['quantity']
-            new_avg      = (old_invested + new_invested) / new_qty if new_qty > 0 else existing.purchase_price
-
-            existing.quantity         = new_qty
-            existing.purchase_price   = round(new_avg, 4)
-            existing.total_investment = round(old_invested + new_invested, 2)
-            if row['current_price']:
-                existing.current_price = row['current_price']
-            existing.calculate_totals()   # recomputes current_value, unrealised P&L
+            # Snapshot replace — set to CSV values, do NOT add
+            existing.quantity         = row['quantity']
+            existing.purchase_price   = row['purchase_price']
+            existing.total_investment = row['total_investment']
+            existing.current_price    = row['current_price'] or existing.current_price
+            existing.company_name     = row['company_name']
+            existing.calculate_totals()
             updated += 1
-            logger.info(f"dhan_csv: updated existing ManualEquityHolding {symbol} for user {user_id}")
+            logger.info(f"dhan_csv: snapshot-updated ManualEquityHolding {symbol} for user {user_id}")
         else:
             holding = ManualEquityHolding(
                 user_id          = user_id,
@@ -251,7 +261,7 @@ def upsert_dhan_holdings(user_id: int, resolved_rows: List[dict]) -> Tuple[int, 
                 quantity         = row['quantity'],
                 purchase_price   = row['purchase_price'],
                 current_price    = row['current_price'],
-                portfolio_name   = 'Dhan Import',
+                portfolio_name   = DHAN_PORTFOLIO_NAME,
                 notes            = 'Imported from Dhan Holdings CSV',
                 is_active        = True,
             )
