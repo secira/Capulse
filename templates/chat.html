@@ -196,6 +196,7 @@
                 </div>
                 {% if d.summary %}<div class="score-foot"><b>Summary:</b> {{ d.summary }}</div>{% endif %}
               </div>
+              {% if d.get('as_of') %}<p class="disclaimer-inline" style="margin-top:4px">Score as of {{ d.as_of }} · Refreshed nightly</p>{% endif %}
               <p class="disclaimer-inline">Research output only · Not a recommendation.</p>
             {% elif ctx.get('card_type') == 'fno_signals' and ctx.get('card_data') %}
               {% set fno = ctx.card_data %}
@@ -707,6 +708,7 @@ function renderIScoreCard(d) {
     <div class="score-bars">${bars}</div>
     ${d.summary ? `<div class="score-foot"><b>Summary:</b> ${d.summary}</div>` : ''}
   </div>
+  ${d.as_of ? `<p class="disclaimer-inline" style="margin-top:4px">Score as of ${d.as_of} · Refreshed nightly</p>` : ''}
   <p class="disclaimer-inline">Research output only · Not a recommendation.</p>`;
 }
 

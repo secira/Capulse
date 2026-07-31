@@ -84,63 +84,157 @@ def classify_intent(message: str, conversation_history: list = None) -> Dict[str
         return {'intent': 'GENERAL', 'symbol': None, 'fund_query': None, 'index': None, 'level': None, 'confidence': 0.5}
 
 
-def handle_iscore(symbol: str, user_id: int) -> Dict[str, Any]:
-    """Get i-Score for a stock symbol using IScoreWorkflow."""
+def _queue_iscore_symbol(symbol: str) -> None:
+    """Add a user-requested symbol to the nightly i-Score queue stored in scheduler_state."""
     try:
-        if not symbol:
-            return {
-                'card_type': 'prose',
-                'content': "Which stock would you like an i-Score for? Try: **i-Score for Reliance**, **rate TCS**, or **score HDFC Bank**."
-            }
+        import json
+        from sqlalchemy import text
+        from app import db
+        row = db.session.execute(
+            text("SELECT value FROM scheduler_state WHERE key = 'iscore_user_queue'")
+        ).scalar()
+        queue: list = json.loads(row) if row else []
+        if symbol not in queue:
+            queue.append(symbol)
+            db.session.execute(text(
+                """
+                INSERT INTO scheduler_state (key, value, updated_at)
+                VALUES ('iscore_user_queue', :v, NOW())
+                ON CONFLICT (key) DO UPDATE SET value = :v, updated_at = NOW()
+                """
+            ), {"v": json.dumps(queue)})
+            db.session.commit()
+            logger.info(f"Queued {symbol} for nightly i-Score batch")
+    except Exception as exc:
+        logger.warning(f"Could not queue i-Score symbol {symbol}: {exc}")
 
-        from services.workflow_iscore import IScoreWorkflow
-        wf = IScoreWorkflow()
-        result = wf.calculate_iscore(symbol.upper(), 'stocks', user_id)
 
-        res = result.get('results', {})
-        overall_score = res.get('overall_score') or 0
-        recommendation = res.get('recommendation', 'HOLD')
-        summary = res.get('recommendation_summary', '')
+def handle_iscore(symbol: str, user_id: int) -> Dict[str, Any]:
+    """Serve i-Score from DB — never runs analysis inline.
 
-        # Build component breakdown (quant 50%, qual 15%, sentiment 10%, trend 25%)
-        components = {}
-        for label, key in [('Quantitative', 'quantitative'), ('Trend', 'trend'),
-                           ('Qualitative', 'qualitative'), ('Sentiment', 'search')]:
-            s = (res.get(key) or {}).get('score')
-            if s is not None:
-                components[label] = round(float(s))
+    Priority order:
+      1. ResearchCache  — richer payload, written by both nightly engine and
+                         the old inline workflow (legacy rows still useful).
+      2. ResearchList   — written exclusively by the nightly batch; has flat
+                         component scores.
+    If nothing is found the symbol is queued for tonight's nightly run.
+    """
+    if not symbol:
+        return {
+            'card_type': 'prose',
+            'content': "Which stock would you like an i-Score for? Try: **i-Score for Reliance**, **rate TCS**, or **score HDFC Bank**."
+        }
 
-        if overall_score > 0:
+    sym = symbol.upper()
+
+    try:
+        from models import ResearchCache, ResearchList
+        from app import db
+
+        # ── 1. ResearchCache — most-recent entry, any date ──────────────────
+        cached = (
+            ResearchCache.query
+            .filter_by(symbol=sym, asset_type='stocks', is_valid=True)
+            .order_by(ResearchCache.analysis_date.desc())
+            .first()
+        )
+        if cached and cached.result_payload:
+            payload = cached.result_payload
+            overall_score = float(
+                payload.get('overall_score') or payload.get('iscore') or 0
+            )
+            if overall_score > 0:
+                recommendation = payload.get('recommendation', 'HOLD')
+                summary       = payload.get('recommendation_summary', '')
+                as_of = (
+                    cached.analysis_date.strftime('%d %b %Y')
+                    if cached.analysis_date else ''
+                )
+                # Component scores: nightly stores flat keys; workflow stores nested
+                components: Dict[str, int] = {}
+                for label, key in [
+                    ('Quantitative', 'quantitative'),
+                    ('Trend',        'trend'),
+                    ('Qualitative',  'qualitative'),
+                    ('Sentiment',    'search'),
+                ]:
+                    flat = payload.get(f'{key}_score')
+                    if flat is not None:
+                        components[label] = round(float(flat))
+                    elif isinstance(payload.get(key), dict):
+                        s = payload[key].get('score')
+                        if s is not None:
+                            components[label] = round(float(s))
+
+                try:
+                    cached.hit_count = (cached.hit_count or 0) + 1
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+
+                return {
+                    'card_type': 'iscore',
+                    'content': (
+                        f"Here's the i-Score for **{sym}** (as of {as_of}):"
+                        if as_of else f"Here's the i-Score for **{sym}**:"
+                    ),
+                    'card_data': {
+                        'symbol':         sym,
+                        'score':          round(overall_score, 1),
+                        'components':     components,
+                        'recommendation': recommendation,
+                        'summary':        summary,
+                        'as_of':          as_of,
+                    }
+                }
+
+        # ── 2. ResearchList — nightly batch result ───────────────────────────
+        rl = ResearchList.query.filter_by(symbol=sym, is_active=True).first()
+        if rl and rl.i_score and float(rl.i_score) > 0:
+            as_of = (
+                rl.last_computed_at.strftime('%d %b %Y')
+                if rl.last_computed_at else ''
+            )
+            components = {}
+            for label, attr in [
+                ('Quantitative', 'quantitative_score'),
+                ('Trend',        'trend_score'),
+                ('Qualitative',  'qualitative_score'),
+                ('Sentiment',    'search_score'),
+            ]:
+                val = getattr(rl, attr, None)
+                if val is not None:
+                    components[label] = round(float(val))
+
             return {
                 'card_type': 'iscore',
-                'content': f"Here's the current i-Score for **{symbol.upper()}**:",
+                'content': (
+                    f"Here's the i-Score for **{sym}** (as of {as_of}):"
+                    if as_of else f"Here's the i-Score for **{sym}**:"
+                ),
                 'card_data': {
-                    'symbol': symbol.upper(),
-                    'score': round(overall_score, 1),
-                    'components': components,
-                    'recommendation': recommendation,
-                    'summary': summary,
+                    'symbol':         sym,
+                    'score':          round(float(rl.i_score), 1),
+                    'components':     components,
+                    'recommendation': rl.recommendation or 'HOLD',
+                    'summary':        rl.recommendation_summary or '',
+                    'as_of':          as_of,
                 }
             }
 
-        return {
-            'card_type': 'prose',
-            'content': (
-                f"I couldn't compute an i-Score for **{symbol.upper()}** right now — "
-                f"price data may be temporarily unavailable. "
-                f"Check the ticker is correct (e.g. RELIANCE, TCS, HDFCBANK) and try again."
-            )
-        }
+    except Exception as exc:
+        logger.error(f"i-Score DB read error for {sym}: {exc}", exc_info=True)
 
-    except Exception as e:
-        logger.error(f"i-Score error for {symbol}: {e}", exc_info=True)
-        return {
-            'card_type': 'prose',
-            'content': (
-                f"The i-Score engine hit an error for **{symbol.upper()}**. "
-                f"Please try again in a moment."
-            )
-        }
+    # ── 3. Not in DB — queue for tonight's nightly run ──────────────────────
+    _queue_iscore_symbol(sym)
+    return {
+        'card_type': 'prose',
+        'content': (
+            f"The i-Score for **{sym}** hasn't been computed yet — it's been added "
+            f"to tonight's analysis queue and will be ready by tomorrow morning. "
+            f"Try: **i-Score for RELIANCE**, **rate TCS**, or **score HDFCBANK**."
+        )
+    }
 
 
 def handle_fno_signal(index: str, level: Optional[float], user_id: int) -> Dict[str, Any]:

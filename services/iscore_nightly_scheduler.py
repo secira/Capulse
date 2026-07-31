@@ -273,6 +273,71 @@ def run_pending_iscore_batch(app, batch_jobs: dict, mode: str = "pending",
 
 
 # ── Wrapper used by APScheduler ───────────────────────────────────────────
+def _process_user_queue(app) -> tuple[int, int]:
+    """Score any symbols users requested that aren't yet in the DB.
+
+    Reads 'iscore_user_queue' from scheduler_state, clears it atomically,
+    then runs LangGraphIScoreEngine on each symbol.
+    Returns (success_count, error_count).
+    """
+    import json
+    from sqlalchemy import text
+
+    success = error = 0
+    try:
+        with app.app_context():
+            from app import db
+            row = db.session.execute(
+                text("SELECT value FROM scheduler_state WHERE key = 'iscore_user_queue'")
+            ).scalar()
+            queue: list = json.loads(row) if row else []
+            if not queue:
+                return 0, 0
+
+            # Clear the queue immediately — prevent double-processing on restart
+            db.session.execute(text(
+                "INSERT INTO scheduler_state (key, value, updated_at) "
+                "VALUES ('iscore_user_queue', '[]', NOW()) "
+                "ON CONFLICT (key) DO UPDATE SET value = '[]', updated_at = NOW()"
+            ))
+            db.session.commit()
+            logger.info(f"User-queue: processing {len(queue)} requested symbols: {queue}")
+
+            try:
+                from services.langgraph_iscore_engine import LangGraphIScoreEngine
+                engine = LangGraphIScoreEngine()
+            except Exception as exc:
+                logger.error(f"User-queue engine init failed: {exc}")
+                return 0, len(queue)
+
+            for sym in queue:
+                try:
+                    result = engine.analyze(
+                        asset_type='stocks',
+                        symbol=sym,
+                        user_id=1,
+                        asset_name=sym,
+                    )
+                    if result and result.get('success'):
+                        logger.info(f"User-queue ✓ {sym}: {result.get('iscore', 0):.1f}")
+                        success += 1
+                    else:
+                        logger.warning(
+                            f"User-queue ✗ {sym}: {(result or {}).get('error', 'no result')}"
+                        )
+                        error += 1
+                except Exception as exc:
+                    logger.error(f"User-queue error for {sym}: {exc}")
+                    error += 1
+                finally:
+                    time.sleep(1.5)   # polite delay — same as main batch
+
+    except Exception as exc:
+        logger.error(f"User-queue processing crashed: {exc}", exc_info=True)
+
+    return success, error
+
+
 def _nightly_job(app):
     """Cron entry point — runs the stale-refresh batch and updates _state."""
     if _state["currently_running"]:
@@ -310,6 +375,14 @@ def _nightly_job(app):
             f"{job.get('success', 0)}✓ / {job.get('errors', 0)}✗ of {job.get('total', 0)} stocks "
             f"(stale>{STALE_DAYS_THRESHOLD}d, cap={NIGHTLY_BATCH_LIMIT})"
         )
+
+        # ── Process any user-requested symbols that aren't in ResearchList ──
+        uq_ok, uq_err = _process_user_queue(app)
+        if uq_ok or uq_err:
+            logger.info(f"User-queue done: {uq_ok}✓ / {uq_err}✗")
+            _state["last_run_success"] += uq_ok
+            _state["last_run_errors"]  += uq_err
+
     except Exception as e:
         _state["last_run_status"] = "failed"
         logger.error(f"Nightly I-Score batch crashed: {e}", exc_info=True)
