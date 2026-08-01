@@ -10,7 +10,6 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
 import openai
-import requests
 from sqlalchemy import text
 from models import (ResearchConversation, ResearchMessage, VectorDocument, 
                    SourceCitation, Portfolio, User,
@@ -25,23 +24,13 @@ class ResearchAssistantService:
     
     def __init__(self):
         self.openai_api_key = os.environ.get('OPENAI_API_KEY')
-        self.perplexity_api_key = os.environ.get('PERPLEXITY_API_KEY')
-        self.anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY')
-        self.perplexity_base_url = "https://api.perplexity.ai/chat/completions"
-
-        # Initialize OpenAI for embeddings
+        # Initialize OpenAI for embeddings (not LLM chat — that goes via llm_client)
         if self.openai_api_key:
             openai.api_key = self.openai_api_key
             logger.info("OpenAI API initialized for embeddings")
         else:
             logger.warning("OPENAI_API_KEY not found - embeddings will be limited")
 
-        if not self.perplexity_api_key:
-            if self.anthropic_api_key:
-                logger.info("PERPLEXITY_API_KEY not set — research calls will use Claude (Anthropic).")
-            else:
-                logger.warning("Neither PERPLEXITY_API_KEY nor ANTHROPIC_API_KEY set - web research will be limited")
-            
         self.system_prompt = self._get_system_prompt()
     
     def _get_system_prompt(self) -> str:
@@ -321,74 +310,18 @@ Provide comprehensive research with:
 
 Format stock data in a table with: Stock Name | Symbol | Current Price (₹) | Market Cap | P/E Ratio | Risk Level"""
 
-            # Try Perplexity first if key available
-            if self.perplexity_api_key:
-                headers = {
-                    'Authorization': f'Bearer {self.perplexity_api_key}',
-                    'Content-Type': 'application/json'
-                }
-                payload = {
-                    'model': 'sonar-pro',
-                    'messages': [
-                        {'role': 'system', 'content': self.system_prompt},
-                        {'role': 'user', 'content': full_prompt}
-                    ],
-                    'temperature': 0.1,
-                    'max_tokens': 3000,
-                    'search_recency_filter': 'day',
-                    'return_citations': True,
-                }
-                max_retries = 2
-                retry_count = 0
-                last_error = None
-
-                while retry_count <= max_retries:
-                    try:
-                        response = requests.post(
-                            self.perplexity_base_url,
-                            headers=headers,
-                            json=payload,
-                            timeout=60
-                        )
-                        break  # Success, exit retry loop
-                    except requests.exceptions.Timeout:
-                        retry_count += 1
-                        last_error = "API request timed out"
-                        logger.warning(f"Perplexity timeout (attempt {retry_count}/{max_retries + 1})")
-                        if retry_count > max_retries:
-                            break
-                        continue
-
-                if not last_error and response.status_code == 200:
-                    data = response.json()
-                    answer = data['choices'][0]['message']['content']
-                    import re
-                    urls = re.findall(r'https?://[^\s\)]+', answer)
-                    citations = [
-                        {'source_type': 'web', 'source_title': 'Web Source',
-                         'source_url': u, 'relevance_score': None}
-                        for u in urls[:5]
-                    ]
-                    logger.info(f"Perplexity research completed with {len(citations)} citations")
-                    return answer, citations
-                else:
-                    logger.warning(f"Perplexity unavailable (status={getattr(response, 'status_code', 'N/A')}) — falling through to Claude")
-
-            # LLM fallback (primary when Perplexity unavailable)
-            try:
-                from services.llm_client import get_llm_client, Model
-                llm    = get_llm_client()
-                answer = llm.chat(
-                    [{'role': 'user', 'content': full_prompt}],
-                    system=self.system_prompt,
-                    max_tokens=3000,
-                    model=Model.SMART,
-                )
-                if answer:
-                    logger.info("Research completed via LLM client")
-                    return answer, []
-            except Exception as _llm_err:
-                logger.warning(f"LLM fallback failed: {_llm_err}")
+            # Claude primary → OpenAI fallback via llm_client
+            from services.llm_client import get_llm_client, Model
+            llm    = get_llm_client()
+            answer = llm.chat(
+                [{'role': 'user', 'content': full_prompt}],
+                system=self.system_prompt,
+                max_tokens=3000,
+                model=Model.SMART,
+            )
+            if answer:
+                logger.info("Research completed via LLM client")
+                return answer, []
 
             return ("AI research service is currently unavailable. Please try again shortly.", [])
 

@@ -2,11 +2,12 @@
 LLM Client — provider-agnostic interface for all AI language model calls.
 ═══════════════════════════════════════════════════════════════════════════
 
-Phase 1: Anthropic (Claude) backend (default).
-Phase 2: Swap to Capulse's own LLM by:
-  1. Adding a new class that extends LLMClient and implements chat().
-  2. Registering it in _BACKENDS below.
-  3. Setting LLM_PROVIDER=<key> in the environment.
+Default provider: Claude (primary) → OpenAI GPT-4o (automatic fallback).
+
+Set LLM_PROVIDER env var to switch providers:
+  - 'anthropic'  Claude primary, OpenAI fallback (default)
+  - 'openai'     OpenAI only, no fallback
+  - 'capulse'    Capulse self-hosted model (register CapulseLLMBackend first)
 
 Usage (same everywhere in the codebase):
 ──────────────────────────────────────────
@@ -66,7 +67,7 @@ class Model:
     SMART = 'smart'  # Full-quality: analysis, narrative, research, long output
 
 
-# ── Abstract interface ─────────────────────────────────────────────────────────
+# ── Abstract interface ────────────────────────────────────────────────────────
 
 class LLMClient(abc.ABC):
     """Provider-agnostic interface. Backends only need to implement chat()."""
@@ -130,13 +131,11 @@ class LLMClient(abc.ABC):
             return {}
 
 
-# ── Anthropic backend ─────────────────────────────────────────────────────────
+# ── Anthropic (Claude) backend ────────────────────────────────────────────────
 
 class AnthropicBackend(LLMClient):
     """Claude backend — delegates to AnthropicService for retry / fallback logic."""
 
-    # Map generic aliases to Anthropic model IDs.
-    # Update here when Anthropic releases new models; call sites stay unchanged.
     _MODEL_MAP: Dict[str, str] = {
         Model.FAST:  'claude-haiku-4-5',
         Model.SMART: 'claude-sonnet-4-5',
@@ -170,11 +169,106 @@ class AnthropicBackend(LLMClient):
         return resp.get('text', '') or ''
 
 
+# ── OpenAI (ChatGPT) backend ──────────────────────────────────────────────────
+
+class OpenAIBackend(LLMClient):
+    """OpenAI GPT backend — secondary provider / explicit OpenAI-only mode."""
+
+    _MODEL_MAP: Dict[str, str] = {
+        Model.FAST:  'gpt-4o-mini',
+        Model.SMART: 'gpt-4o',
+    }
+
+    def _resolve_model(self, model: Optional[str]) -> str:
+        if model is None:
+            return self._MODEL_MAP[Model.SMART]
+        return self._MODEL_MAP.get(model, model)
+
+    def chat(
+        self,
+        messages: List[Dict[str, str]],
+        *,
+        system: Optional[str] = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.3,
+        model: Optional[str] = None,
+    ) -> str:
+        api_key = os.environ.get('OPENAI_API_KEY', '')
+        if not api_key:
+            raise RuntimeError('OPENAI_API_KEY is not set — cannot use OpenAI backend')
+        import openai as _oai
+        client = _oai.OpenAI(api_key=api_key)
+        oai_messages: List[Dict[str, str]] = []
+        if system:
+            oai_messages.append({'role': 'system', 'content': system})
+        oai_messages.extend(messages)
+        resp = client.chat.completions.create(
+            model=self._resolve_model(model),
+            messages=oai_messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return resp.choices[0].message.content or ''
+
+
+# ── Claude-primary with OpenAI fallback (default) ────────────────────────────
+
+class ClaudeWithOpenAIFallback(LLMClient):
+    """Primary: Claude (Anthropic).  Automatic fallback: OpenAI GPT-4o.
+
+    On any exception from Claude (rate-limit, outage, missing key) the same
+    request is retried once against OpenAI before propagating the error.
+    Set OPENAI_API_KEY to enable the fallback; if the key is absent the
+    fallback silently re-raises the Claude error.
+    """
+
+    def __init__(self):
+        self._claude = AnthropicBackend()
+        self._openai = OpenAIBackend()
+
+    def chat(
+        self,
+        messages: List[Dict[str, str]],
+        *,
+        system: Optional[str] = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.3,
+        model: Optional[str] = None,
+    ) -> str:
+        try:
+            result = self._claude.chat(
+                messages, system=system, max_tokens=max_tokens,
+                temperature=temperature, model=model,
+            )
+            if result:
+                return result
+            raise ValueError('empty response from Claude')
+        except Exception as claude_err:
+            if not os.environ.get('OPENAI_API_KEY'):
+                raise  # no point trying OpenAI without a key
+            logger.warning(
+                f'llm_client: Claude failed ({claude_err!r}); '
+                f'retrying with OpenAI fallback.'
+            )
+            try:
+                return self._openai.chat(
+                    messages, system=system, max_tokens=max_tokens,
+                    temperature=temperature, model=model,
+                )
+            except Exception as oai_err:
+                logger.error(
+                    f'llm_client: OpenAI fallback also failed ({oai_err!r}). '
+                    f'Both providers unavailable.'
+                )
+                raise
+
+
 # ── Registry & factory ────────────────────────────────────────────────────────
 
 _BACKENDS: Dict[str, type] = {
-    'anthropic': AnthropicBackend,
-    # 'capulse': CapulseLLMBackend,   ← register here when ready
+    'anthropic': ClaudeWithOpenAIFallback,  # Claude primary, OpenAI auto-fallback
+    'openai':    OpenAIBackend,             # OpenAI only (no Claude)
+    # 'capulse': CapulseLLMBackend,         # register here when ready
 }
 
 
@@ -182,15 +276,15 @@ def get_llm_client() -> LLMClient:
     """Return a ready-to-use LLMClient for the configured provider.
 
     Reads LLM_PROVIDER from the environment (default: 'anthropic').
-    Falls back to AnthropicBackend and logs a warning for unknown values.
+    Falls back to ClaudeWithOpenAIFallback and logs a warning for unknown values.
     """
     provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower().strip()
     backend_cls = _BACKENDS.get(provider)
     if backend_cls is None:
         logger.warning(
             f"llm_client: unknown LLM_PROVIDER={provider!r}; "
-            f"falling back to 'anthropic'. "
+            f"falling back to 'anthropic' (Claude + OpenAI). "
             f"Known providers: {list(_BACKENDS)}"
         )
-        backend_cls = AnthropicBackend
+        backend_cls = ClaudeWithOpenAIFallback
     return backend_cls()

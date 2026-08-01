@@ -18,26 +18,8 @@ class InvestmentChatbot:
     """AI-Powered Investment Chatbot using Claude (Anthropic)"""
 
     def __init__(self):
-        self._perplexity_api_key = None
-        self._anthropic_api_key = None
         self._initialized = False
         self._system_prompt = None
-
-    @property
-    def perplexity_api_key(self):
-        """Lazy-load Perplexity key (kept for backward compat; Claude is now primary)."""
-        if self._perplexity_api_key is None:
-            self._perplexity_api_key = os.environ.get('PERPLEXITY_API_KEY')
-        return self._perplexity_api_key
-
-    @property
-    def anthropic_api_key(self):
-        """Lazy-load Anthropic API key."""
-        if self._anthropic_api_key is None:
-            self._anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY')
-            if not self._anthropic_api_key:
-                logger.warning("ANTHROPIC_API_KEY not found - chatbot features will be limited")
-        return self._anthropic_api_key
 
     @property
     def system_prompt(self):
@@ -45,10 +27,6 @@ class InvestmentChatbot:
         if self._system_prompt is None:
             self._system_prompt = self._get_system_prompt()
         return self._system_prompt
-
-    def _initialize_perplexity_api(self):
-        """No-op — kept for backward compatibility."""
-        pass
             
     def _get_system_prompt(self) -> str:
         """Get the system prompt for the AI investment chatbot"""
