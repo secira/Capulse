@@ -195,16 +195,13 @@ Remember: You provide educational insights, not guaranteed investment advice."""
                          user_message: str,
                          conversation: ChatConversation,
                          user_context: Optional[Dict] = None) -> Tuple[str, Dict]:
-        """Generate AI response using Claude (Anthropic)."""
-        if not self.anthropic_api_key:
-            return "I'm sorry, the AI service is temporarily unavailable. Please try again later.", {}
-
+        """Generate AI response via the LLM client (provider-agnostic)."""
         start_time = time.time()
 
         try:
-            import anthropic as _ant
+            from services.llm_client import get_llm_client, Model
 
-            # Build conversation history for Claude
+            # Build conversation history
             system_parts = [self.system_prompt]
             if user_context:
                 ctx_msg = self._format_context_message(user_context)
@@ -243,7 +240,7 @@ Remember: You provide educational insights, not guaranteed investment advice."""
 
             conversation_messages.append({"role": "user", "content": final_user_msg})
 
-            # Ensure alternating roles required by Claude (no consecutive same-role messages)
+            # Ensure alternating roles (no consecutive same-role messages)
             cleaned_messages = []
             for m in conversation_messages:
                 role = "user" if m["role"] == "user" else "assistant"
@@ -252,21 +249,16 @@ Remember: You provide educational insights, not guaranteed investment advice."""
                 else:
                     cleaned_messages.append({"role": role, "content": m["content"]})
 
-            client = _ant.Anthropic(api_key=self.anthropic_api_key)
-            response = client.messages.create(
-                model='claude-sonnet-4-5',
-                max_tokens=1000,
-                system=system_text,
-                messages=cleaned_messages,
-            )
-            ai_response = response.content[0].text if response.content else ''
+            llm         = get_llm_client()
+            ai_response = llm.chat(cleaned_messages, system=system_text,
+                                   max_tokens=1000, model=Model.SMART)
             processing_time = time.time() - start_time
             usage_info = {
-                'tokens_used': (response.usage.input_tokens or 0) + (response.usage.output_tokens or 0),
+                'tokens_used': 0,   # token count not surfaced by LLMClient interface
                 'processing_time': processing_time,
-                'model': 'claude-sonnet-4-5'
+                'model': 'llm_client',
             }
-            logger.info(f"Generated Claude response in {processing_time:.2f}s using {usage_info['tokens_used']} tokens")
+            logger.info(f"Generated LLM response in {processing_time:.2f}s")
             return ai_response, usage_info
 
         except Exception as e:

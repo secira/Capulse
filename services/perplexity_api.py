@@ -50,23 +50,16 @@ class PerplexityAPI:
                     last_role = msg_role
         messages.append({"role": "user", "content": user_message})
 
-        # ── Claude is the primary AI provider ────────────────────────────────
-        if self.anthropic_api_key:
-            try:
-                import anthropic as _ant
-                client = _ant.Anthropic(api_key=self.anthropic_api_key)
-                msg = client.messages.create(
-                    model='claude-sonnet-4-5',
-                    max_tokens=1000,
-                    system=system_content,
-                    messages=messages,
-                )
-                content = msg.content[0].text if msg.content else ''
-                tokens = (msg.usage.input_tokens or 0) + (msg.usage.output_tokens or 0)
-                logger.info(f"Claude API call successful. Tokens: {tokens}")
-                return content, {'total_tokens': tokens, 'model': 'claude-sonnet-4-5'}
-            except Exception as e:
-                logger.error(f"Claude API error: {e}")
+        # ── LLM client (provider-agnostic) ───────────────────────────────────
+        try:
+            from services.llm_client import get_llm_client, Model
+            llm     = get_llm_client()
+            content = llm.chat(messages, system=system_content,
+                               max_tokens=1000, model=Model.SMART)
+            logger.info("LLM API call successful")
+            return content, {'model': 'llm_client'}
+        except Exception as e:
+            logger.error(f"LLM API error: {e}")
 
         return (
             "I'm experiencing technical difficulties. Please try again shortly.",

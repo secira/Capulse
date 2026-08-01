@@ -123,27 +123,23 @@ class PerplexityService:
         return ""
 
     def _call_claude_api(self, prompt: str) -> Optional[str]:
-        """Call Anthropic Claude as the primary AI provider."""
+        """Call the LLM client (provider-agnostic) as the primary AI provider."""
         try:
-            import anthropic
-            api_key = self.claude_key or os.environ.get('ANTHROPIC_API_KEY', '')
-            if not api_key:
-                self.logger.warning("ANTHROPIC_API_KEY not set")
-                return None
-            client = anthropic.Anthropic(api_key=api_key)
-            msg = client.messages.create(
-                model='claude-sonnet-4-5',
-                max_tokens=1500,
+            from services.llm_client import get_llm_client, Model
+            llm  = get_llm_client()
+            text = llm.chat(
+                [{'role': 'user', 'content': prompt}],
                 system=(
                     "You are an expert financial analyst specializing in Indian stock markets (NSE/BSE). "
                     "Provide comprehensive, data-driven analysis with specific numbers and ratios. "
                     "Use ₹ for currency. Be concise and actionable."
                 ),
-                messages=[{'role': 'user', 'content': prompt}],
+                max_tokens=1500,
+                model=Model.SMART,
             )
-            return msg.content[0].text if msg.content else None
+            return text or None
         except Exception as e:
-            self.logger.error(f"Claude API error: {e}")
+            self.logger.error(f"LLM API error: {e}")
             return None
 
     def _call_perplexity_api(self, prompt: str, model: str = "sonar") -> Optional[Dict[str, Any]]:

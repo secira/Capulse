@@ -193,15 +193,11 @@ class AgenticAICoordinator:
             return self._fallback_reasoning(market_data, historical_patterns)
     
     def _act_with_perplexity_research(self, symbol: str) -> Dict[str, Any]:
-        """Research stock using Claude (Anthropic) — previously used Perplexity."""
+        """Research stock via the LLM client (provider-agnostic)."""
         try:
-            import anthropic
-            api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-            if not api_key:
-                logger.warning("ANTHROPIC_API_KEY not available, using fallback research")
-                return self._fallback_research(symbol)
+            from services.llm_client import get_llm_client, Model
 
-            # Inject live price from Dhan/NSE so Claude doesn't guess
+            # Inject live price so the LLM doesn't have to guess
             live_price_str = ""
             try:
                 from services.market_data_gateway import get_price as _gp
@@ -223,29 +219,28 @@ class AgenticAICoordinator:
                 f"Be concise and use ₹ for currency."
                 f"{live_price_str}"
             )
-            client = anthropic.Anthropic(api_key=api_key)
-            msg = client.messages.create(
-                model='claude-sonnet-4-5',
-                max_tokens=800,
+            llm              = get_llm_client()
+            research_content = llm.chat(
+                [{'role': 'user', 'content': query}],
                 system=(
                     "You are a market research specialist covering Indian equities (NSE/BSE). "
                     "Provide factual, data-driven analysis relevant to trading decisions."
                 ),
-                messages=[{'role': 'user', 'content': query}],
+                max_tokens=800,
+                model=Model.SMART,
             )
-            research_content = msg.content[0].text if msg.content else ''
             if research_content:
                 return {
                     "research_summary": research_content,
                     "citations": [],
-                    "research_source": "claude_ai",
+                    "research_source": "llm_client",
                     "research_timestamp": datetime.now(timezone.utc).isoformat(),
                     "key_findings": self._extract_key_findings(research_content)
                 }
             return self._fallback_research(symbol)
 
         except Exception as e:
-            logger.error(f"Claude research failed for {symbol}: {str(e)}")
+            logger.error(f"LLM research failed for {symbol}: {str(e)}")
             return self._fallback_research(symbol)
     
     def _adapt_strategy(self, symbol: str, reasoning_analysis: Dict[str, Any], current_research: Dict[str, Any]) -> Dict[str, Any]:

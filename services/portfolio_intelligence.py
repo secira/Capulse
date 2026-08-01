@@ -645,8 +645,8 @@ class PortfolioIntelligenceEngine:
                                 missing_sectors: List[str],
                                 holding_cards: List[Dict],
                                 memory: Dict) -> Dict:
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
-        if not api_key:
+        # Guard: skip if no LLM is reachable (no API key configured)
+        if not os.environ.get('ANTHROPIC_API_KEY') and not os.environ.get('LLM_PROVIDER'):
             return self._fallback_narrative(holding_cards, missing_sectors,
                                             sub_scores, pi_score, snapshot)
 
@@ -691,19 +691,19 @@ class PortfolioIntelligenceEngine:
         )
 
         try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=api_key)
-            resp = client.messages.create(
-                model='claude-haiku-4-5',
+            from services.llm_client import get_llm_client, Model
+            llm    = get_llm_client()
+            result = llm.structured_output(
+                [{'role': 'user', 'content': prompt}],
                 max_tokens=1400,
-                messages=[{'role': 'user', 'content': prompt}]
+                temperature=0.2,
+                model=Model.FAST,
             )
-            raw = resp.content[0].text.strip()
-            raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.IGNORECASE)
-            raw = re.sub(r'\s*```$', '', raw.strip())
-            return json.loads(raw)
+            if result:
+                return result
+            raise ValueError('empty structured_output')
         except Exception as exc:
-            logger.warning(f"portfolio_intelligence: Claude call failed: {exc}")
+            logger.warning(f"portfolio_intelligence: LLM call failed: {exc}")
             return self._fallback_narrative(holding_cards, missing_sectors,
                                             sub_scores, pi_score, snapshot)
 

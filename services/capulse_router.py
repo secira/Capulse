@@ -43,16 +43,13 @@ Respond with ONLY valid JSON:
 
 def classify_intent(message: str, conversation_history: list = None) -> Dict[str, Any]:
     """
-    Classify user message intent using Claude haiku.
+    Classify user message intent via the LLM client (provider-agnostic).
     Falls back to GENERAL if classification fails.
     """
+    _default = {'intent': 'GENERAL', 'symbol': None, 'fund_query': None,
+                 'index': None, 'level': None, 'confidence': 0.5}
     try:
-        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-        if not api_key:
-            return {'intent': 'GENERAL', 'symbol': None, 'fund_query': None, 'index': None, 'level': None, 'confidence': 0.5}
-
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
+        from services.llm_client import get_llm_client, Model
 
         # Build context from recent history
         context = ''
@@ -61,29 +58,22 @@ def classify_intent(message: str, conversation_history: list = None) -> Dict[str
             context = '\n'.join([f"{m['role'].upper()}: {m['content'][:200]}" for m in recent])
             context = f"\n\nRecent conversation:\n{context}"
 
-        response = client.messages.create(
-            model='claude-haiku-4-5',
+        llm    = get_llm_client()
+        result = llm.structured_output(
+            [{'role': 'user', 'content': f"{INTENT_CLASSIFIER_PROMPT}{context}\n\nUser message: {message}"}],
             max_tokens=200,
-            messages=[{
-                'role': 'user',
-                'content': f"{INTENT_CLASSIFIER_PROMPT}{context}\n\nUser message: {message}"
-            }]
+            temperature=0.1,
+            model=Model.FAST,
         )
-        text = response.content[0].text.strip()
-        # Strip markdown code fences if Claude wraps the JSON
-        if text.startswith('```'):
-            text = text.split('```', 2)[1]          # drop opening fence line
-            if text.startswith('json'):
-                text = text[4:]                      # strip the 'json' language tag
-            text = text.rsplit('```', 1)[0].strip()  # drop closing fence
-        result = json.loads(text)
+        if not result:
+            return _default
         if result.get('confidence', 1.0) < 0.6:
             result['intent'] = 'GENERAL'
         return result
 
     except Exception as e:
         logger.warning(f"Intent classification failed: {e}")
-        return {'intent': 'GENERAL', 'symbol': None, 'fund_query': None, 'index': None, 'level': None, 'confidence': 0.5}
+        return _default
 
 
 def _queue_iscore_symbol(symbol: str) -> None:
@@ -1108,36 +1098,32 @@ def handle_stock_profile(
     # ── 2. Build LLM context block ────────────────────────────────────────────
     fund_block = build_fundamentals_context_block(sym, quote, fundamentals)
 
-    # ── 3. Claude commentary (150–200 words, valuation-focused) ───────────────
+    # ── 3. LLM commentary (150–200 words, valuation-focused) ─────────────────
     commentary = ''
     try:
-        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-        if api_key:
-            import anthropic
-            client = anthropic.Anthropic(api_key=api_key)
+        from services.llm_client import get_llm_client, Model
+        ccy, flag = _market_display(market)
+        ltp       = float(quote.get('ltp', 0) or 0)
 
-            ccy, flag = _market_display(market)
-            ltp       = float(quote.get('ltp', 0) or 0)
+        system_prompt = (
+            "You are Capulse, an AI research assistant for retail investors. "
+            "Provide a concise, factual valuation commentary on the requested stock. "
+            "Use the fundamentals block provided. Be direct, data-driven. "
+            "Never give buy/sell recommendations. Max 180 words. Use markdown: "
+            "**bold** for key numbers, short paragraphs."
+        )
+        if fund_block:
+            system_prompt = fund_block + '\n\n' + system_prompt
 
-            system_prompt = (
-                "You are Capulse, an AI research assistant for retail investors. "
-                "Provide a concise, factual valuation commentary on the requested stock. "
-                "Use the fundamentals block provided. Be direct, data-driven. "
-                "Never give buy/sell recommendations. Max 180 words. Use markdown: "
-                "**bold** for key numbers, short paragraphs."
-            )
-            if fund_block:
-                system_prompt = fund_block + '\n\n' + system_prompt
-
-            response = client.messages.create(
-                model='claude-haiku-4-5',
-                max_tokens=400,
-                system=system_prompt,
-                messages=[{'role': 'user', 'content': message}]
-            )
-            commentary = response.content[0].text.strip()
+        llm = get_llm_client()
+        commentary = llm.chat(
+            [{'role': 'user', 'content': message}],
+            system=system_prompt,
+            max_tokens=400,
+            model=Model.FAST,
+        ).strip()
     except Exception as exc:
-        logger.error(f"handle_stock_profile: Claude commentary error: {exc}")
+        logger.error(f"handle_stock_profile: LLM commentary error: {exc}")
         commentary = f"Here are the key financials for **{sym}**:"
 
     # ── 4. Build card_data ────────────────────────────────────────────────────
@@ -1188,21 +1174,9 @@ def handle_general(
     conversation_history: list = None,
     user_id: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Handle general questions using Claude, grounded with live market data."""
+    """Handle general questions via the LLM client, grounded with live market data."""
     try:
-        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-        if not api_key:
-            return {
-                'card_type': 'prose',
-                'content': (
-                    "I'm a research assistant for Indian markets — I can help with i-Scores, "
-                    "F&O signals, mutual funds, portfolio analysis, and trading concepts.\n\n"
-                    "To enable AI-powered answers, the ANTHROPIC_API_KEY needs to be configured."
-                )
-            }
-
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
+        from services.llm_client import get_llm_client, Model
 
         # ── Fetch live market data for any tickers/indices in the message ────
         live_block = ''
@@ -1241,13 +1215,8 @@ def handle_general(
                 messages.append({'role': role, 'content': m['content']})
         messages.append({'role': 'user', 'content': message})
 
-        response = client.messages.create(
-            model='claude-haiku-4-5',
-            max_tokens=900,
-            system=system,
-            messages=messages
-        )
-        ai_text = response.content[0].text
+        llm     = get_llm_client()
+        ai_text = llm.chat(messages, system=system, max_tokens=900, model=Model.FAST)
 
         # ── Fire async profile extraction (background thread, zero latency) ──
         if user_id:
@@ -1257,10 +1226,7 @@ def handle_general(
             except Exception as _ext_err:
                 logger.debug(f"handle_general: async_extract error: {_ext_err}")
 
-        return {
-            'card_type': 'prose',
-            'content': ai_text
-        }
+        return {'card_type': 'prose', 'content': ai_text}
 
     except Exception as e:
         logger.error(f"General handler error: {e}")
@@ -1341,14 +1307,7 @@ def _dna_should_continue(message: str, conversation_history: list) -> bool:
 def handle_dna_assessment(message: str, conversation_history: list = None) -> Dict[str, Any]:
     """Run the Trader DNA questionnaire conversationally in chat."""
     try:
-        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-        if not api_key:
-            return {
-                'card_type': 'prose',
-                'content': "The Trader DNA assessment needs the AI service configured (ANTHROPIC_API_KEY missing)."
-            }
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
+        from services.llm_client import get_llm_client, Model
 
         messages = []
         if conversation_history:
@@ -1357,13 +1316,10 @@ def handle_dna_assessment(message: str, conversation_history: list = None) -> Di
                 messages.append({'role': role, 'content': m['content']})
         messages.append({'role': 'user', 'content': message})
 
-        response = client.messages.create(
-            model='claude-haiku-4-5',
-            max_tokens=1200,
-            system=DNA_SYSTEM_PROMPT,
-            messages=messages
-        )
-        return {'card_type': 'prose', 'content': response.content[0].text}
+        llm  = get_llm_client()
+        text = llm.chat(messages, system=DNA_SYSTEM_PROMPT,
+                        max_tokens=1200, model=Model.FAST)
+        return {'card_type': 'prose', 'content': text}
     except Exception as e:
         logger.error(f"DNA assessment handler error: {e}")
         return {

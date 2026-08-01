@@ -161,25 +161,19 @@ def _call_perplexity_structured(prompt: str, timeout: int = 15) -> str:
 
 def _call_anthropic_text(prompt: str, timeout: int = 20) -> str:
     """
-    Call Anthropic Claude as a text generation fallback.
+    Call the LLM client (provider-agnostic) for text generation.
     Returns response text, or '' on failure.
     """
-    import os as _os
-    api_key = _os.environ.get('ANTHROPIC_API_KEY', '')
-    if not api_key:
-        logger.warning("Anthropic fallback: ANTHROPIC_API_KEY not set")
-        return ''
     try:
-        import anthropic as _ant
-        client = _ant.Anthropic(api_key=api_key)
-        message = client.messages.create(
-            model="claude-sonnet-4-5",
+        from services.llm_client import get_llm_client, Model
+        llm = get_llm_client()
+        return llm.chat(
+            [{"role": "user", "content": prompt}],
             max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
+            model=Model.SMART,
         )
-        return message.content[0].text if message.content else ''
     except Exception as e:
-        logger.warning(f"Anthropic fallback error: {e}")
+        logger.warning(f"LLM client error: {e}")
         return ''
 
 

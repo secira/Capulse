@@ -300,30 +300,19 @@ def extract_and_update_memory(user_id: int, user_message: str, ai_response: str)
             _increment_only(user_id)
             return
 
-        import os
-        import anthropic
+        from services.llm_client import get_llm_client, Model
 
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
-        if not api_key:
+        llm   = get_llm_client()
+        patch = llm.structured_output(
+            [{'role': 'user', 'content': f"USER MESSAGE:\n{user_message[:600]}"}],
+            system=_EXTRACT_SYSTEM,
+            max_tokens=200,
+            temperature=0.1,
+            model=Model.FAST,
+        )
+        if not patch:
             _increment_only(user_id)
             return
-
-        client = anthropic.Anthropic(api_key=api_key)
-        resp = client.messages.create(
-            model='claude-haiku-4-5',
-            max_tokens=200,
-            system=_EXTRACT_SYSTEM,
-            messages=[{
-                'role':    'user',
-                'content': f"USER MESSAGE:\n{user_message[:600]}",
-            }]
-        )
-        raw = resp.content[0].text.strip()
-
-        # Strip markdown code fences if the model wraps its output
-        raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.IGNORECASE)
-        raw = re.sub(r'\s*```$', '', raw)
-        patch = json.loads(raw)
 
         if patch.get('nothing_new'):
             _increment_only(user_id)

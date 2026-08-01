@@ -374,20 +374,21 @@ Format stock data in a table with: Stock Name | Symbol | Current Price (₹) | M
                 else:
                     logger.warning(f"Perplexity unavailable (status={getattr(response, 'status_code', 'N/A')}) — falling through to Claude")
 
-            # Claude fallback (primary when Perplexity unavailable)
-            if self.anthropic_api_key:
-                import anthropic as _ant
-                client = _ant.Anthropic(api_key=self.anthropic_api_key)
-                msg = client.messages.create(
-                    model='claude-sonnet-4-5',
-                    max_tokens=3000,
+            # LLM fallback (primary when Perplexity unavailable)
+            try:
+                from services.llm_client import get_llm_client, Model
+                llm    = get_llm_client()
+                answer = llm.chat(
+                    [{'role': 'user', 'content': full_prompt}],
                     system=self.system_prompt,
-                    messages=[{'role': 'user', 'content': full_prompt}],
+                    max_tokens=3000,
+                    model=Model.SMART,
                 )
-                answer = msg.content[0].text if msg.content else ''
                 if answer:
-                    logger.info("Research completed via Claude")
+                    logger.info("Research completed via LLM client")
                     return answer, []
+            except Exception as _llm_err:
+                logger.warning(f"LLM fallback failed: {_llm_err}")
 
             return ("AI research service is currently unavailable. Please try again shortly.", [])
 
