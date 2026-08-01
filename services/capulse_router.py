@@ -600,12 +600,145 @@ def handle_mutual_fund(fund_query: str, message: str, user_id: Optional[int] = N
         }
 
 
-def handle_portfolio(user_id: int) -> Dict[str, Any]:
-    """Full portfolio analysis — sector breakdown, risk, holdings, AI narrative."""
+def _handle_portfolio_via_pie(user_id: int) -> Dict[str, Any]:
+    """Run Portfolio Intelligence Engine and return a portfolio card.
+
+    Used when the user has holdings in ManualEquityHolding (e.g. after a CSV
+    upload via chat) but nothing in the legacy Portfolio model.
+    Returns a 'portfolio' card dict on success, or a 'prose' error card.
+    """
     try:
-        from models import Portfolio
-        holdings_check = Portfolio.query.filter_by(user_id=user_id).first()
-        if not holdings_check:
+        from services.portfolio_intelligence import PortfolioIntelligenceEngine
+
+        engine = PortfolioIntelligenceEngine(user_id=user_id)
+        pir    = engine.generate_report()
+
+        if not pir.get('has_holdings'):
+            return {
+                'card_type': 'prose',
+                'content': (
+                    "You haven't added any holdings yet.\n\n"
+                    "Upload your holdings CSV using the **+** button in the chat, "
+                    "or add stocks manually via **My Holdings**. "
+                    "Once added, I'll give you sector concentration, risk metrics, "
+                    "diversification gaps, and AI-powered rebalancing suggestions."
+                )
+            }
+
+        # ── Map PIE report → portfolio card ──────────────────────────────────
+        total_val    = pir.get('total_current_value', 0)
+        total_inv    = pir.get('total_investment', 0)
+        total_pnl    = pir.get('total_pnl', 0)
+        pnl_pct      = pir.get('pnl_pct', 0)
+        n_hold       = pir.get('total_holdings', 0)
+        pi_score     = pir.get('portfolio_intelligence_score', 50)
+        div_score    = pir.get('diversification_score', 50)
+        sector_alloc = pir.get('sector_allocation', {})
+        sub_scores   = pir.get('sub_scores', {})
+
+        summary = {
+            'total_value':          round(total_val, 0),
+            'total_investment':     round(total_inv, 0),
+            'total_pnl':            round(total_pnl, 0),
+            'total_pnl_percentage': round(pnl_pct, 1),
+            'holdings_count':       n_hold,
+        }
+
+        # Sectors: PIE gives {name: float_pct}; card wants [(name, pct), ...]
+        sectors = [
+            (s, round(p, 1))
+            for s, p in sorted(sector_alloc.items(), key=lambda x: x[1], reverse=True)[:8]
+        ]
+
+        # Top holdings by portfolio weight
+        top_holdings = [
+            {
+                'symbol':         card['symbol'],
+                'value':          round(total_val * card.get('weight', 0) / 100, 0),
+                'percentage':     round(card.get('weight', 0), 1),
+                'pnl_percentage': card.get('pnl_pct', 0),
+            }
+            for card in sorted(
+                pir.get('holdings', []),
+                key=lambda h: h.get('weight', 0), reverse=True
+            )[:8]
+        ]
+
+        flags = {
+            'concentration_risk':   div_score < 35,
+            'under_diversified':    len(pir.get('missing_sectors', [])) >= 4,
+            'high_volatility':      sub_scores.get('risk_score', 50) < 40,
+            'sector_concentration': any(v > 50 for v in sector_alloc.values()),
+        }
+
+        risk_level = 'Low' if pi_score >= 70 else ('Medium' if pi_score >= 50 else 'High')
+        ai_assessment = {
+            'health_score':         round(pi_score, 0),
+            'risk_level':           risk_level,
+            'concentration_risk':   flags['concentration_risk'],
+            'under_diversified':    flags['under_diversified'],
+            'high_volatility':      flags['high_volatility'],
+            'sector_concentration': flags['sector_concentration'],
+            'suggestions':          [
+                a.get('action', '')
+                for a in pir.get('action_centre', [])[:3] if a.get('action')
+            ],
+            'rebalance_actions': [],
+        }
+
+        narrative = pir.get('executive_summary', '').strip() or None
+
+        return {
+            'card_type': 'portfolio',
+            'content':   f"Here's your portfolio analysis across **{n_hold} holdings**:",
+            'card_data': {
+                'summary':       summary,
+                'sectors':       sectors,
+                'top_holdings':  top_holdings,
+                'risk_metrics':  pir.get('risk_radar', {}),
+                'ai_assessment': ai_assessment,
+                'narrative':     narrative,
+                'flags':         flags,
+                'suggestions':   ai_assessment['suggestions'],
+                'rebalance':     [],
+            },
+        }
+
+    except Exception as exc:
+        logger.error(f'_handle_portfolio_via_pie({user_id}): {exc}', exc_info=True)
+        return {
+            'card_type': 'prose',
+            'content': (
+                "There was an issue loading your portfolio analysis. "
+                "Try again in a moment or visit the Portfolio Analysis page."
+            )
+        }
+
+
+def handle_portfolio(user_id: int) -> Dict[str, Any]:
+    """Full portfolio analysis — sector breakdown, risk, holdings, AI narrative.
+
+    Routing logic:
+      1. Portfolio model (legacy) has rows → use PortfolioAnalyzerService (old path).
+      2. Portfolio is empty but ManualEquityHolding has rows (e.g. after a CSV
+         upload via chat) → use PortfolioIntelligenceEngine (PIE) instead.
+      3. Neither table has rows → prompt the user to add holdings.
+    """
+    try:
+        from models import Portfolio, ManualEquityHolding
+
+        has_portfolio = Portfolio.query.filter_by(user_id=user_id).first() is not None
+        if not has_portfolio:
+            # Check whether the user has CSV-imported / manually entered holdings
+            has_manual = (
+                ManualEquityHolding.query
+                .filter_by(user_id=user_id, is_active=True)
+                .first() is not None
+            )
+            if has_manual:
+                # Route through PIE which reads ManualEquityHolding
+                return _handle_portfolio_via_pie(user_id)
+
             return {
                 'card_type': 'prose',
                 'content': (
