@@ -2,13 +2,22 @@
 LangGraph I-Score Engine for Capulse
 Implements the Intelli Score (I-Score) research workflow with multi-step analysis
 
-I-Score Components (Stocks — 6-component model, weights sum to 100%):
-- Quantitative   (30%): Real technical indicators (RSI Wilder, EMA, SuperTrend, momentum)
-- Trend          (20%): Open Interest, PCR, VIX, derivative trend signals
-- Risk           (20%): Volatility, max drawdown, beta vs Nifty
-- Qualitative    (15%): News, social media, annual reports
-- Search         (10%): Google Trends, Perplexity search popularity
-- Market Context  (5%): Nifty regime, VIX regime, PCR regime
+I-Score Components (Stocks — 8-component model, Phase 15 architecture):
+- Technical / Quantitative  (25%): RS vs Nifty, EMA, Momentum, RSI, SuperTrend, ATR Efficiency
+- Fundamental               (20%): Revenue growth, EPS, ROE, ROCE, margins, debt, cash flow
+- Trend                     (15%): EMA alignment, HH/HL structure, duration, RS, volume, 52w high
+- Market Intelligence (AI)  (15%): News, analyst upgrades, sector, sentiment, management commentary
+- Risk                      (10%): Volatility (ATR), max drawdown, beta vs Nifty
+- Market Context             (5%): VIX, PCR, Nifty, FII/DII, sector RS, advance-decline
+- Valuation                  (5%): PE, PEG, PB, EV/EBITDA, dividend yield, sector comparison
+- Institutional Quality      (5%): Promoter/FII/DII/MF holding, changes, stability
+
+Three-tier horizon scoring (computed from same component data, different weights):
+- Opportunity Score (Swing, 5–20 days):  Technical 35%, Trend 25%, AI 15%, Market 15%, Risk 10%
+- Investment Score (1–6 months, default): Technical 25%, Fundamental 20%, Trend 15%, AI 15%,
+                                          Risk 10%, Valuation 10%, Market 5%
+- Wealth Score (1–5 years):              Fundamental 35%, Valuation 20%, Institutional 15%,
+                                          Risk 15%, AI 10%, Technical 5%
 
 Non-stock assets (MF, bond, commodity, currency, options, futures) use a
 4-component model: Qualitative 15% / Quantitative 50% / Search 10% / Trend 25%.
@@ -33,66 +42,105 @@ logger = logging.getLogger(__name__)
 
 
 class IScoreState(TypedDict):
-    """State for the I-Score analysis workflow"""
+    """State for the I-Score analysis workflow — Phase 15 8-component model."""
     asset_type: str
     symbol: str
     asset_name: str
     user_id: int
-    
+
     current_price: float
     previous_close: float
     price_change_pct: float
     market_status: str
     data_timestamp: str
-    
+
     cache_hit: bool
     cached_result: Optional[Dict]
-    
+
+    # Legacy qualitative node — kept for non-stock pipelines (MF/bond/etc.)
     qualitative_score: float
     qualitative_details: Dict
     qualitative_confidence: float
     qualitative_sources: List[Dict]
     qualitative_reasoning: str
-    
-    quantitative_score: float
-    quantitative_details: Dict
-    quantitative_confidence: float
-    quantitative_sources: List[Dict]
-    quantitative_reasoning: str
-    
+
+    # Legacy search node — kept for non-stock pipelines
     search_score: float
     search_details: Dict
     search_confidence: float
     search_sources: List[Dict]
     search_reasoning: str
-    
+
+    # Phase 3: Market Intelligence (merges Qualitative + Search for stocks, 15%)
+    market_intelligence_score: float
+    market_intelligence_details: Dict
+    market_intelligence_confidence: float
+    market_intelligence_reasoning: str
+    bull_case: str
+    bear_case: str
+    key_risks: List[str]
+    key_opportunities: List[str]
+    catalysts: List[str]
+    investment_thesis: str
+    events_to_watch: List[str]
+
+    # Phase 2: Fundamental Analysis (20%)
+    fundamental_score: float
+    fundamental_details: Dict
+    fundamental_confidence: float
+    fundamental_reasoning: str
+
+    # Phase 14: Valuation Intelligence (5%)
+    valuation_score: float
+    valuation_details: Dict
+    valuation_confidence: float
+
+    # Phase 13: Institutional Quality (5%)
+    institutional_score: float
+    institutional_details: Dict
+    institutional_confidence: float
+
+    quantitative_score: float
+    quantitative_details: Dict
+    quantitative_confidence: float
+    quantitative_sources: List[Dict]
+    quantitative_reasoning: str
+
     trend_score: float
     trend_details: Dict
     trend_confidence: float
     trend_sources: List[Dict]
     trend_reasoning: str
-    
+
     risk_score: float
     risk_details: Dict
     risk_confidence: float
-    
+
     market_context_score: float
     market_context_details: Dict
     market_context_confidence: float
-    
+
     raw_indicators: Dict
     mf_fund_data: Optional[Dict]
-    
+
     overall_score: float
     overall_confidence: float
     recommendation: str
     recommendation_summary: str
-    
+
+    # Three-tier horizon scores (from file 1 spec)
+    swing_score: float        # Opportunity Score — 5-20 days
+    investment_score: float   # Investment Score  — 1-6 months (= overall_score)
+    wealth_score: float       # Wealth Score      — 1-5 years
+
+    # Component breakdown for UI (Phase 8)
+    component_breakdown: Dict
+
     penalty_applied: float
     penalty_reasons: List[str]
     confidence_level: str
     score_factors: List[Dict]
-    
+
     config: Dict
     evidence: List[Dict]
     audit_trail: List[Dict]
@@ -138,6 +186,12 @@ class LangGraphIScoreEngine:
         
         workflow.add_node("check_cache", self.check_cache)
         workflow.add_node("route_asset_type", self.route_asset_type)
+        # Stocks pipeline — Phase 15 nodes
+        workflow.add_node("market_intelligence_analysis", self.market_intelligence_analysis)
+        workflow.add_node("fundamental_analysis", self.fundamental_analysis)
+        workflow.add_node("valuation_analysis", self.valuation_analysis)
+        workflow.add_node("institutional_quality_analysis", self.institutional_quality_analysis)
+        # Legacy nodes kept for non-stock pipelines
         workflow.add_node("qualitative_analysis", self.qualitative_analysis)
         workflow.add_node("quantitative_analysis", self.quantitative_analysis)
         workflow.add_node("search_sentiment", self.search_sentiment)
@@ -192,15 +246,19 @@ class LangGraphIScoreEngine:
                 "currency": "qualitative_analysis_currency",
                 "options": "qualitative_analysis_options",
                 "futures": "qualitative_analysis_futures",
-                "stocks": "qualitative_analysis"
+                # Phase 15: stocks now enter through market_intelligence_analysis
+                "stocks": "market_intelligence_analysis",
             }
         )
-        
-        workflow.add_edge("qualitative_analysis", "quantitative_analysis")
-        workflow.add_edge("quantitative_analysis", "search_sentiment")
-        workflow.add_edge("search_sentiment", "trend_analysis")
+
+        # ── Stocks pipeline — Phase 15 wiring ─────────────────────────────
+        workflow.add_edge("market_intelligence_analysis", "quantitative_analysis")
+        workflow.add_edge("quantitative_analysis", "fundamental_analysis")
+        workflow.add_edge("fundamental_analysis", "trend_analysis")
         workflow.add_edge("trend_analysis", "risk_volatility")
-        workflow.add_edge("risk_volatility", "market_context")
+        workflow.add_edge("risk_volatility", "valuation_analysis")
+        workflow.add_edge("valuation_analysis", "institutional_quality_analysis")
+        workflow.add_edge("institutional_quality_analysis", "market_context")
         workflow.add_edge("market_context", "aggregate_scores")
         
         workflow.add_edge("qualitative_analysis_mf", "quantitative_analysis_mf")
@@ -303,22 +361,33 @@ class LangGraphIScoreEngine:
         
         return min(0.95, confidence)
     
-    # ── Scentric Proprietary Model Weights (IP) ──────────────────────────────
+    # ── Scentric Proprietary Model Weights — Phase 15 Final Architecture ─────
     WEIGHTS = {
-        'quantitative_pct': 30,
-        'trend_pct': 20,
-        'risk_pct': 20,
-        'qualitative_pct': 15,
-        'search_pct': 10,
-        'market_context_pct': 5,
+        'quantitative_pct':      25,   # Technical (RS vs Nifty, EMA, Momentum, RSI, SuperTrend, ATR Efficiency)
+        'fundamental_pct':       20,   # Business quality (Revenue growth, EPS, ROE, ROCE, margins, debt)
+        'trend_pct':             15,   # HH/HL, trend duration, RS rank, volume, 52w high distance
+        'market_intelligence_pct': 15, # AI: news, analyst upgrades, sector, sentiment (was qual 15% + search 10%)
+        'risk_pct':              10,   # Volatility, drawdown, beta
+        'market_context_pct':     5,   # VIX, PCR, Nifty, FII/DII, sector RS
+        'valuation_pct':          5,   # PE, PEG, PB, EV/EBITDA, dividend yield
+        'institutional_pct':      5,   # Promoter/FII/DII/MF holding trends
+        # Legacy keys for backward compatibility with non-stock pipelines
+        'qualitative_pct':       15,
+        'search_pct':            10,
     }
+
+    # Phase 7: New recommendation levels — better score distribution
+    # 90-100: Strong Buy | 80-89: Buy | 65-79: Accumulate |
+    # 50-64: Hold | 35-49: Reduce | <35: Strong Sell
     THRESHOLDS = {
-        'strong_buy': 70,   # was 78 — achievable for quality stocks with broad bullish alignment
-        'buy': 56,          # was 63 — positive technical + sentiment qualifies
-        'hold_low': 40,     # was 42
-        'hold_high': 55,    # was 62
-        'sell': 28,
-        'min_confidence': 0.38,  # was 0.45 — stop blocking signals when data is reasonable
+        'strong_buy':     90,
+        'buy':            80,
+        'accumulate':     65,   # new tier
+        'hold_low':       50,
+        'hold_high':      64,
+        'reduce':         35,   # new tier (was cautionary_sell)
+        'sell':           35,
+        'min_confidence': 0.38,
     }
 
     def _get_config(self) -> Dict:
@@ -391,8 +460,394 @@ class LangGraphIScoreEngine:
             'step': 'cache_miss'
         }
     
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STOCKS PIPELINE — Phase 15 nodes
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def market_intelligence_analysis(self, state: IScoreState) -> Dict:
+        """
+        Phase 3: Market Intelligence — merges Qualitative + Search Sentiment.
+        Weight: 15%.  Evaluates news, analyst upgrades, sector performance,
+        corporate announcements, retail/institutional sentiment, management commentary.
+        Returns Phase 9 AI output: Bull Case, Bear Case, Key Risks, Opportunities,
+        Catalysts, Investment Thesis, Events to Watch.
+        """
+        symbol = state['symbol']
+        logger.info(f"I-Score Market Intelligence Node for {symbol}")
+
+        try:
+            from services.perplexity_service import PerplexityService
+            perplexity = PerplexityService()
+
+            prompt = f"""You are a senior equity analyst. Provide a comprehensive Market Intelligence report for {symbol} (Indian stock) covering:
+
+1. Recent news (last 30 days) from Moneycontrol, Economic Times, NSE/BSE
+2. Latest quarterly results — Revenue growth, EPS trend, margin trajectory
+3. Analyst upgrades/downgrades in last 60 days
+4. Sector performance — is the sector in favour or out of favour?
+5. Corporate announcements (buybacks, dividends, capex, M&A)
+6. Retail sentiment (social media, forums)
+7. Institutional sentiment (FII/DII activity)
+8. Management commentary — guidance, confidence level
+9. Market buzz and momentum
+
+Return a JSON object with these exact keys:
+{{
+  "sentiment_score": <0-100 overall market intelligence score>,
+  "confidence": <0-1>,
+  "bull_case": "<2-3 sentences on the bullish thesis>",
+  "bear_case": "<2-3 sentences on the bearish risks>",
+  "key_risks": ["risk1", "risk2", "risk3"],
+  "key_opportunities": ["opp1", "opp2"],
+  "catalysts": ["catalyst1", "catalyst2"],
+  "investment_thesis": "<1 paragraph concise investment thesis>",
+  "events_to_watch": ["event1", "event2"],
+  "key_findings": ["finding1", "finding2", "finding3"]
+}}"""
+
+            import concurrent.futures as _cf
+            _ex = _cf.ThreadPoolExecutor(max_workers=1)
+            _fut = _ex.submit(perplexity.research_indian_stock, symbol, 'news_sentiment')
+            try:
+                response = _fut.result(timeout=15)
+            except Exception:
+                response = None
+            finally:
+                _ex.shutdown(wait=False)
+
+            if response and response.get('research_content'):
+                try:
+                    parsed = self._parse_llm_response(response['research_content'], 'qualitative')
+                    score       = max(0, min(100, parsed.get('sentiment_score', 50)))
+                    confidence  = max(0, min(1.0, parsed.get('confidence', 0.65)))
+                    bull_case   = parsed.get('bull_case', '')
+                    bear_case   = parsed.get('bear_case', '')
+                    key_risks   = parsed.get('key_risks', [])
+                    key_opps    = parsed.get('key_opportunities', [])
+                    catalysts   = parsed.get('catalysts', [])
+                    thesis      = parsed.get('investment_thesis', '')
+                    events      = parsed.get('events_to_watch', [])
+                    findings    = parsed.get('key_findings', [])
+                except Exception:
+                    score, confidence = 50, 0.5
+                    bull_case = bear_case = thesis = ''
+                    key_risks = key_opps = catalysts = events = findings = []
+
+                return {
+                    'market_intelligence_score': score,
+                    'market_intelligence_details': {
+                        'findings': findings,
+                        'citations': response.get('citations', []),
+                    },
+                    'market_intelligence_confidence': confidence,
+                    'market_intelligence_reasoning': f"Market intelligence score {score}/100. "
+                        f"Sources: Moneycontrol, Economic Times, NSE/BSE, social media.",
+                    'bull_case': bull_case,
+                    'bear_case': bear_case,
+                    'key_risks': key_risks if isinstance(key_risks, list) else [],
+                    'key_opportunities': key_opps if isinstance(key_opps, list) else [],
+                    'catalysts': catalysts if isinstance(catalysts, list) else [],
+                    'investment_thesis': thesis,
+                    'events_to_watch': events if isinstance(events, list) else [],
+                    # Mirror to legacy qualitative/search fields so cache reads still work
+                    'qualitative_score': score,
+                    'qualitative_details': {'findings': findings},
+                    'qualitative_confidence': confidence,
+                    'qualitative_reasoning': thesis or 'Market intelligence analysis',
+                    'search_score': score,
+                    'search_details': {'trend_direction': 'stable', 'buzz_level': 'medium'},
+                    'search_confidence': confidence,
+                    'search_reasoning': 'Merged into Market Intelligence',
+                    'step': 'market_intelligence_complete',
+                }
+        except Exception as e:
+            logger.error(f"Market intelligence analysis error: {e}")
+
+        # Fallback
+        return {
+            'market_intelligence_score': 50,
+            'market_intelligence_details': {'error': 'Analysis unavailable'},
+            'market_intelligence_confidence': 0.3,
+            'market_intelligence_reasoning': 'Market intelligence unavailable',
+            'bull_case': '', 'bear_case': '', 'investment_thesis': '',
+            'key_risks': [], 'key_opportunities': [], 'catalysts': [], 'events_to_watch': [],
+            'qualitative_score': 50, 'qualitative_details': {}, 'qualitative_confidence': 0.3,
+            'qualitative_reasoning': 'Unavailable', 'search_score': 50,
+            'search_details': {}, 'search_confidence': 0.3, 'search_reasoning': 'Unavailable',
+            'step': 'market_intelligence_fallback',
+        }
+
+    def fundamental_analysis(self, state: IScoreState) -> Dict:
+        """
+        Phase 2: Fundamental Analysis — 20% weight.
+        Evaluates: Revenue Growth, EPS Growth, ROE, ROCE, Operating Margin,
+        Debt to Equity, Cash Flow, Promoter Holding Trend, Institutional Holding.
+        Uses AI to synthesise publicly available fundamental data.
+        """
+        symbol = state['symbol']
+        logger.info(f"I-Score Fundamental Analysis Node for {symbol}")
+
+        try:
+            from services.llm_client import get_llm_client, Model
+            llm = get_llm_client()
+
+            prompt = f"""You are a CFA-level fundamental analyst evaluating {symbol} (NSE/BSE Indian stock).
+
+Assess the company's fundamental quality based on publicly available data:
+- Revenue growth trend (1yr, 3yr CAGR)
+- EPS growth trend
+- Return on Equity (ROE) and Return on Capital Employed (ROCE)
+- Operating margin trend
+- Debt to Equity ratio
+- Free Cash Flow generation
+- Promoter holding trend (increasing/stable/decreasing)
+- Institutional holding trend (FII/DII)
+
+Scoring rubric:
+- 80-100: Excellent fundamentals (high ROE>20%, growing revenue, low debt, strong FCF)
+- 60-79: Good fundamentals
+- 40-59: Average fundamentals
+- 20-39: Weak fundamentals (declining margins, high debt, negative FCF)
+- 0-19: Poor fundamentals (losses, debt stress, promoter selling)
+
+Return JSON:
+{{
+  "fundamental_score": <0-100>,
+  "confidence": <0-1>,
+  "roe": <estimated % or null>,
+  "roce": <estimated % or null>,
+  "revenue_growth_3y": <estimated % CAGR or null>,
+  "eps_growth_trend": "improving|stable|declining|unknown",
+  "debt_equity_assessment": "low|moderate|high|unknown",
+  "promoter_holding_trend": "increasing|stable|decreasing|unknown",
+  "institutional_trend": "accumulating|stable|exiting|unknown",
+  "key_positives": ["positive1", "positive2"],
+  "key_negatives": ["negative1", "negative2"],
+  "reasoning": "<2-3 sentence fundamental assessment>"
+}}"""
+
+            import concurrent.futures as _cf_f
+            _ex_f = _cf_f.ThreadPoolExecutor(max_workers=1)
+            _fut_f = _ex_f.submit(llm.complete, prompt, model=Model.SMART, max_tokens=600)
+            try:
+                response_text = _fut_f.result(timeout=20)
+            except Exception:
+                response_text = None
+            finally:
+                _ex_f.shutdown(wait=False)
+
+            if response_text:
+                try:
+                    parsed = self._parse_llm_response(response_text, 'qualitative')
+                    score      = max(0, min(100, parsed.get('fundamental_score', 50)))
+                    confidence = max(0, min(1.0, parsed.get('confidence', 0.5)))
+                    positives  = parsed.get('key_positives', [])
+                    negatives  = parsed.get('key_negatives', [])
+                    reasoning  = parsed.get('reasoning', '')
+                    details    = {
+                        'roe': parsed.get('roe'),
+                        'roce': parsed.get('roce'),
+                        'revenue_growth_3y': parsed.get('revenue_growth_3y'),
+                        'eps_growth_trend': parsed.get('eps_growth_trend', 'unknown'),
+                        'debt_equity': parsed.get('debt_equity_assessment', 'unknown'),
+                        'promoter_trend': parsed.get('promoter_holding_trend', 'unknown'),
+                        'institutional_trend': parsed.get('institutional_trend', 'unknown'),
+                        'key_positives': positives,
+                        'key_negatives': negatives,
+                    }
+                    return {
+                        'fundamental_score': score,
+                        'fundamental_details': details,
+                        'fundamental_confidence': confidence,
+                        'fundamental_reasoning': reasoning,
+                        'step': 'fundamental_complete',
+                    }
+                except Exception as _pe:
+                    logger.warning(f"Fundamental parse error: {_pe}")
+        except Exception as e:
+            logger.error(f"Fundamental analysis error: {e}")
+
+        return {
+            'fundamental_score': 50,
+            'fundamental_details': {'error': 'Analysis unavailable'},
+            'fundamental_confidence': 0.3,
+            'fundamental_reasoning': 'Fundamental data unavailable',
+            'step': 'fundamental_fallback',
+        }
+
+    def valuation_analysis(self, state: IScoreState) -> Dict:
+        """
+        Phase 14: Valuation Intelligence — 5% weight.
+        Evaluates: PE, PEG, PB, EV/EBITDA, Dividend Yield, Sector Comparison.
+        Cheap quality companies score higher than expensive peers.
+        """
+        symbol = state['symbol']
+        logger.info(f"I-Score Valuation Analysis Node for {symbol}")
+
+        try:
+            from services.llm_client import get_llm_client, Model
+            llm = get_llm_client()
+
+            prompt = f"""You are a valuation specialist. Evaluate whether {symbol} (NSE/BSE) is cheap, fairly valued, or expensive relative to peers and its own history.
+
+Assess:
+- PE ratio vs sector average and historical range
+- PB ratio
+- PEG ratio (PE/earnings growth)
+- EV/EBITDA vs peers
+- Dividend yield vs fixed income alternatives
+- Overall: is it cheap, fair, or expensive for a long-term investor?
+
+Scoring:
+- 80-100: Very cheap/undervalued relative to quality
+- 60-79: Fairly valued or slight discount
+- 40-59: Fair value to slight premium
+- 20-39: Expensive
+- 0-19: Very expensive
+
+Return JSON:
+{{
+  "valuation_score": <0-100>,
+  "confidence": <0-1>,
+  "valuation_label": "cheap|fair|expensive|unknown",
+  "pe_assessment": "low|fair|high|unknown",
+  "pb_assessment": "low|fair|high|unknown",
+  "dividend_yield": <estimated % or null>,
+  "vs_sector": "cheaper|inline|expensive",
+  "reasoning": "<2 sentence valuation summary>"
+}}"""
+
+            import concurrent.futures as _cf_v
+            _ex_v = _cf_v.ThreadPoolExecutor(max_workers=1)
+            _fut_v = _ex_v.submit(llm.complete, prompt, model=Model.FAST, max_tokens=400)
+            try:
+                resp_v = _fut_v.result(timeout=15)
+            except Exception:
+                resp_v = None
+            finally:
+                _ex_v.shutdown(wait=False)
+
+            if resp_v:
+                try:
+                    parsed = self._parse_llm_response(resp_v, 'qualitative')
+                    score = max(0, min(100, parsed.get('valuation_score', 50)))
+                    return {
+                        'valuation_score': score,
+                        'valuation_details': {
+                            'label': parsed.get('valuation_label', 'unknown'),
+                            'pe_assessment': parsed.get('pe_assessment', 'unknown'),
+                            'pb_assessment': parsed.get('pb_assessment', 'unknown'),
+                            'dividend_yield': parsed.get('dividend_yield'),
+                            'vs_sector': parsed.get('vs_sector', 'inline'),
+                            'reasoning': parsed.get('reasoning', ''),
+                        },
+                        'valuation_confidence': max(0, min(1.0, parsed.get('confidence', 0.45))),
+                        'step': 'valuation_complete',
+                    }
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"Valuation analysis error: {e}")
+
+        return {
+            'valuation_score': 50,
+            'valuation_details': {'error': 'Valuation data unavailable'},
+            'valuation_confidence': 0.3,
+            'step': 'valuation_fallback',
+        }
+
+    def institutional_quality_analysis(self, state: IScoreState) -> Dict:
+        """
+        Phase 13: Institutional Quality — 5% weight.
+        Based on: Promoter Holding, MF Holding, FII Holding, DII Holding,
+        Holding Changes, Shareholding Stability.
+        """
+        symbol = state['symbol']
+        logger.info(f"I-Score Institutional Quality Node for {symbol}")
+
+        # Use fundamental details if already computed (shares data)
+        fund_details = state.get('fundamental_details', {})
+        promoter_trend = fund_details.get('promoter_trend', 'unknown')
+        inst_trend     = fund_details.get('institutional_trend', 'unknown')
+
+        try:
+            from services.llm_client import get_llm_client, Model
+            llm = get_llm_client()
+
+            prompt = f"""You are an institutional analyst. Evaluate the institutional quality of {symbol} (NSE/BSE).
+
+Assess:
+- Promoter holding % and recent trend (last 2 quarters)
+- Promoter pledge % (pledged shares are a red flag)
+- Mutual Fund holding trend
+- FII (Foreign Institutional Investors) holding and activity
+- DII (Domestic Institutional Investors) holding
+- Overall shareholding stability and quality
+
+Scoring:
+- 80-100: High quality — strong promoter holding, increasing FII/DII, zero/low pledge
+- 60-79: Good quality — stable institutional holding
+- 40-59: Average — mixed signals
+- 20-39: Concerns — declining promoter/institutional interest, high pledge
+- 0-19: Red flags — promoter selling heavily, high pledge, institutional exit
+
+Return JSON:
+{{
+  "institutional_score": <0-100>,
+  "confidence": <0-1>,
+  "promoter_holding_pct": <estimated % or null>,
+  "pledge_assessment": "nil|low|moderate|high|unknown",
+  "fii_trend": "increasing|stable|decreasing|unknown",
+  "mf_trend": "increasing|stable|decreasing|unknown",
+  "overall_quality": "high|medium|low|unknown",
+  "reasoning": "<2 sentence institutional assessment>"
+}}"""
+
+            import concurrent.futures as _cf_i
+            _ex_i = _cf_i.ThreadPoolExecutor(max_workers=1)
+            _fut_i = _ex_i.submit(llm.complete, prompt, model=Model.FAST, max_tokens=400)
+            try:
+                resp_i = _fut_i.result(timeout=15)
+            except Exception:
+                resp_i = None
+            finally:
+                _ex_i.shutdown(wait=False)
+
+            if resp_i:
+                try:
+                    parsed = self._parse_llm_response(resp_i, 'qualitative')
+                    score = max(0, min(100, parsed.get('institutional_score', 50)))
+                    return {
+                        'institutional_score': score,
+                        'institutional_details': {
+                            'promoter_holding_pct': parsed.get('promoter_holding_pct'),
+                            'pledge_assessment': parsed.get('pledge_assessment', 'unknown'),
+                            'fii_trend': parsed.get('fii_trend', 'unknown'),
+                            'mf_trend': parsed.get('mf_trend', 'unknown'),
+                            'quality_label': parsed.get('overall_quality', 'unknown'),
+                            'reasoning': parsed.get('reasoning', ''),
+                        },
+                        'institutional_confidence': max(0, min(1.0, parsed.get('confidence', 0.4))),
+                        'step': 'institutional_complete',
+                    }
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"Institutional quality analysis error: {e}")
+
+        return {
+            'institutional_score': 50,
+            'institutional_details': {'error': 'Institutional data unavailable'},
+            'institutional_confidence': 0.3,
+            'step': 'institutional_fallback',
+        }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # LEGACY NODES — retained for non-stock pipelines (MF, bond, etc.)
+    # ═══════════════════════════════════════════════════════════════════════════
+
     def qualitative_analysis(self, state: IScoreState) -> Dict:
-        """Node 2: Qualitative Sentiment Analysis (15% weight)"""
+        """Node 2: Qualitative Sentiment Analysis (15% weight) — legacy non-stock pipeline"""
         logger.info(f"I-Score Node 2: Qualitative analysis for {state['symbol']}")
         
         symbol = state['symbol']
@@ -478,13 +933,18 @@ class LangGraphIScoreEngine:
         symbol = state['symbol']
 
         try:
-            from services.iscore.data_fetcher import fetch_historical_ohlcv_with_source
+            from services.iscore.data_fetcher import fetch_historical_ohlcv_with_source, fetch_market_index_history
             from services.iscore.indicators import compute_all_indicators
             from services.iscore.scoring import compute_quant_score
 
             df, hist_src = fetch_historical_ohlcv_with_source(symbol, days=120)
+            # Fetch Nifty history for Relative Strength calculation (Phase 1)
+            try:
+                nifty_df = fetch_market_index_history('^NSEI', days=120)
+            except Exception:
+                nifty_df = None
             if df is not None and len(df) >= 15:
-                indicators = compute_all_indicators(df)
+                indicators = compute_all_indicators(df, nifty_df=nifty_df)
                 if indicators:
                     quant = compute_quant_score(indicators)
                     price = indicators['price']
@@ -2798,105 +3258,194 @@ class LangGraphIScoreEngine:
     # ==================== END FUTURES ANALYSIS METHODS ====================
     
     def aggregate_scores(self, state: IScoreState) -> Dict:
-        """Node 6: Aggregate all component scores with nonlinear penalties + confidence."""
-        logger.info(f"I-Score Node 6: Aggregating scores for {state['symbol']}")
+        """
+        Node: Aggregate all component scores with nonlinear penalties + confidence.
+        Phase 15: 8-component architecture for stocks with three-tier horizon scoring.
+        """
+        logger.info(f"I-Score Node: Aggregating scores for {state['symbol']}")
 
         asset_type = state.get('asset_type', 'stocks')
-        is_stock = asset_type in ('stocks', 'stock')
-
+        is_stock   = asset_type in ('stocks', 'stock')
         thresholds = self.THRESHOLDS
-        qual_score = state.get('qualitative_score', 50)
+
+        # ── Pull component scores ─────────────────────────────────────────────
         quant_score = state.get('quantitative_score', 50)
-        search_score = state.get('search_score', 50)
         trend_score = state.get('trend_score', 50)
         risk_score_val = state.get('risk_score', 50)
-        mkt_ctx_score = state.get('market_context_score', 50)
+        mkt_ctx_score  = state.get('market_context_score', 50)
 
         if is_stock:
+            # Phase 15: 8-component weights
+            mi_score     = state.get('market_intelligence_score', state.get('qualitative_score', 50))
+            fund_score   = state.get('fundamental_score', 50)
+            val_score    = state.get('valuation_score', 50)
+            inst_score   = state.get('institutional_score', 50)
+
+            # Investment Score (1–6 months) — main/default I-Score
             raw_score = (
-                quant_score * 0.30 +
-                trend_score * 0.20 +
-                risk_score_val * 0.20 +
-                qual_score * 0.15 +
-                search_score * 0.10 +
-                mkt_ctx_score * 0.05
+                quant_score  * 0.25 +
+                fund_score   * 0.20 +
+                trend_score  * 0.15 +
+                mi_score     * 0.15 +
+                risk_score_val * 0.10 +
+                mkt_ctx_score  * 0.05 +
+                val_score    * 0.05 +
+                inst_score   * 0.05
+            )
+
+            # ── Three-tier horizon scores (file 1 spec) ───────────────────────
+            # Opportunity/Swing Score (5–20 days): Technical heavy, no fundamentals
+            swing_raw = (
+                quant_score   * 0.35 +
+                trend_score   * 0.25 +
+                mi_score      * 0.15 +
+                mkt_ctx_score * 0.15 +
+                risk_score_val * 0.10
+            )
+            # Wealth Score (1–5 years): Fundamentals heavy, minimal technical
+            wealth_raw = (
+                fund_score   * 0.35 +
+                val_score    * 0.20 +
+                inst_score   * 0.15 +
+                risk_score_val * 0.15 +
+                mi_score     * 0.10 +
+                quant_score  * 0.05
             )
         else:
+            mi_score = fund_score = val_score = inst_score = 50
             raw_score = (
-                qual_score * 0.15 +
+                state.get('qualitative_score', 50) * 0.15 +
                 quant_score * 0.50 +
-                search_score * 0.10 +
+                state.get('search_score', 50) * 0.10 +
                 trend_score * 0.25
             )
-            risk_score_val = 50
-            mkt_ctx_score = 50
+            risk_score_val = mkt_ctx_score = 50
+            swing_raw = wealth_raw = raw_score
 
+        # ── Penalties ─────────────────────────────────────────────────────────
         indicators = state.get('raw_indicators', {})
         if is_stock and indicators:
             from services.iscore.penalties import apply_penalties
             final_score, penalty, penalty_reasons = apply_penalties(
-                raw_score, risk_score_val, trend_score, quant_score, indicators
+                raw_score, risk_score_val, trend_score, quant_score, indicators,
+                market_intelligence_score=mi_score,
+                fundamental_score=fund_score,
+                institutional_score=inst_score,
             )
+            # Apply same penalty multiplier to horizon scores (proportional)
+            swing_score  = max(0, min(100, round(swing_raw  * penalty, 2)))
+            wealth_score = max(0, min(100, round(wealth_raw * penalty, 2)))
         else:
-            final_score = round(raw_score, 2)
-            penalty = 1.0
+            final_score    = round(raw_score, 2)
+            penalty        = 1.0
             penalty_reasons = []
+            swing_score    = round(swing_raw, 2)
+            wealth_score   = round(wealth_raw, 2)
 
-        component_scores = [quant_score, trend_score, risk_score_val, qual_score, search_score, mkt_ctx_score]
+        # ── Confidence ────────────────────────────────────────────────────────
+        if is_stock:
+            component_scores_list = [
+                quant_score, trend_score, risk_score_val, mi_score,
+                fund_score, val_score, inst_score, mkt_ctx_score,
+            ]
+            contradictions = sum(1 for s in component_scores_list if s > 60) \
+                           * sum(1 for s in component_scores_list if s < 40)
+            # Cap contradiction count at 4 to avoid over-penalising
+            contradictions = min(contradictions, 4)
+        else:
+            component_scores_list = [quant_score, trend_score, risk_score_val, mi_score]
+            contradictions = 0
+
         data_quality = {
-            'has_real_indicators': bool(indicators),
-            'has_volume': bool(indicators.get('volume')),
-            'days_of_data': 120 if indicators else 0,
-            'is_fallback': state.get('market_status') in ('demo', 'unknown'),
+            'has_real_indicators':    bool(indicators),
+            'has_volume':             bool(indicators.get('volume')),
+            'days_of_data':           120 if indicators else 0,
+            'is_fallback':            state.get('market_status') in ('demo', 'unknown'),
+            'contradicting_signals':  contradictions,
+            'missing_indicators':     sum(1 for v in [fund_score, val_score, inst_score] if v == 50 and is_stock),
+            'ai_components_available': sum(1 for s in [mi_score, fund_score, val_score, inst_score] if s != 50),
         }
         from services.iscore.confidence import compute_confidence, generate_score_factors
-        conf = compute_confidence(component_scores, data_quality)
+        conf = compute_confidence(component_scores_list, data_quality)
 
+        # ── Score factors (Phase 8 component breakdown) ───────────────────────
         score_factors = []
+        comp_scores_dict = {
+            'market_intelligence': mi_score,
+            'quantitative': quant_score,
+            'fundamental': fund_score,
+            'trend': trend_score,
+            'risk': risk_score_val,
+            'valuation': val_score,
+            'institutional': inst_score,
+            'market_context': mkt_ctx_score,
+        }
         if is_stock and indicators:
-            comp_scores = {
-                'qualitative': qual_score, 'quantitative': quant_score,
-                'search': search_score, 'trend': trend_score,
-                'risk': risk_score_val, 'market_context': mkt_ctx_score,
-            }
-            score_factors = generate_score_factors(indicators, comp_scores)
+            score_factors = generate_score_factors(indicators, comp_scores_dict)
 
-        strong_buy = thresholds['strong_buy']
-        buy = thresholds['buy']
-        hold_low = thresholds['hold_low']
-        sell = thresholds['sell']
+        # Phase 8: Component breakdown for UI
+        component_breakdown = {
+            'technical':            {'score': round(quant_score, 1),  'weight': 25, 'label': 'Technical'},
+            'fundamental':          {'score': round(fund_score, 1),   'weight': 20, 'label': 'Fundamental'},
+            'trend':                {'score': round(trend_score, 1),  'weight': 15, 'label': 'Trend'},
+            'market_intelligence':  {'score': round(mi_score, 1),     'weight': 15, 'label': 'Market Intelligence'},
+            'risk':                 {'score': round(risk_score_val, 1),'weight': 10, 'label': 'Risk'},
+            'market_context':       {'score': round(mkt_ctx_score, 1),'weight':  5, 'label': 'Market Context'},
+            'valuation':            {'score': round(val_score, 1),    'weight':  5, 'label': 'Valuation'},
+            'institutional':        {'score': round(inst_score, 1),   'weight':  5, 'label': 'Institutional Quality'},
+            'confidence_pct':       round(conf['value'] * 100, 1),
+        } if is_stock else {}
 
+        # ── Phase 7: New recommendation thresholds ────────────────────────────
+        # 90-100: Strong Buy | 80-89: Buy | 65-79: Accumulate
+        # 50-64: Hold | 35-49: Reduce | <35: Strong Sell
         if conf['value'] < thresholds['min_confidence']:
             recommendation = 'INCONCLUSIVE'
-            summary = f"Confidence too low ({conf['level']}) for a definitive recommendation. I-Score: {final_score:.1f}."
-        elif final_score >= strong_buy:
+            summary = (f"Confidence too low ({conf['level']}) for a definitive recommendation. "
+                       f"Investment Score: {final_score:.1f}.")
+        elif final_score >= thresholds['strong_buy']:      # ≥ 90
             recommendation = 'STRONG_BUY'
-            summary = f"I-Score {final_score:.1f}/100 — Strong bullish alignment across quant, trend, and sentiment."
-        elif final_score >= buy:
+            summary = (f"Investment Score {final_score:.1f}/100 — Exceptional alignment across "
+                       f"fundamentals, technicals, and market intelligence.")
+        elif final_score >= thresholds['buy']:             # 80–89
             recommendation = 'BUY'
-            summary = f"I-Score {final_score:.1f}/100 — Favorable momentum with positive technical signals."
-        elif final_score >= hold_low:
+            summary = (f"Investment Score {final_score:.1f}/100 — Strong setup with "
+                       f"favorable fundamentals and positive momentum.")
+        elif final_score >= thresholds['accumulate']:      # 65–79
+            recommendation = 'ACCUMULATE'
+            summary = (f"Investment Score {final_score:.1f}/100 — Good opportunity "
+                       f"to accumulate at current levels.")
+        elif final_score >= thresholds['hold_low']:        # 50–64
             recommendation = 'HOLD'
-            summary = f"I-Score {final_score:.1f}/100 — Mixed signals; maintain current positions."
-        elif final_score >= sell:
-            recommendation = 'CAUTIONARY_SELL'
-            summary = f"I-Score {final_score:.1f}/100 — Caution advised; consider reducing exposure."
-        else:
+            summary = (f"Investment Score {final_score:.1f}/100 — Mixed signals; "
+                       f"maintain current positions.")
+        elif final_score >= thresholds['reduce']:          # 35–49
+            recommendation = 'REDUCE'
+            summary = (f"Investment Score {final_score:.1f}/100 — Caution advised; "
+                       f"consider reducing exposure on rallies.")
+        else:                                              # < 35
             recommendation = 'STRONG_SELL'
-            summary = f"I-Score {final_score:.1f}/100 — Significant bearish pressure across indicators."
+            summary = (f"Investment Score {final_score:.1f}/100 — Significant bearish pressure "
+                       f"across fundamentals, trend, and risk indicators.")
 
         if penalty_reasons:
             summary += ' ' + '; '.join(penalty_reasons[:2]) + '.'
 
         return {
-            'overall_score': final_score,
-            'overall_confidence': conf['value'],
-            'recommendation': recommendation,
+            'overall_score':          final_score,
+            'overall_confidence':     conf['value'],
+            'recommendation':         recommendation,
             'recommendation_summary': summary,
-            'penalty_applied': penalty,
-            'penalty_reasons': penalty_reasons,
-            'confidence_level': conf['level'],
-            'score_factors': score_factors,
+            'penalty_applied':        penalty,
+            'penalty_reasons':        penalty_reasons,
+            'confidence_level':       conf['level'],
+            'score_factors':          score_factors,
+            # Three-tier scores (file 1)
+            'swing_score':      swing_score,
+            'investment_score': final_score,   # Investment = default overall
+            'wealth_score':     wealth_score,
+            # Component breakdown (Phase 8)
+            'component_breakdown': component_breakdown,
             'step': 'aggregation_complete',
         }
     
@@ -2937,51 +3486,98 @@ class LangGraphIScoreEngine:
             is_stock = state.get('asset_type', 'stocks') in ('stocks', 'stock')
             w = self.WEIGHTS if is_stock else {'qualitative_pct': 15, 'quantitative_pct': 50, 'search_pct': 10, 'trend_pct': 25}
 
-            components = [
-                {
-                    'type': 'qualitative',
-                    'weight': w.get('qualitative_pct', 15),
-                    'score': state.get('qualitative_score', 50),
-                    'confidence': state.get('qualitative_confidence', 0.5),
-                    'details': state.get('qualitative_details', {})
-                },
-                {
-                    'type': 'quantitative',
-                    'weight': w.get('quantitative_pct', 30),
-                    'score': state.get('quantitative_score', 50),
-                    'confidence': state.get('quantitative_confidence', 0.5),
-                    'details': state.get('quantitative_details', {})
-                },
-                {
-                    'type': 'search',
-                    'weight': w.get('search_pct', 10),
-                    'score': state.get('search_score', 50),
-                    'confidence': state.get('search_confidence', 0.5),
-                    'details': state.get('search_details', {})
-                },
-                {
-                    'type': 'trend',
-                    'weight': w.get('trend_pct', 20),
-                    'score': state.get('trend_score', 50),
-                    'confidence': state.get('trend_confidence', 0.5),
-                    'details': state.get('trend_details', {})
-                },
-            ]
             if is_stock:
-                components.append({
-                    'type': 'risk',
-                    'weight': w.get('risk_pct', 20),
-                    'score': state.get('risk_score', 50),
-                    'confidence': state.get('risk_confidence', 0.5),
-                    'details': state.get('risk_details', {}),
-                })
-                components.append({
-                    'type': 'market_context',
-                    'weight': w.get('market_context_pct', 5),
-                    'score': state.get('market_context_score', 50),
-                    'confidence': state.get('market_context_confidence', 0.5),
-                    'details': state.get('market_context_details', {}),
-                })
+                # Phase 15: 8-component architecture
+                components = [
+                    {
+                        'type': 'market_intelligence',
+                        'weight': w.get('market_intelligence_pct', 15),
+                        'score': state.get('market_intelligence_score', 50),
+                        'confidence': state.get('market_intelligence_confidence', 0.5),
+                        'details': state.get('market_intelligence_details', {}),
+                    },
+                    {
+                        'type': 'quantitative',
+                        'weight': w.get('quantitative_pct', 25),
+                        'score': state.get('quantitative_score', 50),
+                        'confidence': state.get('quantitative_confidence', 0.5),
+                        'details': state.get('quantitative_details', {}),
+                    },
+                    {
+                        'type': 'fundamental',
+                        'weight': w.get('fundamental_pct', 20),
+                        'score': state.get('fundamental_score', 50),
+                        'confidence': state.get('fundamental_confidence', 0.5),
+                        'details': state.get('fundamental_details', {}),
+                    },
+                    {
+                        'type': 'trend',
+                        'weight': w.get('trend_pct', 15),
+                        'score': state.get('trend_score', 50),
+                        'confidence': state.get('trend_confidence', 0.5),
+                        'details': state.get('trend_details', {}),
+                    },
+                    {
+                        'type': 'risk',
+                        'weight': w.get('risk_pct', 10),
+                        'score': state.get('risk_score', 50),
+                        'confidence': state.get('risk_confidence', 0.5),
+                        'details': state.get('risk_details', {}),
+                    },
+                    {
+                        'type': 'market_context',
+                        'weight': w.get('market_context_pct', 5),
+                        'score': state.get('market_context_score', 50),
+                        'confidence': state.get('market_context_confidence', 0.5),
+                        'details': state.get('market_context_details', {}),
+                    },
+                    {
+                        'type': 'valuation',
+                        'weight': w.get('valuation_pct', 5),
+                        'score': state.get('valuation_score', 50),
+                        'confidence': state.get('valuation_confidence', 0.5),
+                        'details': state.get('valuation_details', {}),
+                    },
+                    {
+                        'type': 'institutional',
+                        'weight': w.get('institutional_pct', 5),
+                        'score': state.get('institutional_score', 50),
+                        'confidence': state.get('institutional_confidence', 0.5),
+                        'details': state.get('institutional_details', {}),
+                    },
+                ]
+            else:
+                # Non-stock pipelines: legacy 4-component model
+                components = [
+                    {
+                        'type': 'qualitative',
+                        'weight': w.get('qualitative_pct', 15),
+                        'score': state.get('qualitative_score', 50),
+                        'confidence': state.get('qualitative_confidence', 0.5),
+                        'details': state.get('qualitative_details', {}),
+                    },
+                    {
+                        'type': 'quantitative',
+                        'weight': w.get('quantitative_pct', 50),
+                        'score': state.get('quantitative_score', 50),
+                        'confidence': state.get('quantitative_confidence', 0.5),
+                        'details': state.get('quantitative_details', {}),
+                    },
+                    {
+                        'type': 'search',
+                        'weight': w.get('search_pct', 10),
+                        'score': state.get('search_score', 50),
+                        'confidence': state.get('search_confidence', 0.5),
+                        'details': state.get('search_details', {}),
+                    },
+                    {
+                        'type': 'trend',
+                        'weight': w.get('trend_pct', 25),
+                        'score': state.get('trend_score', 50),
+                        'confidence': state.get('trend_confidence', 0.5),
+                        'details': state.get('trend_details', {}),
+                    },
+                ]
             
             for comp in components:
                 signal = 'bullish' if comp['score'] > 60 else 'bearish' if comp['score'] < 40 else 'neutral'
@@ -3015,23 +3611,74 @@ class LangGraphIScoreEngine:
             )
 
             payload = {
-                'overall_score': state.get('overall_score'),
-                'overall_confidence': state.get('overall_confidence'),
-                'recommendation': state.get('recommendation'),
+                'overall_score':          state.get('overall_score'),
+                'overall_confidence':     state.get('overall_confidence'),
+                'recommendation':         state.get('recommendation'),
                 'recommendation_summary': state.get('recommendation_summary'),
-                'penalty_applied': state.get('penalty_applied', 1.0),
-                'penalty_reasons': state.get('penalty_reasons', []),
-                'confidence_level': state.get('confidence_level', 'Medium'),
-                'score_factors': state.get('score_factors', []),
-                'holding_period': _hp,
-                'qualitative': {'score': state.get('qualitative_score'), 'details': state.get('qualitative_details')},
-                'quantitative': {'score': state.get('quantitative_score'), 'details': state.get('quantitative_details')},
-                'search': {'score': state.get('search_score'), 'details': state.get('search_details')},
-                'trend': {'score': state.get('trend_score'), 'details': state.get('trend_details')},
+                'penalty_applied':        state.get('penalty_applied', 1.0),
+                'penalty_reasons':        state.get('penalty_reasons', []),
+                'confidence_level':       state.get('confidence_level', 'Medium'),
+                'score_factors':          state.get('score_factors', []),
+                'holding_period':         _hp,
+                # Three-tier horizon scores (file 1 spec)
+                'swing_score':       state.get('swing_score', state.get('overall_score')),
+                'investment_score':  state.get('investment_score', state.get('overall_score')),
+                'wealth_score':      state.get('wealth_score', state.get('overall_score')),
+                # Component breakdown (Phase 8)
+                'component_breakdown': state.get('component_breakdown', {}),
+                # Phase 9: AI-generated investment narrative
+                'bull_case':         state.get('bull_case', ''),
+                'bear_case':         state.get('bear_case', ''),
+                'key_risks':         state.get('key_risks', []),
+                'key_opportunities': state.get('key_opportunities', []),
+                'catalysts':         state.get('catalysts', []),
+                'investment_thesis': state.get('investment_thesis', ''),
+                'events_to_watch':   state.get('events_to_watch', []),
+                # Component scores (legacy keys kept for backward compat)
+                'qualitative': {
+                    'score': state.get('qualitative_score'),
+                    'details': state.get('qualitative_details'),
+                },
+                'market_intelligence': {
+                    'score': state.get('market_intelligence_score'),
+                    'details': state.get('market_intelligence_details'),
+                    'reasoning': state.get('market_intelligence_reasoning', ''),
+                },
+                'quantitative': {
+                    'score': state.get('quantitative_score'),
+                    'details': state.get('quantitative_details'),
+                },
+                'search': {
+                    'score': state.get('search_score'),
+                    'details': state.get('search_details'),
+                },
+                'trend': {
+                    'score': state.get('trend_score'),
+                    'details': state.get('trend_details'),
+                },
             }
             if is_stock:
-                payload['risk'] = {'score': state.get('risk_score'), 'details': state.get('risk_details')}
-                payload['market_context'] = {'score': state.get('market_context_score'), 'details': state.get('market_context_details')}
+                payload['fundamental'] = {
+                    'score': state.get('fundamental_score'),
+                    'details': state.get('fundamental_details'),
+                    'reasoning': state.get('fundamental_reasoning', ''),
+                }
+                payload['valuation'] = {
+                    'score': state.get('valuation_score'),
+                    'details': state.get('valuation_details'),
+                }
+                payload['institutional'] = {
+                    'score': state.get('institutional_score'),
+                    'details': state.get('institutional_details'),
+                }
+                payload['risk'] = {
+                    'score': state.get('risk_score'),
+                    'details': state.get('risk_details'),
+                }
+                payload['market_context'] = {
+                    'score': state.get('market_context_score'),
+                    'details': state.get('market_context_details'),
+                }
 
             cache_entry = ResearchCache(
                 tenant_id='live',

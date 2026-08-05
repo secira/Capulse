@@ -1,0 +1,206 @@
+This is actually one of the most important design decisions for **TargetCapital.ai** because the **holding period determines which factors deserve the highest weight**.
+
+Looking at your current model, I can infer the intended holding period from the inputs.
+
+| Component          | Typical Horizon |
+| ------------------ | --------------- |
+| RSI                | 3–10 days       |
+| EMA 9/20/50        | 1–8 weeks       |
+| Momentum (5d/20d)  | 1–4 weeks       |
+| SuperTrend         | 1–6 weeks       |
+| News / Qualitative | 1–12 weeks      |
+| Trend Analysis     | 2–8 weeks       |
+| Risk Analysis      | Months          |
+| Market Context     | Days–Weeks      |
+
+The engine is therefore **not** a day trading model, nor is it a long-term value investing model.
+
+## My estimate of the current holding period
+
+Your current I-Score is best suited for:
+
+> **2 weeks to 3 months**
+
+It is essentially a **swing-position investing model**.
+
+---
+
+# I don't recommend having only one I-Score
+
+Institutional investors don't use one model.
+
+They use different models for different investment horizons.
+
+I'd recommend creating **three versions of the I-Score**.
+
+---
+
+# I-Score Swing
+
+Holding Period
+
+**5–20 trading days**
+
+Use for:
+
+* Swing traders
+* Momentum investors
+* Positional traders
+
+Weighting:
+
+| Component      | Weight |
+| -------------- | -----: |
+| Technical      |    35% |
+| Trend          |    25% |
+| Market Context |    15% |
+| Risk           |    10% |
+| AI News        |    15% |
+
+Indicators:
+
+* RSI
+* EMA
+* SuperTrend
+* Volume
+* Relative Strength
+* PCR
+* VIX
+
+Ignore valuation.
+
+---
+
+# I-Score Investment (Recommended Default)
+
+Holding Period
+
+**1–6 months**
+
+This should become the **default score** shown to users.
+
+Weighting:
+
+| Component              | Weight |
+| ---------------------- | -----: |
+| Technical              |    25% |
+| Fundamental            |    20% |
+| Trend                  |    15% |
+| AI Market Intelligence |    15% |
+| Risk                   |    10% |
+| Valuation              |    10% |
+| Market Context         |     5% |
+
+This balances price action with business quality and valuation.
+
+---
+
+# I-Score Wealth
+
+Holding Period
+
+**1–5 years**
+
+Designed for investors rather than traders.
+
+Weighting:
+
+| Component              | Weight |
+| ---------------------- | -----: |
+| Fundamentals           |    35% |
+| Valuation              |    20% |
+| Institutional Quality  |    15% |
+| Risk                   |    15% |
+| AI Market Intelligence |    10% |
+| Technical              |     5% |
+
+Technical indicators should contribute very little because short-term price swings are much less important over multi-year horizons.
+
+---
+
+# One Engine, Three Outputs
+
+The good news is that you **don't need three separate engines**.
+
+You already compute most of the required data.
+
+The pipeline can remain the same:
+
+```text
+Qualitative
+Quantitative
+Trend
+Risk
+Market
+Fundamental
+Valuation
+Institutional
+```
+
+The only difference is the **aggregation layer**.
+
+For example:
+
+```text
+I-Score Swing
+
+Technical      35%
+Trend          25%
+Risk           10%
+Market         15%
+AI             15%
+```
+
+```text
+I-Score Investment
+
+Technical      25%
+Fundamental    20%
+Trend          15%
+Risk           10%
+Valuation      10%
+Market         5%
+AI             15%
+```
+
+```text
+I-Score Wealth
+
+Fundamental    35%
+Valuation      20%
+Institutional  15%
+Risk           15%
+AI             10%
+Technical       5%
+```
+
+The computation cost barely changes because you're simply applying different weights to the same underlying component scores.
+
+---
+
+# My Recommendation for TargetCapital.ai
+
+Since your platform already includes:
+
+* F&O Signals (intraday)
+* Portfolio Analysis
+* AI Research
+* Wealth creation
+
+I would **brand the scores by investment horizon** rather than exposing technical names.
+
+| Product Name          | Holding Period    | Target User           |
+| --------------------- | ----------------- | --------------------- |
+| **Opportunity Score** | 5–20 trading days | Swing traders         |
+| **Investment Score**  | 1–6 months        | Most retail investors |
+| **Wealth Score**      | 1–5 years         | Long-term investors   |
+
+The platform can still calculate a single underlying set of component scores, but present the three horizon-specific scores side by side. This gives users a much richer view. For example:
+
+| Score             |                                                  Value |
+| ----------------- | -----------------------------------------------------: |
+| Opportunity Score |                 **92** (excellent short-term momentum) |
+| Investment Score  |                  **74** (good medium-term opportunity) |
+| Wealth Score      | **58** (business is expensive for long-term investors) |
+
+That immediately tells the user that a stock may be an excellent swing trade but not necessarily a compelling long-term investment—or vice versa. I think this would be a significant differentiator for TargetCapital.ai because very few retail platforms explicitly align their scoring model with the investor's intended holding period.

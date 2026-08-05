@@ -1,6 +1,12 @@
 """
 Component scoring functions — converts raw indicator values to 0-100 scores.
 Scentric Proprietary Model.
+
+Phase 1 changes:
+  - compute_quant_score(): Relative Strength 25%, EMA 20%, Momentum 20%, RSI 15%,
+    SuperTrend 10%, ATR Efficiency 10%  (reduces RSI/EMA/Momentum correlation)
+  - compute_trend_score_from_indicators(): EMA Alignment 20%, Higher High/HL 20%,
+    Trend Duration 15%, Relative Strength 20%, Volume 15%, 52-week High Distance 10%
 """
 
 
@@ -127,24 +133,51 @@ def score_multi_timeframe(short: str, medium: str, long: str) -> float:
 
 
 def compute_quant_score(indicators: dict) -> dict:
-    rsi_s = score_rsi(indicators['rsi'])
-    ema_s = score_ema_alignment(indicators.get('ema9'), indicators.get('ema20'), indicators.get('ema50'))
-    mom_s = score_momentum(indicators.get('momentum_5d', 0), indicators.get('momentum_20d', 0))
-    st_s = score_supertrend(indicators.get('supertrend_direction', 'sell'))
+    """
+    Phase 1: Reduced-correlation quantitative score.
+    Weights: Relative Strength 25%, EMA 20%, Momentum 20%, RSI 15%,
+             SuperTrend 10%, ATR Efficiency 10%.
 
-    composite = 0.30 * rsi_s + 0.25 * ema_s + 0.25 * mom_s + 0.20 * st_s
+    Relative Strength and ATR Efficiency are orthogonal to RSI/EMA/Momentum,
+    breaking the triple-counting of the same price move.
+    """
+    rsi_s  = score_rsi(indicators['rsi'])
+    ema_s  = score_ema_alignment(indicators.get('ema9'), indicators.get('ema20'), indicators.get('ema50'))
+    mom_s  = score_momentum(indicators.get('momentum_5d', 0), indicators.get('momentum_20d', 0))
+    st_s   = score_supertrend(indicators.get('supertrend_direction', 'sell'))
+
+    # Phase 1 additions
+    rs_data = indicators.get('rs_vs_nifty', {})
+    rs_s    = float(rs_data.get('rs_score', 50.0))
+
+    atr_eff_data = indicators.get('atr_efficiency', {})
+    eff_s = float(atr_eff_data.get('efficiency_score', 50.0))
+
+    # Phase 1 weights — Relative Strength 25%, EMA 20%, Momentum 20%, RSI 15%,
+    # SuperTrend 10%, ATR Efficiency 10%
+    composite = (
+        0.25 * rs_s  +
+        0.20 * ema_s +
+        0.20 * mom_s +
+        0.15 * rsi_s +
+        0.10 * st_s  +
+        0.10 * eff_s
+    )
+
     return {
         'composite': round(composite, 2),
         'rsi_score': round(rsi_s, 2),
         'ema_score': round(ema_s, 2),
         'momentum_score': round(mom_s, 2),
         'supertrend_score': round(st_s, 2),
+        'relative_strength_score': round(rs_s, 2),
+        'atr_efficiency_score': round(eff_s, 2),
     }
 
 
 def compute_risk_score(indicators: dict, beta: float = 1.0) -> dict:
-    vol_s = score_volatility_risk(indicators.get('atr_pct', 3.0))
-    dd_s = score_drawdown(indicators.get('max_drawdown', 0))
+    vol_s  = score_volatility_risk(indicators.get('atr_pct', 3.0))
+    dd_s   = score_drawdown(indicators.get('max_drawdown', 0))
     beta_s = score_beta(beta)
 
     composite = 0.40 * vol_s + 0.35 * dd_s + 0.25 * beta_s
@@ -157,18 +190,61 @@ def compute_risk_score(indicators: dict, beta: float = 1.0) -> dict:
 
 
 def compute_trend_score_from_indicators(indicators: dict) -> dict:
-    mtf_s = score_multi_timeframe(
+    """
+    Phase 1: Expanded trend score.
+    Weights: EMA Alignment 20%, Higher High/HL 20%, Trend Duration 15%,
+             Relative Strength 20%, Volume 15%, 52-week High Distance 10%.
+
+    Previously just MTF EMA (60%) + Volume (40%).
+    """
+    # EMA alignment (replaces multi-timeframe — same data, but labelled correctly)
+    ema_align_s = score_multi_timeframe(
         indicators.get('short_trend', 'neutral'),
         indicators.get('medium_trend', 'neutral'),
         indicators.get('long_trend', 'neutral'),
     )
+
+    # Higher High / Higher Low structure
+    hh_data = indicators.get('hh_hl_structure', {})
+    hh_s = float(hh_data.get('hh_hl_score', 50.0))
+
+    # Trend duration
+    dur_data = indicators.get('trend_duration', {})
+    dur_s = float(dur_data.get('duration_score', 50.0))
+
+    # Relative Strength vs Nifty
+    rs_data = indicators.get('rs_vs_nifty', {})
+    rs_s = float(rs_data.get('rs_score', 50.0))
+
+    # Volume
+    vol_data = indicators.get('volume', {})
     vol_s = score_volume(
-        indicators.get('volume', {}).get('volume_ratio', 1.0),
-        indicators.get('volume', {}).get('is_spike', False),
+        vol_data.get('volume_ratio', 1.0),
+        vol_data.get('is_spike', False),
     )
-    composite = 0.60 * mtf_s + 0.40 * vol_s
+
+    # 52-week high proximity
+    h52_data = indicators.get('high_52w', {})
+    h52_s = float(h52_data.get('distance_score', 50.0))
+
+    composite = (
+        0.20 * ema_align_s +
+        0.20 * hh_s        +
+        0.15 * dur_s       +
+        0.20 * rs_s        +
+        0.15 * vol_s       +
+        0.10 * h52_s
+    )
+
     return {
         'composite': round(composite, 2),
-        'multi_timeframe_score': round(mtf_s, 2),
+        # Legacy key kept for backward compatibility
+        'multi_timeframe_score': round(ema_align_s, 2),
         'volume_score': round(vol_s, 2),
+        # Phase 1 additions
+        'ema_alignment_score': round(ema_align_s, 2),
+        'hh_hl_score': round(hh_s, 2),
+        'trend_duration_score': round(dur_s, 2),
+        'relative_strength_score': round(rs_s, 2),
+        'distance_52w_score': round(h52_s, 2),
     }
