@@ -357,26 +357,26 @@ function showDetails(stockId) {
                 <div class="row g-3">
                     <div class="col-md-3">
                         <div class="card text-center p-3">
-                            <small class="text-muted">Qualitative (15%)</small>
-                            <h4 class="mb-0">${data.qualitative_score !== null ? data.qualitative_score.toFixed(1) : '-'}</h4>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card text-center p-3">
-                            <small class="text-muted">Quantitative (50%)</small>
+                            <small class="text-muted">Technical (25%)</small>
                             <h4 class="mb-0">${data.quantitative_score !== null ? data.quantitative_score.toFixed(1) : '-'}</h4>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="card text-center p-3">
-                            <small class="text-muted">Search (10%)</small>
-                            <h4 class="mb-0">${data.search_score !== null ? data.search_score.toFixed(1) : '-'}</h4>
+                            <small class="text-muted">Market Intelligence (15%)</small>
+                            <h4 class="mb-0">${(data.market_intelligence?.score ?? data.qualitative_score) !== null ? (data.market_intelligence?.score ?? data.qualitative_score).toFixed(1) : '-'}</h4>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="card text-center p-3">
-                            <small class="text-muted">Trend (25%)</small>
+                            <small class="text-muted">Trend (15%)</small>
                             <h4 class="mb-0">${data.trend_score !== null ? data.trend_score.toFixed(1) : '-'}</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center p-3">
+                            <small class="text-muted">Risk (10%)</small>
+                            <h4 class="mb-0">${data.risk_score !== null ? data.risk_score.toFixed(1) : '-'}</h4>
                         </div>
                     </div>
                 </div>

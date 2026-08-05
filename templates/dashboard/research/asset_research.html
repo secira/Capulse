@@ -48,7 +48,7 @@
             <!-- I-Score info tooltip -->
             <span tabindex="0"
                   data-bs-toggle="tooltip" data-bs-placement="left" data-bs-html="true"
-                  title="<strong>What is I-Score?</strong><br>AI-powered 0–100 rating combining:<br>{% if asset_key == 'mutual_funds' %}• Performance (50%) · Trend (25%)<br>• Sentiment (15%) · Search (10%){% elif asset_key == 'bonds' %}• Yield Analysis (50%) · Market Trend (25%)<br>• Credit (15%) · Search (10%){% else %}• Quantitative (30%) · Trend (20%)<br>• Risk (20%) · Sentiment (15%)<br>• Search (10%) · Market Context (5%){% endif %}<br><br>78+ = Strong Buy · 63–77 = Buy<br>42–62 = Hold · &lt;28 = Sell"
+                  title="<strong>What is I-Score?</strong><br>AI-powered 0–100 rating combining:<br>{% if asset_key == 'mutual_funds' %}• Performance (50%) · Trend (25%)<br>• Sentiment (15%) · Search (10%){% elif asset_key == 'bonds' %}• Yield Analysis (50%) · Market Trend (25%)<br>• Credit (15%) · Search (10%){% else %}• Technical (25%) · Fundamental (20%)<br>• Trend (15%) · Market Intelligence (15%)<br>• Risk (10%) · Valuation (5%)<br>• Institutional (5%) · Market Context (5%){% endif %}<br><br>90+ = Strong Buy · 80–89 = Buy · 65–79 = Accumulate<br>50–64 = Hold · 35–49 = Reduce · &lt;35 = Strong Sell"
                   style="cursor:help;flex-shrink:0">
                 <i class="fas fa-info-circle text-primary" style="font-size:22px"></i>
             </span>
@@ -184,10 +184,12 @@
                 <div class="mt-4">
                     <h6 class="fw-bold mb-2"><i class="fas fa-gavel me-2"></i>Score Thresholds</h6>
                     <div class="d-flex flex-wrap gap-2">
-                        <span class="badge bg-success">Strong Buy: 78+</span>
-                        <span class="badge bg-primary">Buy: 63+</span>
-                        <span class="badge bg-warning text-dark">Hold: 42–62</span>
-                        <span class="badge bg-danger">Sell / Strong Sell: &lt;28</span>
+                        <span class="badge bg-success">Strong Buy: 90+</span>
+                        <span class="badge bg-primary">Buy: 80–89</span>
+                        <span class="badge bg-info text-dark">Accumulate: 65–79</span>
+                        <span class="badge bg-warning text-dark">Hold: 50–64</span>
+                        <span class="badge bg-orange" style="background:#f97316;color:#fff">Reduce: 35–49</span>
+                        <span class="badge bg-danger">Strong Sell: &lt;35</span>
                     </div>
                 </div>
             </div>
@@ -878,11 +880,14 @@ function displayIScoreResult(data) {
     let badgeText = recommendation.replace(/_/g, ' ');
     
     switch(recommendation) {
-        case 'STRONG_BUY': badgeClass = 'bg-success'; break;
-        case 'BUY': badgeClass = 'bg-primary'; break;
-        case 'HOLD': badgeClass = 'bg-warning text-dark'; break;
-        case 'CAUTIONARY_SELL': badgeClass = 'bg-orange'; break;
+        case 'STRONG_BUY':  badgeClass = 'bg-success'; break;
+        case 'BUY':         badgeClass = 'bg-primary'; break;
+        case 'ACCUMULATE':  badgeClass = 'bg-info text-dark'; break;
+        case 'HOLD':        badgeClass = 'bg-warning text-dark'; break;
+        case 'REDUCE':      badgeClass = 'bg-orange'; break;
         case 'STRONG_SELL': badgeClass = 'bg-danger'; break;
+        // legacy label — kept for old cached results
+        case 'CAUTIONARY_SELL': badgeClass = 'bg-orange'; break;
     }
     badgeContainer.innerHTML = `<span class="badge ${badgeClass} px-3 py-2">${badgeText}</span>`;
     
@@ -1117,11 +1122,14 @@ function showOverallDetails() {
     let badgeText = recommendation.replace(/_/g, ' ');
     
     switch(recommendation) {
-        case 'STRONG_BUY': badgeClass = 'bg-success'; break;
-        case 'BUY': badgeClass = 'bg-primary'; break;
-        case 'HOLD': badgeClass = 'bg-warning text-dark'; break;
-        case 'CAUTIONARY_SELL': badgeClass = 'bg-orange'; break;
+        case 'STRONG_BUY':  badgeClass = 'bg-success'; break;
+        case 'BUY':         badgeClass = 'bg-primary'; break;
+        case 'ACCUMULATE':  badgeClass = 'bg-info text-dark'; break;
+        case 'HOLD':        badgeClass = 'bg-warning text-dark'; break;
+        case 'REDUCE':      badgeClass = 'bg-orange'; break;
         case 'STRONG_SELL': badgeClass = 'bg-danger'; break;
+        // legacy label — kept for old cached results
+        case 'CAUTIONARY_SELL': badgeClass = 'bg-orange'; break;
     }
     document.getElementById('inlineRecommendation').innerHTML = `<span class="badge ${badgeClass} px-4 py-2 fs-6">${badgeText}</span>`;
 
