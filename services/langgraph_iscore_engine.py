@@ -1119,14 +1119,37 @@ Return JSON:
                 f"Volume ratio {vol.get('volume_ratio', 1):.1f}x avg ({'spike' if vol.get('is_spike') else 'normal'})."
             )
 
+            rs_data  = indicators.get('rs_vs_nifty', {})
+            hh_data  = indicators.get('hh_hl_structure', {})
+            dur_data = indicators.get('trend_duration', {})
+            h52_data = indicators.get('high_52w', {})
+
             return {
                 'trend_score': min(100, max(0, trend['composite'])),
                 'trend_details': {
-                    'multi_timeframe': {
+                    # Phase 1: all six sub-components
+                    'ema_alignment': {
                         'short': indicators.get('short_trend', 'neutral'),
                         'medium': indicators.get('medium_trend', 'neutral'),
                         'long': indicators.get('long_trend', 'neutral'),
-                        'score': trend['multi_timeframe_score'],
+                        'score': trend['ema_alignment_score'],
+                    },
+                    'hh_hl_structure': {
+                        'pattern': hh_data.get('pattern', 'neutral'),
+                        'recent_hh': hh_data.get('recent_hh', False),
+                        'recent_hl': hh_data.get('recent_hl', False),
+                        'score': trend['hh_hl_score'],
+                    },
+                    'trend_duration': {
+                        'consecutive_bars': dur_data.get('consecutive_bars', 0),
+                        'direction': dur_data.get('direction', 'neutral'),
+                        'score': trend['trend_duration_score'],
+                    },
+                    'relative_strength': {
+                        'rs_20d': rs_data.get('rs_20d', 0),
+                        'rs_60d': rs_data.get('rs_60d', 0),
+                        'rs_120d': rs_data.get('rs_120d', 0),
+                        'score': trend['relative_strength_score'],
                     },
                     'volume': {
                         'current': vol.get('current_volume', 0),
@@ -1135,10 +1158,23 @@ Return JSON:
                         'is_spike': vol.get('is_spike', False),
                         'score': trend['volume_score'],
                     },
+                    '52w_high_proximity': {
+                        'distance_pct': h52_data.get('distance_pct', 0),
+                        'is_near_high': h52_data.get('is_near_high', False),
+                        'score': trend['distance_52w_score'],
+                    },
                 },
                 'trend_sources': [
-                    {'name': 'Multi-Timeframe EMA', 'type': 'trend', 'coverage': f"S:{indicators.get('short_trend')} M:{indicators.get('medium_trend')} L:{indicators.get('long_trend')}"},
-                    {'name': 'Volume Analysis', 'type': 'volume', 'coverage': f"{vol.get('volume_ratio', 1):.1f}x avg"},
+                    {'name': 'EMA Alignment (MTF)', 'type': 'trend',
+                     'coverage': f"S:{indicators.get('short_trend')} M:{indicators.get('medium_trend')} L:{indicators.get('long_trend')}"},
+                    {'name': 'HH/HL Structure', 'type': 'structure',
+                     'coverage': hh_data.get('pattern', 'neutral')},
+                    {'name': 'Relative Strength vs Nifty', 'type': 'momentum',
+                     'coverage': f"20d: {rs_data.get('rs_20d', 0):+.1f}%"},
+                    {'name': 'Volume Analysis', 'type': 'volume',
+                     'coverage': f"{vol.get('volume_ratio', 1):.1f}x avg"},
+                    {'name': '52-Week High Distance', 'type': 'price_level',
+                     'coverage': f"{h52_data.get('distance_pct', 0):.1f}% from high"},
                 ],
                 'trend_reasoning': reasoning,
                 'trend_confidence': 0.80,
