@@ -1,0 +1,114 @@
+Here's the complete current F&O signal logic, layer by layer, after the Phase 1 update:
+
+F&O Signal Logic — Current Conditions (Phase 1, Aug 2026)
+The engine runs two independent layers: the Engine (computes whether a signal exists) and the Monitor (decides whether to lock an autonomous trade).
+
+Engine Layer — runs every 60s per index
+Step 1 — Time Filter
+
+Window	Status
+Before 9:15 AM IST	Market closed — no scan
+9:15–12:00	Normal session
+12:00–12:30	Mid-session caution (index-aware penalty)
+12:30–1:30 PM	Post-lunch zone → strong_trend_required = True
+1:30–3:00 PM	Afternoon zone → strong_trend_required = True
+After 3:00 PM	No new entries; exits monitored until 3:05 PM
+strong_trend_required activates the Afternoon EARLY penalty (see Step 5).
+
+Step 2 — ADX / Flat Market Gate (session-aware, Phase 1 relaxed)
+
+Time window	ADX minimum	Action if below
+Before 12:30 PM	18 (was 20)	market_regime = flat
+12:30–1:30 PM	20 (was 22)	market_regime = flat
+After 1:30 PM	22 (was 25)	market_regime = flat
+flat at engine level → sets entry_mode = NO TRADE. flat at monitor level → scan skipped + rejection logged.
+
+Step 3 — Direction Engine (6 indicators, need 4+ aligned)
+
+#	Indicator	Bullish condition	Bearish condition
+1	EMA trend + momentum	Bullish trend + crossover or distance rising	Bearish trend + same
+2	VWAP alignment	Spot > VWAP	Spot < VWAP
+3	Volume	At/above 20-bar average	Same (direction via price)
+4	DMI/ADX	+DI > −DI	−DI > +DI
+5	RSI	RSI > 50	RSI < 50
+6	OI window diff	Positive (call OI building)	Negative (put OI building)
+4+ of 6 aligned → indicators_aligned = True → direction is BULLISH or BEARISH.
+
+Step 4 — Strength Gate
+
+EMA must be actively crossing or distance between fast/slow EMA must be widening.
+
+Tier	Meaning	Effect
+STRONG_TREND	Full momentum, fresh crossover	strength_gate_pass = True
+TRADABLE_TREND	Crossover active, momentum building	strength_gate_pass = True
+WEAK_TREND	Gap 0.03–0.08%, no fresh crossover	strength_gate_pass = False → NO TRADE
+Step 5 — Entry Mode Determination
+
+If all of time_check.pass + strength_gate_pass + regime.pass + indicators_aligned + trigger.triggered are True:
+
+Trigger quality	entry_mode
+EMA fully crossed + sustained momentum (close-confirmed breakout)	CONFIRMED
+EMA building, not fully crossed yet	EARLY
+If any of those 5 conditions fails → entry_mode = NO TRADE.
+
+Step 6 — Market Regime / Chop Filter (graduated penalty, Phase 1)
+
+Counts simultaneous chop flags (EMA flat, volume low, range compression, overlapping candles, etc.):
+
+Chop flags	Action
+0	No penalty
+1	Confidence −5 (signal still permitted)
+2	Confidence −10 (signal still permitted)
+3+	Hard NO TRADE block
+Step 7 — Confidence Score (base calculation, _confidence_score)
+
+Composed from:
+
+VWAP alignment (spot side matching direction)
+Indicators aligned bonus
+EMA crossover bonus
+HalfTrend alignment bonus (when trend matches direction + stability ≥ 50)
+OI window diff contribution
+Time-of-day multiplier
+Output is an integer 0–100 before any Phase 1 penalties.
+
+Step 8 — Phase 1 Confidence Penalties (applied in order after base score)
+
+Condition	Penalty	Was
+Chop regime, 1 flag	−5	Hard block
+Chop regime, 2 flags	−10	Hard block
+Afternoon EARLY (strong_trend_required + entry_mode == EARLY)	−10	Hard NO TRADE
+HalfTrend opposing direction	−10	Hard NO TRADE
+Penalties stack. All three together = −30 max deduction from the base score.
+
+Step 9 — Hard Blocks (still in place regardless of confidence)
+
+Condition	Effect
+market_regime == flat	NO TRADE
+Volume < 50% of 20-bar avg AND no vol expansion	NO TRADE
+Estimated data (no real prices available)	NO TRADE
+Low-quality candle data	NO TRADE
+Step 10 — Confidence Floor & Tier Classification (Phase 1)
+
+Confidence	Tier	UI / Telegram
+≥ 75	HIGH_CONVICTION	Telegram alert sent
+70–74	REGULAR	App/UI only
+68–69	STANDARD (new)	App/UI only
+< 68	BLOCKED	Not shown; rejection logged
+final_decision = TRADE only when: entry_mode ≠ NO TRADE AND confidence ≥ 68.
+
+Monitor Layer — autonomous trade locking
+The monitor scans every 60s and applies its own second-quality gate before locking a real trade.
+
+Gate	Threshold	Was (pre-Phase 1)
+Smoothed confidence	≥ 80	≥ 85
+ADX	≥ 22	≥ 28
+Entry mode	CONFIRMED or EARLY	same
+Direction	Not NEUTRAL	same
+Consecutive confirmations	3 scans (~3 min)	same
+Entry cooldown	90 min between trades	same
+Per-index daily cap	2 trades	same
+Cross-index daily cap	8 trades (4 indices × 2)	same
+Circuit breaker	2 consecutive SL hits on same index → that index blocked for rest of day	same
+Deliberate gap: Engine floor is 68 (what shows in UI), monitor lock gate is 80 (what triggers an autonomous trade). Signals at 68–79 appear as SCAN records in the dashboard but don't auto-execute.
+

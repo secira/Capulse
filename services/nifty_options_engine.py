@@ -901,18 +901,24 @@ class NiftyOptionsEngine:
         caution = caution_weight > 0
         status  = 'holiday' if is_holiday else ('caution' if caution else 'active')
 
+        # Phase 1 — Afternoon caution flag (12:30–3:00 PM IST).
+        # When True: EARLY entry mode gets a −10 confidence penalty in generate_analysis.
+        # ADX flat gate also uses a higher threshold after 12:30 PM.
+        strong_trend_required = dtime(12, 30) <= current_time < dtime(15, 0)
+
         return {
-            'pass':           True,   # never blocks — user decides risk
-            'reason':         reason,
-            'status':         status,
-            'caution':        caution,
-            'caution_weight': caution_weight,
+            'pass':                 True,   # never blocks — user decides risk
+            'reason':               reason,
+            'status':               status,
+            'caution':              caution,
+            'caution_weight':       caution_weight,
+            'strong_trend_required': strong_trend_required,
             # Extra flags for the response card
-            'is_weekend':     is_weekend,
-            'is_holiday':     is_holiday,
-            'holiday_name':   holiday_name,
-            'is_post_market': post_market,
-            'is_pre_market':  pre_market or opening_vol,
+            'is_weekend':           is_weekend,
+            'is_holiday':           is_holiday,
+            'holiday_name':         holiday_name,
+            'is_post_market':       post_market,
+            'is_pre_market':        pre_market or opening_vol,
         }
 
     # ------------------------------------------------------------------
@@ -1554,8 +1560,12 @@ class NiftyOptionsEngine:
         except Exception as e:
             logger.warning(f"Market regime filter error: {e}")
 
-        # Block only when 2+ chop conditions co-occur
-        blocked = len(chop_flags) >= 2
+        # Phase 1 graduated chop filter:
+        #   0 flags → no penalty
+        #   1 flag  → confidence −5 (applied in _confidence_score, signal permitted)
+        #   2 flags → confidence −10 (applied in _confidence_score, signal permitted)
+        #   3+ flags → hard NO TRADE block
+        blocked = len(chop_flags) >= 3
         reasons = []
         if blocked:
             reasons.append("Chop regime — " + " + ".join(chop_flags))
@@ -1564,6 +1574,7 @@ class NiftyOptionsEngine:
             'pass': not blocked,
             'reasons': reasons,
             'chop_flags': chop_flags,
+            'num_chop_flags': len(chop_flags),
             'soft_warnings': soft_warnings,
             'vol_expansion': vol_expansion,
             'vwap_distance_pct': round(abs(spot - vwap) / spot * 100.0, 3) if (spot and vwap) else 0,
@@ -2008,6 +2019,25 @@ class NiftyOptionsEngine:
         if regime and regime.get('vol_expansion'):
             score += 10
 
+        # Phase 1 — Chop regime graduated penalty (Step 6 / Step 8)
+        # 1 chop flag → −5, 2 chop flags → −10, 3+ flags → hard block (in _market_regime_filter)
+        _chop_count = len((regime or {}).get('chop_flags', []))
+        if _chop_count == 1:
+            score -= 5
+        elif _chop_count >= 2:
+            score -= 10
+
+        # Phase 1 — HalfTrend opposing penalty (was hard NO TRADE, now −10)
+        # Hard block removed from generate_analysis; penalty applied here instead.
+        if halftrend and halftrend.get('available'):
+            _ht_dir = halftrend.get('trend')
+            _ht_against = (
+                (_dir_now in ('BULLISH', 'BOTH') and _ht_dir == 'BEARISH') or
+                (_dir_now in ('BEARISH', 'BOTH') and _ht_dir == 'BULLISH')
+            )
+            if _ht_against:
+                score -= 10
+
         # VWAP-extension penalty: if spot too far from VWAP, entry is late
         try:
             vwap = direction.get('vwap', 0) or 0
@@ -2415,12 +2445,23 @@ class NiftyOptionsEngine:
             ema_data=strength.get('ema', {}),
         )
 
-        # ── ADX-based market regime classification ─────────────────────────────
-        # ADX < 20 = flat/sideways; VWAP/EMA/SuperTrend flip rapidly → high
-        # false-positive rate. Suppress ALL new entries to protect capital.
+        # ── ADX-based market regime classification (session-aware, Phase 1) ────
+        # Threshold relaxed earlier in the day when trends are still forming;
+        # tightened in the afternoon when chop/noise dominates.
+        #   Before 12:30 PM IST: ADX < 18 → flat
+        #   12:30–1:30 PM IST  : ADX < 20 → flat
+        #   After  1:30 PM IST : ADX < 22 → flat
         _adx_val = strength.get('adx', 22.0)
         _vol_expansion = regime.get('vol_expansion', False)
-        if _adx_val < 20.0:
+        _now_for_adx = datetime.now(IST)
+        _ct = _now_for_adx.time()
+        if _ct < dtime(12, 30):
+            _adx_flat_thr = 18.0
+        elif _ct < dtime(13, 30):
+            _adx_flat_thr = 20.0
+        else:
+            _adx_flat_thr = 22.0
+        if _adx_val < _adx_flat_thr:
             market_regime = 'flat'
         elif _adx_val >= 25.0 and _vol_expansion:
             market_regime = 'volatile'
@@ -2517,9 +2558,11 @@ class NiftyOptionsEngine:
                 f"Volume critically low ({_vol_ratio:.0%} of 20-bar avg) — chop/thin market, no participation"
             )
 
-        # HalfTrend lifecycle hand-off — when HalfTrend has flipped against
-        # the chosen direction, suppress new entries (existing positions move
-        # to the EXIT_MANAGED_BY_HALFTREND state below).
+        # Phase 1: HalfTrend opposing direction is now a confidence penalty (−10)
+        # rather than a hard NO TRADE block. The penalty is applied inside
+        # _confidence_score so the signal can still appear as SCAN (68–79)
+        # while being blocked from auto-execute (< 80 monitor gate).
+        # Log an advisory note when HalfTrend opposes.
         if (halftrend_state.get('available') and direction['direction'] != 'NEUTRAL'):
             ht_dir_now = halftrend_state.get('trend')
             ht_against = (
@@ -2527,9 +2570,8 @@ class NiftyOptionsEngine:
                 (direction['direction'] in ('BEARISH', 'BOTH') and ht_dir_now == 'BULLISH')
             )
             if ht_against and entry_mode != 'NO TRADE':
-                entry_mode = 'NO TRADE'
                 block_reasons.append(
-                    f"HalfTrend flipped {ht_dir_now} — opposes {direction['direction']} entry"
+                    f"HalfTrend advisory: flipped {ht_dir_now} — opposes {direction['direction']} (−10 confidence penalty)"
                 )
 
         bull_active    = direction.get('bull_active', False)
@@ -2540,8 +2582,8 @@ class NiftyOptionsEngine:
             block_reasons.append("No live option data — connect a Data API broker or check NSE connectivity")
         if market_regime == 'flat':
             block_reasons.append(
-                f"Flat market — ADX {_adx_val:.1f} (< 20): sideways conditions detected, "
-                f"all signals suppressed to protect capital"
+                f"Flat market — ADX {_adx_val:.1f} (below session threshold {_adx_flat_thr:.0f}): "
+                f"sideways conditions detected, all signals suppressed to protect capital"
             )
         # Time is always pass=True; caution reason shown as a card warning, not a block
         # Regime filter reasons (chop / vwap-distance / compression / overlap)
@@ -2605,12 +2647,22 @@ class NiftyOptionsEngine:
         if market_regime == 'flat':
             setup_state = 'NO_TRADE'
 
-        # Unified decision — confidence tiering (per product spec):
-        #   ≥75 : Tier 1 — High conviction (Telegram alerts)
-        #   70-74: Tier 2 — Regular signals shown in app/UI
-        #   <70 : Blocked — floor raised from 50 to eliminate low-quality trades
-        #   (historical data: 50-69 "aggressive" signals had disproportionate SL hits)
-        TIER_3_FLOOR = 70
+        # Phase 1 — Afternoon EARLY penalty (12:30–3:00 PM, strong_trend_required).
+        # EARLY entry without a fully-confirmed breakout gets −10 when the afternoon
+        # session requires strong trend confirmation. Was previously a hard NO TRADE.
+        if time_check.get('strong_trend_required') and entry_mode == 'EARLY':
+            confidence = max(0, confidence - 10)
+            block_reasons.append(
+                "Afternoon session (12:30–3:00 PM) — EARLY entry −10 confidence "
+                "(strong trend required; use CONFIRMED entry mode for full score)"
+            )
+
+        # Unified decision — Phase 1 confidence tiering:
+        #   ≥75 : HIGH_CONVICTION — Telegram alert + UI (monitor gate at 80)
+        #   70–74: REGULAR — UI only
+        #   68–69: STANDARD — UI only (new Phase 1 tier)
+        #   <68  : BLOCKED — below signal floor
+        TIER_3_FLOOR = 68   # Phase 1: lowered from 70 → more signals reach UI
         if entry_mode != 'NO TRADE' and confidence < TIER_3_FLOOR:
             block_reasons.append(f"Confidence too low ({confidence}/100, need {TIER_3_FLOOR}+)")
         is_blocked = entry_mode == 'NO TRADE' or confidence < TIER_3_FLOOR
@@ -2619,8 +2671,10 @@ class NiftyOptionsEngine:
         # Confidence tier label for UI
         if confidence >= 75:
             confidence_tier = 'HIGH_CONVICTION'
-        elif confidence >= TIER_3_FLOOR:
+        elif confidence >= 70:
             confidence_tier = 'REGULAR'
+        elif confidence >= TIER_3_FLOOR:
+            confidence_tier = 'STANDARD'
         else:
             confidence_tier = 'BLOCKED'
         if is_blocked and not block_reasons:

@@ -15,21 +15,18 @@ IST_OFFSET = timedelta(hours=5, minutes=30)
 
 # Telegram alerts only for Tier 1 (high-conviction) signals.
 # Tier 2 (60-74) and Tier 3 (50-59) are surfaced in the app/UI only.
-ALERT_CONFIDENCE_THRESHOLD = 75
+ALERT_CONFIDENCE_THRESHOLD = 75         # Tier 1 (HIGH_CONVICTION) → Telegram alert
 SIGNAL_COOLDOWN_MINUTES    = 10
-MAX_SIGNALS_PER_DAY        = 3          # target: 3 quality signals per index per day
-MAX_SIGNALS_TOTAL_PER_DAY  = 9          # 3 per index × ~3 active indices concurrently
+MAX_SIGNALS_PER_DAY        = 2          # Phase 1: 2 quality signals per index per day
+MAX_SIGNALS_TOTAL_PER_DAY  = 8          # 4 indices × 2 = 8 cross-index daily cap
 
 # Trade Lifecycle constants (shared across indices)
-# CONFIRMATION_CANDLES = 2: require two consecutive strong 60-second scans
-# before locking a trade. Adds ~60s entry delay but significantly reduces
-# false triggers in choppy/reversing markets (high SL-hit rate cause).
-CONFIRMATION_CANDLES    = 2
-ENTRY_COOLDOWN_MINUTES  = 90           # 90-min gap spreads 3 signals naturally across
-                                       # the session (~9:45, ~11:15, ~14:30 IST) and
-                                       # prevents clustering 3 signals in 45 minutes.
-TRADE_MIN_CONFIDENCE    = 82           # slightly relaxed from 85 — still high quality
-TRADE_MIN_ADX           = 25
+# CONFIRMATION_CANDLES = 3: require three consecutive strong 60-second scans
+# (~3 min) before locking a trade. Reduces false triggers vs previous 2-scan gate.
+CONFIRMATION_CANDLES    = 3
+ENTRY_COOLDOWN_MINUTES  = 90           # 90-min gap between trades per index
+TRADE_MIN_CONFIDENCE    = 80           # Phase 1: smoothed confidence ≥ 80 to lock trade
+TRADE_MIN_ADX           = 22           # Phase 1: ADX ≥ 22 at monitor gate (was 25)
 EOD_FORCE_EXIT_HOUR     = 15      # 3:00 PM IST — hard-close every open signal so
 EOD_FORCE_EXIT_MINUTE   = 0       # daily P&L is deterministic at end-of-day.
 ACTIVE_UPDATE_INTERVAL_MIN = 5   # How often to send Telegram updates while trade is live
@@ -499,11 +496,13 @@ def _dispatch_partner_webhook(signal_data: dict, index_id: str) -> None:
             return
 
         if confidence >= 75:
-            tier = 'HIGH'
-        elif confidence >= 60:
+            tier = 'HIGH_CONVICTION'
+        elif confidence >= 70:
             tier = 'REGULAR'
+        elif confidence >= 68:
+            tier = 'STANDARD'
         else:
-            tier = 'AGGRESSIVE'
+            tier = 'BLOCKED'
 
         payload = {
             'event':           sig_type,
@@ -909,7 +908,7 @@ def _send_email_alert(signal_data: dict, index_id: str) -> bool:
 
 # ── Alert gate ─────────────────────────────────────────────────────────────────
 
-SCAN_ALERT_MIN_CONFIDENCE = 70   # only broadcast SCAN signals at/above this
+SCAN_ALERT_MIN_CONFIDENCE = 68   # Phase 1: signal floor lowered to 68 (STANDARD tier)
 SCAN_ALERT_COOLDOWN_MIN   = 15   # min minutes between two SCAN telegrams (per index)
 SCAN_ALERT_MAX_PER_DAY    = 6    # safety cap (per index) — 3 entries + 3 exits
 
@@ -1176,12 +1175,14 @@ def _scan_index(app, idx: str, data_broker_user_id):
             logger.warning(f"[{idx}] Engine returned no analysis")
             return
 
-        # Flat market gate — ADX < 20 = sideways conditions.
+        # Flat market gate — session-aware ADX threshold (Phase 1):
+        #   Before 12:30: ADX < 18 | 12:30–13:30: ADX < 20 | After 13:30: ADX < 22
         # Skip all new signal generation, DB save, and Telegram alerts.
         # Exception: if a trade is ACTIVE we still monitor it for exits.
         if analysis.get('market_regime') == 'flat' and _trade_state[idx] != 'ACTIVE':
+            _adx_now = analysis.get('strength', {}).get('adx', 0)
             logger.info(
-                f"[{idx}] 🟡 Flat market (ADX={analysis.get('strength', {}).get('adx', 0):.1f} < 20) "
+                f"[{idx}] 🟡 Flat market (ADX={_adx_now:.1f}, session-aware threshold) "
                 f"— signals suppressed, skipping scan"
             )
             return
@@ -1325,7 +1326,7 @@ def _scan_index(app, idx: str, data_broker_user_id):
                             _persist_alert_state(idx)
                     _dispatch_partner_webhook(analysis, idx)
 
-                elif analysis.get('entry_mode') != 'NO TRADE' and smoothed >= 60:
+                elif analysis.get('entry_mode') != 'NO TRADE' and smoothed >= 68:
                     signal_type             = 'SCAN'
                     analysis['signal_type'] = 'SCAN'
                     # Broadcast high-confidence directional SCAN to Telegram
