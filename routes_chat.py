@@ -272,15 +272,31 @@ def _import_holdings_from_chat(file_bytes, user):
     # ── 2. Invalidate cache so PIE sees fresh data ────────────────────────────
     PortfolioIntelligenceEngine.invalidate_cache(user.id)
 
-    # ── 3. Run Portfolio Intelligence Engine ─────────────────────────────────
+    # ── 3. Run Portfolio Intelligence Engine (hard cap: 22 s) ─────────────────
+    # PIE fetches live prices (up to 10 s) + one Claude narrative call (up to 18 s).
+    # Using the safe ThreadPoolExecutor pattern (no `with` — avoids __exit__ hang).
+    import concurrent.futures as _cf_pie
     engine = PortfolioIntelligenceEngine(user_id=user.id)
+
+    def _run_pie():
+        return engine.generate_report()
+
+    _ex_pie = _cf_pie.ThreadPoolExecutor(max_workers=1)
+    _fut_pie = _ex_pie.submit(_run_pie)
     try:
-        pir = engine.generate_report()
-    except Exception as exc:
-        logger.error(f'chat holdings PIE error: {exc}', exc_info=True)
-        # Fall back to a plain import-confirmation card on PIE failure
+        pir = _fut_pie.result(timeout=22)
+    except _cf_pie.TimeoutError:
+        logger.warning(f'chat holdings PIE timed out (22 s) for user {user.id}')
+        _ex_pie.shutdown(wait=False)
         return _holdings_import_prose(broker_label, imported, updated,
                                       deactivated, unresolved)
+    except Exception as exc:
+        logger.error(f'chat holdings PIE error: {exc}', exc_info=True)
+        _ex_pie.shutdown(wait=False)
+        return _holdings_import_prose(broker_label, imported, updated,
+                                      deactivated, unresolved)
+    finally:
+        _ex_pie.shutdown(wait=False)
 
     if not pir.get('has_holdings'):
         return _holdings_import_prose(broker_label, imported, updated,

@@ -168,12 +168,23 @@ class PortfolioIntelligenceEngine:
             source_string: dominant source label from the gateway
               (one of 'admin_broker', 'truedata', 'nse', 'yfinance', 'estimated',
                or 'unavailable' when the entire call fails)
+
+        Hard-capped at 10 s so a slow yfinance / DNS-blocked NSEPython on Railway
+        cannot stall the entire portfolio report (gunicorn default timeout = 30 s).
         """
         if not symbols:
             return {}, 'unavailable'
-        try:
+
+        import concurrent.futures as _cf
+
+        def _do_fetch():
             from services.market_data_gateway import get_quotes
-            result  = get_quotes(list(symbols), user_id=self.user_id)
+            return get_quotes(list(symbols), user_id=self.user_id)
+
+        _ex = _cf.ThreadPoolExecutor(max_workers=1)
+        _fut = _ex.submit(_do_fetch)
+        try:
+            result  = _fut.result(timeout=10)
             quotes  = result.get('quotes', {})
             prices  = {
                 sym: float(q['price'])
@@ -187,9 +198,17 @@ class PortfolioIntelligenceEngine:
                 f"{covered}/{len(symbols)} symbols via {source}"
             )
             return prices, source
+        except _cf.TimeoutError:
+            logger.warning(
+                f"portfolio_intelligence: live price fetch timed out after 10 s "
+                f"for {len(symbols)} symbols — using stored prices"
+            )
+            return {}, 'unavailable'
         except Exception as exc:
             logger.warning(f"portfolio_intelligence: live price fetch failed: {exc}")
             return {}, 'unavailable'
+        finally:
+            _ex.shutdown(wait=False)
 
     # ── Data loaders ──────────────────────────────────────────────────────────
 
@@ -690,22 +709,35 @@ class PortfolioIntelligenceEngine:
             '}'
         )
 
-        try:
+        import concurrent.futures as _cf_n
+
+        def _do_llm():
             from services.llm_client import get_llm_client, Model
-            llm    = get_llm_client()
-            result = llm.structured_output(
+            llm = get_llm_client()
+            return llm.structured_output(
                 [{'role': 'user', 'content': prompt}],
                 max_tokens=1400,
                 temperature=0.2,
                 model=Model.FAST,
             )
+
+        _ex_n = _cf_n.ThreadPoolExecutor(max_workers=1)
+        _fut_n = _ex_n.submit(_do_llm)
+        try:
+            result = _fut_n.result(timeout=18)
             if result:
                 return result
             raise ValueError('empty structured_output')
+        except _cf_n.TimeoutError:
+            logger.warning("portfolio_intelligence: AI narrative timed out after 18 s — using fallback")
+            return self._fallback_narrative(holding_cards, missing_sectors,
+                                            sub_scores, pi_score, snapshot)
         except Exception as exc:
             logger.warning(f"portfolio_intelligence: LLM call failed: {exc}")
             return self._fallback_narrative(holding_cards, missing_sectors,
                                             sub_scores, pi_score, snapshot)
+        finally:
+            _ex_n.shutdown(wait=False)
 
     def _fallback_narrative(self, holding_cards: List[Dict],
                              missing_sectors: List[str],
